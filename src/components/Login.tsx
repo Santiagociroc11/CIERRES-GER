@@ -20,22 +20,27 @@ export default function Login({ onLogin }: LoginProps) {
     try {
       // Primero verificar si es un administrador
       const { data: adminData, error: adminError } = await supabase
-        .from('GERSSON_ADMINS')
+        .from('gersson_admins')
         .select('*')
-        .eq('WHATSAPP', whatsapp)
+        .eq('whatsapp', whatsapp)
         .single();
 
+      if (adminError && adminError.code !== 'PGRST116') {
+        console.log('Error al buscar admin:', adminError);
+      }
+
       if (adminData) {
-        onLogin({
-          ID: adminData.ID,
-          NOMBRE: adminData.NOMBRE,
-          WHATSAPP: adminData.WHATSAPP,
+        const adminUser: Asesor = {
+          ID: adminData.id,
+          NOMBRE: adminData.nombre,
+          WHATSAPP: adminData.whatsapp,
           LINK: 0,
           RECHAZADOS: 0,
           CARRITOS: 0,
           TICKETS: 0,
           ES_ADMIN: true
-        }, true);
+        };
+        onLogin(adminUser, true);
         return;
       }
 
@@ -46,18 +51,29 @@ export default function Login({ onLogin }: LoginProps) {
         .eq('WHATSAPP', whatsapp)
         .single();
 
-      if (asesorError || !asesorData) {
+      if (asesorError && asesorError.code !== 'PGRST116') {
+        console.log('Error al buscar asesor:', asesorError);
+      }
+
+      if (!asesorData) {
         setError('Usuario no encontrado');
         return;
       }
 
       onLogin(asesorData, false);
     } catch (err) {
+      console.error('Error completo:', err);
       setError('Error al iniciar sesión');
-      console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleWhatsAppChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Limpiar el número de WhatsApp
+    value = value.replace(/\D/g, '');
+    setWhatsapp(value);
   };
 
   return (
@@ -68,6 +84,9 @@ export default function Login({ onLogin }: LoginProps) {
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Acceso al Sistema
           </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Ingresa con tu número de WhatsApp
+          </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div>
@@ -81,15 +100,15 @@ export default function Login({ onLogin }: LoginProps) {
                 type="text"
                 required
                 value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
+                onChange={handleWhatsAppChange}
                 className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ingresa tu número de WhatsApp"
+                placeholder="Solo números, sin espacios ni símbolos"
               />
             </div>
           </div>
 
           {error && (
-            <div className="text-red-600 text-sm">
+            <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-md p-3">
               {error}
             </div>
           )}

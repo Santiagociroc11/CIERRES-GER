@@ -23,13 +23,14 @@ export default function SeguimientosClientes({
     window.open(`https://wa.me/${numeroLimpio}`, '_blank');
   };
 
-  // Filtrar y agrupar reportes
-  const reportesFiltrados = reportes.filter(reporte => 
-    reporte.FECHA_SEGUIMIENTO && 
-    (mostrarCompletados ? reporte.COMPLETADO : !reporte.COMPLETADO) &&
-    // No mostrar seguimientos de clientes que ya están marcados como PAGADO
-    reporte.ESTADO_NUEVO !== 'PAGADO'
-  );
+  // Filtrar reportes
+  const reportesFiltrados = reportes.filter(reporte => {
+    // Solo mostrar reportes con fecha de seguimiento
+    if (!reporte.FECHA_SEGUIMIENTO) return false;
+
+    // Filtrar por estado de completado
+    return mostrarCompletados ? reporte.COMPLETADO : !reporte.COMPLETADO;
+  });
 
   // Agrupar reportes por fecha
   const reportesPorFecha = reportesFiltrados.reduce((acc, reporte) => {
@@ -53,8 +54,7 @@ export default function SeguimientosClientes({
   const contarSeguimientos = (completados: boolean) => {
     return reportes.filter(r => 
       r.FECHA_SEGUIMIENTO && 
-      r.COMPLETADO === completados &&
-      r.ESTADO_NUEVO !== 'PAGADO' // No contar seguimientos de clientes PAGADO
+      r.COMPLETADO === completados
     ).length;
   };
 

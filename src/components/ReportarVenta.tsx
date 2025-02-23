@@ -66,15 +66,15 @@ export default function ReportarVenta({ cliente, asesor, onComplete, onClose }: 
         }
       }
 
-      // Eliminar todos los seguimientos pendientes
+      // Eliminar todos los seguimientos pendientes del cliente
       const { error: seguimientosError } = await supabase
         .from('GERSSON_REPORTES')
-        .delete()
+        .update({ COMPLETADO: true })
         .eq('ID_CLIENTE', cliente.ID)
         .eq('COMPLETADO', false)
         .not('FECHA_SEGUIMIENTO', 'is', null);
 
-      if (seguimientosError) throw new Error(`Error al eliminar seguimientos: ${seguimientosError.message}`);
+      if (seguimientosError) throw new Error(`Error al actualizar seguimientos: ${seguimientosError.message}`);
 
       // Crear nuevo reporte de venta
       const { error: reporteError } = await supabase

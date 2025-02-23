@@ -44,14 +44,20 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
   const cargarDatos = async () => {
     try {
+      console.log('Cargando datos para asesor:', asesor.ID);
+
       // Cargar clientes del asesor
       const { data: clientesData, error: clientesError } = await supabase
         .from('GERSSON_CLIENTES')
         .select('*')
-        .eq('ID_ASESOR', asesor.ID)
-        .order('FECHA_CREACION', { ascending: false });
+        .eq('ID_ASESOR', asesor.ID);
 
-      if (clientesError) throw clientesError;
+      if (clientesError) {
+        console.error('Error al cargar clientes:', clientesError);
+        throw clientesError;
+      }
+
+      console.log('Clientes cargados:', clientesData?.length || 0);
 
       // Cargar reportes del asesor
       const { data: reportesData, error: reportesError } = await supabase
@@ -63,67 +69,90 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         .eq('ID_ASESOR', asesor.ID)
         .order('FECHA_SEGUIMIENTO', { ascending: true });
 
-      if (reportesError) throw reportesError;
+      if (reportesError) {
+        console.error('Error al cargar reportes:', reportesError);
+        throw reportesError;
+      }
+
+      console.log('Reportes cargados:', reportesData?.length || 0);
 
       if (clientesData && reportesData) {
-        // Filtrar clientes pagados sin reportes
-        const clientesFiltrados = clientesData.filter(cliente => {
+        // Procesar clientes y sus estados
+        const clientesProcesados = clientesData.map(cliente => {
+          // Si el cliente está marcado como PAGADO por el backend
           if (cliente.ESTADO === 'PAGADO') {
-            // Solo mostrar si tiene al menos un reporte
-            return reportesData.some(r => r.ID_CLIENTE === cliente.ID);
+            // Verificar si el asesor ha reportado la venta
+            const tieneReporteVenta = reportesData.some(r =>
+              r.ID_CLIENTE === cliente.ID &&
+              r.ESTADO_NUEVO === 'PAGADO'
+            );
+
+            if (!tieneReporteVenta) {
+              // Buscar el último estado reportado por el asesor
+              const ultimoReporte = reportesData
+                .filter(r => r.ID_CLIENTE === cliente.ID)
+                .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
+
+              // Si hay un reporte previo, usar ese estado
+              if (ultimoReporte) {
+                return { ...cliente, ESTADO: ultimoReporte.ESTADO_NUEVO };
+              }
+            }
           }
-          return true;
+          return cliente;
         });
 
-        setClientes(clientesFiltrados);
+        console.log('Clientes procesados:', clientesProcesados.length);
+
+        setClientes(clientesProcesados);
         setReportes(reportesData);
 
-        // Filtrar clientes sin reporte (excluyendo los pagados sin reporte)
+        // Filtrar clientes sin reporte
         const clientesConReporte = new Set(reportesData.map(r => r.ID_CLIENTE));
-        const clientesSinReporteFiltrados = clientesFiltrados.filter(c => 
-          !clientesConReporte.has(c.ID) && c.ESTADO !== 'PAGADO'
+        const clientesSinReporteFiltrados = clientesProcesados.filter(c =>
+          !clientesConReporte.has(c.ID)
         );
         setClientesSinReporte(clientesSinReporteFiltrados);
 
         // Calcular estadísticas
         const ventasRealizadas = reportesData.filter(r => r.ESTADO_NUEVO === 'PAGADO').length;
-        const seguimientosPendientes = reportesData.filter(r => 
-          r.FECHA_SEGUIMIENTO && 
-          !r.COMPLETADO && 
+        const seguimientosPendientes = reportesData.filter(r =>
+          r.FECHA_SEGUIMIENTO &&
+          !r.COMPLETADO &&
           r.FECHA_SEGUIMIENTO >= Math.floor(Date.now() / 1000)
         ).length;
         const seguimientosCompletados = reportesData.filter(r => r.COMPLETADO).length;
         const totalSeguimientos = seguimientosPendientes + seguimientosCompletados;
 
         // Calcular tiempo promedio de conversión
-        const ventasConFecha = reportesData.filter(r => 
-          r.ESTADO_NUEVO === 'PAGADO' && 
-          r.cliente?.FECHA_CREACION && 
+        const ventasConFecha = reportesData.filter(r =>
+          r.ESTADO_NUEVO === 'PAGADO' &&
+          r.cliente?.FECHA_CREACION &&
           r.FECHA_REPORTE
         );
-        
-        const tiempoPromedioConversion = ventasConFecha.length > 0 
+
+        const tiempoPromedioConversion = ventasConFecha.length > 0
           ? ventasConFecha.reduce((acc, venta) => {
-              const tiempoConversion = venta.FECHA_REPORTE - 
-                (typeof venta.cliente?.FECHA_CREACION === 'string' 
-                  ? parseInt(venta.cliente.FECHA_CREACION) 
-                  : venta.cliente?.FECHA_CREACION || 0);
-              return acc + tiempoConversion;
-            }, 0) / ventasConFecha.length / (24 * 60 * 60) // Convertir a días
+            const tiempoConversion = venta.FECHA_REPORTE -
+              (typeof venta.cliente?.FECHA_CREACION === 'string'
+                ? parseInt(venta.cliente.FECHA_CREACION)
+                : venta.cliente?.FECHA_CREACION || 0);
+            return acc + tiempoConversion;
+          }, 0) / ventasConFecha.length / (24 * 60 * 60) // Convertir a días
           : 0;
 
         // Calcular tasa de respuesta
-        const tasaRespuesta = totalSeguimientos > 0 
-          ? (seguimientosCompletados / totalSeguimientos) * 100 
+        const tasaRespuesta = totalSeguimientos > 0
+          ? (seguimientosCompletados / totalSeguimientos) * 100
           : 0;
 
         setEstadisticas({
-          totalClientes: clientesFiltrados.length,
+          totalClientes: clientesProcesados.length,
           clientesReportados: clientesConReporte.size,
           ventasRealizadas,
           seguimientosPendientes,
           seguimientosCompletados,
-          porcentajeCierre: clientesFiltrados.length ? (ventasRealizadas / clientesFiltrados.length) * 100 : 0,
+          porcentajeCierre: clientesProcesados.length ? (ventasRealizadas / clientesProcesados.length) * 100 : 0,
           ventasPorMes: ventasRealizadas,
           tiempoPromedioConversion,
           tasaRespuesta
@@ -184,22 +213,20 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           <div className="flex space-x-4 border-b border-gray-200">
             <button
               onClick={() => setVistaActual('general')}
-              className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                vistaActual === 'general'
+              className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'general'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               <List className="inline-block h-5 w-5 mr-2" />
               Vista General
             </button>
             <button
               onClick={() => setVistaActual('seguimientos')}
-              className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                vistaActual === 'seguimientos'
+              className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'seguimientos'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               <Clock className="inline-block h-5 w-5 mr-2" />
               Seguimientos
@@ -211,11 +238,10 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             </button>
             <button
               onClick={() => setVistaActual('estadisticas')}
-              className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                vistaActual === 'estadisticas'
+              className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'estadisticas'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               <TrendingUp className="inline-block h-5 w-5 mr-2" />
               Estadísticas

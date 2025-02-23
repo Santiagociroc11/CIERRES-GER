@@ -53,18 +53,6 @@ export default function ActualizarEstadoCliente({
 
       if (clienteError) throw clienteError;
 
-      // Si el estado es PAGADO, marcar todos los seguimientos pendientes como completados
-      if (estado === 'PAGADO') {
-        const { error: seguimientosError } = await supabase
-          .from('GERSSON_REPORTES')
-          .update({ COMPLETADO: true })
-          .eq('ID_CLIENTE', cliente.ID)
-          .eq('COMPLETADO', false)
-          .not('FECHA_SEGUIMIENTO', 'is', null);
-
-        if (seguimientosError) throw seguimientosError;
-      }
-
       onComplete();
     } catch (error) {
       console.error('Error al crear reporte:', error);
@@ -98,7 +86,6 @@ export default function ActualizarEstadoCliente({
               <option value="SEGUIMIENTO">En Seguimiento</option>
               <option value="NO INTERESADO">No Interesado</option>
               <option value="NO CONTESTÓ">No Contestó</option>
-              <option value="PAGADO">Pagado</option>
             </select>
           </div>
 
@@ -115,36 +102,32 @@ export default function ActualizarEstadoCliente({
             />
           </div>
 
-          {estado !== 'PAGADO' && (
-            <>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="seguimiento"
-                  checked={requiereSeguimiento}
-                  onChange={(e) => setRequiereSeguimiento(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="seguimiento" className="text-sm font-medium text-gray-700">
-                  Requiere Seguimiento
-                </label>
-              </div>
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="seguimiento"
+              checked={requiereSeguimiento}
+              onChange={(e) => setRequiereSeguimiento(e.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="seguimiento" className="text-sm font-medium text-gray-700">
+              Requiere Seguimiento
+            </label>
+          </div>
 
-              {requiereSeguimiento && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Fecha de Seguimiento
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={fechaSeguimiento}
-                    onChange={(e) => setFechaSeguimiento(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-              )}
-            </>
+          {requiereSeguimiento && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Fecha de Seguimiento
+              </label>
+              <input
+                type="datetime-local"
+                value={fechaSeguimiento}
+                onChange={(e) => setFechaSeguimiento(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                required
+              />
+            </div>
           )}
 
           <button

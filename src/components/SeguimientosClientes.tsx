@@ -23,8 +23,18 @@ export default function SeguimientosClientes({
     window.open(`https://wa.me/${numeroLimpio}`, '_blank');
   };
 
+  // Obtener clientes con venta reportada
+  const clientesConVenta = new Set(
+    reportes
+      .filter(r => r.ESTADO_NUEVO === 'PAGADO')
+      .map(r => r.ID_CLIENTE)
+  );
+
   // Filtrar reportes
   const reportesFiltrados = reportes.filter(reporte => {
+    // No mostrar seguimientos de clientes con venta reportada
+    if (clientesConVenta.has(reporte.ID_CLIENTE)) return false;
+    
     // Solo mostrar reportes con fecha de seguimiento
     if (!reporte.FECHA_SEGUIMIENTO) return false;
 
@@ -54,7 +64,8 @@ export default function SeguimientosClientes({
   const contarSeguimientos = (completados: boolean) => {
     return reportes.filter(r => 
       r.FECHA_SEGUIMIENTO && 
-      r.COMPLETADO === completados
+      r.COMPLETADO === completados &&
+      !clientesConVenta.has(r.ID_CLIENTE)
     ).length;
   };
 
@@ -165,7 +176,7 @@ export default function SeguimientosClientes({
                           Contactar
                         </button>
                         
-                        {!mostrarCompletados && (
+                        {!mostrarCompletados && !clientesConVenta.has(reporte.ID_CLIENTE) && (
                           <>
                             <button
                               onClick={() => onActualizarEstado(reporte.cliente!)}
@@ -206,7 +217,7 @@ export default function SeguimientosClientes({
                           Contactar
                         </button>
                         
-                        {!mostrarCompletados && (
+                        {!mostrarCompletados && !clientesConVenta.has(reporte.ID_CLIENTE) && (
                           <>
                             <button
                               onClick={() => {

@@ -4,7 +4,7 @@ import { Asesor } from '../types';
 import { UserCheck } from 'lucide-react';
 
 interface LoginProps {
-  onLogin: (asesor: Asesor) => void;
+  onLogin: (asesor: Asesor, isAdmin: boolean) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -18,19 +18,40 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
 
     try {
-      const { data, error } = await supabase
+      // Primero verificar si es un administrador
+      const { data: adminData, error: adminError } = await supabase
+        .from('GERSSON_ADMINS')
+        .select('*')
+        .eq('WHATSAPP', whatsapp)
+        .single();
+
+      if (adminData) {
+        onLogin({
+          ID: adminData.ID,
+          NOMBRE: adminData.NOMBRE,
+          WHATSAPP: adminData.WHATSAPP,
+          LINK: 0,
+          RECHAZADOS: 0,
+          CARRITOS: 0,
+          TICKETS: 0,
+          ES_ADMIN: true
+        }, true);
+        return;
+      }
+
+      // Si no es admin, verificar si es asesor
+      const { data: asesorData, error: asesorError } = await supabase
         .from('GERSSON_ASESORES')
         .select('*')
         .eq('WHATSAPP', whatsapp)
         .single();
 
-      if (error) throw error;
-      if (!data) {
-        setError('Asesor no encontrado');
+      if (asesorError || !asesorData) {
+        setError('Usuario no encontrado');
         return;
       }
 
-      onLogin(data);
+      onLogin(asesorData, false);
     } catch (err) {
       setError('Error al iniciar sesión');
       console.error(err);
@@ -45,7 +66,7 @@ export default function Login({ onLogin }: LoginProps) {
         <div className="text-center">
           <UserCheck className="mx-auto h-12 w-12 text-blue-500" />
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            Acceso para Asesores
+            Acceso al Sistema
           </h2>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>

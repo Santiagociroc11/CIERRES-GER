@@ -9,25 +9,9 @@ function App() {
   const [asesorActual, setAsesorActual] = useState<Asesor | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const handleLogin = async (asesor: Asesor) => {
-    try {
-      // Verificar si el asesor es administrador
-      const { data: adminData, error: adminError } = await supabase
-        .from('GERSSON_ASESORES')
-        .select('ES_ADMIN')
-        .eq('ID', asesor.ID)
-        .single();
-
-      if (adminError) throw adminError;
-
-      setIsAdmin(adminData?.ES_ADMIN || false);
-      setAsesorActual(asesor);
-    } catch (error) {
-      console.error('Error al verificar rol de administrador:', error);
-      // Si hay un error, asumimos que no es admin por seguridad
-      setIsAdmin(false);
-      setAsesorActual(asesor);
-    }
+  const handleLogin = async (asesor: Asesor, isAdmin: boolean) => {
+    setAsesorActual(asesor);
+    setIsAdmin(isAdmin);
   };
 
   if (!asesorActual) {

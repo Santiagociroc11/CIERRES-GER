@@ -26,7 +26,9 @@ export default function SeguimientosClientes({
   // Filtrar y agrupar reportes
   const reportesFiltrados = reportes.filter(reporte => 
     reporte.FECHA_SEGUIMIENTO && 
-    (mostrarCompletados ? reporte.COMPLETADO : !reporte.COMPLETADO)
+    (mostrarCompletados ? reporte.COMPLETADO : !reporte.COMPLETADO) &&
+    // No mostrar seguimientos de clientes que ya están marcados como PAGADO
+    reporte.ESTADO_NUEVO !== 'PAGADO'
   );
 
   // Agrupar reportes por fecha
@@ -50,7 +52,9 @@ export default function SeguimientosClientes({
 
   const contarSeguimientos = (completados: boolean) => {
     return reportes.filter(r => 
-      r.FECHA_SEGUIMIENTO && r.COMPLETADO === completados
+      r.FECHA_SEGUIMIENTO && 
+      r.COMPLETADO === completados &&
+      r.ESTADO_NUEVO !== 'PAGADO' // No contar seguimientos de clientes PAGADO
     ).length;
   };
 

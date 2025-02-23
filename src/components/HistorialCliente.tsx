@@ -1,7 +1,8 @@
-import React from 'react';
-import { Cliente, Reporte } from '../types';
-import { Clock, MessageSquare, DollarSign, AlertCircle, CheckCircle, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Cliente, Reporte, Registro } from '../types';
+import { Clock, MessageSquare, DollarSign, AlertCircle, CheckCircle, X, Activity } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
+import { supabase } from '../lib/supabase';
 
 interface HistorialClienteProps {
   cliente: Cliente;
@@ -10,7 +11,43 @@ interface HistorialClienteProps {
 }
 
 export default function HistorialCliente({ cliente, reportes, onClose }: HistorialClienteProps) {
-  const reportesOrdenados = [...reportes].sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE);
+  const [registros, setRegistros] = useState<Registro[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    cargarRegistros();
+  }, [cliente.ID]);
+
+  const cargarRegistros = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('GERSSON_REGISTROS')
+        .select('*')
+        .eq('ID_CLIENTE', cliente.ID)
+        .order('FECHA_EVENTO', { ascending: false });
+
+      if (error) throw error;
+      setRegistros(data || []);
+    } catch (error) {
+      console.error('Error al cargar registros:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Combinar reportes y registros en una sola línea de tiempo
+  const timelineItems = [
+    ...reportes.map(reporte => ({
+      tipo: 'reporte',
+      fecha: reporte.FECHA_REPORTE,
+      data: reporte
+    })),
+    ...registros.map(registro => ({
+      tipo: 'registro',
+      fecha: parseInt(registro.FECHA_EVENTO),
+      data: registro
+    }))
+  ].sort((a, b) => b.fecha - a.fecha);
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -66,86 +103,116 @@ export default function HistorialCliente({ cliente, reportes, onClose }: Histori
               Línea de tiempo de interacciones
             </h3>
 
-            <div className="space-y-6">
-              {reportesOrdenados.map((reporte, index) => (
-                <div 
-                  key={reporte.ID} 
-                  className={`relative pb-6 ${
-                    index !== reportesOrdenados.length - 1 ? 'border-l-2 border-gray-200 ml-3' : ''
-                  }`}
-                >
-                  <div className="relative flex items-start">
-                    <div className="absolute -left-3.5 mt-1.5">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                        reporte.ESTADO_NUEVO === 'PAGADO' 
-                          ? 'bg-green-100' 
-                          : 'bg-blue-100'
-                      }`}>
-                        {reporte.ESTADO_NUEVO === 'PAGADO' ? (
-                          <DollarSign className="h-4 w-4 text-green-600" />
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-gray-500">Cargando historial...</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {timelineItems.map((item, index) => (
+                  <div 
+                    key={`${item.tipo}-${item.data.ID}`} 
+                    className={`relative pb-6 ${
+                      index !== timelineItems.length - 1 ? 'border-l-2 border-gray-200 ml-3' : ''
+                    }`}
+                  >
+                    <div className="relative flex items-start">
+                      <div className="absolute -left-3.5 mt-1.5">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                          item.tipo === 'registro' 
+                            ? 'bg-purple-100' 
+                            : item.data.ESTADO_NUEVO === 'PAGADO'
+                              ? 'bg-green-100'
+                              : 'bg-blue-100'
+                        }`}>
+                          {item.tipo === 'registro' ? (
+                            <Activity className="h-4 w-4 text-purple-600" />
+                          ) : item.data.ESTADO_NUEVO === 'PAGADO' ? (
+                            <DollarSign className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <MessageSquare className="h-4 w-4 text-blue-600" />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="ml-6">
+                        {item.tipo === 'registro' ? (
+                          // Renderizar evento del backend
+                          <div>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex items-center flex-wrap gap-2">
+                                <span className="text-sm font-medium text-purple-600">
+                                  {item.data.TIPO_EVENTO}
+                                </span>
+                              </div>
+                              <span className="text-sm text-gray-500 mt-1 sm:mt-0">
+                                {formatDate(parseInt(item.data.FECHA_EVENTO))}
+                              </span>
+                            </div>
+                          </div>
                         ) : (
-                          <MessageSquare className="h-4 w-4 text-blue-600" />
+                          // Renderizar reporte del asesor
+                          <div>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex items-center flex-wrap gap-2">
+                                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+                                  getEstadoColor(item.data.ESTADO_NUEVO)
+                                }`}>
+                                  {item.data.ESTADO_NUEVO}
+                                </span>
+                                {item.data.ESTADO_ANTERIOR && (
+                                  <span className="text-sm text-gray-500">
+                                    (Anterior: {item.data.ESTADO_ANTERIOR})
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-sm text-gray-500 mt-1 sm:mt-0">
+                                {formatDate(item.data.FECHA_REPORTE)}
+                              </span>
+                            </div>
+                            
+                            <p className="mt-2 text-sm text-gray-900">{item.data.COMENTARIO}</p>
+                            
+                            {item.data.FECHA_SEGUIMIENTO && (
+                              <div className="mt-2 flex items-center space-x-2 text-sm bg-blue-50 p-2 rounded-md">
+                                <Clock className="h-4 w-4 text-blue-500" />
+                                <span className="text-blue-700">
+                                  Seguimiento: {formatDate(item.data.FECHA_SEGUIMIENTO)}
+                                </span>
+                                {item.data.COMPLETADO && (
+                                  <CheckCircle className="h-4 w-4 text-green-500" />
+                                )}
+                              </div>
+                            )}
+
+                            {item.data.IMAGEN_PAGO_URL && (
+                              <div className="mt-2">
+                                <a
+                                  href={item.data.IMAGEN_PAGO_URL}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100"
+                                >
+                                  <DollarSign className="h-4 w-4 mr-1" />
+                                  Ver comprobante de pago
+                                </a>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
-
-                    <div className="ml-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center flex-wrap gap-2">
-                          <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-                            getEstadoColor(reporte.ESTADO_NUEVO)
-                          }`}>
-                            {reporte.ESTADO_NUEVO}
-                          </span>
-                          {reporte.ESTADO_ANTERIOR && (
-                            <span className="text-sm text-gray-500">
-                              (Anterior: {reporte.ESTADO_ANTERIOR})
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-sm text-gray-500 mt-1 sm:mt-0">
-                          {formatDate(reporte.FECHA_REPORTE)}
-                        </span>
-                      </div>
-                      
-                      <p className="mt-2 text-sm text-gray-900">{reporte.COMENTARIO}</p>
-                      
-                      {reporte.FECHA_SEGUIMIENTO && (
-                        <div className="mt-2 flex items-center space-x-2 text-sm bg-blue-50 p-2 rounded-md">
-                          <Clock className="h-4 w-4 text-blue-500" />
-                          <span className="text-blue-700">
-                            Seguimiento: {formatDate(reporte.FECHA_SEGUIMIENTO)}
-                          </span>
-                          {reporte.COMPLETADO && (
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                          )}
-                        </div>
-                      )}
-
-                      {reporte.IMAGEN_PAGO_URL && (
-                        <div className="mt-2">
-                          <a
-                            href={reporte.IMAGEN_PAGO_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100"
-                          >
-                            <DollarSign className="h-4 w-4 mr-1" />
-                            Ver comprobante de pago
-                          </a>
-                        </div>
-                      )}
-                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
 
-              {reportesOrdenados.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No hay registros de interacciones con este cliente
-                </div>
-              )}
-            </div>
+                {timelineItems.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No hay registros de interacciones con este cliente
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Pie del modal */}

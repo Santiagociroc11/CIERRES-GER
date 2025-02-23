@@ -53,10 +53,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
       if (clientesError) throw clientesError;
 
-      if (clientesData) {
-        setClientes(clientesData);
-      }
-
       // Cargar reportes del asesor
       const { data: reportesData, error: reportesError } = await supabase
         .from('GERSSON_REPORTES')
@@ -69,12 +65,25 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
       if (reportesError) throw reportesError;
 
-      if (reportesData) {
+      if (clientesData && reportesData) {
+        // Filtrar clientes pagados sin reportes
+        const clientesFiltrados = clientesData.filter(cliente => {
+          if (cliente.ESTADO === 'PAGADO') {
+            // Solo mostrar si tiene al menos un reporte
+            return reportesData.some(r => r.ID_CLIENTE === cliente.ID);
+          }
+          return true;
+        });
+
+        setClientes(clientesFiltrados);
         setReportes(reportesData);
 
-        // Filtrar clientes sin reporte
+        // Filtrar clientes sin reporte (excluyendo los pagados sin reporte)
         const clientesConReporte = new Set(reportesData.map(r => r.ID_CLIENTE));
-        setClientesSinReporte(clientesData?.filter(c => !clientesConReporte.has(c.ID)) || []);
+        const clientesSinReporteFiltrados = clientesFiltrados.filter(c => 
+          !clientesConReporte.has(c.ID) && c.ESTADO !== 'PAGADO'
+        );
+        setClientesSinReporte(clientesSinReporteFiltrados);
 
         // Calcular estadísticas
         const ventasRealizadas = reportesData.filter(r => r.ESTADO_NUEVO === 'PAGADO').length;
@@ -109,12 +118,12 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           : 0;
 
         setEstadisticas({
-          totalClientes: clientesData?.length || 0,
+          totalClientes: clientesFiltrados.length,
           clientesReportados: clientesConReporte.size,
           ventasRealizadas,
           seguimientosPendientes,
           seguimientosCompletados,
-          porcentajeCierre: clientesData?.length ? (ventasRealizadas / clientesData.length) * 100 : 0,
+          porcentajeCierre: clientesFiltrados.length ? (ventasRealizadas / clientesFiltrados.length) * 100 : 0,
           ventasPorMes: ventasRealizadas,
           tiempoPromedioConversion,
           tasaRespuesta

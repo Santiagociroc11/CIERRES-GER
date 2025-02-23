@@ -41,6 +41,13 @@ export interface Reporte {
   cliente?: Cliente;
 }
 
+export interface Registro {
+  ID: number;
+  ID_CLIENTE: number;
+  TIPO_EVENTO: string;
+  FECHA_EVENTO: string;
+}
+
 export interface EstadisticasAsesor {
   totalClientes: number;
   clientesReportados: number;

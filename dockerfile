@@ -11,6 +11,16 @@ RUN npm install --frozen-lockfile
 # Copia el resto del código fuente
 COPY . .
 
+# Definir las variables de entorno en el build
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
+# Construir la aplicación Vite con las variables de entorno
+RUN VITE_SUPABASE_URL=$VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY npm run build
+
+
 # Instalar `serve` para servir la aplicación en producción
 RUN npm install -g serve
 

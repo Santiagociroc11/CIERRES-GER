@@ -1,24 +1,43 @@
-import React, { useState } from 'react';
-import { Cliente, Reporte, Asesor, EstadisticasDetalladas } from '../types';
-import { 
-  Users, 
-  TrendingUp, 
-  Clock, 
-  Search, 
+import React, { useState, useMemo } from 'react';
+import { Cliente, Reporte, Asesor, EstadisticasDetalladas, Registro } from '../types';
+import {
+  Users,
+  TrendingUp,
+  Clock,
+  Search,
   Filter,
   ArrowLeft,
   BarChart,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  PieChart as PieChartIcon
 } from 'lucide-react';
-import { formatDateOnly } from '../utils/dateUtils';
+import { formatDateOnly, formatDate } from '../utils/dateUtils';
 import ListaGeneralClientes from './ListaGeneralClientes';
+import {
+  LineChart,
+  Line,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  Tooltip,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Legend
+} from 'recharts';
+import FuentesAnalysisPorAsesor from './FuentesAnalysisPorAsesor';
 
 interface DetalleAsesorProps {
   asesor: Asesor;
   estadisticas: EstadisticasDetalladas;
   clientes: Cliente[];
   reportes: Reporte[];
+  registros: Registro[]; // Data de GERSSON_REGISTROS
   promedioEquipo: {
     tasaCierre: number;
     tiempoRespuesta: number;
@@ -27,23 +46,53 @@ interface DetalleAsesorProps {
   onBack: () => void;
 }
 
+type VistaDetalle = 'general' | 'clientes' | 'metricas' | 'fuentes';
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#a855f7'];
+
 export default function DetalleAsesor({
   asesor,
   estadisticas,
   clientes,
   reportes,
+  registros,
   promedioEquipo,
   onBack
 }: DetalleAsesorProps) {
-  const [vistaActual, setVistaActual] = useState<'general' | 'clientes' | 'metricas'>('general');
+  const [vistaActual, setVistaActual] = useState<VistaDetalle>('general');
 
-  // Calcular distribución de estados
-  const distribucionEstados = clientes.reduce((acc, cliente) => {
-    acc[cliente.ESTADO] = (acc[cliente.ESTADO] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Cálculo de distribución de estados para el gráfico de pastel
+  const distribucionEstados = useMemo(() => {
+    const totales: Record<string, number> = {};
+    clientes.forEach(cliente => {
+      totales[cliente.ESTADO] = (totales[cliente.ESTADO] || 0) + 1;
+    });
+    return Object.keys(totales).map(estado => ({
+      name: estado,
+      value: totales[estado]
+    }));
+  }, [clientes]);
 
-  // Calcular tendencias
+  // Gráfico de tendencia: reportes diarios en los últimos 7 días
+  const tendenciaReportes = useMemo(() => {
+    const dias: Record<string, number> = {};
+    const hace7dias = new Date();
+    hace7dias.setDate(hace7dias.getDate() - 7);
+    reportes.forEach(r => {
+      const fechaReporte = new Date(r.FECHA_REPORTE * 1000);
+      if (fechaReporte >= hace7dias) {
+        const dia = formatDateOnly(r.FECHA_REPORTE);
+        dias[dia] = (dias[dia] || 0) + 1;
+      }
+    });
+    const data = Object.keys(dias).map(dia => ({
+      date: dia,
+      reportes: dias[dia]
+    }));
+    return data.sort((a, b) => (a.date > b.date ? 1 : -1));
+  }, [reportes]);
+
+  // Tendencias generales (última semana)
   const tendencias = {
     ventasUltimaSemana: reportes.filter(r => {
       const fecha = new Date(r.FECHA_REPORTE * 1000);
@@ -60,15 +109,36 @@ export default function DetalleAsesor({
     }).length
   };
 
+  // KPI: Índice de Conversión (Ventas / Total de Clientes)
+  const indiceConversion = clientes.length > 0 
+    ? ((estadisticas.ventasRealizadas || 0) / clientes.length) * 100 
+    : 0;
+
+  // Datos para Radar Chart (Comparativa Integral)
+  const radarData = useMemo(() => [
+    {
+      metric: 'Tasa de Cierre',
+      asesor: estadisticas.porcentajeCierre,
+      equipo: promedioEquipo.tasaCierre
+    },
+    {
+      metric: 'Tiempo Respuesta (h)',
+      asesor: estadisticas.tiempoPromedioHastaReporte,
+      equipo: promedioEquipo.tiempoRespuesta
+    },
+    {
+      metric: 'Ventas/Mes',
+      asesor: estadisticas.ventasPorMes,
+      equipo: promedioEquipo.ventasPorMes
+    }
+  ], [estadisticas, promedioEquipo]);
+
   return (
     <div className="space-y-6">
       {/* Encabezado */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-gray-100 rounded-full"
-          >
+          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full">
             <ArrowLeft className="h-6 w-6 text-gray-500" />
           </button>
           <div>
@@ -78,154 +148,124 @@ export default function DetalleAsesor({
         </div>
       </div>
 
-      {/* Navegación */}
+      {/* Navegación interna */}
       <div className="flex space-x-4 border-b border-gray-200">
-        <button
-          onClick={() => setVistaActual('general')}
-          className={`py-2 px-4 border-b-2 font-medium text-sm ${
-            vistaActual === 'general'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          Vista General
-        </button>
-        <button
-          onClick={() => setVistaActual('clientes')}
-          className={`py-2 px-4 border-b-2 font-medium text-sm ${
-            vistaActual === 'clientes'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          Clientes
-        </button>
-        <button
-          onClick={() => setVistaActual('metricas')}
-          className={`py-2 px-4 border-b-2 font-medium text-sm ${
-            vistaActual === 'metricas'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          Métricas Avanzadas
-        </button>
+        {(['general', 'clientes', 'metricas', 'fuentes'] as VistaDetalle[]).map(vista => (
+          <button
+            key={vista}
+            onClick={() => setVistaActual(vista)}
+            className={`py-2 px-4 border-b-2 font-medium text-sm ${
+              vistaActual === vista
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            {vista === 'general'
+              ? 'Vista General'
+              : vista === 'clientes'
+              ? 'Clientes'
+              : vista === 'metricas'
+              ? 'Métricas Avanzadas'
+              : 'Fuentes'}
+          </button>
+        ))}
       </div>
 
+      {/* Contenido según pestaña */}
       {vistaActual === 'general' && (
         <div className="space-y-6">
           {/* KPIs Principales */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center justify-between">
+              <div className="flex justify-between items-center">
                 <div>
                   <p className="text-sm font-medium text-gray-500">Tasa de Cierre</p>
                   <p className="mt-1 text-3xl font-semibold text-gray-900">
                     {estadisticas.porcentajeCierre.toFixed(1)}%
                   </p>
                 </div>
-                <div className={`text-sm ${
-                  estadisticas.porcentajeCierre > promedioEquipo.tasaCierre
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                }`}>
+                <div className={`text-sm font-medium ${estadisticas.porcentajeCierre > promedioEquipo.tasaCierre ? 'text-green-600' : 'text-red-600'}`}>
                   vs {promedioEquipo.tasaCierre.toFixed(1)}% equipo
                 </div>
               </div>
             </div>
-
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center justify-between">
+              <div className="flex justify-between items-center">
                 <div>
                   <p className="text-sm font-medium text-gray-500">Tiempo Respuesta</p>
                   <p className="mt-1 text-3xl font-semibold text-gray-900">
                     {estadisticas.tiempoPromedioHastaReporte.toFixed(1)}h
                   </p>
                 </div>
-                <div className={`text-sm ${
-                  estadisticas.tiempoPromedioHastaReporte < promedioEquipo.tiempoRespuesta
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                }`}>
+                <div className={`text-sm font-medium ${estadisticas.tiempoPromedioHastaReporte < promedioEquipo.tiempoRespuesta ? 'text-green-600' : 'text-red-600'}`}>
                   vs {promedioEquipo.tiempoRespuesta.toFixed(1)}h equipo
                 </div>
               </div>
             </div>
-
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center justify-between">
+              <div className="flex justify-between items-center">
                 <div>
                   <p className="text-sm font-medium text-gray-500">Ventas del Mes</p>
-                  <p className="mt-1 text-3xl font-semibold text-gray-900">
-                    {estadisticas.ventasPorMes}
-                  </p>
+                  <p className="mt-1 text-3xl font-semibold text-gray-900">{estadisticas.ventasPorMes}</p>
                 </div>
-                <div className={`text-sm ${
-                  estadisticas.ventasPorMes > promedioEquipo.ventasPorMes
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                }`}>
+                <div className={`text-sm font-medium ${estadisticas.ventasPorMes > promedioEquipo.ventasPorMes ? 'text-green-600' : 'text-red-600'}`}>
                   vs {promedioEquipo.ventasPorMes.toFixed(1)} equipo
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Tendencias */}
+          {/* Tendencia de Reportes Diarios */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">
-                Tendencias Últimos 7 Días
-              </h3>
+              <h3 className="text-lg font-medium text-gray-900">Actividad Diaria (últimos 7 días)</h3>
             </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Ventas</p>
-                <p className="mt-1 text-2xl font-semibold text-gray-900">
-                  {tendencias.ventasUltimaSemana}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Seguimientos Completados</p>
-                <p className="mt-1 text-2xl font-semibold text-gray-900">
-                  {tendencias.seguimientosCompletados}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Clientes Nuevos</p>
-                <p className="mt-1 text-2xl font-semibold text-gray-900">
-                  {tendencias.clientesNuevos}
-                </p>
-              </div>
+            <div className="p-6">
+              {tendenciaReportes.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={tendenciaReportes}>
+                    <XAxis dataKey="date" />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="reportes" stroke="#4ade80" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-gray-500">No hay datos recientes.</p>
+              )}
             </div>
           </div>
 
-          {/* Distribución de Estados */}
+          {/* Distribución de Clientes */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">
-                Distribución de Estados
-              </h3>
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center">
+              <PieChartIcon className="h-5 w-5 mr-2 text-blue-500" />
+              <h3 className="text-lg font-medium text-gray-900">Distribución de Clientes</h3>
             </div>
             <div className="p-6">
-              <div className="space-y-4">
-                {Object.entries(distribucionEstados).map(([estado, cantidad]) => (
-                  <div key={estado}>
-                    <div className="flex justify-between text-sm font-medium">
-                      <span>{estado}</span>
-                      <span>{cantidad}</span>
-                    </div>
-                    <div className="mt-1 relative pt-1">
-                      <div className="overflow-hidden h-2 text-xs flex rounded bg-gray-200">
-                        <div
-                          style={{ width: `${(cantidad / clientes.length) * 100}%` }}
-                          className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {distribucionEstados.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={distribucionEstados}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label={({ name, value, percent }) =>
+                        `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
+                      }
+                    >
+                      {distribucionEstados.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-gray-500">No hay clientes registrados.</p>
+              )}
             </div>
           </div>
         </div>
@@ -246,28 +286,20 @@ export default function DetalleAsesor({
           {/* Métricas de Tiempo */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">
-                Métricas de Tiempo
-              </h3>
+              <h3 className="text-lg font-medium text-gray-900">Métricas de Tiempo</h3>
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">
-                    Tiempo Promedio Hasta Primer Reporte
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-900">
-                    {estadisticas.tiempoPromedioHastaReporte.toFixed(1)} horas
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">
-                    Tiempo Promedio Hasta Venta
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-900">
-                    {estadisticas.tiempoPromedioHastaVenta.toFixed(1)} horas
-                  </p>
-                </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Tiempo Hasta Primer Reporte</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900">
+                  {estadisticas.tiempoPromedioHastaReporte.toFixed(1)}h
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Tiempo Hasta Venta</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900">
+                  {estadisticas.tiempoPromedioHastaVenta.toFixed(1)}h
+                </p>
               </div>
             </div>
           </div>
@@ -275,39 +307,75 @@ export default function DetalleAsesor({
           {/* Métricas de Calidad */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">
-                Métricas de Calidad
-              </h3>
+              <h3 className="text-lg font-medium text-gray-900">Métricas de Calidad</h3>
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">
-                    Reportes por Cliente
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-900">
-                    {estadisticas.reportesPorCliente.toFixed(1)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">
-                    Reportes con Seguimiento
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-900">
-                    {estadisticas.reportesConSeguimiento}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">
-                    Monto Promedio de Venta
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-900">
-                    ${estadisticas.montoPromedioVenta.toLocaleString()}
-                  </p>
-                </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Reportes/Cliente</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900">
+                  {estadisticas.reportesPorCliente.toFixed(1)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Reportes con Seguimiento</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900">
+                  {estadisticas.reportesConSeguimiento}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Monto Promedio de Venta</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900">
+                  ${estadisticas.montoPromedioVenta.toLocaleString()}
+                </p>
               </div>
             </div>
           </div>
+
+          {/* KPI: Índice de Conversión */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Índice de Conversión</p>
+                <p className="mt-1 text-3xl font-semibold text-gray-900">
+                  {indiceConversion.toFixed(1)}%
+                </p>
+              </div>
+              <div className="text-sm font-medium text-gray-500">
+                {clientes.length} clientes
+              </div>
+            </div>
+          </div>
+
+          {/* Comparativa Integral (Radar Chart) */}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Comparativa Integral</h3>
+            </div>
+            <div className="p-6">
+              <ResponsiveContainer width="100%" height={300}>
+                <RadarChart data={radarData}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="metric" />
+                  <PolarRadiusAxis />
+                  <Radar name="Asesor" dataKey="asesor" stroke="#4ade80" fill="#4ade80" fillOpacity={0.6} />
+                  <Radar name="Equipo" dataKey="equipo" stroke="#60a5fa" fill="#60a5fa" fillOpacity={0.6} />
+                  <Legend />
+                  <Tooltip />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {vistaActual === 'fuentes' && (
+        <div className="mt-6">
+          <FuentesAnalysisPorAsesor 
+            clientes={clientes} 
+            registros={registros} 
+            reportes={reportes} 
+            asesorId={asesor.ID} 
+          />
         </div>
       )}
     </div>

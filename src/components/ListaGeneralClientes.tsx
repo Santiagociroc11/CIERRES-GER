@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Cliente, Reporte, EstadoCliente, esEstadoCritico } from '../types';
-import { Search, Phone, MessageSquare, DollarSign, Filter, Clock, AlertCircle, CheckCircle, Menu, X } from 'lucide-react';
+import { Search, Phone, MessageSquare, DollarSign, Filter, Clock, AlertCircle, CheckCircle, Menu, X, AlertTriangle } from 'lucide-react';
 import { formatDateOnly, isValidDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
 
@@ -9,13 +9,15 @@ interface ListaGeneralClientesProps {
   reportes: Reporte[];
   onActualizarEstado: (cliente: Cliente) => void;
   onReportarVenta: (cliente: Cliente) => void;
+  readOnly?: boolean;
 }
 
 export default function ListaGeneralClientes({
   clientes,
   reportes,
   onActualizarEstado,
-  onReportarVenta
+  onReportarVenta,
+  readOnly = false
 }: ListaGeneralClientesProps) {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<EstadoCliente | 'TODOS'>('TODOS');
@@ -32,6 +34,14 @@ export default function ListaGeneralClientes({
     setForzarBusqueda(clientes.length > 100);
   }, [clientes.length]);
 
+  // Verificar si un cliente tiene reporte de venta
+  const tieneReporteVenta = (clienteId: number) => {
+    return reportes.some(r => 
+      r.ID_CLIENTE === clienteId && 
+      r.ESTADO_NUEVO === 'PAGADO'
+    );
+  };
+
   const clientesFiltrados = clientes.filter(cliente => {
     if (forzarBusqueda && !busqueda) return false;
     
@@ -45,12 +55,22 @@ export default function ListaGeneralClientes({
     return coincideBusqueda && coincideEstado && coincideCriticos;
   });
 
-  // Ordenar clientes priorizando estados críticos
+  // Ordenar clientes priorizando estados críticos y ventas sin reportar
   const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
+    // Primero los estados críticos
     const aCritico = esEstadoCritico(a.ESTADO);
     const bCritico = esEstadoCritico(b.ESTADO);
     if (aCritico && !bCritico) return -1;
     if (!aCritico && bCritico) return 1;
+
+    // Luego las ventas sin reportar
+    if (a.ESTADO === 'PAGADO' && b.ESTADO === 'PAGADO') {
+      const aReportado = tieneReporteVenta(a.ID);
+      const bReportado = tieneReporteVenta(b.ID);
+      if (!aReportado && bReportado) return -1;
+      if (aReportado && !bReportado) return 1;
+    }
+
     return 0;
   });
 
@@ -87,10 +107,17 @@ export default function ListaGeneralClientes({
     window.open(`https://wa.me/${numeroLimpio}`, '_blank');
   };
 
-  const getEstadoColor = (estado: EstadoCliente) => {
+  const getEstadoColor = (estado: EstadoCliente, clienteId: number) => {
+    // Si es PAGADO, verificar si tiene reporte
+    if (estado === 'PAGADO') {
+      const tieneReporte = tieneReporteVenta(clienteId);
+      return tieneReporte 
+        ? 'bg-green-100 text-green-800'
+        : 'bg-yellow-100 text-yellow-800 border border-yellow-500';
+    }
+
+    // Resto de los estados como antes
     switch (estado) {
-      case 'PAGADO':
-        return 'bg-green-100 text-green-800';
       case 'SEGUIMIENTO':
         return 'bg-blue-100 text-blue-800';
       case 'NO INTERESADO':
@@ -108,6 +135,13 @@ export default function ListaGeneralClientes({
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const getEstadoTexto = (estado: EstadoCliente, clienteId: number) => {
+    if (estado === 'PAGADO' && !tieneReporteVenta(clienteId)) {
+      return 'PAGADO (Sin reporte)';
+    }
+    return estado;
   };
 
   return (
@@ -208,9 +242,9 @@ export default function ListaGeneralClientes({
                   </button>
                   <div className="flex items-center mt-1 space-x-2">
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      getEstadoColor(cliente.ESTADO)
+                      getEstadoColor(cliente.ESTADO, cliente.ID)
                     }`}>
-                      {cliente.ESTADO}
+                      {getEstadoTexto(cliente.ESTADO, cliente.ID)}
                     </span>
                     {!ultimoReporte && (
                       <AlertCircle className="h-4 w-4 text-red-500" title="Sin reporte" />
@@ -237,7 +271,7 @@ export default function ListaGeneralClientes({
                 </div>
               )}
 
-              {clienteAcciones === cliente.ID && (
+              {clienteAcciones === cliente.ID && !readOnly && (
                 <div className="flex flex-col gap-2 mt-2">
                   <button
                     onClick={() => abrirWhatsApp(cliente.WHATSAPP)}
@@ -326,11 +360,16 @@ export default function ListaGeneralClientes({
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      getEstadoColor(cliente.ESTADO)
-                    }`}>
-                      {cliente.ESTADO}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        getEstadoColor(cliente.ESTADO, cliente.ID)
+                      }`}>
+                        {getEstadoTexto(cliente.ESTADO, cliente.ID)}
+                      </span>
+                      {cliente.ESTADO === 'PAGADO' && !tieneReporteVenta(cliente.ID) && !readOnly && (
+                        <AlertTriangle className="h-4 w-4 text-yellow-500" title="Venta sin reportar" />
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     {ultimoReporte ? (
@@ -372,22 +411,24 @@ export default function ListaGeneralClientes({
                     </button>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end space-x-2">
-                      <button
-                        onClick={() => onActualizarEstado(cliente)}
-                        className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700"
-                      >
-                        <MessageSquare className="h-4 w-4 mr-1" />
-                        Estado
-                      </button>
-                      <button
-                        onClick={() => onReportarVenta(cliente)}
-                        className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700"
-                      >
-                        <DollarSign className="h-4 w-4 mr-1" />
-                        Venta
-                      </button>
-                    </div>
+                    {!readOnly && (
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => onActualizarEstado(cliente)}
+                          className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700"
+                        >
+                          <MessageSquare className="h-4 w-4 mr-1" />
+                          Estado
+                        </button>
+                        <button
+                          onClick={() => onReportarVenta(cliente)}
+                          className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700"
+                        >
+                          <DollarSign className="h-4 w-4 mr-1" />
+                          Venta
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

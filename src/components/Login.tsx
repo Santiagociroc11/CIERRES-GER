@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Asesor } from '../types';
 import { UserCheck } from 'lucide-react';
@@ -11,6 +11,20 @@ export default function Login({ onLogin }: LoginProps) {
   const [whatsapp, setWhatsapp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Verificar si ya existe una sesión persistida al montar el componente
+  useEffect(() => {
+    const sessionData = localStorage.getItem('userSession');
+    if (sessionData) {
+      try {
+        const { asesor, isAdmin } = JSON.parse(sessionData);
+        onLogin(asesor, isAdmin);
+      } catch (err) {
+        console.error('Error al parsear la sesión:', err);
+        localStorage.removeItem('userSession');
+      }
+    }
+  }, [onLogin]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +54,8 @@ export default function Login({ onLogin }: LoginProps) {
           TICKETS: 0,
           ES_ADMIN: true
         };
+        // Guardar sesión en localStorage
+        localStorage.setItem('userSession', JSON.stringify({ asesor: adminUser, isAdmin: true }));
         onLogin(adminUser, true);
         return;
       }
@@ -60,6 +76,8 @@ export default function Login({ onLogin }: LoginProps) {
         return;
       }
 
+      // Guardar sesión en localStorage
+      localStorage.setItem('userSession', JSON.stringify({ asesor: asesorData, isAdmin: false }));
       onLogin(asesorData, false);
     } catch (err) {
       console.error('Error completo:', err);

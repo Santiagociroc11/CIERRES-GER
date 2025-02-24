@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Asesor, EstadisticasDetalladas } from '../types';
 import {
@@ -10,7 +10,6 @@ import {
   Clock,
   Download,
   AlertCircle,
-  CheckCircle,
   AlertTriangle,
   Bell,
   Search,
@@ -22,96 +21,103 @@ import {
   formatDate,
 } from '../utils/dateUtils';
 import DetalleAsesor from './DetalleAsesor';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 interface DashboardAdminProps {
   onLogout: () => void;
 }
 
 export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
+  // Estados para datos generales
   const [asesores, setAsesores] = useState<Asesor[]>([]);
-  const [estadisticas, setEstadisticas] = useState<
-    Record<number, EstadisticasDetalladas>
-  >({});
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState('mes');
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
-  const [busqueda, setBusqueda] = useState('');
-  const [ordenarPor, setOrdenarPor] = useState<
-    'ventas' | 'tasa' | 'tiempo' | 'actividad'
-  >('ventas');
-  const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(
-    null
-  );
+  const [estadisticas, setEstadisticas] = useState<Record<number, EstadisticasDetalladas>>({});
   const [clientes, setClientes] = useState<any[]>([]);
   const [reportes, setReportes] = useState<any[]>([]);
 
+  // Estados de filtros y visualización
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<'mes' | 'semana' | 'personalizado'>('mes');
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+  const [ordenarPor, setOrdenarPor] = useState<'ventas' | 'tasa' | 'tiempo' | 'actividad'>('ventas');
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
+  const [registros, setRegistros] = useState<any[]>([]);
+
+
+  const handleLogout = async () => {
+    localStorage.removeItem('userSession');
+    onLogout();
+  };
+
+  // Cargar datos al cambiar filtros
   useEffect(() => {
     cargarDatos();
   }, [periodoSeleccionado, fechaInicio, fechaFin]);
 
   const cargarDatos = async () => {
     try {
-      // Cargar asesores
+      // Obtener datos de asesores
       const { data: asesoresData } = await supabase
         .from('GERSSON_ASESORES')
         .select('*')
         .order('NOMBRE');
+      
+      if (!asesoresData) return;
+      setAsesores(asesoresData);
 
-      if (asesoresData) {
-        setAsesores(asesoresData);
+      // Obtener clientes y reportes en paralelo
+      const [{ data: clientesData }, { data: reportesData }, { data: registrosData }] = await Promise.all([
+        supabase.from('GERSSON_CLIENTES').select('*'),
+        supabase.from('GERSSON_REPORTES').select('*'),
+        supabase.from('GERSSON_REGISTROS').select('*')
+      ]);
 
-        // Cargar todos los clientes y reportes
-        const { data: clientesData } = await supabase
-          .from('GERSSON_CLIENTES')
-          .select('*');
+      if (clientesData && reportesData && registrosData) {
+        setClientes(clientesData);
+        setReportes(reportesData);
+        setRegistros(registrosData);
 
-        const { data: reportesData } = await supabase
-          .from('GERSSON_REPORTES')
-          .select('*');
+        // Calcular estadísticas para cada asesor
+        const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
 
-        if (clientesData && reportesData) {
-          setClientes(clientesData);
-          setReportes(reportesData);
-
-          // Calcular estadísticas para cada asesor
-          const statsTemp: Record<number, EstadisticasDetalladas> = {};
-
-          for (const asesor of asesoresData) {
-            const clientesAsesor = clientesData.filter(
-              (c) => c.ID_ASESOR === asesor.ID
-            );
-            const reportesAsesor = reportesData.filter(
-              (r) => r.ID_ASESOR === asesor.ID
-            );
-
-            // Calcular todas las métricas detalladas
-            statsTemp[asesor.ID] = calcularEstadisticasDetalladas(
-              clientesAsesor,
-              reportesAsesor,
-              periodoSeleccionado,
-              fechaInicio,
-              fechaFin
-            );
-          }
-
-          setEstadisticas(statsTemp);
-        }
+        asesoresData.forEach((asesor: any) => {
+          const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
+          const reportesAsesor = reportesData.filter((r: any) => r.ID_ASESOR === asesor.ID);
+          nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
+            clientesAsesor,
+            reportesAsesor,
+            periodoSeleccionado,
+            fechaInicio,
+            fechaFin
+          );
+        });
+        setEstadisticas(nuevasEstadisticas);
       }
     } catch (error) {
       console.error('Error al cargar datos:', error);
     }
   };
 
+  /**
+   * Calcula las estadísticas detalladas para un asesor.
+   */
   const calcularEstadisticasDetalladas = (
     clientesAsesor: any[],
     reportesAsesor: any[],
-    periodo: string,
+    periodo: 'mes' | 'semana' | 'personalizado',
     inicio?: string,
     fin?: string
   ): EstadisticasDetalladas => {
-    // Calcular fechas para el filtro
+    // Determinar rango de fechas según el periodo
     const hoy = new Date();
     let fechaInicioFiltro = new Date();
     if (periodo === 'mes') {
@@ -121,154 +127,105 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     } else if (periodo === 'personalizado' && inicio) {
       fechaInicioFiltro = new Date(inicio);
     }
+    const fechaFinFiltro = (periodo === 'personalizado' && fin) ? new Date(fin) : hoy;
 
-    const fechaFinFiltro =
-      periodo === 'personalizado' && fin ? new Date(fin) : hoy;
-
-    // Filtrar reportes por período
-    const reportesFiltrados = reportesAsesor.filter((r) => {
+    // Filtrar reportes dentro del rango
+    const reportesFiltrados = reportesAsesor.filter((r: any) => {
       const fechaReporte = new Date(r.FECHA_REPORTE * 1000);
-      return (
-        fechaReporte >= fechaInicioFiltro && fechaReporte <= fechaFinFiltro
-      );
+      return fechaReporte >= fechaInicioFiltro && fechaReporte <= fechaFinFiltro;
     });
 
-    // Calcular métricas básicas
-    const clientesReportados = new Set(reportesAsesor.map((r) => r.ID_CLIENTE))
-      .size;
+    // Métricas básicas
+    const clientesReportados = new Set(reportesAsesor.map((r: any) => r.ID_CLIENTE)).size;
     const clientesSinReporte = clientesAsesor.filter(
-      (c) => !reportesAsesor.find((r) => r.ID_CLIENTE === c.ID)
+      (c: any) => !reportesAsesor.find((r: any) => r.ID_CLIENTE === c.ID)
     ).length;
+    const ventasRealizadas = reportesFiltrados.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO').length;
 
-    const ventasRealizadas = reportesFiltrados.filter(
-      (r) => r.ESTADO_NUEVO === 'PAGADO'
-    ).length;
-
-    // Calcular métricas de tiempo
+    // Métricas de tiempo
     const tiemposRespuesta = reportesAsesor
-      .filter((r) => r.FECHA_SEGUIMIENTO && r.COMPLETADO)
-      .map((r) => r.FECHA_SEGUIMIENTO - r.FECHA_REPORTE);
+      .filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO)
+      .map((r: any) => r.FECHA_SEGUIMIENTO - r.FECHA_REPORTE);
 
     const tiempoPromedioRespuesta = tiemposRespuesta.length
-      ? tiemposRespuesta.reduce((a, b) => a + b, 0) /
-        tiemposRespuesta.length /
-        3600
+      ? tiemposRespuesta.reduce((a: number, b: number) => a + b, 0) / tiemposRespuesta.length / 3600
       : 0;
 
-    // Calcular métricas de calidad
-    const reportesPorCliente = clientesAsesor.length
-      ? reportesAsesor.length / clientesAsesor.length
-      : 0;
+    // Métricas de calidad
+    const reportesPorCliente = clientesAsesor.length ? reportesAsesor.length / clientesAsesor.length : 0;
+    const reportesConSeguimiento = reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO).length;
 
-    const reportesConSeguimiento = reportesAsesor.filter(
-      (r) => r.FECHA_SEGUIMIENTO
-    ).length;
-
-    // Calcular monto promedio de ventas
+    // Monto promedio de ventas
     const ventasConMonto = clientesAsesor.filter(
-      (c) => c.ESTADO === 'PAGADO' && c.MONTO_COMPRA > 0
+      (c: any) => c.ESTADO === 'PAGADO' && c.MONTO_COMPRA > 0
     );
-
     const montoPromedioVenta = ventasConMonto.length
-      ? ventasConMonto.reduce((acc, c) => acc + c.MONTO_COMPRA, 0) /
-        ventasConMonto.length
+      ? ventasConMonto.reduce((acc: number, c: any) => acc + c.MONTO_COMPRA, 0) / ventasConMonto.length
       : 0;
 
-    // Obtener fechas de últimas actividades
-    const ultimoReporte =
-      reportesAsesor.length > 0
-        ? Math.max(...reportesAsesor.map((r) => r.FECHA_REPORTE))
-        : null;
+    // Fechas de última actividad
+    const ultimoReporte = reportesAsesor.length > 0 ? Math.max(...reportesAsesor.map((r: any) => r.FECHA_REPORTE)) : null;
+    const ultimoSeguimiento = reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO).length > 0
+      ? Math.max(...reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO).map((r: any) => r.FECHA_SEGUIMIENTO))
+      : null;
+    const ultimaVenta = reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO').length > 0
+      ? Math.max(...reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO').map((r: any) => r.FECHA_REPORTE))
+      : null;
 
-    const ultimoSeguimiento =
-      reportesAsesor.filter((r) => r.FECHA_SEGUIMIENTO && r.COMPLETADO).length >
-      0
-        ? Math.max(
-            ...reportesAsesor
-              .filter((r) => r.FECHA_SEGUIMIENTO && r.COMPLETADO)
-              .map((r) => r.FECHA_SEGUIMIENTO)
-          )
-        : null;
-
-    const ultimaVenta =
-      reportesAsesor.filter((r) => r.ESTADO_NUEVO === 'PAGADO').length > 0
-        ? Math.max(
-            ...reportesAsesor
-              .filter((r) => r.ESTADO_NUEVO === 'PAGADO')
-              .map((r) => r.FECHA_REPORTE)
-          )
-        : null;
-
-    // Calcular tiempo promedio hasta reporte
-    const tiempoHastaReporte = clientesAsesor
-      .map((cliente) => {
+    // Tiempo promedio hasta reporte
+    const tiemposHastaReporte = clientesAsesor
+      .map((cliente: any) => {
         const primerReporte = reportesAsesor
-          .filter((r) => r.ID_CLIENTE === cliente.ID)
-          .sort((a, b) => a.FECHA_REPORTE - b.FECHA_REPORTE)[0];
-
-        if (!primerReporte) return null;
-
-        return (primerReporte.FECHA_REPORTE - cliente.FECHA_CREACION) / 3600; // Convertir a horas
+          .filter((r: any) => r.ID_CLIENTE === cliente.ID)
+          .sort((a: any, b: any) => a.FECHA_REPORTE - b.FECHA_REPORTE)[0];
+        return primerReporte ? (primerReporte.FECHA_REPORTE - cliente.FECHA_CREACION) / 3600 : null;
       })
-      .filter((t) => t !== null) as number[];
-
-    const tiempoPromedioHastaReporte = tiempoHastaReporte.length
-      ? tiempoHastaReporte.reduce((a, b) => a + b, 0) /
-        tiempoHastaReporte.length
+      .filter((t: number | null) => t !== null) as number[];
+    const tiempoPromedioHastaReporte = tiemposHastaReporte.length
+      ? tiemposHastaReporte.reduce((a, b) => a + b, 0) / tiemposHastaReporte.length
       : 0;
 
-    // Calcular tiempo promedio hasta venta
-    const tiempoHastaVenta = clientesAsesor
-      .filter((c) => c.ESTADO === 'PAGADO')
-      .map((cliente) => {
+    // Tiempo promedio hasta venta
+    const tiemposHastaVenta = clientesAsesor
+      .filter((c: any) => c.ESTADO === 'PAGADO')
+      .map((cliente: any) => {
         const reporteVenta = reportesAsesor
-          .filter(
-            (r) => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'PAGADO'
-          )
-          .sort((a, b) => a.FECHA_REPORTE - b.FECHA_REPORTE)[0];
-
-        if (!reporteVenta) return null;
-
-        return (reporteVenta.FECHA_REPORTE - cliente.FECHA_CREACION) / 3600; // Convertir a horas
+          .filter((r: any) => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'PAGADO')
+          .sort((a: any, b: any) => a.FECHA_REPORTE - b.FECHA_REPORTE)[0];
+        return reporteVenta ? (reporteVenta.FECHA_REPORTE - cliente.FECHA_CREACION) / 3600 : null;
       })
-      .filter((t) => t !== null) as number[];
-
-    const tiempoPromedioHastaVenta = tiempoHastaVenta.length
-      ? tiempoHastaVenta.reduce((a, b) => a + b, 0) / tiempoHastaVenta.length
+      .filter((t: number | null) => t !== null) as number[];
+    const tiempoPromedioHastaVenta = tiemposHastaVenta.length
+      ? tiemposHastaVenta.reduce((a, b) => a + b, 0) / tiemposHastaVenta.length
       : 0;
+
+    const ventasBackend = clientesAsesor.filter((c: any) => c.ESTADO === 'PAGADO').length;
+    const ventasReportadas = reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO').length;
+    const ventasSinReportar = ventasBackend - ventasReportadas;
 
     return {
+      ventasReportadas,
+      ventasSinReportar,
+      ventasRealizadas: ventasBackend,
       totalClientes: clientesAsesor.length,
       clientesReportados,
       clientesSinReporte,
       clientesConReporte: clientesReportados,
-      clientesEnSeguimiento: reportesAsesor.filter(
-        (r) => r.ESTADO_NUEVO === 'SEGUIMIENTO'
-      ).length,
-      clientesRechazados: reportesAsesor.filter(
-        (r) => r.ESTADO_NUEVO === 'NO INTERESADO'
-      ).length,
-      clientesCriticos: clientesAsesor.filter((c) =>
+      clientesEnSeguimiento: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'SEGUIMIENTO').length,
+      clientesRechazados: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'NO INTERESADO').length,
+      clientesCriticos: clientesAsesor.filter((c: any) =>
         ['CARRITOS', 'RECHAZADOS', 'TICKETS'].includes(c.ESTADO)
       ).length,
       clientesNoContactados: clientesAsesor.filter(
-        (c) => !reportesAsesor.find((r) => r.ID_CLIENTE === c.ID)
+        (c: any) => !reportesAsesor.find((r: any) => r.ID_CLIENTE === c.ID)
       ).length,
-      ventasRealizadas,
-      seguimientosPendientes: reportesAsesor.filter(
-        (r) => r.FECHA_SEGUIMIENTO && !r.COMPLETADO
-      ).length,
-      seguimientosCompletados: reportesAsesor.filter((r) => r.COMPLETADO)
-        .length,
-      porcentajeCierre: clientesAsesor.length
-        ? (ventasRealizadas / clientesAsesor.length) * 100
-        : 0,
+      seguimientosPendientes: reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && !r.COMPLETADO).length,
+      seguimientosCompletados: reportesAsesor.filter((r: any) => r.COMPLETADO).length,
+      porcentajeCierre: clientesAsesor.length ? (ventasRealizadas / clientesAsesor.length) * 100 : 0,
       ventasPorMes: ventasRealizadas,
-      tiempoPromedioConversion: tiempoPromedioHastaVenta / 24, // Convertir a días
+      tiempoPromedioConversion: tiempoPromedioHastaVenta / 24, // Días
       tasaRespuesta: reportesConSeguimiento
-        ? (reportesAsesor.filter((r) => r.COMPLETADO).length /
-            reportesConSeguimiento) *
-          100
+        ? (reportesAsesor.filter((r: any) => r.COMPLETADO).length / reportesConSeguimiento) * 100
         : 0,
       tiempoPromedioRespuesta,
       tiempoPromedioHastaReporte,
@@ -283,58 +240,80 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     };
   };
 
+  // Función para obtener datos de ventas agrupados por día
+  const getSalesData = useMemo(() => {
+    // Filtrar solo reportes de ventas (PAGADO) del período actual
+    const ventas = reportes.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO');
+    const ventasPorFecha: Record<string, number> = {};
+    ventas.forEach((r: any) => {
+      const fecha = formatDateOnly(r.FECHA_REPORTE);
+      ventasPorFecha[fecha] = (ventasPorFecha[fecha] || 0) + 1;
+    });
+    // Convertir a arreglo para el gráfico
+    const data = Object.keys(ventasPorFecha).map((fecha) => ({
+      date: fecha,
+      sales: ventasPorFecha[fecha],
+    }));
+    // Ordenar por fecha (asumiendo formato compatible)
+    return data.sort((a, b) => (a.date > b.date ? 1 : -1));
+  }, [reportes]);
+
+  // Notificaciones generales: Se recorre la lista de asesores y se generan mensajes si se cumplen condiciones críticas.
+  const notificaciones = useMemo(() => {
+    const mensajes: string[] = [];
+    asesores.forEach((asesor) => {
+      const stats = estadisticas[asesor.ID];
+      if (!stats) return;
+      if (stats.clientesSinReporte > 0) {
+        mensajes.push(`El asesor ${asesor.NOMBRE} tiene ${stats.clientesSinReporte} cliente(s) sin reporte.`);
+      }
+      if (stats.ultimaActividad) {
+        const horasInactivo = Math.floor((Date.now() - stats.ultimaActividad * 1000) / (1000 * 60 * 60));
+        if (horasInactivo > 10) {
+          mensajes.push(`El asesor ${asesor.NOMBRE} no ha registrado actividad en ${horasInactivo} hora(s).`);
+        }
+      }
+    });
+    return mensajes;
+  }, [asesores, estadisticas]);
+
+  // Filtrar y ordenar asesores según los criterios seleccionados
   const asesoresFiltrados = asesores.filter((asesor) => {
     const coincideBusqueda =
       asesor.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
       asesor.WHATSAPP.includes(busqueda);
-
     if (mostrarInactivos) {
       const stats = estadisticas[asesor.ID];
-      const ultimaActividadDate = stats?.ultimaActividad
-        ? new Date(stats.ultimaActividad * 1000)
-        : null;
+      const ultimaActividadDate = stats?.ultimaActividad ? new Date(stats.ultimaActividad * 1000) : null;
       const horasSinActividad = ultimaActividadDate
-        ? Math.floor(
-            (Date.now() - ultimaActividadDate.getTime()) / (1000 * 60 * 60)
-          )
+        ? Math.floor((Date.now() - ultimaActividadDate.getTime()) / (1000 * 60 * 60))
         : Infinity;
       return coincideBusqueda && horasSinActividad >= 10;
     }
-
     return coincideBusqueda;
   });
 
   const asesoresOrdenados = [...asesoresFiltrados].sort((a, b) => {
     const statsA = estadisticas[a.ID];
     const statsB = estadisticas[b.ID];
-
     switch (ordenarPor) {
       case 'ventas':
-        return (
-          (statsB?.ventasRealizadas || 0) - (statsA?.ventasRealizadas || 0)
-        );
+        return (statsB?.ventasRealizadas || 0) - (statsA?.ventasRealizadas || 0);
       case 'tasa':
-        return (
-          (statsB?.porcentajeCierre || 0) - (statsA?.porcentajeCierre || 0)
-        );
+        return (statsB?.porcentajeCierre || 0) - (statsA?.porcentajeCierre || 0);
       case 'tiempo':
-        return (
-          (statsA?.tiempoPromedioConversion || 0) -
-          (statsB?.tiempoPromedioConversion || 0)
-        );
-      case 'actividad':
-        const fechaA = statsA?.ultimaActividad
-          ? new Date(statsA.ultimaActividad * 1000)
-          : new Date(0);
-        const fechaB = statsB?.ultimaActividad
-          ? new Date(statsB.ultimaActividad * 1000)
-          : new Date(0);
+        return (statsA?.tiempoPromedioConversion || 0) - (statsB?.tiempoPromedioConversion || 0);
+      case 'actividad': {
+        const fechaA = statsA?.ultimaActividad ? new Date(statsA.ultimaActividad * 1000) : new Date(0);
+        const fechaB = statsB?.ultimaActividad ? new Date(statsB.ultimaActividad * 1000) : new Date(0);
         return fechaB.getTime() - fechaA.getTime();
+      }
       default:
         return 0;
     }
   });
 
+  // Exportar datos a CSV
   const exportarDatos = () => {
     const data = asesores.map((asesor) => ({
       Nombre: asesor.NOMBRE,
@@ -342,41 +321,30 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       'Total Clientes': estadisticas[asesor.ID]?.totalClientes || 0,
       'Clientes Sin Reporte': estadisticas[asesor.ID]?.clientesSinReporte || 0,
       'Clientes Con Reporte': estadisticas[asesor.ID]?.clientesConReporte || 0,
-      'Clientes En Seguimiento':
-        estadisticas[asesor.ID]?.clientesEnSeguimiento || 0,
+      'Clientes En Seguimiento': estadisticas[asesor.ID]?.clientesEnSeguimiento || 0,
       'Clientes Rechazados': estadisticas[asesor.ID]?.clientesRechazados || 0,
       'Clientes Críticos': estadisticas[asesor.ID]?.clientesCriticos || 0,
-      'Clientes Sin Contactar':
-        estadisticas[asesor.ID]?.clientesNoContactados || 0,
+      'Clientes Sin Contactar': estadisticas[asesor.ID]?.clientesNoContactados || 0,
       'Ventas Realizadas': estadisticas[asesor.ID]?.ventasRealizadas || 0,
-      'Tasa de Cierre': `${estadisticas[asesor.ID]?.porcentajeCierre.toFixed(
-        1
-      )}%`,
-      'Tiempo Promedio': `${estadisticas[
-        asesor.ID
-      ]?.tiempoPromedioConversion.toFixed(1)} días`,
-      'Tiempo de Completado': `${estadisticas[
-        asesor.ID
-      ]?.tiempoPromedioRespuesta.toFixed(1)} horas`,
+      'Tasa de Cierre': `${estadisticas[asesor.ID]?.porcentajeCierre.toFixed(1)}%`,
+      'Tiempo Promedio': `${estadisticas[asesor.ID]?.tiempoPromedioConversion.toFixed(1)} días`,
+      'Tiempo de Completado': `${estadisticas[asesor.ID]?.tiempoPromedioRespuesta.toFixed(1)} horas`,
       'Última Actividad': estadisticas[asesor.ID]?.ultimaActividad
         ? formatDateOnly(estadisticas[asesor.ID]?.ultimaActividad)
         : 'Sin actividad',
     }));
 
-    const csv = [
+    const csvContent = [
       Object.keys(data[0]).join(','),
       ...data.map((row) => Object.values(row).join(',')),
     ].join('\n');
 
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.setAttribute('hidden', '');
     a.setAttribute('href', url);
-    a.setAttribute(
-      'download',
-      `reporte_asesores_${formatDateOnly(Date.now() / 1000)}.csv`
-    );
+    a.setAttribute('download', `reporte_asesores_${formatDateOnly(Date.now() / 1000)}.csv`);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -384,12 +352,11 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Encabezado */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-              Panel de Administración
-            </h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Panel de Administración</h1>
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={exportarDatos}
@@ -399,7 +366,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 Exportar Datos
               </button>
               <button
-                onClick={onLogout}
+                onClick={handleLogout}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
               >
                 <LogOut className="h-5 w-5 mr-2" />
@@ -407,6 +374,21 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               </button>
             </div>
           </div>
+
+          {/* Panel de Notificaciones */}
+          {notificaciones.length > 0 && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+              <h2 className="text-lg font-semibold text-yellow-700 flex items-center">
+                <Bell className="h-5 w-5 mr-2" />
+                Notificaciones
+              </h2>
+              <ul className="mt-2 list-disc list-inside text-sm text-yellow-700">
+                {notificaciones.map((msg, idx) => (
+                  <li key={idx}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Filtros */}
           <div className="mt-4">
@@ -418,28 +400,22 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               {mostrarFiltros ? 'Ocultar filtros' : 'Mostrar filtros'}
             </button>
 
-            <div
-              className={`mt-4 space-y-4 ${
-                mostrarFiltros ? 'block' : 'hidden md:block'
-              }`}
-            >
+            <div className={`mt-4 space-y-4 ${mostrarFiltros ? 'block' : 'hidden md:block'}`}>
               <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Buscar asesor..."
-                      value={busqueda}
-                      onChange={(e) => setBusqueda(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                  </div>
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder="Buscar asesor..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                 </div>
 
                 <select
                   value={periodoSeleccionado}
-                  onChange={(e) => setPeriodoSeleccionado(e.target.value)}
+                  onChange={(e) => setPeriodoSeleccionado(e.target.value as any)}
                   className="w-full md:w-48 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 >
                   <option value="mes">Último mes</option>
@@ -454,25 +430,17 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 >
                   <option value="ventas">Ordenar por ventas</option>
                   <option value="tasa">Ordenar por tasa de cierre</option>
-                  <option value="tiempo">
-                    Ordenar por tiempo de conversión
-                  </option>
-                  <option value="actividad">
-                    Ordenar por última actividad
-                  </option>
+                  <option value="tiempo">Ordenar por tiempo de conversión</option>
+                  <option value="actividad">Ordenar por última actividad</option>
                 </select>
 
                 <button
                   onClick={() => setMostrarInactivos(!mostrarInactivos)}
                   className={`px-4 py-2 rounded-md text-sm font-medium ${
-                    mostrarInactivos
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-700'
+                    mostrarInactivos ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
                   }`}
                 >
-                  {mostrarInactivos
-                    ? 'Mostrar todos'
-                    : 'Mostrar solo inactivos'}
+                  {mostrarInactivos ? 'Mostrar todos' : 'Mostrar solo inactivos'}
                 </button>
               </div>
 
@@ -498,66 +466,59 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         </div>
       </div>
 
+      {/* Sección de Gráfico de Ventas */}
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Tendencia de Ventas</h2>
+        {getSalesData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={getSalesData}>
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="sales" stroke="#4ade80" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-gray-500">No hay datos de ventas para mostrar.</p>
+        )}
+      </div>
+
+      {/* Resumen y lista de asesores */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Resumen General */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <Users className="h-8 w-8 text-blue-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">
-                  Total Asesores
-                </p>
-                <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                  {asesores.length}
-                </p>
-              </div>
+          <div className="bg-white rounded-lg shadow p-4 flex items-center">
+            <Users className="h-8 w-8 text-blue-500" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Total Asesores</p>
+              <p className="text-xl md:text-2xl font-semibold text-gray-900">{asesores.length}</p>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <Target className="h-8 w-8 text-green-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">
-                  Ventas Totales
-                </p>
-                <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                  {Object.values(estadisticas).reduce(
-                    (acc, stats) => acc + stats.ventasRealizadas,
-                    0
-                  )}
-                </p>
-              </div>
+          <div className="bg-white rounded-lg shadow p-4 flex items-center">
+            <Target className="h-8 w-8 text-green-500" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Ventas Totales</p>
+              <p className="text-xl md:text-2xl font-semibold text-gray-900">
+                {Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasRealizadas, 0)}
+              </p>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <AlertCircle className="h-8 w-8 text-red-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Sin Reporte</p>
-                <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                  {Object.values(estadisticas).reduce(
-                    (acc, stats) => acc + stats.clientesSinReporte,
-                    0
-                  )}
-                </p>
-              </div>
+          <div className="bg-white rounded-lg shadow p-4 flex items-center">
+            <AlertCircle className="h-8 w-8 text-red-500" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Sin Reporte</p>
+              <p className="text-xl md:text-2xl font-semibold text-gray-900">
+                {Object.values(estadisticas).reduce((acc, stats) => acc + stats.clientesSinReporte, 0)}
+              </p>
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <Calendar className="h-8 w-8 text-yellow-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">
-                  Clientes Totales
-                </p>
-                <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                  {Object.values(estadisticas).reduce(
-                    (acc, stats) => acc + stats.totalClientes,
-                    0
-                  )}
-                </p>
-              </div>
+          <div className="bg-white rounded-lg shadow p-4 flex items-center">
+            <Calendar className="h-8 w-8 text-yellow-500" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Clientes Totales</p>
+              <p className="text-xl md:text-2xl font-semibold text-gray-900">
+                {Object.values(estadisticas).reduce((acc, stats) => acc + stats.totalClientes, 0)}
+              </p>
             </div>
           </div>
         </div>
@@ -565,22 +526,15 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         {/* Lista de Asesores */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-            <h2 className="text-lg font-medium leading-6 text-gray-900">
-              Rendimiento de Asesores
-            </h2>
+            <h2 className="text-lg font-medium text-gray-900">Rendimiento de Asesores</h2>
           </div>
           <div className="p-4">
             <div className="grid grid-cols-1 gap-4">
               {asesoresOrdenados.map((asesor) => {
                 const stats = estadisticas[asesor.ID];
-                const ultimaActividadDate = stats?.ultimaActividad
-                  ? new Date(stats.ultimaActividad * 1000)
-                  : null;
+                const ultimaActividadDate = stats?.ultimaActividad ? new Date(stats.ultimaActividad * 1000) : null;
                 const horasSinActividad = ultimaActividadDate
-                  ? Math.floor(
-                      (Date.now() - ultimaActividadDate.getTime()) /
-                        (1000 * 60 * 60)
-                    )
+                  ? Math.floor((Date.now() - ultimaActividadDate.getTime()) / (1000 * 60 * 60))
                   : null;
 
                 return (
@@ -590,17 +544,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       <div className="flex items-center">
                         <Users className="h-8 w-8 text-blue-500" />
                         <div className="ml-3">
-                          <h3 className="text-lg font-semibold">
-                            {asesor.NOMBRE}
-                          </h3>
+                          <h3 className="text-lg font-semibold">{asesor.NOMBRE}</h3>
                           {horasSinActividad !== null && (
-                            <p
-                              className={`text-sm ${
-                                horasSinActividad > 10
-                                  ? 'text-red-500'
-                                  : 'text-gray-500'
-                              }`}
-                            >
+                            <p className={`text-sm ${horasSinActividad > 10 ? 'text-red-500' : 'text-gray-500'}`}>
                               {formatInactivityTime(stats?.ultimaActividad)}
                             </p>
                           )}
@@ -608,9 +554,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       </div>
                       <div className="flex items-center space-x-4">
                         <BarChart className="h-6 w-6 text-green-500" />
-                        <span className="text-lg font-bold">
-                          {stats?.porcentajeCierre.toFixed(1)}% Cierre
-                        </span>
+                        <span className="text-lg font-bold">{stats?.porcentajeCierre.toFixed(1)}% Cierre</span>
                       </div>
                     </div>
 
@@ -618,106 +562,85 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Estado de Clientes */}
                       <div className="bg-white p-4 rounded-lg shadow">
-                        <h4 className="text-sm font-medium text-gray-500 mb-2">
-                          Estado de Clientes
-                        </h4>
+                        <h4 className="text-sm font-medium text-gray-500 mb-2">Estado de Clientes</h4>
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-sm">Total:</span>
-                            <span className="font-semibold">
-                              {stats?.totalClientes}
-                            </span>
+                            <span className="font-semibold">{stats?.totalClientes}</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-red-500 flex items-center">
                               <AlertCircle className="h-4 w-4 mr-1" />
                               Sin reporte:
                             </span>
-                            <span className="font-semibold text-red-500">
-                              {stats?.clientesSinReporte}
-                            </span>
+                            <span className="font-semibold text-red-500">{stats?.clientesSinReporte}</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-blue-500 flex items-center">
                               <Clock className="h-4 w-4 mr-1" />
                               En seguimiento:
                             </span>
-                            <span className="font-semibold text-blue-500">
-                              {stats?.clientesEnSeguimiento}
-                            </span>
+                            <span className="font-semibold text-blue-500">{stats?.clientesEnSeguimiento}</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-amber-500 flex items-center">
                               <AlertTriangle className="h-4 w-4 mr-1" />
                               Críticos:
                             </span>
-                            <span className="font-semibold text-amber-500">
-                              {stats?.clientesCriticos}
-                            </span>
+                            <span className="font-semibold text-amber-500">{stats?.clientesCriticos}</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Seguimientos */}
                       <div className="bg-white p-4 rounded-lg shadow">
-                        <h4 className="text-sm font-medium text-gray-500 mb-2">
-                          Seguimientos
-                        </h4>
+                        <h4 className="text-sm font-medium text-gray-500 mb-2">Seguimientos</h4>
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-sm">Pendientes:</span>
-                            <span className="font-semibold text-yellow-500">
-                              {stats?.seguimientosPendientes}
-                            </span>
+                            <span className="font-semibold text-yellow-500">{stats?.seguimientosPendientes}</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm">Completados:</span>
-                            <span className="font-semibold text-green-500">
-                              {stats?.seguimientosCompletados}
-                            </span>
+                            <span className="font-semibold text-green-500">{stats?.seguimientosCompletados}</span>
                           </div>
-                          <div className="flex justify- between items-center">
+                          <div className="flex justify-between items-center">
                             <span className="text-sm">Tasa de respuesta:</span>
-                            <span className="font-semibold">
-                              {stats?.tasaRespuesta.toFixed(1)}%
-                            </span>
+                            <span className="font-semibold">{stats?.tasaRespuesta.toFixed(1)}%</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm">T. Completado:</span>
-                            <span className="font-semibold">
-                              {stats?.tiempoPromedioRespuesta.toFixed(1)}h
-                            </span>
+                            <span className="font-semibold">{stats?.tiempoPromedioRespuesta.toFixed(1)}h</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Ventas */}
                       <div className="bg-white p-4 rounded-lg shadow">
-                        <h4 className="text-sm font-medium text-gray-500 mb-2">
-                          Ventas
-                        </h4>
+                        <h4 className="text-sm font-medium text-gray-500 mb-2">Ventas</h4>
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-sm">Del período:</span>
                             <span className="font-semibold text-green-500">
                               {stats?.ventasRealizadas}
+                              {stats?.ventasSinReportar > 0 && (
+                                <span className="text-xs text-red-500 ml-1">
+                                  ({stats.ventasSinReportar} sin reportar)
+                                </span>
+                              )}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm">
                               Tiempo promedio:
                               <span className="font-semibold">
-                                {stats?.tiempoPromedioConversion.toFixed(1)}{' '}
-                                días
+                                {stats?.tiempoPromedioConversion.toFixed(1)} días
                               </span>
                             </span>
                           </div>
-
                           <div className="flex justify-between items-center">
                             <span className="text-sm">Tasa de cierre:</span>
-                            <span className="font-semibold">
-                              {stats?.porcentajeCierre.toFixed(1)}%
-                            </span>
+                            <span className="font-semibold">{stats?.porcentajeCierre.toFixed(1)}%</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm">Monto promedio:</span>
@@ -731,40 +654,32 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
                     {/* Últimas Actividades */}
                     <div className="mt-4 bg-white p-4 rounded-lg shadow">
-                      <h4 className="text-sm font-medium text-gray-500 mb-2">
-                        Últimas Actividades
-                      </h4>
+                      <h4 className="text-sm font-medium text-gray-500 mb-2">Últimas Actividades</h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="flex justify-between items-center">
                           <span className="text-sm">Último reporte:</span>
                           <span className="font-semibold">
-                            {stats?.ultimoReporte
-                              ? formatDate(stats.ultimoReporte)
-                              : 'Sin reportes'}
+                            {stats?.ultimoReporte ? formatDate(stats.ultimoReporte) : 'Sin reportes'}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm">Último seguimiento:</span>
                           <span className="font-semibold">
-                            {stats?.ultimoSeguimiento
-                              ? formatDate(stats.ultimoSeguimiento)
-                              : 'Sin seguimientos'}
+                            {stats?.ultimoSeguimiento ? formatDate(stats.ultimoSeguimiento) : 'Sin seguimientos'}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm">Última venta:</span>
                           <span className="font-semibold">
-                            {stats?.ultimaVenta
-                              ? formatDate(stats.ultimaVenta)
-                              : 'Sin ventas'}
+                            {stats?.ultimaVenta ? formatDate(stats.ultimaVenta) : 'Sin ventas'}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Alertas */}
+                    {/* Alertas individuales */}
                     {(stats?.clientesSinReporte > 0 ||
-                      horasSinActividad > 10 ||
+                      (horasSinActividad !== null && horasSinActividad > 10) ||
                       stats?.clientesCriticos > 0 ||
                       stats?.clientesNoContactados > 0 ||
                       stats?.tiempoPromedioRespuesta > 24) && (
@@ -776,26 +691,27 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                         <ul className="list-disc list-inside space-y-1">
                           {stats?.clientesSinReporte > 0 && (
                             <li className="text-sm text-red-700">
-                              Tiene {stats.clientesSinReporte} clientes sin
-                              reporte
+                              Tiene {stats.clientesSinReporte} cliente(s) sin reporte
                             </li>
                           )}
-                          {horasSinActividad > 10 && (
+                          {horasSinActividad !== null && horasSinActividad > 10 && (
                             <li className="text-sm text-red-700">
-                              No ha registrado actividad en las últimas{' '}
-                              {horasSinActividad} horas
+                              No ha registrado actividad en las últimas {horasSinActividad} hora(s)
                             </li>
                           )}
                           {stats?.clientesCriticos > 0 && (
                             <li className="text-sm text-red-700">
-                              Tiene {stats.clientesCriticos} clientes críticos
-                              sin atender
+                              Tiene {stats.clientesCriticos} cliente(s) críticos sin atender
+                            </li>
+                          )}
+                          {stats?.ventasSinReportar > 0 && (
+                            <li className="text-sm text-red-700">
+                              Tiene {stats.ventasSinReportar} venta(s) sin reportar
                             </li>
                           )}
                           {stats?.clientesNoContactados > 0 && (
                             <li className="text-sm text-red-700">
-                              {stats.clientesNoContactados} clientes sin
-                              contactar en las últimas 48 horas
+                              {stats.clientesNoContactados} cliente(s) sin contactar en las últimas 48 horas
                             </li>
                           )}
                           {stats?.tiempoPromedioRespuesta > 24 && (
@@ -822,8 +738,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
               {asesoresOrdenados.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  No se encontraron asesores que coincidan con los filtros
-                  aplicados
+                  No se encontraron asesores que coincidan con los filtros aplicados
                 </div>
               )}
             </div>
@@ -838,28 +753,19 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
             <DetalleAsesor
               asesor={asesorSeleccionado}
               estadisticas={estadisticas[asesorSeleccionado.ID]}
-              clientes={clientes.filter(
-                (c) => c.ID_ASESOR === asesorSeleccionado.ID
-              )}
-              reportes={reportes.filter(
-                (r) => r.ID_ASESOR === asesorSeleccionado.ID
-              )}
+              clientes={clientes.filter((c) => c.ID_ASESOR === asesorSeleccionado.ID)}
+              reportes={reportes.filter((r) => r.ID_ASESOR === asesorSeleccionado.ID)}
+              registros={registros}
               promedioEquipo={{
                 tasaCierre:
-                  Object.values(estadisticas).reduce(
-                    (acc, stats) => acc + stats.porcentajeCierre,
-                    0
-                  ) / Object.keys(estadisticas).length,
+                  Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) /
+                  Object.keys(estadisticas).length,
                 tiempoRespuesta:
-                  Object.values(estadisticas).reduce(
-                    (acc, stats) => acc + stats.tiempoPromedioRespuesta,
-                    0
-                  ) / Object.keys(estadisticas).length,
+                  Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoPromedioRespuesta, 0) /
+                  Object.keys(estadisticas).length,
                 ventasPorMes:
-                  Object.values(estadisticas).reduce(
-                    (acc, stats) => acc + stats.ventasPorMes,
-                    0
-                  ) / Object.keys(estadisticas).length,
+                  Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPorMes, 0) /
+                  Object.keys(estadisticas).length,
               }}
               onBack={() => setAsesorSeleccionado(null)}
             />

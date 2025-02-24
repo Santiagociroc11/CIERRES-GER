@@ -37,26 +37,26 @@ interface DashboardAdminProps {
 
 export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   // Estados para datos generales
-  const [asesores, setAsesores] = useState < Asesor[] > ([]);
-  const [estadisticas, setEstadisticas] = useState < Record < number, EstadisticasDetalladas>> ({});
-  const [clientes, setClientes] = useState < any[] > ([]);
-  const [reportes, setReportes] = useState < any[] > ([]);
-  const [registros, setRegistros] = useState < any[] > ([]);
+  const [asesores, setAsesores] = useState<Asesor[]>([]);
+  const [estadisticas, setEstadisticas] = useState<Record<number, EstadisticasDetalladas>>({});
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [reportes, setReportes] = useState<any[]>([]);
+  const [registros, setRegistros] = useState<any[]>([]);
 
   // Estados de filtros y visualización
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState < 'mes' | 'semana' | 'personalizado' > ('mes');
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<'mes' | 'semana' | 'personalizado'>('mes');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [busqueda, setBusqueda] = useState('');
-  const [ordenarPor, setOrdenarPor] = useState < 'ventas' | 'tasa' | 'tiempo' | 'actividad' > ('ventas');
+  const [ordenarPor, setOrdenarPor] = useState<'ventas' | 'tasa' | 'tiempo' | 'actividad'>('ventas');
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const [asesorSeleccionado, setAsesorSeleccionado] = useState < Asesor | null > (null);
+  const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
 
   // Nuevo estado para alternar entre vista de Asesores y Clientes
-  const [vistaAdmin, setVistaAdmin] = useState < 'asesores' | 'clientes' > ('asesores');
+  const [vistaAdmin, setVistaAdmin] = useState<'asesores' | 'clientes'>('asesores');
   // Estado para el modal de historial de cliente
-  const [clienteSeleccionado, setClienteSeleccionado] = useState < any | null > (null);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
 
   const handleLogout = async () => {
     localStorage.removeItem('userSession');
@@ -379,8 +379,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               <button
                 onClick={() => setVistaAdmin('asesores')}
                 className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaAdmin === 'asesores'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
                 Asesores
@@ -388,8 +388,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               <button
                 onClick={() => setVistaAdmin('clientes')}
                 className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaAdmin === 'clientes'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
                 Clientes
@@ -399,82 +399,25 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         </div>
       </div>
 
+      {/* Panel de Notificaciones */}
+      {notificaciones.length > 0 && (
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+          <h2 className="text-lg font-semibold text-yellow-700 flex items-center">
+            <Bell className="h-5 w-5 mr-2" />
+            Notificaciones
+          </h2>
+          <ul className="mt-2 list-disc list-inside text-sm text-yellow-700">
+            {notificaciones.map((msg, idx) => (
+              <li key={idx}>{msg}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Contenido principal */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {vistaAdmin === 'asesores' ? (
           <>
-            {/* Gráfico de ventas */}
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Tendencia de Ventas</h2>
-              {getSalesData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={getSalesData}>
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="sales" stroke="#4ade80" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-gray-500">No hay datos de ventas para mostrar.</p>
-              )}
-            </div>
-
-             {/* Panel de Notificaciones */}
-             {notificaciones.length > 0 && (
-              <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-                <h2 className="text-lg font-semibold text-yellow-700 flex items-center">
-                  <Bell className="h-5 w-5 mr-2" />
-                  Notificaciones
-                </h2>
-                <ul className="mt-2 list-disc list-inside text-sm text-yellow-700">
-                  {notificaciones.map((msg, idx) => (
-                    <li key={idx}>{msg}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Filtros */}
-            <div className="mb-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    placeholder="Buscar asesor..."
-                    value={busqueda}
-                    onChange={(e) => setBusqueda(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                </div>
-                <select
-                  value={periodoSeleccionado}
-                  onChange={(e) => setPeriodoSeleccionado(e.target.value as any)}
-                  className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="mes">Último mes</option>
-                  <option value="semana">Última semana</option>
-                  <option value="personalizado">Personalizado</option>
-                </select>
-                <select
-                  value={ordenarPor}
-                  onChange={(e) => setOrdenarPor(e.target.value as any)}
-                  className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="ventas">Ordenar por ventas</option>
-                  <option value="tasa">Ordenar por tasa de cierre</option>
-                  <option value="tiempo">Ordenar por tiempo de conversión</option>
-                  <option value="actividad">Ordenar por última actividad</option>
-                </select>
-                <button
-                  onClick={() => setMostrarInactivos(!mostrarInactivos)}
-                  className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
-                >
-                  {mostrarInactivos ? 'Mostrar todos' : 'Mostrar solo inactivos'}
-                </button>
-              </div>
-            </div>
 
             {/* Resumen y lista de asesores */}
             <div className="max-w-7xl mx-auto px-4 py-6">
@@ -513,6 +456,62 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       {Object.values(estadisticas).reduce((acc, stats) => acc + stats.totalClientes, 0)}
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {/* Gráfico de ventas */}
+              {getSalesData.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Tendencia de Ventas</h2>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={getSalesData}>
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="sales" stroke="#4ade80" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Filtros */}
+              <div className="mb-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      placeholder="Buscar asesor..."
+                      value={busqueda}
+                      onChange={(e) => setBusqueda(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                  </div>
+                  <select
+                    value={periodoSeleccionado}
+                    onChange={(e) => setPeriodoSeleccionado(e.target.value as any)}
+                    className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="mes">Último mes</option>
+                    <option value="semana">Última semana</option>
+                    <option value="personalizado">Personalizado</option>
+                  </select>
+                  <select
+                    value={ordenarPor}
+                    onChange={(e) => setOrdenarPor(e.target.value as any)}
+                    className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="ventas">Ordenar por ventas</option>
+                    <option value="tasa">Ordenar por tasa de cierre</option>
+                    <option value="tiempo">Ordenar por tiempo de conversión</option>
+                    <option value="actividad">Ordenar por última actividad</option>
+                  </select>
+                  <button
+                    onClick={() => setMostrarInactivos(!mostrarInactivos)}
+                    className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  >
+                    {mostrarInactivos ? 'Mostrar todos' : 'Mostrar solo inactivos'}
+                  </button>
                 </div>
               </div>
 

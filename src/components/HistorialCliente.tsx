@@ -8,7 +8,7 @@ import { Asesor } from '../types';
 interface HistorialClienteProps {
   cliente: Cliente;
   reportes: Reporte[];
-  asesor: Asesor; // nuevo prop para el nombre del asesor
+  asesor?: Asesor; // nuevo prop para el nombre del asesor
   onClose: () => void;
 }
 
@@ -89,7 +89,9 @@ export default function HistorialCliente({ cliente, reportes, asesor, onClose }:
                 <p className="text-sm text-gray-600">
                   Fecha de asignación: {formatDate(cliente.FECHA_CREACION)}
                 </p>
-                <p className="text-sm text-gray-600">Asesor: {asesor.NOMBRE}</p> {/* Línea agregada */}
+                <p className="text-sm text-gray-600">
+                  Asesor: {asesor ? asesor.NOMBRE : 'Sin asesor asignado'}
+                </p>
               </div>
 
               <button

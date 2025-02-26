@@ -13,8 +13,11 @@ interface HistorialClienteProps {
 }
 
 
-export default function HistorialCliente({ cliente, reportes, asesor, onClose }: HistorialClienteProps) {  const [registros, setRegistros] = useState<Registro[]>([]);
+export default function HistorialCliente({ cliente, reportes, asesor, onClose }: HistorialClienteProps) {
+  const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
+  const [imagenPago, setImagenPago] = useState<string | null>(null);
+
 
   useEffect(() => {
     cargarRegistros();
@@ -125,10 +128,10 @@ export default function HistorialCliente({ cliente, reportes, asesor, onClose }:
                     <div className="relative flex items-start">
                       <div className="absolute -left-3.5 mt-1.5">
                         <div className={`w-7 h-7 rounded-full flex items-center justify-center ${item.tipo === 'registro'
-                            ? 'bg-purple-100'
-                            : item.data.ESTADO_NUEVO === 'PAGADO'
-                              ? 'bg-green-100'
-                              : 'bg-blue-100'
+                          ? 'bg-purple-100'
+                          : item.data.ESTADO_NUEVO === 'PAGADO'
+                            ? 'bg-green-100'
+                            : 'bg-blue-100'
                           }`}>
                           {item.tipo === 'registro' ? (
                             <Activity className="h-4 w-4 text-purple-600" />
@@ -191,15 +194,13 @@ export default function HistorialCliente({ cliente, reportes, asesor, onClose }:
 
                             {item.data.IMAGEN_PAGO_URL && (
                               <div className="mt-2">
-                                <a
-                                  href={item.data.IMAGEN_PAGO_URL}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <button
+                                  onClick={() => setImagenPago(item.data.IMAGEN_PAGO_URL)}
                                   className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100"
                                 >
                                   <DollarSign className="h-4 w-4 mr-1" />
                                   Ver comprobante de pago
-                                </a>
+                                </button>
                               </div>
                             )}
                           </div>
@@ -229,6 +230,37 @@ export default function HistorialCliente({ cliente, reportes, asesor, onClose }:
           </div>
         </div>
       </div>
+
+      {imagenPago && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          {/* Fondo semitransparente que cierra al hacer click */}
+          <div
+            className="absolute inset-0 bg-black bg-opacity-40 transition-opacity"
+            onClick={() => setImagenPago(null)}
+          ></div>
+
+          {/* Modal responsivo */}
+          <div className="relative bg-white rounded-lg shadow-lg overflow-hidden transform transition-all 
+      w-full max-w-md mx-4 sm:max-w-lg">
+            <div className="p-4">
+              <img
+                src={imagenPago}
+                alt="Comprobante de pago"
+                className="w-full h-auto object-contain rounded-md"
+              />
+            </div>
+            <div className="px-4 py-3 bg-gray-100 text-right">
+              <button
+                onClick={() => setImagenPago(null)}
+                className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

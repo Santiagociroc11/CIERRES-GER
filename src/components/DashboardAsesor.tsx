@@ -11,7 +11,7 @@ import EstadisticasAvanzadas from './EstadisticasAvanzadas';
 import { useToast } from '../hooks/useToast';
 import Toast from './Toast';
 
-// Modal de Control de WhatsApp
+// Modal para el control de WhatsApp
 function WhatsAppModal({
   isOpen,
   onClose,
@@ -33,8 +33,8 @@ function WhatsAppModal({
             <div className="text-lg font-semibold">Cargando...</div>
           </div>
         )}
-        <h2 className="text-xl font-bold mb-4">Sesión WhatsApp</h2>
-        {/* Si no hay instancia ni QR, mostrar botón para conectar */}
+        <h2 className="text-xl font-bold mb-4">Sesión de WhatsApp</h2>
+        {/* Si no existe instancia ni QR, mostrar botón para conectar */}
         {!instanceInfo && !qrCode && !isLoadingWhatsApp && (
           <div className="text-center">
             <button
@@ -46,7 +46,7 @@ function WhatsAppModal({
             </button>
           </div>
         )}
-        {/* Si la instancia existe pero no está conectada, mostrar el QR y botón de refresco */}
+        {/* Si existe QR y la instancia existe pero no está conectada */}
         {instanceInfo && instanceInfo.connectionStatus !== "open" && !isLoadingWhatsApp && (
           <div className="text-center">
             <p className="mb-2 font-medium">Escanea el QR para conectar:</p>
@@ -64,7 +64,7 @@ function WhatsAppModal({
             </button>
           </div>
         )}
-        {/* Si la instancia existe y está conectada, mostrar la información */}
+        {/* Si la instancia existe y está conectada */}
         {instanceInfo && instanceInfo.connectionStatus === "open" && !isLoadingWhatsApp && (
           <div>
             <p className="mb-2">
@@ -153,20 +153,20 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     cargarDatos();
   }, [asesor.ID]);
 
-  // Al abrir el modal, se llama a refreshConnection para obtener el QR y la info
+  // Al abrir el modal, se refresca la conexión (obteniendo QR e info) de inmediato
   useEffect(() => {
     if (showWhatsAppModal) {
       refreshConnection();
     }
   }, [showWhatsAppModal, asesor.NOMBRE]);
 
-  // Polling: cada 30 segundos, si la instancia existe pero no está conectada
+  // Polling: cada 30 segundos, si la instancia existe pero no está conectada, se refresca la conexión
   useEffect(() => {
     let pollingInterval;
     if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
       pollingInterval = setInterval(() => {
         refreshConnection();
-      }, 30000); // 30 segundos
+      }, 30000);
     }
     return () => {
       if (pollingInterval) clearInterval(pollingInterval);
@@ -267,7 +267,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     };
     try {
       setIsLoadingWhatsApp(true);
-      // Abrir el modal inmediatamente para mostrar el spinner
+      // Abrir el modal inmediatamente para mostrar el spinner de carga
       setShowWhatsAppModal(true);
       const response = await fetch(`${evolutionServerUrl}/instance/create`, {
         method: "POST",
@@ -279,7 +279,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       });
       if (!response.ok) throw new Error("No se pudo crear la instancia");
       await response.json();
-      // Luego de crear la instancia, obtenemos el QR y la info
+      // Luego de crear la instancia, configuramos Chatwoot y refrescamos la conexión.
+      await setChatwootIntegration(asesor.NOMBRE);
       await refreshConnection();
       setWhatsappStatus("Desconectado");
       showToast("Instancia creada, escanea el QR para conectar", "success");
@@ -288,6 +289,46 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       showToast("Error al crear la instancia de WhatsApp", "error");
     } finally {
       setIsLoadingWhatsApp(false);
+    }
+  };
+
+  // Función para configurar Chatwoot
+  const setChatwootIntegration = async (instanceName) => {
+    try {
+      const url = `${evolutionServerUrl}/chatwoot/set/${encodeURIComponent(instanceName)}`;
+      const payload = {
+        enabled: true,
+        accountId: "1",
+        token: "wTVRJs9UfamwhTqcAqNpdqWE",
+        url: "https://n8n-chatwoot.wc2hpx.easypanel.host",
+        signMsg: false,
+        sign_delimiter: ":",
+        reopenConversation: true,
+        conversationPending: false,
+        nameInbox: instanceName,
+        importContacts: false,
+        importMessages: false,
+        daysLimitImportMessages: 1,
+        autoCreate: true
+      };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error al configurar Chatwoot: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      console.log("Chatwoot integration set:", data);
+      return data;
+    } catch (error) {
+      console.error("Error in setChatwootIntegration:", error);
+      showToast("Error al configurar Chatwoot", "error");
     }
   };
 
@@ -388,7 +429,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setWhatsappStatus("Desconectado");
       setInstanceInfo(null);
       showToast("WhatsApp desconectado", "success");
-      // Luego de desconectar, refrescar para obtener el QR de inmediato
+      // Después de desconectar, refrescamos para obtener el QR inmediatamente.
       await refreshConnection();
     } catch (error) {
       console.error("Error desconectando instancia:", error);

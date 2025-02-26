@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cliente, Asesor, Reporte, EstadisticasAsesor } from '../types';
-import { Calendar, Users, MessageSquare, List, Clock, TrendingUp, Target, Timer } from 'lucide-react';
+import { List, Clock, TrendingUp } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
 import ActualizarEstadoCliente from './ActualizarEstadoCliente';
 import ReportarVenta from './ReportarVenta';
@@ -10,6 +10,101 @@ import SeguimientosClientes from './SeguimientosClientes';
 import EstadisticasAvanzadas from './EstadisticasAvanzadas';
 import { useToast } from '../hooks/useToast';
 import Toast from './Toast';
+
+// Modal de Control de WhatsApp
+function WhatsAppModal({
+  isOpen,
+  onClose,
+  whatsappStatus,
+  instanceInfo,
+  qrCode,
+  isLoadingWhatsApp,
+  onCreateInstance,
+  onDisconnect,
+  onRefreshInstance,
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white p-6 rounded shadow-lg max-w-md w-full relative">
+        {isLoadingWhatsApp && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-10">
+            <div className="text-lg font-semibold">Cargando...</div>
+          </div>
+        )}
+        <h2 className="text-xl font-bold mb-4">Sesión WhatsApp</h2>
+        {/* Si no hay instancia ni QR, mostrar botón para conectar */}
+        {!instanceInfo && !qrCode && !isLoadingWhatsApp && (
+          <div className="text-center">
+            <button
+              onClick={onCreateInstance}
+              disabled={isLoadingWhatsApp}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Conectar
+            </button>
+          </div>
+        )}
+        {/* Si la instancia existe pero no está conectada, mostrar el QR y botón de refresco */}
+        {instanceInfo && instanceInfo.connectionStatus !== "open" && !isLoadingWhatsApp && (
+          <div className="text-center">
+            <p className="mb-2 font-medium">Escanea el QR para conectar:</p>
+            {qrCode ? (
+              <img src={qrCode} alt="QR Code" className="mx-auto mb-4" />
+            ) : (
+              <p className="mb-4 text-sm text-gray-600">QR no disponible. Intenta refrescar.</p>
+            )}
+            <button
+              onClick={onRefreshInstance}
+              disabled={isLoadingWhatsApp}
+              className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Refrescar Conexión
+            </button>
+          </div>
+        )}
+        {/* Si la instancia existe y está conectada, mostrar la información */}
+        {instanceInfo && instanceInfo.connectionStatus === "open" && !isLoadingWhatsApp && (
+          <div>
+            <p className="mb-2">
+              <span className="font-medium">Estado:</span> {whatsappStatus}
+            </p>
+            <p className="mb-2">
+              <span className="font-medium">Instancia:</span> {instanceInfo.name}
+            </p>
+            <p className="mb-2">
+              <span className="font-medium">Perfil:</span> {instanceInfo.profileName || "N/A"}
+            </p>
+            <p className="mb-2">
+              <span className="font-medium">Número:</span> {instanceInfo.ownerJid || "N/A"}
+            </p>
+            {instanceInfo.profileStatus && (
+              <p className="mb-2">
+                <span className="font-medium">Status:</span> {instanceInfo.profileStatus}
+              </p>
+            )}
+            <button
+              onClick={onDisconnect}
+              disabled={isLoadingWhatsApp}
+              className="mt-4 w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Desconectar
+            </button>
+          </div>
+        )}
+        <div className="mt-6 text-right">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface DashboardAsesorProps {
   asesorInicial: Asesor;
@@ -36,6 +131,17 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     tasaRespuesta: 0
   });
 
+  // Estados para WhatsApp y modal
+  const [whatsappStatus, setWhatsappStatus] = useState<string | null>(null);
+  const [isLoadingWhatsApp, setIsLoadingWhatsApp] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [instanceInfo, setInstanceInfo] = useState<any>(null);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+
+  // Configuración de Evolution API
+  const evolutionServerUrl = "https://evolution.automscc.com";
+  const evolutionApiKey = "429683C4C977415CAAFCCE10F7D57E11";
+
   const { toast, showToast, hideToast } = useToast();
 
   const handleLogout = async () => {
@@ -47,24 +153,35 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     cargarDatos();
   }, [asesor.ID]);
 
+  // Al abrir el modal, se llama a refreshConnection para obtener el QR y la info
+  useEffect(() => {
+    if (showWhatsAppModal) {
+      refreshConnection();
+    }
+  }, [showWhatsAppModal, asesor.NOMBRE]);
+
+  // Polling: cada 30 segundos, si la instancia existe pero no está conectada
+  useEffect(() => {
+    let pollingInterval;
+    if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
+      pollingInterval = setInterval(() => {
+        refreshConnection();
+      }, 30000); // 30 segundos
+    }
+    return () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+    };
+  }, [showWhatsAppModal, instanceInfo]);
+
   const cargarDatos = async () => {
     try {
       console.log('Cargando datos para asesor:', asesor.ID);
-
-      // Cargar clientes del asesor
       const { data: clientesData, error: clientesError } = await supabase
         .from('GERSSON_CLIENTES')
         .select('*')
         .eq('ID_ASESOR', asesor.ID);
+      if (clientesError) throw clientesError;
 
-      if (clientesError) {
-        console.error('Error al cargar clientes:', clientesError);
-        throw clientesError;
-      }
-
-      console.log('Clientes cargados:', clientesData?.length || 0);
-
-      // Cargar reportes del asesor
       const { data: reportesData, error: reportesError } = await supabase
         .from('GERSSON_REPORTES')
         .select(`
@@ -73,53 +190,31 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         `)
         .eq('ID_ASESOR', asesor.ID)
         .order('FECHA_SEGUIMIENTO', { ascending: true });
-
-      if (reportesError) {
-        console.error('Error al cargar reportes:', reportesError);
-        throw reportesError;
-      }
-
-      console.log('Reportes cargados:', reportesData?.length || 0);
+      if (reportesError) throw reportesError;
 
       if (clientesData && reportesData) {
-        // Procesar clientes y sus estados
         const clientesProcesados = clientesData.map(cliente => {
-          // Si el cliente está marcado como PAGADO por el backend
           if (cliente.ESTADO === 'PAGADO') {
-            // Verificar si el asesor ha reportado la venta
             const tieneReporteVenta = reportesData.some(r =>
-              r.ID_CLIENTE === cliente.ID &&
-              r.ESTADO_NUEVO === 'PAGADO'
+              r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'PAGADO'
             );
-
             if (!tieneReporteVenta) {
-              // Buscar el último estado reportado por el asesor
               const ultimoReporte = reportesData
                 .filter(r => r.ID_CLIENTE === cliente.ID)
                 .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
-
-              // Si hay un reporte previo, usar ese estado
-              if (ultimoReporte) {
-                return { ...cliente, ESTADO: ultimoReporte.ESTADO_NUEVO };
-              }
+              if (ultimoReporte) return { ...cliente, ESTADO: ultimoReporte.ESTADO_NUEVO };
             }
           }
           return cliente;
         });
 
-        console.log('Clientes procesados:', clientesProcesados.length);
-
         setClientes(clientesProcesados);
         setReportes(reportesData);
 
-        // Filtrar clientes sin reporte
         const clientesConReporte = new Set(reportesData.map(r => r.ID_CLIENTE));
-        const clientesSinReporteFiltrados = clientesProcesados.filter(c =>
-          !clientesConReporte.has(c.ID)
-        );
-        setClientesSinReporte(clientesSinReporteFiltrados);
+        setClientesSinReporte(clientesProcesados.filter(c => !clientesConReporte.has(c.ID)));
 
-        // Calcular estadísticas
+        // Estadísticas básicas
         const ventasRealizadas = reportesData.filter(r => r.ESTADO_NUEVO === 'PAGADO').length;
         const seguimientosPendientes = reportesData.filter(r =>
           r.FECHA_SEGUIMIENTO &&
@@ -129,27 +224,21 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         const seguimientosCompletados = reportesData.filter(r => r.COMPLETADO).length;
         const totalSeguimientos = seguimientosPendientes + seguimientosCompletados;
 
-        // Calcular tiempo promedio de conversión
         const ventasConFecha = reportesData.filter(r =>
           r.ESTADO_NUEVO === 'PAGADO' &&
           r.cliente?.FECHA_CREACION &&
           r.FECHA_REPORTE
         );
-
         const tiempoPromedioConversion = ventasConFecha.length > 0
           ? ventasConFecha.reduce((acc, venta) => {
-            const tiempoConversion = venta.FECHA_REPORTE -
-              (typeof venta.cliente?.FECHA_CREACION === 'string'
-                ? parseInt(venta.cliente.FECHA_CREACION)
-                : venta.cliente?.FECHA_CREACION || 0);
-            return acc + tiempoConversion;
-          }, 0) / ventasConFecha.length / (24 * 60 * 60) // Convertir a días
+              const tiempoConversion = venta.FECHA_REPORTE -
+                (typeof venta.cliente?.FECHA_CREACION === 'string'
+                  ? parseInt(venta.cliente.FECHA_CREACION)
+                  : venta.cliente?.FECHA_CREACION || 0);
+              return acc + tiempoConversion;
+            }, 0) / ventasConFecha.length / (24 * 60 * 60)
           : 0;
-
-        // Calcular tasa de respuesta
-        const tasaRespuesta = totalSeguimientos > 0
-          ? (seguimientosCompletados / totalSeguimientos) * 100
-          : 0;
+        const tasaRespuesta = totalSeguimientos > 0 ? (seguimientosCompletados / totalSeguimientos) * 100 : 0;
 
         setEstadisticas({
           totalClientes: clientesProcesados.length,
@@ -169,150 +258,213 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
-  const handleActualizarEstadoComplete = () => {
-    setClienteParaEstado(null);
-    cargarDatos();
-    showToast('Estado actualizado correctamente', 'success');
-  };
-
-  const handleReportarVentaComplete = () => {
-    setClienteParaVenta(null);
-    cargarDatos();
-    showToast('Venta reportada correctamente', 'success');
-  };
-
-  const handleMarcarCompletado = async (reporte: Reporte) => {
+  // Función para crear la instancia
+  const handleCreateInstance = async () => {
+    const payload = {
+      instanceName: asesor.NOMBRE,
+      qrcode: true,
+      integration: "WHATSAPP-BAILEYS"
+    };
     try {
-      const { error } = await supabase
-        .from('GERSSON_REPORTES')
-        .update({ COMPLETADO: true })
-        .eq('ID', reporte.ID);
-
-      if (error) throw error;
-
-      showToast('Seguimiento marcado como completado', 'success');
-      cargarDatos();
+      setIsLoadingWhatsApp(true);
+      // Abrir el modal inmediatamente para mostrar el spinner
+      setShowWhatsAppModal(true);
+      const response = await fetch(`${evolutionServerUrl}/instance/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error("No se pudo crear la instancia");
+      await response.json();
+      // Luego de crear la instancia, obtenemos el QR y la info
+      await refreshConnection();
+      setWhatsappStatus("Desconectado");
+      showToast("Instancia creada, escanea el QR para conectar", "success");
     } catch (error) {
-      console.error('Error al marcar seguimiento como completado:', error);
-      showToast('Error al marcar seguimiento como completado', 'error');
+      console.error("Error creando instancia:", error);
+      showToast("Error al crear la instancia de WhatsApp", "error");
+    } finally {
+      setIsLoadingWhatsApp(false);
+    }
+  };
+
+  // Función para llamar al endpoint "Instance Connect" y obtener el QR
+  const handleInstanceConnect = async () => {
+    try {
+      setIsLoadingWhatsApp(true);
+      const url = `${evolutionServerUrl}/instance/connect/${encodeURIComponent(asesor.NOMBRE)}`;
+      console.log("Fetching QR from:", url);
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error al obtener el QR de conexión: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      console.log("Instance Connect response:", data);
+      if (data.instance && data.instance.base64) {
+        setQrCode(data.instance.base64);
+      } else if (data.base64) {
+        setQrCode(data.base64);
+      } else {
+        setQrCode(null);
+      }
+    } catch (error) {
+      console.error("Error in handleInstanceConnect:", error);
+    } finally {
+      setIsLoadingWhatsApp(false);
+    }
+  };
+
+  // Función combinada para refrescar la conexión: obtiene el QR y consulta la info
+  const refreshConnection = async () => {
+    await handleInstanceConnect();
+    await handleFetchInstanceInfo();
+  };
+
+  // Función para obtener la info de la instancia usando fetchInstances
+  const handleFetchInstanceInfo = async () => {
+    try {
+      setIsLoadingWhatsApp(true);
+      const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${encodeURIComponent(asesor.NOMBRE)}`;
+      console.log("Fetching instance info from:", url);
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+      });
+      if (!response.ok) throw new Error("Error al obtener la información de la instancia");
+      const data = await response.json();
+      console.log("Response data:", data);
+      if (Array.isArray(data) && data.length > 0) {
+        const instance = data[0];
+        setInstanceInfo(instance);
+        if (instance.connectionStatus === "open") {
+          setWhatsappStatus("Conectado");
+          showToast("WhatsApp conectado", "success");
+        } else if (instance.connectionStatus === "connecting") {
+          setWhatsappStatus("Conectando...");
+        } else {
+          setWhatsappStatus("Desconectado");
+        }
+      } else {
+        setInstanceInfo(null);
+        setWhatsappStatus("Desconectado");
+      }
+    } catch (error) {
+      console.error("Error in handleFetchInstanceInfo:", error);
+    } finally {
+      setIsLoadingWhatsApp(false);
+    }
+  };
+
+  // Función para desconectar la instancia
+  const handleDisconnectInstance = async () => {
+    try {
+      setIsLoadingWhatsApp(true);
+      const url = `${evolutionServerUrl}/instance/logout/${encodeURIComponent(asesor.NOMBRE)}`;
+      console.log("Disconnect URL:", url);
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error al desconectar la instancia: ${response.status} - ${errorText}`);
+      }
+      setWhatsappStatus("Desconectado");
+      setInstanceInfo(null);
+      showToast("WhatsApp desconectado", "success");
+      // Luego de desconectar, refrescar para obtener el QR de inmediato
+      await refreshConnection();
+    } catch (error) {
+      console.error("Error desconectando instancia:", error);
+      showToast("Error al desconectar WhatsApp", "error");
+    } finally {
+      setIsLoadingWhatsApp(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Dashboard de {asesor.NOMBRE}
-            </h1>
+        <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard de {asesor.NOMBRE}</h1>
+          <div className="flex space-x-4">
+            <button
+              onClick={() => setShowWhatsAppModal(true)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+            >
+              WhatsApp
+            </button>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+              className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
             >
               Cerrar Sesión
             </button>
           </div>
-
-          {/* Pestañas de navegación */}
-          <div className="flex space-x-4 border-b border-gray-200">
-            <button
-              onClick={() => setVistaActual('general')}
-              className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'general'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-            >
-              <List className="inline-block h-5 w-5 mr-2" />
-              Vista General
-            </button>
-            <button
-              onClick={() => setVistaActual('seguimientos')}
-              className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'seguimientos'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-            >
-              <Clock className="inline-block h-5 w-5 mr-2" />
-              Seguimientos
-              {estadisticas.seguimientosPendientes > 0 && (
-                <span className="ml-2 bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                  {estadisticas.seguimientosPendientes}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setVistaActual('estadisticas')}
-              className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'estadisticas'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-            >
-              <TrendingUp className="inline-block h-5 w-5 mr-2" />
-              Estadísticas
-            </button>
-          </div>
+        </div>
+        {/* Pestañas de navegación */}
+        <div className="flex space-x-4 border-b border-gray-200 px-4">
+          <button
+            onClick={() => setVistaActual('general')}
+            className={`py-2 px-4 border-b-2 font-medium text-sm ${
+              vistaActual === 'general'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <List className="inline-block h-5 w-5 mr-2" />
+            Vista General
+          </button>
+          <button
+            onClick={() => setVistaActual('seguimientos')}
+            className={`py-2 px-4 border-b-2 font-medium text-sm ${
+              vistaActual === 'seguimientos'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Clock className="inline-block h-5 w-5 mr-2" />
+            Seguimientos
+          </button>
+          <button
+            onClick={() => setVistaActual('estadisticas')}
+            className={`py-2 px-4 border-b-2 font-medium text-sm ${
+              vistaActual === 'estadisticas'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <TrendingUp className="inline-block h-5 w-5 mr-2" />
+            Estadísticas
+          </button>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Estadísticas Rápidas */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <Users className="h-8 w-8 text-blue-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Total Clientes</p>
-                <p className="text-2xl font-semibold text-gray-900">{estadisticas.totalClientes}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <Target className="h-8 w-8 text-green-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Tasa de Cierre</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {estadisticas.porcentajeCierre.toFixed(1)}%
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <Timer className="h-8 w-8 text-purple-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Tiempo Promedio</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {estadisticas.tiempoPromedioConversion.toFixed(1)} días
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <MessageSquare className="h-8 w-8 text-yellow-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Tasa de Respuesta</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {estadisticas.tasaRespuesta.toFixed(1)}%
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {vistaActual === 'general' && (
           <>
-            {/* Clientes sin reporte siempre visibles arriba */}
             <ClientesSinReporte
               clientes={clientesSinReporte}
               onActualizarEstado={setClienteParaEstado}
               onReportarVenta={setClienteParaVenta}
             />
-
-            <div className="h-4"></div> {/* Espaciador */}
-
+            <div className="h-4"></div>
             <ListaGeneralClientes
               clientes={clientes}
               reportes={reportes}
@@ -321,15 +473,13 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             />
           </>
         )}
-
         {vistaActual === 'seguimientos' && (
           <SeguimientosClientes
             reportes={reportes}
             onActualizarEstado={setClienteParaEstado}
-            onMarcarCompletado={handleMarcarCompletado}
+            onMarcarCompletado={() => {}}
           />
         )}
-
         {vistaActual === 'estadisticas' && (
           <EstadisticasAvanzadas
             estadisticas={estadisticas}
@@ -337,35 +487,47 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             clientes={clientes}
           />
         )}
-
-        {/* Modales */}
         {clienteParaEstado && (
           <ActualizarEstadoCliente
             cliente={clienteParaEstado}
             asesor={asesor}
-            onComplete={handleActualizarEstadoComplete}
+            onComplete={() => {
+              setClienteParaEstado(null);
+              cargarDatos();
+              showToast('Estado actualizado correctamente', 'success');
+            }}
             onClose={() => setClienteParaEstado(null)}
           />
         )}
-
         {clienteParaVenta && (
           <ReportarVenta
             cliente={clienteParaVenta}
             asesor={asesor}
-            onComplete={handleReportarVentaComplete}
+            onComplete={() => {
+              setClienteParaVenta(null);
+              cargarDatos();
+              showToast('Venta reportada correctamente', 'success');
+            }}
             onClose={() => setClienteParaVenta(null)}
           />
         )}
-
-        {/* Toast notifications */}
         {toast.visible && (
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            onClose={hideToast}
-          />
+          <Toast message={toast.message} type={toast.type} onClose={hideToast} />
         )}
       </div>
+
+      {/* Modal de control de WhatsApp */}
+      <WhatsAppModal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        whatsappStatus={whatsappStatus}
+        instanceInfo={instanceInfo}
+        qrCode={qrCode}
+        isLoadingWhatsApp={isLoadingWhatsApp}
+        onCreateInstance={handleCreateInstance}
+        onRefreshInstance={refreshConnection}
+        onDisconnect={handleDisconnectInstance}
+      />
     </div>
   );
 }

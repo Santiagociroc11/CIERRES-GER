@@ -36,22 +36,22 @@ export default function ListaGeneralClientes({
 
   // Verificar si un cliente tiene reporte de venta
   const tieneReporteVenta = (clienteId: number) => {
-    return reportes.some(r => 
-      r.ID_CLIENTE === clienteId && 
+    return reportes.some(r =>
+      r.ID_CLIENTE === clienteId &&
       r.ESTADO_NUEVO === 'PAGADO'
     );
   };
 
   const clientesFiltrados = clientes.filter(cliente => {
     if (forzarBusqueda && !busqueda) return false;
-    
-    const coincideBusqueda = 
+
+    const coincideBusqueda =
       cliente.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
       cliente.WHATSAPP.includes(busqueda);
-    
+
     const coincideEstado = filtroEstado === 'TODOS' || cliente.ESTADO === filtroEstado;
     const coincideCriticos = !mostrarSoloCriticos || esEstadoCritico(cliente.ESTADO);
-    
+
     return coincideBusqueda && coincideEstado && coincideCriticos;
   });
 
@@ -84,7 +84,7 @@ export default function ListaGeneralClientes({
   const obtenerUltimoReporte = (clienteId: number) => {
     const reportesCliente = reportes.filter(r => r.ID_CLIENTE === clienteId);
     if (!reportesCliente.length) return null;
-    
+
     return reportesCliente.sort((a, b) => {
       const fechaA = typeof a.FECHA_REPORTE === 'string' ? parseInt(a.FECHA_REPORTE, 10) : a.FECHA_REPORTE;
       const fechaB = typeof b.FECHA_REPORTE === 'string' ? parseInt(b.FECHA_REPORTE, 10) : b.FECHA_REPORTE;
@@ -93,10 +93,10 @@ export default function ListaGeneralClientes({
   };
 
   const tieneSeguimientoPendiente = (clienteId: number) => {
-    return reportes.some(r => 
-      r.ID_CLIENTE === clienteId && 
-      r.FECHA_SEGUIMIENTO && 
-      !r.COMPLETADO && 
+    return reportes.some(r =>
+      r.ID_CLIENTE === clienteId &&
+      r.FECHA_SEGUIMIENTO &&
+      !r.COMPLETADO &&
       r.FECHA_SEGUIMIENTO >= Math.floor(Date.now() / 1000)
     );
   };
@@ -111,7 +111,7 @@ export default function ListaGeneralClientes({
     // Si es PAGADO, verificar si tiene reporte
     if (estado === 'PAGADO') {
       const tieneReporte = tieneReporteVenta(clienteId);
-      return tieneReporte 
+      return tieneReporte
         ? 'bg-green-100 text-green-800'
         : 'bg-yellow-100 text-yellow-800 border border-yellow-500';
     }
@@ -161,14 +161,14 @@ export default function ListaGeneralClientes({
             )}
           </button>
         </div>
-        
+
         <div className={`space-y-4 ${mostrarFiltros ? 'block' : 'hidden md:block'}`}>
           {/* Barra de búsqueda */}
           <div className="relative">
             <input
               type="text"
-              placeholder={forzarBusqueda 
-                ? "Ingresa al menos 3 caracteres para buscar..." 
+              placeholder={forzarBusqueda
+                ? "Ingresa al menos 3 caracteres para buscar..."
                 : "Buscar por nombre o WhatsApp..."}
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
@@ -206,15 +206,13 @@ export default function ListaGeneralClientes({
 
             <button
               onClick={() => setMostrarSoloCriticos(!mostrarSoloCriticos)}
-              className={`px-4 py-2 rounded-lg border ${
-                mostrarSoloCriticos
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-white text-gray-700 border-gray-300'
-              }`}
+              className={`px-4 py-2 rounded-lg border ${mostrarSoloCriticos
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-white text-gray-700 border-gray-300'
+                }`}
             >
-              <AlertCircle className={`inline-block h-4 w-4 mr-2 ${
-                mostrarSoloCriticos ? 'text-amber-500' : 'text-gray-400'
-              }`} />
+              <AlertCircle className={`inline-block h-4 w-4 mr-2 ${mostrarSoloCriticos ? 'text-amber-500' : 'text-gray-400'
+                }`} />
               Solo críticos
             </button>
           </div>
@@ -226,9 +224,9 @@ export default function ListaGeneralClientes({
         {clientesPaginados.map((cliente) => {
           const ultimoReporte = obtenerUltimoReporte(cliente.ID);
           const tieneSeguimiento = tieneSeguimientoPendiente(cliente.ID);
-          
+
           return (
-            <div 
+            <div
               key={cliente.ID}
               className="p-4 border-b border-gray-200 space-y-3"
             >
@@ -241,9 +239,8 @@ export default function ListaGeneralClientes({
                     {cliente.NOMBRE}
                   </button>
                   <div className="flex items-center mt-1 space-x-2">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      getEstadoColor(cliente.ESTADO, cliente.ID)
-                    }`}>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getEstadoColor(cliente.ESTADO, cliente.ID)
+                      }`}>
                       {getEstadoTexto(cliente.ESTADO, cliente.ID)}
                     </span>
                     {!ultimoReporte && (
@@ -280,26 +277,31 @@ export default function ListaGeneralClientes({
                     <Phone className="h-4 w-4 mr-2" />
                     Contactar
                   </button>
-                  <button
-                    onClick={() => {
-                      onActualizarEstado(cliente);
-                      setClienteAcciones(null);
-                    }}
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
-                  >
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Actualizar Estado
-                  </button>
-                  <button
-                    onClick={() => {
-                      onReportarVenta(cliente);
-                      setClienteAcciones(null);
-                    }}
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
-                  >
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    Reportar Venta
-                  </button>
+                  {/* Solo muestra estos botones si NO se ha reportado venta */}
+                  {!tieneReporteVenta(cliente.ID) && (
+                    <>
+                      <button
+                        onClick={() => {
+                          onActualizarEstado(cliente);
+                          setClienteAcciones(null);
+                        }}
+                        className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Actualizar Estado
+                      </button>
+                      <button
+                        onClick={() => {
+                          onReportarVenta(cliente);
+                          setClienteAcciones(null);
+                        }}
+                        className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
+                      >
+                        <DollarSign className="h-4 w-4 mr-2" />
+                        Reportar Venta
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -336,7 +338,7 @@ export default function ListaGeneralClientes({
             {clientesPaginados.map((cliente) => {
               const ultimoReporte = obtenerUltimoReporte(cliente.ID);
               const tieneSeguimiento = tieneSeguimientoPendiente(cliente.ID);
-              
+
               return (
                 <tr key={cliente.ID} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -361,9 +363,8 @@ export default function ListaGeneralClientes({
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        getEstadoColor(cliente.ESTADO, cliente.ID)
-                      }`}>
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getEstadoColor(cliente.ESTADO, cliente.ID)
+                        }`}>
                         {getEstadoTexto(cliente.ESTADO, cliente.ID)}
                       </span>
                       {cliente.ESTADO === 'PAGADO' && !tieneReporteVenta(cliente.ID) && !readOnly && (
@@ -397,8 +398,8 @@ export default function ListaGeneralClientes({
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {isValidDate(cliente.FECHA_CREACION) ? 
-                      formatDateOnly(cliente.FECHA_CREACION) : 
+                    {isValidDate(cliente.FECHA_CREACION) ?
+                      formatDateOnly(cliente.FECHA_CREACION) :
                       'Fecha no disponible'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -411,7 +412,7 @@ export default function ListaGeneralClientes({
                     </button>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {!readOnly && (
+                    {!readOnly && !tieneReporteVenta(cliente.ID) && (
                       <div className="flex justify-end space-x-2">
                         <button
                           onClick={() => onActualizarEstado(cliente)}
@@ -430,6 +431,7 @@ export default function ListaGeneralClientes({
                       </div>
                     )}
                   </td>
+
                 </tr>
               );
             })}
@@ -491,11 +493,10 @@ export default function ListaGeneralClientes({
                     <button
                       key={pageNum}
                       onClick={() => setPagina(pageNum)}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                        pagina === pageNum
-                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                      }`}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${pagina === pageNum
+                        ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                        : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
                     >
                       {pageNum}
                     </button>

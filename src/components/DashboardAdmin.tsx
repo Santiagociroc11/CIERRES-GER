@@ -159,12 +159,25 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     const reportesPorCliente = clientesAsesor.length ? reportesAsesor.length / clientesAsesor.length : 0;
     const reportesConSeguimiento = reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO).length;
 
+    // Define la tasa de conversión de COP a USD (ajusta según la tasa actual)
+    const COP_TO_USD = 0.00027;
+
     const ventasConMonto = clientesAsesor.filter(
       (c: any) => c.ESTADO === 'PAGADO' && c.MONTO_COMPRA > 0
     );
+
     const montoPromedioVenta = ventasConMonto.length
-      ? ventasConMonto.reduce((acc: number, c: any) => acc + c.MONTO_COMPRA, 0) / ventasConMonto.length
+      ? ventasConMonto.reduce((acc: number, c: any) => {
+        // Aseguramos que MONEDA esté en mayúsculas y, en caso de faltar, asumimos 'COP'
+        const moneda = c.MONEDA ? c.MONEDA.toUpperCase() : 'COP';
+        const montoEnUSD = moneda === 'COP'
+          ? c.MONTO_COMPRA * COP_TO_USD
+          : c.MONTO_COMPRA;
+        // Debug: imprimir en consola cada conversión
+        return acc + montoEnUSD;
+      }, 0) / ventasConMonto.length
       : 0;
+
 
     const ultimoReporte = reportesAsesor.length > 0
       ? Math.max(...reportesAsesor.map((r: any) => r.FECHA_REPORTE))
@@ -817,10 +830,12 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       {clienteSeleccionado && (
         <HistorialCliente
           cliente={clienteSeleccionado}
-          reportes={reportes}
+          reportes={reportes.filter((r) => r.ID_CLIENTE === clienteSeleccionado.ID)}
+          asesor={asesores.find((a) => a.ID === clienteSeleccionado.ID_ASESOR)}
           onClose={() => setClienteSeleccionado(null)}
         />
       )}
+
 
       {/* Modal de Detalle de Asesor */}
       {asesorSeleccionado && (

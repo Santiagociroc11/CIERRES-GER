@@ -3,15 +3,17 @@ import { Cliente, Reporte, Registro } from '../types';
 import { Clock, MessageSquare, DollarSign, AlertCircle, CheckCircle, X, Activity } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
+import { Asesor } from '../types';
 
 interface HistorialClienteProps {
   cliente: Cliente;
   reportes: Reporte[];
+  asesor: Asesor; // nuevo prop para el nombre del asesor
   onClose: () => void;
 }
 
-export default function HistorialCliente({ cliente, reportes, onClose }: HistorialClienteProps) {
-  const [registros, setRegistros] = useState<Registro[]>([]);
+
+export default function HistorialCliente({ cliente, reportes, asesor, onClose }: HistorialClienteProps) {  const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -87,7 +89,9 @@ export default function HistorialCliente({ cliente, reportes, onClose }: Histori
                 <p className="text-sm text-gray-600">
                   Fecha de asignación: {formatDate(cliente.FECHA_CREACION)}
                 </p>
+                <p className="text-sm text-gray-600">Asesor: {asesor.NOMBRE}</p> {/* Línea agregada */}
               </div>
+
               <button
                 onClick={onClose}
                 className="rounded-full p-2 hover:bg-gray-100 transition-colors"
@@ -111,21 +115,19 @@ export default function HistorialCliente({ cliente, reportes, onClose }: Histori
             ) : (
               <div className="space-y-6">
                 {timelineItems.map((item, index) => (
-                  <div 
-                    key={`${item.tipo}-${item.data.ID}`} 
-                    className={`relative pb-6 ${
-                      index !== timelineItems.length - 1 ? 'border-l-2 border-gray-200 ml-3' : ''
-                    }`}
+                  <div
+                    key={`${item.tipo}-${item.data.ID}`}
+                    className={`relative pb-6 ${index !== timelineItems.length - 1 ? 'border-l-2 border-gray-200 ml-3' : ''
+                      }`}
                   >
                     <div className="relative flex items-start">
                       <div className="absolute -left-3.5 mt-1.5">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                          item.tipo === 'registro' 
-                            ? 'bg-purple-100' 
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${item.tipo === 'registro'
+                            ? 'bg-purple-100'
                             : item.data.ESTADO_NUEVO === 'PAGADO'
                               ? 'bg-green-100'
                               : 'bg-blue-100'
-                        }`}>
+                          }`}>
                           {item.tipo === 'registro' ? (
                             <Activity className="h-4 w-4 text-purple-600" />
                           ) : item.data.ESTADO_NUEVO === 'PAGADO' ? (
@@ -156,9 +158,8 @@ export default function HistorialCliente({ cliente, reportes, onClose }: Histori
                           <div>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                               <div className="flex items-center flex-wrap gap-2">
-                                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-                                  getEstadoColor(item.data.ESTADO_NUEVO)
-                                }`}>
+                                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getEstadoColor(item.data.ESTADO_NUEVO)
+                                  }`}>
                                   {item.data.ESTADO_NUEVO}
                                 </span>
                                 {item.data.ESTADO_ANTERIOR && (
@@ -171,9 +172,9 @@ export default function HistorialCliente({ cliente, reportes, onClose }: Histori
                                 {formatDate(item.data.FECHA_REPORTE)}
                               </span>
                             </div>
-                            
+
                             <p className="mt-2 text-sm text-gray-900">{item.data.COMENTARIO}</p>
-                            
+
                             {item.data.FECHA_SEGUIMIENTO && (
                               <div className="mt-2 flex items-center space-x-2 text-sm bg-blue-50 p-2 rounded-md">
                                 <Clock className="h-4 w-4 text-blue-500" />

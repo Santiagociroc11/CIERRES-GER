@@ -93,7 +93,7 @@ export default function ListaGeneralClientes({
     if ((!ultimoRpt || cliente.ESTADO !== ultimoRpt.ESTADO_NUEVO) && cliente.ESTADO !== 'PAGADO') {
       return 0;
     }
-    if ( cliente.ESTADO == "NO CONTESTÓ") return 1;
+    if (cliente.ESTADO === 'NO CONTESTÓ') return 1;
     // Luego, si el estado es "SEGUIMIENTO", valor 1
     if (cliente.ESTADO === 'SEGUIMIENTO') return 2;
     // Si es "PAGADO", valor 2

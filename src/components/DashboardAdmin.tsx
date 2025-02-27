@@ -31,6 +31,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import ReasignarCliente from "./ReasignarCliente";
+import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { RefreshCcw } from 'lucide-react';
 
 
 interface DashboardAdminProps {
@@ -44,7 +47,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [clientes, setClientes] = useState<any[]>([]);
   const [reportes, setReportes] = useState<any[]>([]);
   const [registros, setRegistros] = useState<any[]>([]);
-
+  const itemsPerPage = 20;
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Estados de filtros y visualización
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<'mes' | 'semana' | 'personalizado'>('mes');
@@ -55,6 +59,27 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
+  const [filtroEstado, setFiltroEstado] = useState('');
+
+  const [tick, setTick] = useState(0);
+  // Estado para guardar la hora de la última actualización
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+
+  // Actualización automática cada 60 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+      setLastUpdated(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Función para refrescar manualmente
+  const handleRefresh = () => {
+    setTick(t => t + 1);
+    setLastUpdated(new Date());
+  };
+
 
   // Nuevo estado para alternar entre vista de Asesores y Clientes
   const [vistaAdmin, setVistaAdmin] = useState<'asesores' | 'clientes'>('asesores');
@@ -415,21 +440,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         </div>
       </div>
 
-      {/* Panel de Notificaciones */}
-      {notificaciones.length > 0 && (
-        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-          <h2 className="text-lg font-semibold text-yellow-700 flex items-center">
-            <Bell className="h-5 w-5 mr-2" />
-            Notificaciones
-          </h2>
-          <ul className="mt-2 list-disc list-inside text-sm text-yellow-700">
-            {notificaciones.map((msg, idx) => (
-              <li key={idx}>{msg}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* Contenido principal */}
       <div className="max-w-8xl mx-auto px-4 py-6">
         {vistaAdmin === 'asesores' ? (
@@ -782,85 +792,237 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
             )}
           </>
         ) : (
-          <div className="space-y-8 p-4">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center sm:text-left">
-              Lista General de Clientes
-            </h2>
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Buscar cliente..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+          <div className="p-4 space-y-8">
+            {/* Filtros */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              {/* Buscador */}
+              <div className="relative w-full md:w-1/3">
+                <input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={busqueda}
+                  onChange={(e) => {
+                    setBusqueda(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              </div>
+              {/* Filtro por estado */}
+              <div className="w-full md:w-1/4">
+                <select
+                  value={filtroEstado}
+                  onChange={(e) => {
+                    setFiltroEstado(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="PAGADO">Pagado</option>
+                  <option value="SEGUIMIENTO">Seguimiento</option>
+                  <option value="NO CONTESTÓ">No Contestó</option>
+                  <option value="NO CONTACTAR">No Contactar</option>
+                </select>
+              </div>
+              {/* Botón de refrescar y último update */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRefresh}
+                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <RefreshCcw className="h-5 w-5 mr-2" />
+                  Refrescar
+                </button>
+                <span className="text-xs text-gray-500">
+                  Actualizado: {lastUpdated.toLocaleTimeString()}
+                </span>
+              </div>
             </div>
-            <div className="overflow-x-auto w-full">
-              <table className="min-w-full divide-y divide-gray-200 table-auto">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Nombre
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      WhatsApp
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Asesor Asignado
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {clientes
-                    .filter((c) =>
-                      c.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
-                      c.WHATSAPP.includes(busqueda)
-                    )
-                    .map((cliente) => {
-                      const asesorAsignado = asesores.find((a) => a.ID === cliente.ID_ASESOR);
 
-                      const fechaAsignado = cliente.FECHA_ASIGNADO
-                        ? new Date(cliente.FECHA_CREACION).toLocaleDateString()
-                        : 'Sin fecha';
-                      const fechaReporte = cliente.FECHA_REPORTE
-                        ? new Date(cliente.FECHA_REPORTE).toLocaleDateString()
-                        : 'Sin fecha';
+            {/* Tabla de Clientes */}
+            <div className="overflow-x-auto">
+              {(() => {
+                const filteredClients = clientes
+                  .filter(
+                    (c) =>
+                      (c.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
+                        c.WHATSAPP.includes(busqueda)) &&
+                      (filtroEstado ? c.ESTADO === filtroEstado : true)
+                  )
+                  .filter((cliente) =>
+                    asesores.some((a) => a.ID === cliente.ID_ASESOR)
+                  )
+                  .sort((a, b) => b.FECHA_CREACION - a.FECHA_CREACION);
 
-                      return (
-                        <tr key={cliente.ID}>
-                          <td className="px-6 py-4 whitespace-nowrap truncate">
-                            {cliente.NOMBRE}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap truncate">
-                            {cliente.WHATSAPP}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap truncate">
-                            {asesorAsignado ? asesorAsignado.NOMBRE : 'Sin asignar'}
-                          </td>
-                        
-                          <td className="px-6 py-4 whitespace-nowrap flex items-center">
-                            {asesorAsignado && (
-                              <div className="whitespace-nowrap">
-                                <ReasignarCliente clienteId={cliente.ID} asesorActual={asesorAsignado.NOMBRE} />
-                              </div>
-                            )}
-                            <button
-                              onClick={() => setClienteSeleccionado(cliente)}
-                              className="ml-2 inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                              Ver Historial
-                            </button>
-                          </td>
+                const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
+                const paginatedClients = filteredClients.slice(
+                  (currentPage - 1) * itemsPerPage,
+                  currentPage * itemsPerPage
+                );
+
+                return (
+                  <>
+                    <table className="min-w-full bg-white shadow rounded-lg">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Nombre
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            WhatsApp
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Fecha de Creación
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Estado
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Último Reporte
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Asesor Asignado
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Acciones
+                          </th>
                         </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {paginatedClients.map((cliente) => {
+                          const asesorAsignado = asesores.find(
+                            (a) => a.ID === cliente.ID_ASESOR
+                          );
+                          const ultimoReporte = reportes
+                            .filter((r) => r.ID_CLIENTE === cliente.ID)
+                            .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
+
+                          const borderClass = ultimoReporte
+                            ? "border-l-4 border-green-500"
+                            : "border-l-4 border-red-500";
+
+                          const tiempoReporte = ultimoReporte
+                            ? (() => {
+                              const diff =
+                                ultimoReporte.FECHA_REPORTE - cliente.FECHA_CREACION;
+                              const hours = Math.floor(diff / 3600);
+                              if (hours < 24) return `(${hours}h)`;
+                              const days = Math.floor(hours / 24);
+                              const remainingHours = hours % 24;
+                              return `(${days}d ${remainingHours}h)`;
+                            })()
+                            : null;
+
+                          const tiempoSinReporte = !ultimoReporte
+                            ? formatDistanceToNow(new Date(cliente.FECHA_CREACION * 1000), {
+                              addSuffix: true,
+                              locale: es,
+                            })
+                            : null;
+
+                          return (
+                            <tr key={cliente.ID} className="hover:bg-gray-50">
+                              <td
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-gray-800 truncate ${borderClass}`}
+                              >
+                                {cliente.NOMBRE}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
+                                {cliente.WHATSAPP}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
+                                {formatDate(cliente.FECHA_CREACION)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
+                                {cliente.ESTADO || "Sin definir"}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm truncate">
+                                {ultimoReporte ? (
+                                  <div className="flex flex-col">
+                                    <span className="text-gray-700">
+                                      {formatDate(ultimoReporte.FECHA_REPORTE)}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {tiempoReporte}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="inline-block bg-red-50 text-red-600 px-2 py-1 rounded-full font-semibold">
+                                    Sin reporte – {tiempoSinReporte}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm truncate">
+                                {asesorAsignado ? (
+                                  <span
+                                    className={
+                                      !ultimoReporte
+                                        ? "text-red-700 font-bold"
+                                        : "text-gray-800"
+                                    }
+                                  >
+                                    {asesorAsignado.NOMBRE}
+                                  </span>
+                                ) : (
+                                  "Sin asignar"
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap flex items-center">
+                                {asesorAsignado && (
+                                  <div className="mr-2">
+                                    <ReasignarCliente
+                                      clienteId={cliente.ID}
+                                      asesorActual={asesorAsignado.NOMBRE}
+                                    />
+                                  </div>
+                                )}
+                                <button
+                                  onClick={() => setClienteSeleccionado(cliente)}
+                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  Ver Historial
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {totalPages > 1 && (
+                      <div className="flex justify-end items-center space-x-2 mt-4">
+                        <button
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.max(prev - 1, 1))
+                          }
+                          disabled={currentPage === 1}
+                          className="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                        >
+                          Anterior
+                        </button>
+                        <span className="text-sm text-gray-600">
+                          Página {currentPage} de {totalPages}
+                        </span>
+                        <button
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                          }
+                          disabled={currentPage === totalPages}
+                          className="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                        >
+                          Siguiente
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
+
+
+
         )}
       </div>
 

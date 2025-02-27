@@ -90,16 +90,16 @@ export default function ListaGeneralClientes({
   // Función para asignar un valor de orden según el estado del cliente
   const getSortValue = (cliente: Cliente): number => {
     const ultimoRpt = obtenerUltimoReporte(cliente.ID);
-    // Si no hay reporte o el estado actual es distinto al último reporte (actualización desde backend)
-    // y el estado actual no es "PAGADO", lo ponemos primero (valor 0)
     if ((!ultimoRpt || cliente.ESTADO !== ultimoRpt.ESTADO_NUEVO) && cliente.ESTADO !== 'PAGADO') {
       return 0;
     }
+    if ( cliente.ESTADO == "NO CONTESTÓ") return 1;
     // Luego, si el estado es "SEGUIMIENTO", valor 1
-    if (cliente.ESTADO === 'SEGUIMIENTO') return 1;
+    if (cliente.ESTADO === 'SEGUIMIENTO') return 2;
     // Si es "PAGADO", valor 2
-    if (cliente.ESTADO === 'PAGADO') return 2;
-    return 3;
+    if (cliente.ESTADO === 'PAGADO') return 3;
+    if ( cliente.ESTADO == "NO CONTACTAR") return 4;
+    return 5;
   };
 
   // Ordenar los clientes filtrados usando getSortValue
@@ -140,7 +140,7 @@ export default function ListaGeneralClientes({
     switch (estado) {
       case 'SEGUIMIENTO':
         return 'bg-blue-100 text-blue-800';
-      case 'NO INTERESADO':
+      case 'NO CONTACTAR':
         return 'bg-red-100 text-red-800';
       case 'LINK':
         return 'bg-purple-100 text-purple-800';
@@ -266,7 +266,7 @@ export default function ListaGeneralClientes({
                 <div className="bg-gray-50 rounded p-3 text-sm">
                   <p className="text-gray-600">{ultimoReporte.COMENTARIO}</p>
                   <p className="text-gray-500 mt-1">
-                    Último reporte: {formatDateOnly(ultimoReporte.FECHA_REPORTE)}
+                    Último reporte: {formatDate(ultimoReporte.FECHA_REPORTE)}
                   </p>
                 </div>
               )}
@@ -314,8 +314,6 @@ export default function ListaGeneralClientes({
               <th
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                 onClick={() => {
-                  // En este caso, el orden inicial es el deseado según getSortValue,
-                  // pero podrías agregar lógica de clic aquí para cambiar el orden si lo deseas.
                 }}
               >
                 Cliente
@@ -389,7 +387,7 @@ export default function ListaGeneralClientes({
                     {ultimoReporte ? (
                       <div className="text-sm">
                         <p className="font-medium text-gray-900">
-                          {formatDateOnly(ultimoReporte.FECHA_REPORTE)}
+                          {formatDate(ultimoReporte.FECHA_REPORTE)}
                         </p>
                         <p className="text-gray-500 truncate max-w-xs">
                           {ultimoReporte.COMENTARIO}
@@ -397,7 +395,7 @@ export default function ListaGeneralClientes({
                         {ultimoReporte.FECHA_SEGUIMIENTO && (
                           <p className="text-blue-600 text-xs mt-1">
                             <Clock className="h-4 w-4 inline mr-1" />
-                            Seguimiento: {formatDateOnly(ultimoReporte.FECHA_SEGURO)}
+                            Seguimiento: {formatDate(ultimoReporte.FECHA_SEGUIMIENTO)}
                             {ultimoReporte.COMPLETADO && (
                               <CheckCircle className="h-4 w-4 inline ml-1 text-green-500" />
                             )}
@@ -410,7 +408,7 @@ export default function ListaGeneralClientes({
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {isValidDate(cliente.FECHA_CREACION)
-                      ? formatDateOnly(cliente.FECHA_CREACION)
+                      ? formatDate(cliente.FECHA_CREACION)
                       : 'Fecha no disponible'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

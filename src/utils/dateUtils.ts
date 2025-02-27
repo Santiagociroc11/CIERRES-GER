@@ -17,7 +17,7 @@ export const fromEpoch = (epoch: number | string | null): Date | null => {
 export const formatDate = (epoch: number | string | null): string => {
   const date = fromEpoch(epoch);
   if (!date) return 'Fecha no disponible';
-  return format(date, 'dd/MM/yyyy HH:mm', { locale: es });
+  return format(date, 'dd/MM/yyyy hh:mm:ss a', { locale: es });
 };
 
 export const formatDateOnly = (epoch: number | string | null): string => {
@@ -29,7 +29,7 @@ export const formatDateOnly = (epoch: number | string | null): string => {
 export const formatTime = (epoch: number | string | null): string => {
   const date = fromEpoch(epoch);
   if (!date) return '--:--';
-  return format(date, 'HH:mm', { locale: es });
+  return format(date, 'hh:mm a', { locale: es });
 };
 
 export const getCurrentEpoch = (): number => {

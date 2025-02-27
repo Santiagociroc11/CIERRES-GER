@@ -86,7 +86,7 @@ export type EstadoCritico = 'CARRITOS' | 'RECHAZADOS' | 'TICKETS';
 export type EstadoNoCritico = 'LINK' | 'PAGADO';
 
 // Estados que puede asignar el asesor
-export type EstadoAsesor = 'SEGUIMIENTO' | 'NO INTERESADO' | 'NO CONTESTÓ';
+export type EstadoAsesor = 'SEGUIMIENTO' | 'NO CONTACTAR' | 'NO CONTESTÓ ';
 
 // Tipo unión de todos los estados posibles
 export type EstadoCliente = EstadoCritico | EstadoNoCritico | EstadoAsesor;

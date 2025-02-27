@@ -431,7 +431,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       )}
 
       {/* Contenido principal */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-8xl mx-auto px-4 py-6">
         {vistaAdmin === 'asesores' ? (
           <>
 
@@ -782,7 +782,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
             )}
           </>
         ) : (
-          <div className="space-y-6 p-4">
+          <div className="space-y-8 p-4">
             <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center sm:text-left">
               Lista General de Clientes
             </h2>
@@ -795,8 +795,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+            <div className="overflow-x-auto w-full">
+              <table className="min-w-full divide-y divide-gray-200 table-auto">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -821,20 +821,31 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     )
                     .map((cliente) => {
                       const asesorAsignado = asesores.find((a) => a.ID === cliente.ID_ASESOR);
+
+                      const fechaAsignado = cliente.FECHA_ASIGNADO
+                        ? new Date(cliente.FECHA_CREACION).toLocaleDateString()
+                        : 'Sin fecha';
+                      const fechaReporte = cliente.FECHA_REPORTE
+                        ? new Date(cliente.FECHA_REPORTE).toLocaleDateString()
+                        : 'Sin fecha';
+
                       return (
                         <tr key={cliente.ID}>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-6 py-4 whitespace-nowrap truncate">
                             {cliente.NOMBRE}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-6 py-4 whitespace-nowrap truncate">
                             {cliente.WHATSAPP}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-6 py-4 whitespace-nowrap truncate">
                             {asesorAsignado ? asesorAsignado.NOMBRE : 'Sin asignar'}
                           </td>
+                        
                           <td className="px-6 py-4 whitespace-nowrap flex items-center">
                             {asesorAsignado && (
-                              <ReasignarCliente clienteId={cliente.ID} asesorActual={asesorAsignado.NOMBRE} />
+                              <div className="whitespace-nowrap">
+                                <ReasignarCliente clienteId={cliente.ID} asesorActual={asesorAsignado.NOMBRE} />
+                              </div>
                             )}
                             <button
                               onClick={() => setClienteSeleccionado(cliente)}

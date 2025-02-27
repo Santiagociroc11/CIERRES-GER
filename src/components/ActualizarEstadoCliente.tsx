@@ -84,7 +84,7 @@ export default function ActualizarEstadoCliente({
               required
             >
               <option value="SEGUIMIENTO">En Seguimiento</option>
-              <option value="NO INTERESADO">No Interesado</option>
+              <option value="NO CONTACTAR">No Contactar</option>
               <option value="NO CONTESTÓ">No Contestó</option>
             </select>
           </div>

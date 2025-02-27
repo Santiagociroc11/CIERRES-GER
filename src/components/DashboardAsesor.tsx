@@ -231,12 +231,12 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         );
         const tiempoPromedioConversion = ventasConFecha.length > 0
           ? ventasConFecha.reduce((acc, venta) => {
-              const tiempoConversion = venta.FECHA_REPORTE -
-                (typeof venta.cliente?.FECHA_CREACION === 'string'
-                  ? parseInt(venta.cliente.FECHA_CREACION)
-                  : venta.cliente?.FECHA_CREACION || 0);
-              return acc + tiempoConversion;
-            }, 0) / ventasConFecha.length / (24 * 60 * 60)
+            const tiempoConversion = venta.FECHA_REPORTE -
+              (typeof venta.cliente?.FECHA_CREACION === 'string'
+                ? parseInt(venta.cliente.FECHA_CREACION)
+                : venta.cliente?.FECHA_CREACION || 0);
+            return acc + tiempoConversion;
+          }, 0) / ventasConFecha.length / (24 * 60 * 60)
           : 0;
         const tasaRespuesta = totalSeguimientos > 0 ? (seguimientosCompletados / totalSeguimientos) * 100 : 0;
 
@@ -460,7 +460,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+        <div className="max-w-6xl mx-auto px-4 py-6 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard de {asesor.NOMBRE}</h1>
           <div className="flex space-x-4">
             <button
@@ -481,33 +481,30 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         <div className="flex space-x-4 border-b border-gray-200 px-4">
           <button
             onClick={() => setVistaActual('general')}
-            className={`py-2 px-4 border-b-2 font-medium text-sm ${
-              vistaActual === 'general'
+            className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'general'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <List className="inline-block h-5 w-5 mr-2" />
             Vista General
           </button>
           <button
             onClick={() => setVistaActual('seguimientos')}
-            className={`py-2 px-4 border-b-2 font-medium text-sm ${
-              vistaActual === 'seguimientos'
+            className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'seguimientos'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <Clock className="inline-block h-5 w-5 mr-2" />
             Seguimientos
           </button>
           <button
             onClick={() => setVistaActual('estadisticas')}
-            className={`py-2 px-4 border-b-2 font-medium text-sm ${
-              vistaActual === 'estadisticas'
+            className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'estadisticas'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <TrendingUp className="inline-block h-5 w-5 mr-2" />
             Estadísticas
@@ -515,7 +512,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-4 py-6">
+      <div className="max-w-[1800px] mx-auto px-4 py-6">
         {vistaActual === 'general' && (
           <>
             <ClientesSinReporte

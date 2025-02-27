@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Cliente, Reporte, EstadoCliente, esEstadoCritico } from '../types';
-import { Search, Phone, MessageSquare, DollarSign, Filter, Clock, AlertCircle, CheckCircle, Menu, X, AlertTriangle } from 'lucide-react';
-import { formatDateOnly, isValidDate } from '../utils/dateUtils';
+import {
+  Search,
+  Phone,
+  MessageSquare,
+  DollarSign,
+  Filter,
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  Menu,
+  X,
+  AlertTriangle,
+} from 'lucide-react';
+import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
 
 interface ListaGeneralClientesProps {
@@ -9,7 +21,7 @@ interface ListaGeneralClientesProps {
   reportes: Reporte[];
   onActualizarEstado: (cliente: Cliente) => void;
   onReportarVenta: (cliente: Cliente) => void;
-  admin: boolean
+  admin: boolean;
   readOnly?: boolean;
 }
 
@@ -19,7 +31,7 @@ export default function ListaGeneralClientes({
   onActualizarEstado,
   onReportarVenta,
   admin,
-  readOnly = false
+  readOnly = false,
 }: ListaGeneralClientesProps) {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<EstadoCliente | 'TODOS'>('TODOS');
@@ -38,43 +50,62 @@ export default function ListaGeneralClientes({
 
   // Verificar si un cliente tiene reporte de venta
   const tieneReporteVenta = (clienteId: number) => {
-    return reportes.some(r =>
-      r.ID_CLIENTE === clienteId &&
-      r.ESTADO_NUEVO === 'PAGADO'
+    return reportes.some(
+      (r) => r.ID_CLIENTE === clienteId && r.ESTADO_NUEVO === 'PAGADO'
     );
   };
 
-  const clientesFiltrados = clientes.filter(cliente => {
+  // Filtrar clientes según búsqueda y filtros
+  const clientesFiltrados = clientes.filter((cliente) => {
     if (forzarBusqueda && !busqueda) return false;
 
     const coincideBusqueda =
       cliente.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
       cliente.WHATSAPP.includes(busqueda);
 
-    const coincideEstado = filtroEstado === 'TODOS' || cliente.ESTADO === filtroEstado;
+    const coincideEstado =
+      filtroEstado === 'TODOS' || cliente.ESTADO === filtroEstado;
     const coincideCriticos = !mostrarSoloCriticos || esEstadoCritico(cliente.ESTADO);
 
     return coincideBusqueda && coincideEstado && coincideCriticos;
   });
 
-  // Ordenar clientes priorizando estados críticos y ventas sin reportar
-  const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
-    // Primero los estados críticos
-    const aCritico = esEstadoCritico(a.ESTADO);
-    const bCritico = esEstadoCritico(b.ESTADO);
-    if (aCritico && !bCritico) return -1;
-    if (!aCritico && bCritico) return 1;
+  // Función para obtener el último reporte de un cliente
+  const obtenerUltimoReporte = (clienteId: number) => {
+    const reportesCliente = reportes.filter((r) => r.ID_CLIENTE === clienteId);
+    if (!reportesCliente.length) return null;
+    return reportesCliente.sort((a, b) => {
+      const fechaA =
+        typeof a.FECHA_REPORTE === 'string'
+          ? parseInt(a.FECHA_REPORTE, 10)
+          : a.FECHA_REPORTE;
+      const fechaB =
+        typeof b.FECHA_REPORTE === 'string'
+          ? parseInt(b.FECHA_REPORTE, 10)
+          : b.FECHA_REPORTE;
+      return fechaB - fechaA;
+    })[0];
+  };
 
-    // Luego las ventas sin reportar
-    if (a.ESTADO === 'PAGADO' && b.ESTADO === 'PAGADO') {
-      const aReportado = tieneReporteVenta(a.ID);
-      const bReportado = tieneReporteVenta(b.ID);
-      if (!aReportado && bReportado) return -1;
-      if (aReportado && !bReportado) return 1;
+  // Función para asignar un valor de orden según el estado del cliente
+  const getSortValue = (cliente: Cliente): number => {
+    const ultimoRpt = obtenerUltimoReporte(cliente.ID);
+    // Si no hay reporte o el estado actual es distinto al último reporte (actualización desde backend)
+    // y el estado actual no es "PAGADO", lo ponemos primero (valor 0)
+    if ((!ultimoRpt || cliente.ESTADO !== ultimoRpt.ESTADO_NUEVO) && cliente.ESTADO !== 'PAGADO') {
+      return 0;
     }
+    // Luego, si el estado es "SEGUIMIENTO", valor 1
+    if (cliente.ESTADO === 'SEGUIMIENTO') return 1;
+    // Si es "PAGADO", valor 2
+    if (cliente.ESTADO === 'PAGADO') return 2;
+    return 3;
+  };
 
-    return 0;
-  });
+  // Ordenar los clientes filtrados usando getSortValue
+  const clientesOrdenados = [...clientesFiltrados].sort(
+    (a, b) => getSortValue(a) - getSortValue(b)
+  );
 
   // Paginación
   const totalPaginas = Math.ceil(clientesOrdenados.length / clientesPorPagina);
@@ -83,23 +114,13 @@ export default function ListaGeneralClientes({
     pagina * clientesPorPagina
   );
 
-  const obtenerUltimoReporte = (clienteId: number) => {
-    const reportesCliente = reportes.filter(r => r.ID_CLIENTE === clienteId);
-    if (!reportesCliente.length) return null;
-
-    return reportesCliente.sort((a, b) => {
-      const fechaA = typeof a.FECHA_REPORTE === 'string' ? parseInt(a.FECHA_REPORTE, 10) : a.FECHA_REPORTE;
-      const fechaB = typeof b.FECHA_REPORTE === 'string' ? parseInt(b.FECHA_REPORTE, 10) : b.FECHA_REPORTE;
-      return fechaB - fechaA;
-    })[0];
-  };
-
   const tieneSeguimientoPendiente = (clienteId: number) => {
-    return reportes.some(r =>
-      r.ID_CLIENTE === clienteId &&
-      r.FECHA_SEGUIMIENTO &&
-      !r.COMPLETADO &&
-      r.FECHA_SEGUIMIENTO >= Math.floor(Date.now() / 1000)
+    return reportes.some(
+      (r) =>
+        r.ID_CLIENTE === clienteId &&
+        r.FECHA_SEGUIMIENTO &&
+        !r.COMPLETADO &&
+        r.FECHA_SEGUIMIENTO >= Math.floor(Date.now() / 1000)
     );
   };
 
@@ -110,15 +131,12 @@ export default function ListaGeneralClientes({
   };
 
   const getEstadoColor = (estado: EstadoCliente, clienteId: number) => {
-    // Si es PAGADO, verificar si tiene reporte
     if (estado === 'PAGADO') {
       const tieneReporte = tieneReporteVenta(clienteId);
       return tieneReporte
         ? 'bg-green-100 text-green-800'
         : 'bg-yellow-100 text-yellow-800 border border-yellow-500';
     }
-
-    // Resto de los estados como antes
     switch (estado) {
       case 'SEGUIMIENTO':
         return 'bg-blue-100 text-blue-800';
@@ -156,22 +174,18 @@ export default function ListaGeneralClientes({
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
             className="md:hidden p-2 hover:bg-gray-100 rounded-lg"
           >
-            {mostrarFiltros ? (
-              <X className="h-5 w-5 text-gray-500" />
-            ) : (
-              <Filter className="h-5 w-5 text-gray-500" />
-            )}
+            {mostrarFiltros ? <X className="h-5 w-5 text-gray-500" /> : <Filter className="h-5 w-5 text-gray-500" />}
           </button>
         </div>
-
         <div className={`space-y-4 ${mostrarFiltros ? 'block' : 'hidden md:block'}`}>
-          {/* Barra de búsqueda */}
           <div className="relative">
             <input
               type="text"
-              placeholder={forzarBusqueda
-                ? "Ingresa al menos 3 caracteres para buscar..."
-                : "Buscar por nombre o WhatsApp..."}
+              placeholder={
+                forzarBusqueda
+                  ? "Ingresa al menos 3 caracteres para buscar..."
+                  : "Buscar por nombre o WhatsApp..."
+              }
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500"
@@ -184,8 +198,6 @@ export default function ListaGeneralClientes({
               </div>
             )}
           </div>
-
-          {/* Filtros */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1 min-w-[200px]">
               <select
@@ -205,33 +217,31 @@ export default function ListaGeneralClientes({
               </select>
               <Filter className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
             </div>
-
             <button
               onClick={() => setMostrarSoloCriticos(!mostrarSoloCriticos)}
-              className={`px-4 py-2 rounded-lg border ${mostrarSoloCriticos
-                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                : 'bg-white text-gray-700 border-gray-300'
-                }`}
+              className={`px-4 py-2 rounded-lg border ${
+                mostrarSoloCriticos
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-white text-gray-700 border-gray-300'
+              }`}
             >
-              <AlertCircle className={`inline-block h-4 w-4 mr-2 ${mostrarSoloCriticos ? 'text-amber-500' : 'text-gray-400'
-                }`} />
+              <AlertCircle
+                className={`inline-block h-4 w-4 mr-2 ${
+                  mostrarSoloCriticos ? 'text-amber-500' : 'text-gray-400'
+                }`}
+              />
               Solo críticos
             </button>
           </div>
         </div>
       </div>
-
-      {/* Lista de Clientes - Vista Móvil */}
+      {/* Vista Móvil */}
       <div className="md:hidden">
         {clientesPaginados.map((cliente) => {
           const ultimoReporte = obtenerUltimoReporte(cliente.ID);
           const tieneSeguimiento = tieneSeguimientoPendiente(cliente.ID);
-
           return (
-            <div
-              key={cliente.ID}
-              className="p-4 border-b border-gray-200 space-y-3"
-            >
+            <div key={cliente.ID} className="p-4 border-b border-gray-200 space-y-3">
               <div className="flex justify-between items-start">
                 <div>
                   <button
@@ -241,26 +251,17 @@ export default function ListaGeneralClientes({
                     {cliente.NOMBRE}
                   </button>
                   <div className="flex items-center mt-1 space-x-2">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getEstadoColor(cliente.ESTADO, cliente.ID)
-                      }`}>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getEstadoColor(cliente.ESTADO, cliente.ID)}`}>
                       {getEstadoTexto(cliente.ESTADO, cliente.ID)}
                     </span>
-                    {!ultimoReporte && (
-                      <AlertCircle className="h-4 w-4 text-red-500" title="Sin reporte" />
-                    )}
-                    {tieneSeguimiento && (
-                      <Clock className="h-4 w-4 text-blue-500" title="Seguimiento pendiente" />
-                    )}
+                    {!ultimoReporte && <AlertCircle className="h-4 w-4 text-red-500" title="Sin reporte" />}
+                    {tieneSeguimiento && <Clock className="h-4 w-4 text-blue-500" title="Seguimiento pendiente" />}
                   </div>
                 </div>
-                <button
-                  onClick={() => setClienteAcciones(clienteAcciones === cliente.ID ? null : cliente.ID)}
-                  className="p-1 hover:bg-gray-100 rounded-full"
-                >
+                <button onClick={() => setClienteAcciones(clienteAcciones === cliente.ID ? null : cliente.ID)} className="p-1 hover:bg-gray-100 rounded-full">
                   <Menu className="h-5 w-5 text-gray-500" />
                 </button>
               </div>
-
               {ultimoReporte && (
                 <div className="bg-gray-50 rounded p-3 text-sm">
                   <p className="text-gray-600">{ultimoReporte.COMENTARIO}</p>
@@ -269,17 +270,12 @@ export default function ListaGeneralClientes({
                   </p>
                 </div>
               )}
-
               {clienteAcciones === cliente.ID && !readOnly && (
                 <div className="flex flex-col gap-2 mt-2">
-                  <button
-                    onClick={() => abrirWhatsApp(cliente.WHATSAPP)}
-                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                  >
+                  <button onClick={() => abrirWhatsApp(cliente.WHATSAPP)} className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                     <Phone className="h-4 w-4 mr-2" />
                     Contactar
                   </button>
-                  {/* Solo muestra estos botones si NO se ha reportado venta */}
                   {!tieneReporteVenta(cliente.ID) && (
                     <>
                       <button
@@ -310,13 +306,18 @@ export default function ListaGeneralClientes({
           );
         })}
       </div>
-
-      {/* Lista de Clientes - Vista Desktop */}
+      {/* Vista Desktop */}
       <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                onClick={() => {
+                  // En este caso, el orden inicial es el deseado según getSortValue,
+                  // pero podrías agregar lógica de clic aquí para cambiar el orden si lo deseas.
+                }}
+              >
                 Cliente
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -340,15 +341,11 @@ export default function ListaGeneralClientes({
             {clientesPaginados.map((cliente) => {
               const ultimoReporte = obtenerUltimoReporte(cliente.ID);
               const tieneSeguimiento = tieneSeguimientoPendiente(cliente.ID);
-
               return (
                 <tr key={cliente.ID} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <button
-                        onClick={() => setClienteHistorial(cliente)}
-                        className="text-sm font-medium text-gray-900 hover:text-blue-600"
-                      >
+                      <button onClick={() => setClienteHistorial(cliente)} className="text-sm font-medium text-gray-900 hover:text-blue-600">
                         {cliente.NOMBRE}
                       </button>
                       {!ultimoReporte && (
@@ -365,10 +362,24 @@ export default function ListaGeneralClientes({
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getEstadoColor(cliente.ESTADO, cliente.ID)
-                        }`}>
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getEstadoColor(cliente.ESTADO, cliente.ID)}`}>
                         {getEstadoTexto(cliente.ESTADO, cliente.ID)}
                       </span>
+                      {(() => {
+                        const ultimoRpt = obtenerUltimoReporte(cliente.ID);
+                        if (
+                          ultimoRpt &&
+                          cliente.ESTADO !== ultimoRpt.ESTADO_NUEVO &&
+                          cliente.ESTADO !== 'PAGADO'
+                        ) {
+                          return (
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold text-red-700 bg-red-50 rounded-full">
+                              ACTUALIZACION DE ESTADO PENDIENTE
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                       {cliente.ESTADO === 'PAGADO' && !tieneReporteVenta(cliente.ID) && !readOnly && (
                         <AlertTriangle className="h-4 w-4 text-yellow-500" title="Venta sin reportar" />
                       )}
@@ -386,7 +397,7 @@ export default function ListaGeneralClientes({
                         {ultimoReporte.FECHA_SEGUIMIENTO && (
                           <p className="text-blue-600 text-xs mt-1">
                             <Clock className="h-4 w-4 inline mr-1" />
-                            Seguimiento: {formatDateOnly(ultimoReporte.FECHA_SEGUIMIENTO)}
+                            Seguimiento: {formatDateOnly(ultimoReporte.FECHA_SEGURO)}
                             {ultimoReporte.COMPLETADO && (
                               <CheckCircle className="h-4 w-4 inline ml-1 text-green-500" />
                             )}
@@ -394,21 +405,16 @@ export default function ListaGeneralClientes({
                         )}
                       </div>
                     ) : (
-                      <span className="text-red-500 text-sm">
-                        Reporte pendiente
-                      </span>
+                      <span className="text-red-500 text-sm">Reporte pendiente</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {isValidDate(cliente.FECHA_CREACION) ?
-                      formatDateOnly(cliente.FECHA_CREACION) :
-                      'Fecha no disponible'}
+                    {isValidDate(cliente.FECHA_CREACION)
+                      ? formatDateOnly(cliente.FECHA_CREACION)
+                      : 'Fecha no disponible'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <button
-                      onClick={() => abrirWhatsApp(cliente.WHATSAPP)}
-                      className="inline-flex items-center text-blue-600 hover:text-blue-900"
-                    >
+                    <button onClick={() => abrirWhatsApp(cliente.WHATSAPP)} className="inline-flex items-center text-blue-600 hover:text-blue-900">
                       <Phone className="h-4 w-4 mr-1" />
                       {cliente.WHATSAPP}
                     </button>
@@ -416,31 +422,23 @@ export default function ListaGeneralClientes({
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     {!readOnly && !tieneReporteVenta(cliente.ID) && (
                       <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => onActualizarEstado(cliente)}
-                          className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700"
-                        >
+                        <button onClick={() => onActualizarEstado(cliente)} className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700">
                           <MessageSquare className="h-4 w-4 mr-1" />
                           Estado
                         </button>
-                        <button
-                          onClick={() => onReportarVenta(cliente)}
-                          className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700"
-                        >
+                        <button onClick={() => onReportarVenta(cliente)} className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700">
                           <DollarSign className="h-4 w-4 mr-1" />
                           Venta
                         </button>
                       </div>
                     )}
                   </td>
-
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-
       {/* Paginación */}
       {totalPaginas > 1 && (
         <div className="px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
@@ -463,13 +461,7 @@ export default function ListaGeneralClientes({
           <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-gray-700">
-                Mostrando <span className="font-medium">{(pagina - 1) * clientesPorPagina + 1}</span>
-                {' '}-{' '}
-                <span className="font-medium">
-                  {Math.min(pagina * clientesPorPagina, clientesOrdenados.length)}
-                </span>
-                {' '}de{' '}
-                <span className="font-medium">{clientesOrdenados.length}</span> resultados
+                Mostrando <span className="font-medium">{(pagina - 1) * clientesPorPagina + 1}</span> - <span className="font-medium">{Math.min(pagina * clientesPorPagina, clientesOrdenados.length)}</span> de <span className="font-medium">{clientesOrdenados.length}</span> resultados
               </p>
             </div>
             <div>
@@ -488,17 +480,17 @@ export default function ListaGeneralClientes({
                 >
                   Anterior
                 </button>
-                {/* Números de página */}
                 {[...Array(Math.min(5, totalPaginas))].map((_, i) => {
                   const pageNum = i + 1;
                   return (
                     <button
                       key={pageNum}
                       onClick={() => setPagina(pageNum)}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${pagina === pageNum
-                        ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                        : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        }`}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        pagina === pageNum
+                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
                     >
                       {pageNum}
                     </button>
@@ -523,13 +515,12 @@ export default function ListaGeneralClientes({
           </div>
         </div>
       )}
-
       {/* Modal de Historial */}
       {clienteHistorial && (
         <HistorialCliente
           cliente={clienteHistorial}
           reportes={reportes.filter(r => r.ID_CLIENTE === clienteHistorial.ID)}
-          admin = {admin}
+          admin={admin}
           onClose={() => setClienteHistorial(null)}
         />
       )}

@@ -45,6 +45,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [reportes, setReportes] = useState<any[]>([]);
   const [registros, setRegistros] = useState<any[]>([]);
 
+
   // Estados de filtros y visualización
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<'mes' | 'semana' | 'personalizado'>('mes');
   const [fechaInicio, setFechaInicio] = useState('');
@@ -781,7 +782,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
             )}
           </>
         ) : (
-          // Vista de Clientes - Diseño en tarjetas
           <div className="space-y-6 p-4">
             <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center sm:text-left">
               Lista General de Clientes
@@ -795,39 +795,59 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            <div className="grid grid-cols-1 gap-4">
-              {clientes
-                .filter((c) =>
-                  c.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
-                  c.WHATSAPP.includes(busqueda)
-                )
-                .map((cliente) => {
-                  const asesorAsignado = asesores.find((a) => a.ID === cliente.ID_ASESOR);
-                  return (
-                    <div key={cliente.ID} className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-gray-800">{cliente.NOMBRE}</span>
-                          <span className="text-gray-500 text-sm">{cliente.WHATSAPP}</span>
-                          <span className="text-gray-600 text-sm">
-                            Asignado a: {asesorAsignado ? asesorAsignado.NOMBRE : 'Sin asignar'}
-                          </span>
-                        </div>
-                        {/* Componente para reasignar cliente */}
-                        {asesorAsignado && (
-                          <ReasignarCliente clienteId={cliente.ID} asesorActual={asesorAsignado.NOMBRE} />
-                        )}
-
-                        <button
-                          onClick={() => setClienteSeleccionado(cliente)}
-                          className="mt-2 sm:mt-0 inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          Ver Historial
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Nombre
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      WhatsApp
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Asesor Asignado
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {clientes
+                    .filter((c) =>
+                      c.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
+                      c.WHATSAPP.includes(busqueda)
+                    )
+                    .map((cliente) => {
+                      const asesorAsignado = asesores.find((a) => a.ID === cliente.ID_ASESOR);
+                      return (
+                        <tr key={cliente.ID}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {cliente.NOMBRE}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {cliente.WHATSAPP}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {asesorAsignado ? asesorAsignado.NOMBRE : 'Sin asignar'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap flex items-center">
+                            {asesorAsignado && (
+                              <ReasignarCliente clienteId={cliente.ID} asesorActual={asesorAsignado.NOMBRE} />
+                            )}
+                            <button
+                              onClick={() => setClienteSeleccionado(cliente)}
+                              className="ml-2 inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              Ver Historial
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

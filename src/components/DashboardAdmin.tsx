@@ -60,15 +60,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [tick, setTick] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
-  // Actualización automática cada 60 segundos
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTick(t => t + 1);
-      setLastUpdated(new Date());
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Función para refrescar manualmente
   const handleRefresh = async () => {
     setTick(t => t + 1);

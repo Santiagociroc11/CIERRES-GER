@@ -41,7 +41,6 @@ interface DashboardAdminProps {
 }
 
 export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
-  // Estados para datos generales
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   const [estadisticas, setEstadisticas] = useState<Record<number, EstadisticasDetalladas>>({});
   const [clientes, setClientes] = useState<any[]>([]);
@@ -49,8 +48,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [registros, setRegistros] = useState<any[]>([]);
   const itemsPerPage = 20;
   const [currentPage, setCurrentPage] = useState(1);
-
-  // Estados de filtros y visualización
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<'mes' | 'semana' | 'personalizado'>('mes');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
@@ -60,9 +57,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
   const [filtroEstado, setFiltroEstado] = useState('');
-
   const [tick, setTick] = useState(0);
-  // Estado para guardar la hora de la última actualización
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   // Actualización automática cada 60 segundos
@@ -75,11 +70,11 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   }, []);
 
   // Función para refrescar manualmente
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setTick(t => t + 1);
     setLastUpdated(new Date());
+    await cargarDatos(); // función que actualiza los registros
   };
-
 
   // Nuevo estado para alternar entre vista de Asesores y Clientes
   const [vistaAdmin, setVistaAdmin] = useState<'asesores' | 'clientes'>('asesores');

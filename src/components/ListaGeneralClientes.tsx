@@ -9,6 +9,7 @@ interface ListaGeneralClientesProps {
   reportes: Reporte[];
   onActualizarEstado: (cliente: Cliente) => void;
   onReportarVenta: (cliente: Cliente) => void;
+  admin: boolean
   readOnly?: boolean;
 }
 
@@ -17,6 +18,7 @@ export default function ListaGeneralClientes({
   reportes,
   onActualizarEstado,
   onReportarVenta,
+  admin,
   readOnly = false
 }: ListaGeneralClientesProps) {
   const [busqueda, setBusqueda] = useState('');
@@ -527,6 +529,7 @@ export default function ListaGeneralClientes({
         <HistorialCliente
           cliente={clienteHistorial}
           reportes={reportes.filter(r => r.ID_CLIENTE === clienteHistorial.ID)}
+          admin = {admin}
           onClose={() => setClienteHistorial(null)}
         />
       )}

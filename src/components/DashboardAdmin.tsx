@@ -838,7 +838,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         <HistorialCliente
           cliente={clienteSeleccionado}
           reportes={reportes.filter((r) => r.ID_CLIENTE === clienteSeleccionado.ID)}
+          onReporteEliminado={handleReporteEliminado} 
           asesor={asesores.find((a) => a.ID === clienteSeleccionado.ID_ASESOR)}
+          admin={true}
           onClose={() => setClienteSeleccionado(null)}
         />
       )}

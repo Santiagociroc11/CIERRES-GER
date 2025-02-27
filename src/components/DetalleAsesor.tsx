@@ -278,6 +278,7 @@ export default function DetalleAsesor({
           onActualizarEstado={() => {}}
           onReportarVenta={() => {}}
           readOnly
+          admin={true}
         />
       )}
 

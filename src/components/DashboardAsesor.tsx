@@ -258,6 +258,24 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
+
+  const handleMarcarCompletado = async (reporte: Reporte) => {
+    try {
+      const { error } = await supabase
+        .from('GERSSON_REPORTES')
+        .update({ COMPLETADO: true })
+        .eq('ID', reporte.ID);
+
+      if (error) throw error;
+
+      showToast('Seguimiento marcado como completado', 'success');
+      cargarDatos();
+    } catch (error) {
+      console.error('Error al marcar seguimiento como completado:', error);
+      showToast('Error al marcar seguimiento como completado', 'error');
+    }
+  };
+
   // Función para crear la instancia
   const handleCreateInstance = async () => {
     const payload = {
@@ -497,7 +515,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-[1600px] mx-auto px-4 py-6">
         {vistaActual === 'general' && (
           <>
             <ClientesSinReporte
@@ -511,6 +529,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
               reportes={reportes}
               onActualizarEstado={setClienteParaEstado}
               onReportarVenta={setClienteParaVenta}
+              admin={false}
             />
           </>
         )}
@@ -518,7 +537,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           <SeguimientosClientes
             reportes={reportes}
             onActualizarEstado={setClienteParaEstado}
-            onMarcarCompletado={() => {}}
+            onMarcarCompletado={handleMarcarCompletado}
           />
         )}
         {vistaActual === 'estadisticas' && (

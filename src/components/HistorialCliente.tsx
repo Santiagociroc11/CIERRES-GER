@@ -2,18 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { Cliente, Reporte, Registro } from '../types';
 import { Clock, MessageSquare, DollarSign, AlertCircle, CheckCircle, X, Activity } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
-import { supabase } from '../lib/supabase';
+import { supabase, eliminarReporte  } from '../lib/supabase';
 import { Asesor } from '../types';
 
 interface HistorialClienteProps {
   cliente: Cliente;
   reportes: Reporte[];
-  asesor?: Asesor; // nuevo prop para el nombre del asesor
+  asesor?: Asesor;
+  admin?: boolean; // <-- Nuevo prop
   onClose: () => void;
 }
 
 
-export default function HistorialCliente({ cliente, reportes, asesor, onClose }: HistorialClienteProps) {
+export default function HistorialCliente({ cliente, reportes, asesor, admin = false, onClose }: HistorialClienteProps) {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
   const [imagenPago, setImagenPago] = useState<string | null>(null);
@@ -53,6 +54,24 @@ export default function HistorialCliente({ cliente, reportes, asesor, onClose }:
       data: registro
     }))
   ].sort((a, b) => b.fecha - a.fecha);
+
+
+  const handleEliminarReporte = async (reporteId: string) => {
+    if (!window.confirm("¿Estás seguro de eliminar este reporte?")) return;
+  
+    try {
+      await eliminarReporte(reporteId);
+      alert("✅ Reporte eliminado y estado del cliente restaurado.");
+  
+      // 🔄 Refrescar la lista desde Supabase
+      await cargarRegistros();
+  
+    } catch (error) {
+      console.error("❌ Error eliminando reporte:", error);
+      alert("❌ Error eliminando reporte: " + error.message);
+    }
+  };
+  
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -176,6 +195,15 @@ export default function HistorialCliente({ cliente, reportes, asesor, onClose }:
                               <span className="text-sm text-gray-500 mt-1 sm:mt-0">
                                 {formatDate(item.data.FECHA_REPORTE)}
                               </span>
+                              {/* 👇 Botón para eliminar reporte, solo si el usuario es admin */}
+                              {admin == true && (
+                                <button
+                                  onClick={() => handleEliminarReporte(item.data.ID)}
+                                  className="ml-4 px-3 py-1 text-xs text-red-700 bg-red-100 rounded-md hover:bg-red-200"
+                                >
+                                  ❌ Eliminar
+                                </button>
+                              )}
                             </div>
 
                             <p className="mt-2 text-sm text-gray-900">{item.data.COMENTARIO}</p>

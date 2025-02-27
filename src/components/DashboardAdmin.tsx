@@ -30,6 +30,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import ReasignarCliente from "./ReasignarCliente";
+
 
 interface DashboardAdminProps {
   onLogout: () => void;
@@ -811,6 +813,11 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                             Asignado a: {asesorAsignado ? asesorAsignado.NOMBRE : 'Sin asignar'}
                           </span>
                         </div>
+                        {/* Componente para reasignar cliente */}
+                        {asesorAsignado && (
+                          <ReasignarCliente clienteId={cliente.ID} asesorActual={asesorAsignado.NOMBRE} />
+                        )}
+
                         <button
                           onClick={() => setClienteSeleccionado(cliente)}
                           className="mt-2 sm:mt-0 inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"

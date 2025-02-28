@@ -103,9 +103,16 @@ export default function ListaGeneralClientes({
   };
 
   // Ordenar los clientes filtrados usando getSortValue
-  const clientesOrdenados = [...clientesFiltrados].sort(
-    (a, b) => getSortValue(a) - getSortValue(b)
-  );
+  const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
+    const sortA = getSortValue(a);
+    const sortB = getSortValue(b);
+    if (sortA === sortB) {
+      // Si tienen el mismo valor de estado, ordenamos por FECHA_CREACION descendente
+      return b.FECHA_CREACION - a.FECHA_CREACION;
+    }
+    return sortA - sortB;
+  });
+  
 
   // Paginación
   const totalPaginas = Math.ceil(clientesOrdenados.length / clientesPorPagina);

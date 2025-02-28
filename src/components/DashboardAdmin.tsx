@@ -499,15 +499,34 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     />
                     <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                   </div>
-                  <select
-                    value={periodoSeleccionado}
-                    onChange={(e) => setPeriodoSeleccionado(e.target.value as any)}
-                    className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="mes">Último mes</option>
-                    <option value="semana">Última semana</option>
-                    <option value="personalizado">Personalizado</option>
-                  </select>
+                  <div className="flex flex-col gap-4">
+                    <select
+                      value={periodoSeleccionado}
+                      onChange={(e) => setPeriodoSeleccionado(e.target.value as 'mes' | 'semana' | 'personalizado')}
+                      className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="mes">Último mes</option>
+                      <option value="semana">Última semana</option>
+                      <option value="personalizado">Personalizado</option>
+                    </select>
+
+                    {periodoSeleccionado === 'personalizado' && (
+                      <div className="flex gap-4">
+                        <input
+                          type="date"
+                          value={fechaInicio}
+                          onChange={(e) => setFechaInicio(e.target.value)}
+                          className="border border-gray-300 rounded-md p-2"
+                        />
+                        <input
+                          type="date"
+                          value={fechaFin}
+                          onChange={(e) => setFechaFin(e.target.value)}
+                          className="border border-gray-300 rounded-md p-2"
+                        />
+                      </div>
+                    )}
+                  </div>
                   <select
                     value={ordenarPor}
                     onChange={(e) => setOrdenarPor(e.target.value as any)}

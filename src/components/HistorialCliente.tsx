@@ -120,10 +120,11 @@ export default function HistorialCliente({
                 <p className="text-sm text-gray-600">
                   Fecha de asignación: {formatDate(cliente.FECHA_CREACION)}
                 </p>
-                <p className="text-sm text-gray-600">
-                  Asesor: {asesor ? asesor.NOMBRE : 'Sin asesor asignado'}
+                {asesor && (<p className="text-sm text-gray-600">
+                   Asesor: {asesor ? asesor.NOMBRE : 'Sin asesor asignado'}
                 </p>
-              </div>
+                )}
+              </div> 
               <button
                 onClick={onClose}
                 className="rounded-full p-2 hover:bg-gray-100 transition-colors"

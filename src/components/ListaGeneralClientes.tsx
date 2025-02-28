@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
+import ReasignarCliente from "./ReasignarCliente";
 
 interface ListaGeneralClientesProps {
   clientes: Cliente[];
@@ -98,7 +99,7 @@ export default function ListaGeneralClientes({
     if (cliente.ESTADO === 'SEGUIMIENTO') return 2;
     // Si es "PAGADO", valor 2
     if (cliente.ESTADO === 'PAGADO') return 3;
-    if ( cliente.ESTADO == "NO CONTACTAR") return 4;
+    if (cliente.ESTADO == "NO CONTACTAR") return 4;
     return 5;
   };
 
@@ -112,7 +113,7 @@ export default function ListaGeneralClientes({
     }
     return sortA - sortB;
   });
-  
+
 
   // Paginación
   const totalPaginas = Math.ceil(clientesOrdenados.length / clientesPorPagina);
@@ -226,16 +227,14 @@ export default function ListaGeneralClientes({
             </div>
             <button
               onClick={() => setMostrarSoloCriticos(!mostrarSoloCriticos)}
-              className={`px-4 py-2 rounded-lg border ${
-                mostrarSoloCriticos
+              className={`px-4 py-2 rounded-lg border ${mostrarSoloCriticos
                   ? 'bg-amber-50 text-amber-700 border-amber-200'
                   : 'bg-white text-gray-700 border-gray-300'
-              }`}
+                }`}
             >
               <AlertCircle
-                className={`inline-block h-4 w-4 mr-2 ${
-                  mostrarSoloCriticos ? 'text-amber-500' : 'text-gray-400'
-                }`}
+                className={`inline-block h-4 w-4 mr-2 ${mostrarSoloCriticos ? 'text-amber-500' : 'text-gray-400'
+                  }`}
               />
               Solo críticos
             </button>
@@ -307,6 +306,15 @@ export default function ListaGeneralClientes({
                       </button>
                     </>
                   )}
+                  {readOnly && (
+                    <div className="mr-2">
+                      <ReasignarCliente
+                        clienteId={cliente.ID}
+                        asesorActual={cliente.NOMBRE_ASESOR}
+                      />
+                    </div>
+                  )}
+
                 </div>
               )}
             </div>
@@ -437,6 +445,14 @@ export default function ListaGeneralClientes({
                         </button>
                       </div>
                     )}
+                     {readOnly && (
+                    <div className="mr-2">
+                      <ReasignarCliente
+                        clienteId={cliente.ID}
+                        asesorActual={cliente.NOMBRE_ASESOR}
+                      />
+                    </div>
+                  )}
                   </td>
                 </tr>
               );
@@ -491,11 +507,10 @@ export default function ListaGeneralClientes({
                     <button
                       key={pageNum}
                       onClick={() => setPagina(pageNum)}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                        pagina === pageNum
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${pagina === pageNum
                           ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
                           : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {pageNum}
                     </button>

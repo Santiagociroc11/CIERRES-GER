@@ -19,9 +19,33 @@ export default function ActualizarEstadoCliente({
 }: ActualizarEstadoClienteProps) {
   const [estado, setEstado] = useState<EstadoAsesor>('SEGUIMIENTO');
   const [comentario, setComentario] = useState('');
-  const [requiereSeguimiento, setRequiereSeguimiento] = useState(false);
   const [fechaSeguimiento, setFechaSeguimiento] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Verifica si se requiere fecha obligatoria (para SEGUIMIENTO, NO INTERESADO y NO CONTESTÓ)
+  const requiereFecha =
+    estado === 'SEGUIMIENTO' ||
+    estado === 'NO INTERESADO' ||
+    estado === 'NO CONTESTÓ';
+
+  // Función para formatear un Date en "YYYY-MM-DDTHH:mm" **en hora local**
+  const formatLocalDateTime = (date: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    // Retorna algo tipo: "2025-02-28T15:04"
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  // Calculamos "hora actual + 1 hora" en **hora local**
+  const minFechaSeguimiento = (() => {
+    const nowPlusOne = new Date();
+    nowPlusOne.setHours(nowPlusOne.getHours() + 1);
+    return formatLocalDateTime(nowPlusOne);
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,14 +58,15 @@ export default function ActualizarEstadoCliente({
         .insert({
           ID_CLIENTE: cliente.ID,
           ID_ASESOR: asesor.ID,
-          ESTADO_ANTERIOR: cliente.ESTADO, // estado previo
-          ESTADO_NUEVO: estado,            // estado que seleccionas
+          ESTADO_ANTERIOR: cliente.ESTADO, 
+          ESTADO_NUEVO: estado,            
           COMENTARIO: comentario,
           NOMBRE_ASESOR: asesor.NOMBRE,
           FECHA_REPORTE: getCurrentEpoch(),
-          FECHA_SEGUIMIENTO: requiereSeguimiento && fechaSeguimiento
-            ? toEpoch(new Date(fechaSeguimiento))
-            : null
+          FECHA_SEGUIMIENTO: 
+            requiereFecha && fechaSeguimiento
+              ? toEpoch(new Date(fechaSeguimiento))
+              : null
         });
 
       // Actualizar estado del cliente
@@ -50,7 +75,7 @@ export default function ActualizarEstadoCliente({
         .update({ ESTADO: estado })
         .eq('ID', cliente.ID);
 
-      onComplete(); // Avisamos al padre que terminamos
+      onComplete();
     } catch (error) {
       console.error('Error al crear reporte:', error);
       alert('Error al crear el reporte');
@@ -80,9 +105,16 @@ export default function ActualizarEstadoCliente({
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
               required
             >
-              <option value="SEGUIMIENTO">En Seguimiento</option>
-              <option value="NO CONTACTAR">No Contactar</option>
+              <option value="SEGUIMIENTO">
+                Seguimiento (cliente con posibilidad de compra)
+              </option>
+              <option value="NO INTERESADO">
+                No Interesado (cliente que no va a comprar)
+              </option>
               <option value="NO CONTESTÓ">No Contestó</option>
+              <option value="NO CONTACTAR">
+                No Contactar (no tiene Wha o imposible de contactar)
+              </option>
             </select>
           </div>
 
@@ -99,20 +131,17 @@ export default function ActualizarEstadoCliente({
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="seguimiento"
-              checked={requiereSeguimiento}
-              onChange={(e) => setRequiereSeguimiento(e.target.checked)}
-              className="h-4 w-4"
-            />
-            <label htmlFor="seguimiento" className="text-sm font-medium text-gray-700">
-              Requiere Seguimiento
-            </label>
-          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            El comentario debe ir lo más específico posible y, si es una 
+            actualización de seguimiento, <strong>SIEMPRE</strong> debe 
+            llevar una acción futura.
+            <br />
+            <br />
+            Ejemplo: "lo contacté y me dijo que estaba buscando el dinero 
+            prestado, lo contactaré el viernes 27 a las 12:00 pm"
+          </p>
 
-          {requiereSeguimiento && (
+          {requiereFecha && (
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Fecha de Seguimiento
@@ -123,15 +152,25 @@ export default function ActualizarEstadoCliente({
                 onChange={(e) => setFechaSeguimiento(e.target.value)}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
                 required
+                // Aquí pasas el min en formato local
+                min={minFechaSeguimiento}
               />
+              <p className="text-xs text-gray-500 mt-2">
+                Esta fecha es para realizar un seguimiento futuro al cliente y 
+                aparecerá en la pestaña de <strong>SEGUIMIENTOS</strong> 
+                ordenado por fecha y hora.
+              </p>
             </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className={`w-full flex justify-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 ${loading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+            className={`
+              w-full flex justify-center py-2 px-4 rounded-md shadow-sm
+              text-sm font-medium text-white bg-blue-600 hover:bg-blue-700
+              ${loading ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
           >
             {loading ? (
               <span className="flex items-center">

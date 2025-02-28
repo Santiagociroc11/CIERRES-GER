@@ -23,7 +23,7 @@ export default function HistorialCliente({
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
   const [imagenPago, setImagenPago] = useState<string | null>(null);
-  
+
   // Estado local para los reportes, inicializado con la prop "reportes"
   const [localReportes, setLocalReportes] = useState<Reporte[]>(reportes);
 
@@ -69,11 +69,11 @@ export default function HistorialCliente({
 
   const handleEliminarReporte = async (reporteId: string) => {
     if (!window.confirm("¿Estás seguro de eliminar este reporte?")) return;
-  
+
     try {
       await eliminarReporte(reporteId);
       alert("✅ Reporte eliminado y estado del cliente restaurado.");
-  
+
       // Actualizar el estado local eliminando el reporte
       setLocalReportes(prev => prev.filter(r => r.ID !== reporteId));
     } catch (error: any) {
@@ -121,10 +121,10 @@ export default function HistorialCliente({
                   Fecha de asignación: {formatDate(cliente.FECHA_CREACION)}
                 </p>
                 {asesor && (<p className="text-sm text-gray-600">
-                   Asesor: {asesor ? asesor.NOMBRE : 'Sin asesor asignado'}
+                  Asesor: {asesor ? asesor.NOMBRE : 'Sin asesor asignado'}
                 </p>
                 )}
-              </div> 
+              </div>
               <button
                 onClick={onClose}
                 className="rounded-full p-2 hover:bg-gray-100 transition-colors"
@@ -202,6 +202,30 @@ export default function HistorialCliente({
                               )}
                             </div>
                             <p className="mt-2 text-sm text-gray-900">{item.data.COMENTARIO}</p>
+
+                            {item.data.PAIS_CLIENTE && (
+                              <p className="text-sm text-gray-700">
+                                🌍 País: <strong>{item.data.PAIS_CLIENTE}</strong>
+                              </p>
+                            )}
+
+                            {item.data.CORREO_INSCRIPCION && (
+                              <p className="text-sm text-gray-700">
+                                📧 Correo de inscripción: <strong>{item.data.CORREO_INSCRIPCION}</strong>
+                              </p>
+                            )}
+
+                            {item.data.TELEFONO_CLIENTE && (
+                              <p className="text-sm text-gray-700">
+                                📞 Teléfono: <strong>{item.data.TELEFONO_CLIENTE}</strong>
+                              </p>
+                            )}
+
+                            {item.data.CORREO_PAGO && (
+                              <p className="text-sm text-gray-700">
+                                💳 Correo de pago (Stripe): <strong>{item.data.CORREO_PAGO}</strong>
+                              </p>
+                            )}
                             {item.data.FECHA_SEGUIMIENTO && (
                               <div className="mt-2 flex items-center space-x-2 text-sm bg-blue-50 p-2 rounded-md">
                                 <Clock className="h-4 w-4 text-blue-500" />

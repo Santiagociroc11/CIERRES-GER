@@ -148,7 +148,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     localStorage.removeItem('userSession');
     onLogout();
   };
-
+  
   useEffect(() => {
     cargarDatos();
   }, [asesor.ID]);
@@ -255,24 +255,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     } catch (error) {
       console.error('Error al cargar datos:', error);
       showToast('Error al cargar los datos', 'error');
-    }
-  };
-
-
-  const handleMarcarCompletado = async (reporte: Reporte) => {
-    try {
-      const { error } = await supabase
-        .from('GERSSON_REPORTES')
-        .update({ COMPLETADO: true })
-        .eq('ID', reporte.ID);
-
-      if (error) throw error;
-
-      showToast('Seguimiento marcado como completado', 'success');
-      cargarDatos();
-    } catch (error) {
-      console.error('Error al marcar seguimiento como completado:', error);
-      showToast('Error al marcar seguimiento como completado', 'error');
     }
   };
 
@@ -533,8 +515,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         {vistaActual === 'seguimientos' && (
           <SeguimientosClientes
             reportes={reportes}
-            onActualizarEstado={setClienteParaEstado}
-            onMarcarCompletado={handleMarcarCompletado}
+            onRefrescar={cargarDatos}
           />
         )}
         {vistaActual === 'estadisticas' && (

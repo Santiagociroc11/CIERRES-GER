@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cliente, Asesor, EstadoAsesor } from '../types';
-import { X, AlertCircle } from 'lucide-react';
-import { toEpoch, getCurrentEpoch } from '../utils/dateUtils';
+import { X, Loader2 } from 'lucide-react';
+import { getCurrentEpoch, toEpoch } from '../utils/dateUtils';
 
 interface ActualizarEstadoClienteProps {
   cliente: Cliente;
   asesor: Asesor;
-  onComplete: () => void; // Modificamos onComplete para manejar la resolución de la Promesa
+  onComplete: () => void;
   onClose: () => void;
 }
 
 export default function ActualizarEstadoCliente({
   cliente,
   asesor,
-  onComplete, // onComplete ahora manejará la resolución de una Promesa
+  onComplete,
   onClose
 }: ActualizarEstadoClienteProps) {
   const [estado, setEstado] = useState<EstadoAsesor>('SEGUIMIENTO');
@@ -27,50 +27,37 @@ export default function ActualizarEstadoCliente({
     e.preventDefault();
     setLoading(true);
 
-    return new Promise(async (resolve, reject) => {
-      try {
-        // Crear nuevo reporte
-        const { error: reporteError } = await supabase
-          .from('GERSSON_REPORTES')
-          .insert({
-            ID_CLIENTE: cliente.ID,
-            ID_ASESOR: asesor.ID,
-            ESTADO_ANTERIOR: cliente.ESTADO,
-            ESTADO_NUEVO: estado,
-            COMENTARIO: comentario,
-            NOMBRE_ASESOR: asesor.NOMBRE,
-            FECHA_REPORTE: getCurrentEpoch(),
-            FECHA_SEGUIMIENTO: requiereSeguimiento && fechaSeguimiento ?
-              toEpoch(new Date(fechaSeguimiento)) : null
-          });
+    try {
+      // Crear nuevo reporte
+      await supabase
+        .from('GERSSON_REPORTES')
+        .insert({
+          ID_CLIENTE: cliente.ID,
+          ID_ASESOR: asesor.ID,
+          ESTADO_ANTERIOR: cliente.ESTADO, // estado previo
+          ESTADO_NUEVO: estado,            // estado que seleccionas
+          COMENTARIO: comentario,
+          NOMBRE_ASESOR: asesor.NOMBRE,
+          FECHA_REPORTE: getCurrentEpoch(),
+          FECHA_SEGUIMIENTO: requiereSeguimiento && fechaSeguimiento
+            ? toEpoch(new Date(fechaSeguimiento))
+            : null
+        });
 
-        if (reporteError) throw reporteError;
+      // Actualizar estado del cliente
+      await supabase
+        .from('GERSSON_CLIENTES')
+        .update({ ESTADO: estado })
+        .eq('ID', cliente.ID);
 
-        // Actualizar estado del cliente
-        const { error: clienteError } = await supabase
-          .from('GERSSON_CLIENTES')
-          .update({ ESTADO: estado })
-          .eq('ID', cliente.ID);
-
-        if (clienteError) throw clienteError;
-
-        onComplete(); ; 
-      } catch (error) {
-        console.error('Error al crear reporte:', error);
-        alert('Error al crear el reporte');
-        reject(error);
-      } finally {
-        setLoading(false);
-      }
-    });
+      onComplete(); // Avisamos al padre que terminamos
+    } catch (error) {
+      console.error('Error al crear reporte:', error);
+      alert('Error al crear el reporte');
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const handleFormSubmitWrapper = (e: React.FormEvent) => {
-    handleSubmit(e)
-      .catch(() => {
-      });
-  };
-
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
@@ -82,7 +69,7 @@ export default function ActualizarEstadoCliente({
           </button>
         </div>
 
-        <form onSubmit={handleFormSubmitWrapper} className="space-y-4"> {/* Usamos la función envolvente */}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Estado
@@ -90,7 +77,7 @@ export default function ActualizarEstadoCliente({
             <select
               value={estado}
               onChange={(e) => setEstado(e.target.value as EstadoAsesor)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
               required
             >
               <option value="SEGUIMIENTO">En Seguimiento</option>
@@ -106,7 +93,7 @@ export default function ActualizarEstadoCliente({
             <textarea
               value={comentario}
               onChange={(e) => setComentario(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
               rows={3}
               required
             />
@@ -118,7 +105,7 @@ export default function ActualizarEstadoCliente({
               id="seguimiento"
               checked={requiereSeguimiento}
               onChange={(e) => setRequiereSeguimiento(e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              className="h-4 w-4"
             />
             <label htmlFor="seguimiento" className="text-sm font-medium text-gray-700">
               Requiere Seguimiento
@@ -134,7 +121,7 @@ export default function ActualizarEstadoCliente({
                 type="datetime-local"
                 value={fechaSeguimiento}
                 onChange={(e) => setFechaSeguimiento(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
                 required
               />
             </div>
@@ -143,13 +130,12 @@ export default function ActualizarEstadoCliente({
           <button
             type="submit"
             disabled={loading}
-            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-              loading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`w-full flex justify-center py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 ${loading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
           >
             {loading ? (
               <span className="flex items-center">
-                <AlertCircle className="animate-spin h-5 w-5 mr-2" />
+                <Loader2 className="animate-spin h-5 w-5 mr-2" />
                 Guardando...
               </span>
             ) : (

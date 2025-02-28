@@ -83,39 +83,63 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     cargarDatos();
   }, [periodoSeleccionado, fechaInicio, fechaFin]);
 
+
+  async function fetchAllRecords(tableName: string) {
+    let allData: any[] = [];
+    let from = 0;
+    let to = 999;
+    let totalCount = 0;
+
+    while (true) {
+      const { data, count, error } = await supabase
+        .from(tableName)
+        .select('*', { count: 'exact' })
+        .range(from, to);
+
+      if (error) {
+        console.error(`Error al traer registros de ${tableName}:`, error);
+        break;
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+      allData = [...allData, ...data];
+      if (count !== null && count !== undefined) {
+        totalCount = count;
+      }
+      if (totalCount > 0 && allData.length >= totalCount) {
+        break;
+      }
+      from += 1000;
+      to += 1000;
+    }
+
+    return allData;
+  }
+
+
   const cargarDatos = async () => {
     try {
-      // Obtener datos de asesores
+      // Paso 1: Traer todos los asesores (igual asumes < 1000, o usas la función fetchAllRecords)
       const { data: asesoresData } = await supabase
         .from('GERSSON_ASESORES')
         .select('*')
         .order('NOMBRE');
+
       if (!asesoresData) return;
       setAsesores(asesoresData);
 
-      // Obtener clientes, reportes y registros en paralelo
-      const [
-        { data: clientesData, count: totalClientes },
-        { data: reportesData, count: totalReportes },
-        { data: registrosData, count: totalRegistros },
-      ] = await Promise.all([
-        supabase
-          .from('GERSSON_CLIENTES')
-          .select('*', { count: 'exact' }) // 'exact' para saber cuántos hay en total
-          .range(0, 9999),                // hasta 9999 (ajusta si tienes más)
-        supabase
-          .from('GERSSON_REPORTES')
-          .select('*', { count: 'exact' })
-          .range(0, 9999),
-        supabase
-          .from('GERSSON_REGISTROS')
-          .select('*', { count: 'exact' })
-          .range(0, 9999),
+      // Paso 2: Traer todos los clientes, reportes y registros usando fetchAllRecords
+      const [clientesData, reportesData, registrosData] = await Promise.all([
+        fetchAllRecords('GERSSON_CLIENTES'),
+        fetchAllRecords('GERSSON_REPORTES'),
+        fetchAllRecords('GERSSON_REGISTROS'),
       ]);
-  
-      console.log('Total clientes:', totalClientes);
-      console.log('Total reportes:', totalReportes);
-      console.log('Total registros:', totalRegistros);
+
+      console.log('Clientes totales traídos:', clientesData.length);
+      console.log('Reportes totales traídos:', reportesData.length);
+      console.log('Registros totales traídos:', registrosData.length);
 
       if (clientesData && reportesData && registrosData) {
         setClientes(clientesData);
@@ -141,6 +165,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       console.error('Error al cargar datos:', error);
     }
   };
+
 
   /**
    * Calcula las estadísticas detalladas para un asesor.

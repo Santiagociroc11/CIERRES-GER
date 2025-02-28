@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Cliente, Reporte } from '../types';
-import { Calendar, MessageSquare, Phone, CheckCircle, History, Clock, Filter, Menu } from 'lucide-react';
+import { Calendar, MessageSquare, Phone, CheckCircle, History, Clock, Filter, Menu, Loader2 } from 'lucide-react';
 import { formatDate, formatTime } from '../utils/dateUtils';
 
 interface SeguimientosClientesProps {
@@ -16,12 +16,35 @@ export default function SeguimientosClientes({
 }: SeguimientosClientesProps) {
   const [mostrarCompletados, setMostrarCompletados] = useState(false);
   const [reporteAcciones, setReporteAcciones] = useState<number | null>(null);
+  const [completandoReporteId, setCompletandoReporteId] = useState<number | null>(null);
+  const [modalAbierto, setModalAbierto] = useState(false); // Estado para controlar la visibilidad del modal
+  const [reporteParaCompletar, setReporteParaCompletar] = useState<Reporte | null>(null); // Estado para almacenar el reporte a completar
+
 
   const abrirWhatsApp = (numero: string) => {
     if (!numero) return;
     const numeroLimpio = numero.replace(/\D/g, '');
     window.open(`https://wa.me/${numeroLimpio}`, '_blank');
   };
+
+  // Funciones para manejar el modal
+  const handleAbrirModalCompletar = (reporte: Reporte) => {
+    setReporteParaCompletar(reporte);
+    setModalAbierto(true);
+  };
+
+  const handleCerrarModalCompletar = () => {
+    setModalAbierto(false);
+    setReporteParaCompletar(null);
+  };
+
+  const handleConfirmarCompletar = () => {
+    if (reporteParaCompletar) {
+      handleActualizarYCompletar(reporteParaCompletar); // Llama a la función de completar y actualizar al confirmar en el modal
+    }
+    setModalAbierto(false); // Cierra el modal después de confirmar
+  };
+
 
   // Obtener clientes con venta reportada
   const clientesConVenta = new Set(
@@ -34,7 +57,7 @@ export default function SeguimientosClientes({
   const reportesFiltrados = reportes.filter(reporte => {
     // No mostrar seguimientos de clientes con venta reportada
     if (clientesConVenta.has(reporte.ID_CLIENTE)) return false;
-    
+
     // Solo mostrar reportes con fecha de seguimiento
     if (!reporte.FECHA_SEGUIMIENTO) return false;
 
@@ -45,7 +68,7 @@ export default function SeguimientosClientes({
   // Agrupar reportes por fecha
   const reportesPorFecha = reportesFiltrados.reduce((acc, reporte) => {
     if (!reporte.FECHA_SEGUIMIENTO) return acc;
-    
+
     const fecha = new Date(reporte.FECHA_SEGUIMIENTO * 1000).toDateString();
     if (!acc[fecha]) {
       acc[fecha] = [];
@@ -55,22 +78,66 @@ export default function SeguimientosClientes({
   }, {} as Record<string, Reporte[]>);
 
   // Ordenar las fechas
-  const fechasOrdenadas = Object.keys(reportesPorFecha).sort((a, b) => 
+  const fechasOrdenadas = Object.keys(reportesPorFecha).sort((a, b) =>
     mostrarCompletados
       ? new Date(b).getTime() - new Date(a).getTime() // Orden descendente para completados
       : new Date(a).getTime() - new Date(b).getTime() // Orden ascendente para pendientes
   );
 
   const contarSeguimientos = (completados: boolean) => {
-    return reportes.filter(r => 
-      r.FECHA_SEGUIMIENTO && 
+    return reportes.filter(r =>
+      r.FECHA_SEGUIMIENTO &&
       r.COMPLETADO === completados &&
       !clientesConVenta.has(r.ID_CLIENTE)
     ).length;
   };
 
+  // Función combinada para Actualizar y Completar
+  const handleActualizarYCompletar = (reporte: Reporte) => {
+    setCompletandoReporteId(reporte.ID);
+    onActualizarEstado(reporte.cliente!)
+      .then(() => {
+        return onMarcarCompletado(reporte);
+      })
+      .catch(() => {
+        console.error("Error al actualizar el estado.");
+      })
+      .finally(() => {
+        setCompletandoReporteId(null);
+      });
+  };
+
+
   return (
     <div className="space-y-4">
+        {/* Modal de Confirmación para Completar y Actualizar */}
+        {modalAbierto && (
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-auto flex justify-center items-center">
+                <div className="bg-white p-6 rounded-lg shadow-xl">
+                    <h2 className="text-lg font-semibold text-gray-800 mb-4">Confirmar Completar y Actualizar</h2>
+                    <p className="text-gray-700 mb-4">¿Está seguro de que desea completar y actualizar este seguimiento?</p>
+                    <div className="flex justify-end gap-4">
+                        <button
+                            onClick={handleCerrarModalCompletar}
+                            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 font-medium"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={handleConfirmarCompletar}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-md text-white font-medium flex items-center justify-center"
+                            disabled={completandoReporteId === reporteParaCompletar?.ID}
+                        >
+                            {completandoReporteId === reporteParaCompletar?.ID && (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            )}
+                            Confirmar Completar y Actualizar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
       {/* Encabezado y Filtros */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex flex-col gap-4">
@@ -79,7 +146,7 @@ export default function SeguimientosClientes({
               {mostrarCompletados ? 'Historial de Seguimientos' : 'Seguimientos Pendientes'}
             </h2>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-              mostrarCompletados 
+              mostrarCompletados
                 ? 'bg-green-100 text-green-800'
                 : 'bg-blue-100 text-blue-800'
             }`}>
@@ -88,7 +155,7 @@ export default function SeguimientosClientes({
                 : `${contarSeguimientos(false)} pendientes`}
             </span>
           </div>
-          
+
           <button
             onClick={() => setMostrarCompletados(!mostrarCompletados)}
             className={`w-full py-2 px-4 rounded-md text-sm font-medium transition-colors ${
@@ -129,10 +196,10 @@ export default function SeguimientosClientes({
             </div>
             <div className="divide-y divide-gray-100">
               {reportesPorFecha[fecha].map((reporte) => (
-                <div 
+                <div
                   key={reporte.ID}
                   className={`p-4 ${
-                    reporte.COMPLETADO 
+                    reporte.COMPLETADO
                       ? 'bg-gray-50'
                       : 'bg-white'
                   }`}
@@ -157,7 +224,7 @@ export default function SeguimientosClientes({
                           </span>
                         </div>
                       </div>
-                      
+
                       {/* Botón de menú en móvil */}
                       <button
                         onClick={() => setReporteAcciones(reporteAcciones === reporte.ID ? null : reporte.ID)}
@@ -175,25 +242,15 @@ export default function SeguimientosClientes({
                           <Phone className="h-4 w-4 mr-1" />
                           Contactar
                         </button>
-                        
+
                         {!mostrarCompletados && !clientesConVenta.has(reporte.ID_CLIENTE) && (
-                          <>
-                            <button
-                              onClick={() => onActualizarEstado(reporte.cliente!)}
-                              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
-                            >
-                              <MessageSquare className="h-4 w-4 mr-1" />
-                              Actualizar
-                            </button>
-                            
-                            <button
-                              onClick={() => onMarcarCompletado(reporte)}
-                              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Completar
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleAbrirModalCompletar(reporte)} // Abre el modal al hacer clic en "Completar y Actualizar"
+                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Completar y Actualizar
+                          </button>
                         )}
                       </div>
                     </div>
@@ -216,31 +273,18 @@ export default function SeguimientosClientes({
                           <Phone className="h-4 w-4 mr-2" />
                           Contactar
                         </button>
-                        
+
                         {!mostrarCompletados && !clientesConVenta.has(reporte.ID_CLIENTE) && (
-                          <>
-                            <button
-                              onClick={() => {
-                                onActualizarEstado(reporte.cliente!);
-                                setReporteAcciones(null);
-                              }}
-                              className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
-                            >
-                              <MessageSquare className="h-4 w-4 mr-2" />
-                              Actualizar Estado
-                            </button>
-                            
-                            <button
-                              onClick={() => {
-                                onMarcarCompletado(reporte);
-                                setReporteAcciones(null);
-                              }}
-                              className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
-                            >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Marcar Completado
-                            </button>
-                          </>
+                          <button
+                            onClick={() => {
+                              handleAbrirModalCompletar(reporte); // Abre el modal en la vista móvil también
+                              setReporteAcciones(null);
+                            }}
+                            className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Completar y Actualizar
+                          </button>
                         )}
                       </div>
                     )}

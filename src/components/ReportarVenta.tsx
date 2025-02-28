@@ -217,9 +217,10 @@ export default function ReportarVenta({
       return;
     }
 
-    // Llamada a la API después de las operaciones exitosas
-    await handleEnviarVenta(imagenPagoUrl);
-
+    if (tipoVenta === 'EXTERNA') {
+      await handleEnviarVenta(imagenPagoUrl);
+    }
+    
     if (!error) {
       setLoading(false);
       onComplete();

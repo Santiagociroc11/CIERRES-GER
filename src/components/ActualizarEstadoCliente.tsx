@@ -7,15 +7,15 @@ import { toEpoch, getCurrentEpoch } from '../utils/dateUtils';
 interface ActualizarEstadoClienteProps {
   cliente: Cliente;
   asesor: Asesor;
-  onComplete: () => void;
+  onComplete: () => void; // Modificamos onComplete para manejar la resolución de la Promesa
   onClose: () => void;
 }
 
-export default function ActualizarEstadoCliente({ 
-  cliente, 
-  asesor, 
-  onComplete, 
-  onClose 
+export default function ActualizarEstadoCliente({
+  cliente,
+  asesor,
+  onComplete, // onComplete ahora manejará la resolución de una Promesa
+  onClose
 }: ActualizarEstadoClienteProps) {
   const [estado, setEstado] = useState<EstadoAsesor>('SEGUIMIENTO');
   const [comentario, setComentario] = useState('');
@@ -27,40 +27,50 @@ export default function ActualizarEstadoCliente({
     e.preventDefault();
     setLoading(true);
 
-    try {
-      // Crear nuevo reporte
-      const { error: reporteError } = await supabase
-        .from('GERSSON_REPORTES')
-        .insert({
-          ID_CLIENTE: cliente.ID,
-          ID_ASESOR: asesor.ID,
-          ESTADO_ANTERIOR: cliente.ESTADO,
-          ESTADO_NUEVO: estado,
-          COMENTARIO: comentario,
-          NOMBRE_ASESOR: asesor.NOMBRE,
-          FECHA_REPORTE: getCurrentEpoch(),
-          FECHA_SEGUIMIENTO: requiereSeguimiento && fechaSeguimiento ? 
-            toEpoch(new Date(fechaSeguimiento)) : null
-        });
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Crear nuevo reporte
+        const { error: reporteError } = await supabase
+          .from('GERSSON_REPORTES')
+          .insert({
+            ID_CLIENTE: cliente.ID,
+            ID_ASESOR: asesor.ID,
+            ESTADO_ANTERIOR: cliente.ESTADO,
+            ESTADO_NUEVO: estado,
+            COMENTARIO: comentario,
+            NOMBRE_ASESOR: asesor.NOMBRE,
+            FECHA_REPORTE: getCurrentEpoch(),
+            FECHA_SEGUIMIENTO: requiereSeguimiento && fechaSeguimiento ?
+              toEpoch(new Date(fechaSeguimiento)) : null
+          });
 
-      if (reporteError) throw reporteError;
+        if (reporteError) throw reporteError;
 
-      // Actualizar estado del cliente
-      const { error: clienteError } = await supabase
-        .from('GERSSON_CLIENTES')
-        .update({ ESTADO: estado })
-        .eq('ID', cliente.ID);
+        // Actualizar estado del cliente
+        const { error: clienteError } = await supabase
+          .from('GERSSON_CLIENTES')
+          .update({ ESTADO: estado })
+          .eq('ID', cliente.ID);
 
-      if (clienteError) throw clienteError;
+        if (clienteError) throw clienteError;
 
-      onComplete();
-    } catch (error) {
-      console.error('Error al crear reporte:', error);
-      alert('Error al crear el reporte');
-    } finally {
-      setLoading(false);
-    }
+        onComplete(); ; 
+      } catch (error) {
+        console.error('Error al crear reporte:', error);
+        alert('Error al crear el reporte');
+        reject(error);
+      } finally {
+        setLoading(false);
+      }
+    });
   };
+
+  const handleFormSubmitWrapper = (e: React.FormEvent) => {
+    handleSubmit(e)
+      .catch(() => {
+      });
+  };
+
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
@@ -72,7 +82,7 @@ export default function ActualizarEstadoCliente({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleFormSubmitWrapper} className="space-y-4"> {/* Usamos la función envolvente */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Estado

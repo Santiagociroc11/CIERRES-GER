@@ -95,14 +95,27 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
       // Obtener clientes, reportes y registros en paralelo
       const [
-        { data: clientesData },
-        { data: reportesData },
-        { data: registrosData }
+        { data: clientesData, count: totalClientes },
+        { data: reportesData, count: totalReportes },
+        { data: registrosData, count: totalRegistros },
       ] = await Promise.all([
-        supabase.from('GERSSON_CLIENTES').select('*'),
-        supabase.from('GERSSON_REPORTES').select('*'),
-        supabase.from('GERSSON_REGISTROS').select('*')
+        supabase
+          .from('GERSSON_CLIENTES')
+          .select('*', { count: 'exact' }) // 'exact' para saber cuántos hay en total
+          .range(0, 9999),                // hasta 9999 (ajusta si tienes más)
+        supabase
+          .from('GERSSON_REPORTES')
+          .select('*', { count: 'exact' })
+          .range(0, 9999),
+        supabase
+          .from('GERSSON_REGISTROS')
+          .select('*', { count: 'exact' })
+          .range(0, 9999),
       ]);
+  
+      console.log('Total clientes:', totalClientes);
+      console.log('Total reportes:', totalReportes);
+      console.log('Total registros:', totalRegistros);
 
       if (clientesData && reportesData && registrosData) {
         setClientes(clientesData);

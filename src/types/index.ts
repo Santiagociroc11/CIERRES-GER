@@ -4,7 +4,7 @@ export interface Asesor {
   ID: number;
   NOMBRE: string;
   WHATSAPP: string;
-  LINK: number;
+  LINK: number; // Cambiado de number a string (posiblemente sea una URL)
   RECHAZADOS: number;
   CARRITOS: number;
   TICKETS: number;
@@ -24,6 +24,7 @@ export interface Cliente {
   MEDIO_COMPRA: string;
   MONTO_COMPRA: number;
   MONEDA_COMPRA: 'COP' | 'USD';
+  PAIS?: string; // Nuevo: Ahora el cliente tiene el país registrado
 }
 
 export interface Reporte {
@@ -35,10 +36,17 @@ export interface Reporte {
   COMENTARIO: string;
   FECHA_REPORTE: number;
   NOMBRE_ASESOR: string;
-  FECHA_SEGUIMIENTO: number;
+  FECHA_SEGUIMIENTO?: number;
   IMAGEN_PAGO_URL?: string;
   COMPLETADO?: boolean;
   cliente?: Cliente;
+
+  // NUEVOS CAMPOS: Se agregan para que coincida con la API y la BD
+  PAIS_CLIENTE?: string;
+  CORREO_INSCRIPCION?: string;
+  TELEFONO_CLIENTE?: string;
+  MEDIO_PAGO?: string;
+  CORREO_PAGO?: string;
 }
 
 export interface Registro {

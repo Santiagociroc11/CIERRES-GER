@@ -31,16 +31,13 @@ export default function ReportarVenta({
   const [error, setError] = useState('');
   const [medioPago, setMedioPago] = useState('');
 
-
   const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validar tipo
       if (!file.type.startsWith('image/')) {
         setError('Por favor, selecciona un archivo de imagen válido.');
         return;
       }
-      // Validar tamaño (máximo 5 MB)
       if (file.size > 5 * 1024 * 1024) {
         setError('La imagen no debe superar los 5MB.');
         return;
@@ -49,7 +46,6 @@ export default function ReportarVenta({
       setImagenPago(file);
       setError('');
 
-      // Crear preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewUrl(reader.result as string);
@@ -58,22 +54,64 @@ export default function ReportarVenta({
     }
   };
 
-  // Manejo del submit
+  const handleEnviarVenta = async (imagenPagoUrl: string) => {
+    setLoading(true);
+    try {
+      const payload: Record<string, any> = {
+        clienteID: cliente.ID,
+        asesorID: asesor.ID,
+        nombreAsesor: asesor.NOMBRE,
+        tipoVenta,
+        comentario,
+        imagenPagoUrl,
+      };
+
+      if (tipoVenta === 'EXTERNA') {
+        payload.medioPago = medioPago || undefined;
+        payload.pais = pais || undefined;
+        payload.correoInscripcion = correoInscripcion || undefined;
+        payload.telefono = telefono || undefined;
+        payload.correoPago = esStripe ? correoPago : undefined;
+      }
+
+      const response = await fetch(
+        'https://n8n.automscc.com/webhook/reporte-venta-tg',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Error al enviar la venta a la API');
+      }
+    } catch (apiError) {
+      console.error('Error al enviar la venta:', apiError);
+      setError(
+        apiError instanceof Error
+          ? apiError.message
+          : 'Error desconocido al enviar a la API'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    // Validar tipo de venta
     if (!tipoVenta) {
       setError('Selecciona si la venta es interna (Hotmart) o externa.');
       setLoading(false);
       return;
     }
 
-    // Validaciones extra para EXTERNA
     if (tipoVenta === 'EXTERNA') {
-      // País, correo y teléfono son obligatorios
       if (!pais.trim()) {
         setError('Para pagos externos, se requiere el país del cliente.');
         setLoading(false);
@@ -89,22 +127,18 @@ export default function ReportarVenta({
         setLoading(false);
         return;
       }
-      // Si es Stripe, pedir correo de pago
       if (esStripe && !correoPago.trim()) {
         setError('Para pagos Stripe, es necesario el correo con el que se pagó.');
         setLoading(false);
         return;
       }
-
-      if (tipoVenta === 'EXTERNA' && !medioPago.trim()) {
+      if (!medioPago.trim()) {
         setError('Para pagos externos, se debe especificar el medio de pago.');
         setLoading(false);
         return;
       }
-      
     }
 
-    // Subir imagen (si existe)
     let imagenPagoUrl = '';
     try {
       if (imagenPago) {
@@ -116,7 +150,6 @@ export default function ReportarVenta({
       return;
     }
 
-    // Eliminar seguimientos pendientes
     try {
       const { error: seguimientosError } = await supabase
         .from('GERSSON_REPORTES')
@@ -136,7 +169,6 @@ export default function ReportarVenta({
       return;
     }
 
-    // Crear nuevo reporte
     try {
       const { error: reporteError } = await supabase
         .from('GERSSON_REPORTES')
@@ -166,14 +198,12 @@ export default function ReportarVenta({
       return;
     }
 
-    // Actualizar el cliente (si lo deseas, puedes también guardar el país aquí)
     try {
       const { error: clienteError } = await supabase
         .from('GERSSON_CLIENTES')
         .update({
           ESTADO: 'PAGADO',
           FECHA_COMPRA: getCurrentEpoch(),
-          // Si quieres guardar el país en la tabla de clientes
           PAIS: tipoVenta === 'EXTERNA' ? pais : null,
         })
         .eq('ID', cliente.ID);
@@ -187,9 +217,13 @@ export default function ReportarVenta({
       return;
     }
 
-    // Todo OK
-    setLoading(false);
-    onComplete();
+    // Llamada a la API después de las operaciones exitosas
+    await handleEnviarVenta(imagenPagoUrl);
+
+    if (!error) {
+      setLoading(false);
+      onComplete();
+    }
   };
 
   return (

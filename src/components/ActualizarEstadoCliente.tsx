@@ -25,7 +25,6 @@ export default function ActualizarEstadoCliente({
   // Verifica si se requiere fecha obligatoria (para SEGUIMIENTO, NO INTERESADO y NO CONTESTÓ)
   const requiereFecha =
     estado === 'SEGUIMIENTO' ||
-    estado === 'NO INTERESADO' ||
     estado === 'NO CONTESTÓ';
 
   // Función para formatear un Date en "YYYY-MM-DDTHH:mm" **en hora local**

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+import { apiClient } from "../lib/apiClient";
 
 const ReasignarCliente = ({ clienteId, asesorActual }) => {
   const [asesores, setAsesores] = useState([]);
@@ -13,21 +13,19 @@ const ReasignarCliente = ({ clienteId, asesorActual }) => {
       setLoading(true);
       setErrorMsg("");
       try {
-        const { data, error } = await supabase
-          .from("GERSSON_ASESORES")
-          .select("ID, NOMBRE");
-        if (error) throw error;
+        const data = await apiClient.request<Asesor[]>("/GERSSON_ASESORES?select=ID,NOMBRE", "GET");
         setAsesores(data);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching asesores:", error);
         setErrorMsg("Error al cargar asesores.");
       } finally {
         setLoading(false);
       }
     };
-
+  
     fetchAsesores();
   }, []);
+  
 
   const avisoTG = async (clienteId, asesorViejoId, asesorNuevoId) => {
     try {
@@ -66,26 +64,28 @@ const ReasignarCliente = ({ clienteId, asesorActual }) => {
     try {
       const nuevoAsesorData = asesores.find((a) => a.ID === parseInt(nuevoAsesor));
       if (!nuevoAsesorData) throw new Error("Asesor no encontrado.");
-
-      await supabase
-        .from("GERSSON_CLIENTES")
-        .update({
+    
+      await apiClient.request(
+        `/GERSSON_CLIENTES?ID=eq.${clienteId}`,
+        "PATCH",
+        {
           ID_ASESOR: parseInt(nuevoAsesor),
           NOMBRE_ASESOR: nuevoAsesorData.NOMBRE,
-        })
-        .eq("ID", clienteId);
-
+        }
+      );
+    
       const asesorViejoId = asesores.find((a) => a.NOMBRE === asesorActual)?.ID;
       await avisoTG(clienteId, asesorViejoId, parseInt(nuevoAsesor));
-
+    
       alert("Cliente reasignado correctamente");
       setModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error reasignando cliente:", error);
       setErrorMsg("Error al reasignar cliente.");
     } finally {
       setLoading(false);
     }
+    
   };
 
   return (

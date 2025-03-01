@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/apiClient';
 import { Cliente, Asesor, Reporte, EstadisticasAsesor } from '../types';
 import { List, Clock, TrendingUp } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
@@ -176,21 +176,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const cargarDatos = async () => {
     try {
       console.log('Cargando datos para asesor:', asesor.ID);
-      const { data: clientesData, error: clientesError } = await supabase
-        .from('GERSSON_CLIENTES')
-        .select('*')
-        .eq('ID_ASESOR', asesor.ID);
-      if (clientesError) throw clientesError;
-
-      const { data: reportesData, error: reportesError } = await supabase
-        .from('GERSSON_REPORTES')
-        .select(`
-          *,
-          cliente:GERSSON_CLIENTES(*)
-        `)
-        .eq('ID_ASESOR', asesor.ID)
-        .order('FECHA_SEGUIMIENTO', { ascending: true });
-      if (reportesError) throw reportesError;
+      const clientesData = await apiClient.request<Cliente[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}`);
+      const reportesData = await apiClient.request<Reporte[]>(`/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*,cliente:GERSSON_CLIENTES(*)&order=FECHA_SEGUIMIENTO.asc`);
 
       if (clientesData && reportesData) {
         const clientesProcesados = clientesData.map(cliente => {

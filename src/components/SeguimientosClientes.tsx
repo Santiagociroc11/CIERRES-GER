@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Reporte } from '../types';
 import { Calendar, Phone, CheckCircle, History, Clock, Menu, Loader2 } from 'lucide-react';
 import { formatTime } from '../utils/dateUtils';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/apiClient';
 
 /**
  * Si en DashboardAsesor le pasas un callback para refrescar datos,
@@ -45,30 +45,31 @@ function ModalCompletarActualizar({
         : null;
 
       // 1) Insertar un nuevo reporte
-      await supabase
-        .from('GERSSON_REPORTES')
-        .insert({
-          ID_CLIENTE: reporte.ID_CLIENTE,
-          ID_ASESOR: reporte.ID_ASESOR,
-          ESTADO_ANTERIOR: reporte.ESTADO_NUEVO, // o lo que consideres
-          ESTADO_NUEVO: nuevoEstado,
-          COMENTARIO: comentario,
-          NOMBRE_ASESOR: reporte.NOMBRE_ASESOR, // o el nombre del asesor actual
-          FECHA_REPORTE: Math.floor(Date.now() / 1000),
-          FECHA_SEGUIMIENTO: fechaEpoch
-        });
+      // 1) Insertar el nuevo reporte
+      await apiClient.request('/GERSSON_REPORTES', 'POST', {
+        ID_CLIENTE: reporte.ID_CLIENTE,
+        ID_ASESOR: reporte.ID_ASESOR,
+        ESTADO_ANTERIOR: reporte.ESTADO_NUEVO, // o lo que consideres
+        ESTADO_NUEVO: nuevoEstado,
+        COMENTARIO: comentario,
+        NOMBRE_ASESOR: reporte.NOMBRE_ASESOR, // o el nombre del asesor actual
+        FECHA_REPORTE: Math.floor(Date.now() / 1000),
+        FECHA_SEGUIMIENTO: fechaEpoch,
+      });
 
-      // 2) Actualizar estado del cliente
-      await supabase
-        .from('GERSSON_CLIENTES')
-        .update({ ESTADO: nuevoEstado })
-        .eq('ID', reporte.ID_CLIENTE);
+      // 2) Actualizar el estado del cliente
+      await apiClient.request(
+        `/GERSSON_CLIENTES?ID=eq.${reporte.ID_CLIENTE}`,
+        'PATCH',
+        { ESTADO: nuevoEstado }
+      );
 
-      // 3) Marcar COMPLETADO el reporte que estamos manejando
-      await supabase
-        .from('GERSSON_REPORTES')
-        .update({ COMPLETADO: true })
-        .eq('ID', reporte.ID);
+      // 3) Marcar como COMPLETADO el reporte que estamos manejando
+      await apiClient.request(
+        `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+        'PATCH',
+        { COMPLETADO: true }
+      );
 
       // Si el padre nos pasó un callback, refrescamos
       if (onRefrescar) {
@@ -251,7 +252,7 @@ export default function SeguimientosClientes({
       // Excluir sin FECHA_SEGUIMIENTO o con cliente pagado
       if (!r.FECHA_SEGUIMIENTO) return false;
       if (clientesConVenta.has(r.ID_CLIENTE)) return false;
-  
+
       if (completados) {
         // Contar solo si COMPLETADO == true
         return r.COMPLETADO === true;
@@ -281,11 +282,10 @@ export default function SeguimientosClientes({
               {mostrarCompletados ? 'Historial de Seguimientos' : 'Seguimientos Pendientes'}
             </h2>
             <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                mostrarCompletados
+              className={`px-3 py-1 rounded-full text-sm font-medium ${mostrarCompletados
                   ? 'bg-green-100 text-green-800'
                   : 'bg-blue-100 text-blue-800'
-              }`}
+                }`}
             >
               {mostrarCompletados
                 ? `${contarSeguimientos(true)} Completados`
@@ -295,11 +295,10 @@ export default function SeguimientosClientes({
 
           <button
             onClick={() => setMostrarCompletados(!mostrarCompletados)}
-            className={`w-full py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              mostrarCompletados
+            className={`w-full py-2 px-4 rounded-md text-sm font-medium transition-colors ${mostrarCompletados
                 ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-            }`}
+              }`}
           >
             {mostrarCompletados ? (
               <>
@@ -338,9 +337,8 @@ export default function SeguimientosClientes({
               {reportesPorFecha[fecha].map((reporte) => (
                 <div
                   key={reporte.ID}
-                  className={`p-4 ${
-                    reporte.COMPLETADO ? 'bg-gray-50' : 'bg-white'
-                  }`}
+                  className={`p-4 ${reporte.COMPLETADO ? 'bg-gray-50' : 'bg-white'
+                    }`}
                 >
                   <div className="flex flex-col gap-3">
                     {/* Encabezado */}
@@ -351,11 +349,10 @@ export default function SeguimientosClientes({
                         </h3>
                         <div className="flex items-center gap-2 mt-1">
                           <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              reporte.COMPLETADO
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${reporte.COMPLETADO
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-blue-100 text-blue-800'
-                            }`}
+                              }`}
                           >
                             {reporte.COMPLETADO
                               ? 'Completado'

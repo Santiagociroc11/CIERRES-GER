@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/apiClient';
 import { uploadToMinio } from '../lib/minio';
 import { Cliente, Asesor } from '../types';
 import { X, Upload, DollarSign, Image, AlertCircle } from 'lucide-react';
@@ -151,71 +151,58 @@ export default function ReportarVenta({
     }
 
     try {
-      const { error: seguimientosError } = await supabase
-        .from('GERSSON_REPORTES')
-        .update({ COMPLETADO: true })
-        .eq('ID_CLIENTE', cliente.ID)
-        .eq('COMPLETADO', false)
-        .not('FECHA_SEGUIMIENTO', 'is', null);
-
-      if (seguimientosError) {
-        throw new Error(
-          `Error al actualizar seguimientos: ${seguimientosError.message}`
-        );
-      }
-    } catch (error) {
+      await apiClient.request(
+        `/GERSSON_REPORTES?ID_CLIENTE=eq.${cliente.ID}&COMPLETADO=eq.false&FECHA_SEGUIMIENTO=not.is.null`,
+        'PATCH',
+        { COMPLETADO: true }
+      );
+    } catch (error: any) {
       setLoading(false);
       setError(error instanceof Error ? error.message : 'Error al reportar la venta.');
       return;
     }
+    
 
     try {
-      const { error: reporteError } = await supabase
-        .from('GERSSON_REPORTES')
-        .insert({
-          ID_CLIENTE: cliente.ID,
-          ID_ASESOR: asesor.ID,
-          ESTADO_ANTERIOR: cliente.ESTADO,
-          ESTADO_NUEVO: 'PAGADO',
-          COMENTARIO: comentario,
-          NOMBRE_ASESOR: asesor.NOMBRE,
-          IMAGEN_PAGO_URL: imagenPagoUrl,
-          FECHA_REPORTE: getCurrentEpoch(),
-          TIPO_VENTA: tipoVenta,
-          PAIS_CLIENTE: tipoVenta === 'EXTERNA' ? pais : null,
-          CORREO_INSCRIPCION: tipoVenta === 'EXTERNA' ? correoInscripcion : null,
-          TELEFONO_CLIENTE: tipoVenta === 'EXTERNA' ? telefono : null,
-          CORREO_PAGO: esStripe ? correoPago : null,
-          MEDIO_PAGO: tipoVenta === 'EXTERNA' ? medioPago : null,
-        });
-
-      if (reporteError) {
-        throw new Error(`Error al crear el reporte: ${reporteError.message}`);
-      }
-    } catch (error) {
+      await apiClient.request('/GERSSON_REPORTES', 'POST', {
+        ID_CLIENTE: cliente.ID,
+        ID_ASESOR: asesor.ID,
+        ESTADO_ANTERIOR: cliente.ESTADO,
+        ESTADO_NUEVO: 'PAGADO',
+        COMENTARIO: comentario,
+        NOMBRE_ASESOR: asesor.NOMBRE,
+        IMAGEN_PAGO_URL: imagenPagoUrl,
+        FECHA_REPORTE: getCurrentEpoch(),
+        TIPO_VENTA: tipoVenta,
+        PAIS_CLIENTE: tipoVenta === 'EXTERNA' ? pais : null,
+        CORREO_INSCRIPCION: tipoVenta === 'EXTERNA' ? correoInscripcion : null,
+        TELEFONO_CLIENTE: tipoVenta === 'EXTERNA' ? telefono : null,
+        CORREO_PAGO: esStripe ? correoPago : null,
+        MEDIO_PAGO: tipoVenta === 'EXTERNA' ? medioPago : null,
+      });
+    } catch (error: any) {
       setLoading(false);
       setError(error instanceof Error ? error.message : 'Error al reportar la venta.');
       return;
     }
+    
 
     try {
-      const { error: clienteError } = await supabase
-        .from('GERSSON_CLIENTES')
-        .update({
+      await apiClient.request(
+        `/GERSSON_CLIENTES?ID=eq.${cliente.ID}`,
+        'PATCH',
+        {
           ESTADO: 'PAGADO',
           FECHA_COMPRA: getCurrentEpoch(),
           PAIS: tipoVenta === 'EXTERNA' ? pais : null,
-        })
-        .eq('ID', cliente.ID);
-
-      if (clienteError) {
-        throw new Error(`Error al actualizar el cliente: ${clienteError.message}`);
-      }
-    } catch (error) {
+        }
+      );
+    } catch (error: any) {
       setLoading(false);
       setError(error instanceof Error ? error.message : 'Error al reportar la venta.');
       return;
     }
+    
 
     if (tipoVenta === 'EXTERNA') {
       await handleEnviarVenta(imagenPagoUrl);

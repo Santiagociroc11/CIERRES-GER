@@ -3,7 +3,7 @@ import DashboardAsesor from './components/DashboardAsesor';
 import DashboardAdmin from './components/DashboardAdmin';
 import Login from './components/Login';
 import { Asesor } from './types';
-import { supabase } from './lib/supabase';
+import { apiClient } from './lib/apiClient';
 
 function App() {
   const [asesorActual, setAsesorActual] = useState<Asesor | null>(null);

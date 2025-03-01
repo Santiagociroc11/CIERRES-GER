@@ -23,7 +23,7 @@ export default function FuentesAnalysisPorAsesor({
 
   const parseFechaEvento = (fechaEvento: any): number => {
     let t = new Date(fechaEvento).getTime();
-    if (isNaN(t)) t = Number(fechaEvento) * 1000; // Si es un timestamp en segundos
+    if (isNaN(t)) t = Number(fechaEvento) * 1000;
     return t;
   };
 
@@ -67,38 +67,72 @@ export default function FuentesAnalysisPorAsesor({
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900 text-center">📊 Análisis de Fuentes</h2>
-      <table className="w-full border-collapse bg-white shadow-lg rounded-lg overflow-hidden">
-        <thead className="bg-gray-100 text-gray-800">
-          <tr>
-            <th className="px-6 py-3 text-left">Fuente</th>
-            <th className="px-6 py-3 text-center">Clientes</th>
-            <th className="px-6 py-3 text-center">Cierres</th>
-            <th className="px-6 py-3 text-center">Tasa de Cierre (%)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(fuentesStats).map(([fuente, { total, cerrados }]) => (
-            <tr key={fuente} className="border-b">
-              <td className="px-6 py-4">{fuente}</td>
-              <td className="px-6 py-4 text-center">{total}</td>
-              <td className="px-6 py-4 text-center">{cerrados}</td>
-              <td className={`px-6 py-4 text-center ${getTasaCierreColor((cerrados / total) * 100)}`}>
-                {total > 0 ? ((cerrados / total) * 100).toFixed(1) : '0.0'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot className="bg-gray-200">
-          <tr className="font-bold">
-            <td className="px-6 py-4">TOTAL</td>
-            <td className="px-6 py-4 text-center">{totalesGlobales.total}</td>
-            <td className="px-6 py-4 text-center">{totalesGlobales.cerrados}</td>
-            <td className={`px-6 py-4 text-center ${getTasaCierreColor(totalesGlobales.tasa)}`}>
-              {totalesGlobales.tasa.toFixed(1)}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+
+      {/* 🖥️ Escritorio: Tabla tradicional */}
+      <div className="hidden md:block">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse bg-white shadow-lg rounded-lg overflow-hidden">
+            <thead className="bg-gray-100 text-gray-800">
+              <tr>
+                <th className="px-6 py-3 text-left">Fuente</th>
+                <th className="px-6 py-3 text-center">Clientes</th>
+                <th className="px-6 py-3 text-center">Cierres</th>
+                <th className="px-6 py-3 text-center">Tasa de Cierre (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(fuentesStats).map(([fuente, { total, cerrados }]) => (
+                <tr key={fuente} className="border-b">
+                  <td className="px-6 py-4">{fuente}</td>
+                  <td className="px-6 py-4 text-center">{total}</td>
+                  <td className="px-6 py-4 text-center">{cerrados}</td>
+                  <td className={`px-6 py-4 text-center ${getTasaCierreColor((cerrados / total) * 100)}`}>
+                    {total > 0 ? ((cerrados / total) * 100).toFixed(1) : '0.0'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-200">
+              <tr className="font-bold">
+                <td className="px-6 py-4">TOTAL</td>
+                <td className="px-6 py-4 text-center">{totalesGlobales.total}</td>
+                <td className="px-6 py-4 text-center">{totalesGlobales.cerrados}</td>
+                <td className={`px-6 py-4 text-center ${getTasaCierreColor(totalesGlobales.tasa)}`}>
+                  {totalesGlobales.tasa.toFixed(1)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* 📱 Móvil: Tarjetas en lugar de tabla */}
+      <div className="md:hidden space-y-4">
+        {Object.entries(fuentesStats).map(([fuente, { total, cerrados }]) => (
+          <div key={fuente} className="bg-white shadow-md rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-gray-800">{fuente}</h3>
+            <div className="flex justify-between items-center mt-2">
+              <div className="text-sm text-gray-600">Clientes: <span className="font-medium">{total}</span></div>
+              <div className="text-sm text-gray-600">Cierres: <span className="font-medium">{cerrados}</span></div>
+            </div>
+            <div className={`mt-2 text-lg ${getTasaCierreColor((cerrados / total) * 100)}`}>
+              {total > 0 ? ((cerrados / total) * 100).toFixed(1) : '0.0'}% de cierre
+            </div>
+          </div>
+        ))}
+
+        {/* 📱 Tarjeta de Totales */}
+        <div className="bg-gray-100 shadow-md rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-800">TOTAL</h3>
+          <div className="flex justify-between items-center mt-2">
+            <div className="text-sm text-gray-600">Clientes: <span className="font-medium">{totalesGlobales.total}</span></div>
+            <div className="text-sm text-gray-600">Cierres: <span className="font-medium">{totalesGlobales.cerrados}</span></div>
+          </div>
+          <div className={`mt-2 text-lg ${getTasaCierreColor(totalesGlobales.tasa)}`}>
+            {totalesGlobales.tasa.toFixed(1)}% de cierre
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

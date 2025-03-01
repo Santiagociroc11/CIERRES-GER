@@ -250,6 +250,26 @@ export default function ReportarVenta({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
+           {/* Explicación adicional sobre interna/externa */}
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-700">
+          <p>
+            <strong>¿Venta Interna (Hotmart) o Externa?</strong> <br />
+            <ul className="list-disc list-inside">
+              <li>
+                <strong>Interna (Dentro de Hotmart):</strong> Medios de
+                pago de Hotmart (Paypal, tarjetas, etc.) o el link oficial de
+                Hotmart.
+              </li>
+              <li>
+                <strong>Externa (Fuera de Hotmart):</strong> medios
+                externos como Western Union u otros disponibles en los medios de pago dados en la información del asesor. (No
+                aplica ticket ni Paypal de Hotmart).
+              </li>
+            </ul>
+          </p>
+        </div>
+        
           {/* Tipo de Venta */}
           <div>
             <label className="block text-sm font-medium text-gray-700">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/apiClient';
 import { Cliente, Asesor, EstadoAsesor } from '../types';
 import { X, Loader2 } from 'lucide-react';
 import { getCurrentEpoch, toEpoch } from '../utils/dateUtils';
@@ -49,39 +49,50 @@ export default function ActualizarEstadoCliente({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
+  
     try {
-      // Crear nuevo reporte
-      await supabase
-        .from('GERSSON_REPORTES')
-        .insert({
-          ID_CLIENTE: cliente.ID,
-          ID_ASESOR: asesor.ID,
-          ESTADO_ANTERIOR: cliente.ESTADO, 
-          ESTADO_NUEVO: estado,            
-          COMENTARIO: comentario,
-          NOMBRE_ASESOR: asesor.NOMBRE,
-          FECHA_REPORTE: getCurrentEpoch(),
-          FECHA_SEGUIMIENTO: 
-            requiereFecha && fechaSeguimiento
-              ? toEpoch(new Date(fechaSeguimiento))
-              : null
-        });
-
-      // Actualizar estado del cliente
-      await supabase
-        .from('GERSSON_CLIENTES')
-        .update({ ESTADO: estado })
-        .eq('ID', cliente.ID);
-
+      console.log("🚀 Enviando reporte...");
+  
+      // 🔹 Datos que se enviarán al reporte
+      const reporteData = {
+        ID_CLIENTE: cliente.ID,
+        ID_ASESOR: asesor.ID,
+        ESTADO_ANTERIOR: cliente.ESTADO,
+        ESTADO_NUEVO: estado,
+        COMENTARIO: comentario,
+        NOMBRE_ASESOR: asesor.NOMBRE,
+        FECHA_REPORTE: getCurrentEpoch(),
+        FECHA_SEGUIMIENTO: requiereFecha && fechaSeguimiento ? toEpoch(new Date(fechaSeguimiento)) : null
+      };
+  
+      console.log("📤 Datos a enviar a /GERSSON_REPORTES:", reporteData);
+  
+      // 🔹 Intentar crear el reporte
+      const reporteResponse = await apiClient.request('/GERSSON_REPORTES', 'POST', reporteData);
+      console.log("✅ Respuesta de /GERSSON_REPORTES:", reporteResponse);
+  
+      // 🔹 Actualización del estado del cliente
+      const updateData = { ESTADO: estado };
+      console.log(`📤 Actualizando cliente ${cliente.ID} con datos:`, updateData);
+  
+      const updateResponse = await apiClient.request(`/GERSSON_CLIENTES?ID=eq.${cliente.ID}`, 'PATCH', updateData);
+      console.log("✅ Respuesta de actualización en /GERSSON_CLIENTES:", updateResponse);
+  
       onComplete();
-    } catch (error) {
-      console.error('Error al crear reporte:', error);
-      alert('Error al crear el reporte');
+    } catch (error: any) {
+      console.error("❌ Error en handleSubmit:", error);
+  
+      // 🔹 Si la respuesta no es JSON, mostrar el cuerpo de la respuesta
+      if (error.response) {
+        console.error("🔍 Respuesta del servidor:", await error.response.text());
+      }
+      
+      alert(`Error al crear el reporte: ${error.message || "Error desconocido"}`);
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">

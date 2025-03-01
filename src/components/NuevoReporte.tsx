@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/apiClient';
 import { Cliente, Asesor } from '../types';
 import { Upload, X } from 'lucide-react';
 
@@ -15,8 +15,6 @@ export default function NuevoReporte({ cliente, asesor, onComplete, onClose }: N
   const [comentario, setComentario] = useState('');
   const [fechaSeguimiento, setFechaSeguimiento] = useState('');
   const [medioPago, setMedioPago] = useState('');
-  const [imagenConversacion, setImagenConversacion] = useState<File | null>(null);
-  const [imagenPago, setImagenPago] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,72 +22,44 @@ export default function NuevoReporte({ cliente, asesor, onComplete, onClose }: N
     setLoading(true);
 
     try {
-      let imagenConversacionUrl = '';
-      let imagenPagoUrl = '';
-
-      if (imagenConversacion) {
-        const fileExt = imagenConversacion.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('reportes')
-          .upload(`conversaciones/${fileName}`, imagenConversacion);
-
-        if (uploadError) throw uploadError;
-        imagenConversacionUrl = fileName;
-      }
-
-      if (imagenPago) {
-        const fileExt = imagenPago.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('reportes')
-          .upload(`pagos/${fileName}`, imagenPago);
-
-        if (uploadError) throw uploadError;
-        imagenPagoUrl = fileName;
-      }
-
-      // Crear nuevo reporte
-      const { error: reporteError } = await supabase
-        .from('GERSSON_REPORTES')
-        .insert({
-          ID_CLIENTE: cliente.ID,
-          ID_ASESOR: asesor.ID,
-          ESTADO_ANTERIOR: cliente.ESTADO,
-          ESTADO_NUEVO: estado,
-          COMENTARIO: comentario,
-          NOMBRE_ASESOR: asesor.NOMBRE,
-          FECHA_SEGUIMIENTO: fechaSeguimiento ? new Date(fechaSeguimiento).getTime() / 1000 : null,
-          IMAGEN_CONVERSACION: imagenConversacionUrl,
-          IMAGEN_PAGO: imagenPagoUrl
-        });
-
-      if (reporteError) throw reporteError;
-
-      // Actualizar estado del cliente si es necesario
+      // 1️⃣ Crear el nuevo reporte con estilo y precisión
+      await apiClient.request('/GERSSON_REPORTES', 'POST', {
+        ID_CLIENTE: cliente.ID,
+        ID_ASESOR: asesor.ID,
+        ESTADO_ANTERIOR: cliente.ESTADO,
+        ESTADO_NUEVO: estado,
+        COMENTARIO: comentario,
+        NOMBRE_ASESOR: asesor.NOMBRE,
+        FECHA_SEGUIMIENTO: fechaSeguimiento ? new Date(fechaSeguimiento).getTime() / 1000 : null,
+        IMAGEN_CONVERSACION: imagenConversacionUrl,
+        IMAGEN_PAGO: imagenPagoUrl,
+      });
+    
+      // 2️⃣ Si el estado ha cambiado, actualizamos el cliente
       if (estado !== cliente.ESTADO) {
-        const { error: clienteError } = await supabase
-          .from('GERSSON_CLIENTES')
-          .update({ 
+        await apiClient.request(
+          `/GERSSON_CLIENTES?ID=eq.${cliente.ID}`,
+          'PATCH',
+          {
             ESTADO: estado,
-            ...(estado === 'COMPRADO' ? {
-              FECHA_COMPRA: new Date().toISOString(),
-              MEDIO_COMPRA: medioPago
-            } : {})
-          })
-          .eq('ID', cliente.ID);
-
-        if (clienteError) throw clienteError;
+            ...(estado === 'COMPRADO'
+              ? {
+                  FECHA_COMPRA: new Date().toISOString(),
+                  MEDIO_COMPRA: medioPago,
+                }
+              : {}),
+          }
+        );
       }
-
+    
       onComplete();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al crear reporte:', error);
       alert('Error al crear el reporte');
     } finally {
       setLoading(false);
     }
-  };
+    
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">

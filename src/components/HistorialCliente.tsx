@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Cliente, Reporte, Registro } from '../types';
 import { Clock, MessageSquare, DollarSign, AlertCircle, CheckCircle, X, Activity } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
-import { supabase, eliminarReporte } from '../lib/supabase';
+import { apiClient, eliminarReporte } from '../lib/apiClient';
 import { Asesor } from '../types';
 
 interface HistorialClienteProps {
@@ -38,19 +38,16 @@ export default function HistorialCliente({
 
   const cargarRegistros = async () => {
     try {
-      const { data, error } = await supabase
-        .from('GERSSON_REGISTROS')
-        .select('*')
-        .eq('ID_CLIENTE', cliente.ID)
-        .order('FECHA_EVENTO', { ascending: false });
-
-      if (error) throw error;
+      const data = await apiClient.request<Registro[]>(
+        `/GERSSON_REGISTROS?ID_CLIENTE=eq.${cliente.ID}&order=FECHA_EVENTO.desc`
+      );
       setRegistros(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al cargar registros:', error);
     } finally {
       setLoading(false);
     }
+    
   };
 
   // Combinar localReportes y registros en una sola línea de tiempo

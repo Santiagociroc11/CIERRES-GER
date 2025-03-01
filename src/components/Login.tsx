@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/apiClient'; // Nuestro cliente API elegante y moderno
 import { Asesor } from '../types';
 import { UserCheck } from 'lucide-react';
 
@@ -12,7 +12,7 @@ export default function Login({ onLogin }: LoginProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Verificar si ya existe una sesión persistida al montar el componente
+  // Al montar, si ya hay una sesión en localStorage, la reavivamos sin rodeos.
   useEffect(() => {
     const sessionData = localStorage.getItem('userSession');
     if (sessionData) {
@@ -32,18 +32,13 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
 
     try {
-      // Primero verificar si es un administrador
-      const { data: adminData, error: adminError } = await supabase
-        .from('gersson_admins')
-        .select('*')
-        .eq('whatsapp', whatsapp)
-        .single();
+      // 1️⃣: Primero, verificamos si el usuario es admin.
+      const admins = await apiClient.request<any[]>(
+        `/gersson_admins?whatsapp=eq.${whatsapp}&select=*`
+      );
 
-      if (adminError && adminError.code !== 'PGRST116') {
-        console.log('Error al buscar admin:', adminError);
-      }
-
-      if (adminData) {
+      if (admins && admins.length > 0) {
+        const adminData = admins[0];
         const adminUser: Asesor = {
           ID: adminData.id,
           NOMBRE: adminData.nombre,
@@ -52,35 +47,28 @@ export default function Login({ onLogin }: LoginProps) {
           RECHAZADOS: 0,
           CARRITOS: 0,
           TICKETS: 0,
-          ES_ADMIN: true
+          ES_ADMIN: true,
         };
-        // Guardar sesión en localStorage
         localStorage.setItem('userSession', JSON.stringify({ asesor: adminUser, isAdmin: true }));
         onLogin(adminUser, true);
         return;
       }
 
-      // Si no es admin, verificar si es asesor
-      const { data: asesorData, error: asesorError } = await supabase
-        .from('GERSSON_ASESORES')
-        .select('*')
-        .eq('WHATSAPP', whatsapp)
-        .single();
+      // 2️⃣: Si no es admin, buscamos que sea asesor.
+      const asesores = await apiClient.request<Asesor[]>(
+        `/GERSSON_ASESORES?WHATSAPP=eq.${whatsapp}&select=*`
+      );
 
-      if (asesorError && asesorError.code !== 'PGRST116') {
-        console.log('Error al buscar asesor:', asesorError);
-      }
-
-      if (!asesorData) {
+      if (!asesores || asesores.length === 0) {
         setError('Usuario no encontrado');
         return;
       }
 
-      // Guardar sesión en localStorage
+      const asesorData = asesores[0];
       localStorage.setItem('userSession', JSON.stringify({ asesor: asesorData, isAdmin: false }));
       onLogin(asesorData, false);
-    } catch (err) {
-      console.error('Error completo:', err);
+    } catch (err: any) {
+      console.error('Error en login:', err);
       setError('Error al iniciar sesión');
     } finally {
       setLoading(false);
@@ -88,9 +76,7 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   const handleWhatsAppChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value;
-    // Limpiar el número de WhatsApp
-    value = value.replace(/\D/g, '');
+    const value = e.target.value.replace(/\D/g, ''); // Solo números, como debe ser.
     setWhatsapp(value);
   };
 

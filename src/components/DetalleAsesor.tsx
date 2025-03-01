@@ -92,23 +92,6 @@ export default function DetalleAsesor({
     return data.sort((a, b) => (a.date > b.date ? 1 : -1));
   }, [reportes]);
 
-  // Tendencias generales (última semana)
-  const tendencias = {
-    ventasUltimaSemana: reportes.filter(r => {
-      const fecha = new Date(r.FECHA_REPORTE * 1000);
-      const haceUnaSemana = new Date();
-      haceUnaSemana.setDate(haceUnaSemana.getDate() - 7);
-      return r.ESTADO_NUEVO === 'PAGADO' && fecha >= haceUnaSemana;
-    }).length,
-    seguimientosCompletados: reportes.filter(r => r.COMPLETADO).length,
-    clientesNuevos: clientes.filter(c => {
-      const fecha = new Date(c.FECHA_CREACION * 1000);
-      const haceUnaSemana = new Date();
-      haceUnaSemana.setDate(haceUnaSemana.getDate() - 7);
-      return fecha >= haceUnaSemana;
-    }).length
-  };
-
   // KPI: Índice de Conversión (Ventas / Total de Clientes)
   const indiceConversion = clientes.length > 0 
     ? ((estadisticas.ventasRealizadas || 0) / clientes.length) * 100 
@@ -321,12 +304,6 @@ export default function DetalleAsesor({
                 <p className="text-sm font-medium text-gray-500">Reportes con Seguimiento</p>
                 <p className="mt-1 text-2xl font-semibold text-gray-900">
                   {estadisticas.reportesConSeguimiento}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Monto Promedio de Venta</p>
-                <p className="mt-1 text-2xl font-semibold text-gray-900">
-                  ${estadisticas.montoPromedioVenta.toLocaleString()}
                 </p>
               </div>
             </div>

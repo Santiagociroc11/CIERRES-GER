@@ -167,10 +167,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   };
 
 
-  /**
-   * Calcula las estadísticas detalladas para un asesor.
-   * Se corrigió eliminando la propiedad duplicada "ventasRealizadas" (se usa ventasBackend).
-   */
   const calcularEstadisticasDetalladas = (
     clientesAsesor: any[],
     reportesAsesor: any[],
@@ -210,25 +206,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
     const reportesPorCliente = clientesAsesor.length ? reportesAsesor.length / clientesAsesor.length : 0;
     const reportesConSeguimiento = reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO).length;
-
-    // Define la tasa de conversión de COP a USD (ajusta según la tasa actual)
-    const COP_TO_USD = 0.00027;
-
-    const ventasConMonto = clientesAsesor.filter(
-      (c: any) => c.ESTADO === 'PAGADO' && c.MONTO_COMPRA > 0
-    );
-
-    const montoPromedioVenta = ventasConMonto.length
-      ? ventasConMonto.reduce((acc: number, c: any) => {
-        // Aseguramos que MONEDA esté en mayúsculas y, en caso de faltar, asumimos 'COP'
-        const moneda = c.MONEDA ? c.MONEDA.toUpperCase() : 'COP';
-        const montoEnUSD = moneda === 'COP'
-          ? c.MONTO_COMPRA * COP_TO_USD
-          : c.MONTO_COMPRA;
-        // Debug: imprimir en consola cada conversión
-        return acc + montoEnUSD;
-      }, 0) / ventasConMonto.length
-      : 0;
 
 
     const ultimoReporte = reportesAsesor.length > 0
@@ -300,7 +277,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       tiempoPromedioHastaVenta,
       reportesPorCliente,
       reportesConSeguimiento,
-      montoPromedioVenta,
       ultimaActividad: ultimoReporte,
       ultimoReporte,
       ultimoSeguimiento,
@@ -323,26 +299,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     return data.sort((a, b) => (a.date > b.date ? 1 : -1));
   }, [reportes]);
 
-  // Notificaciones generales
-  const notificaciones = useMemo(() => {
-    const mensajes: string[] = [];
-    asesores.forEach((asesor) => {
-      const stats = estadisticas[asesor.ID];
-      if (!stats) return;
-      if (stats.clientesSinReporte > 0) {
-        mensajes.push(`El asesor ${asesor.NOMBRE} tiene ${stats.clientesSinReporte} cliente(s) sin reporte.`);
-      }
-      if (stats.ultimaActividad) {
-        const horasInactivo = Math.floor((Date.now() - stats.ultimaActividad * 1000) / (1000 * 60 * 60));
-        if (horasInactivo > 10) {
-          mensajes.push(`El asesor ${asesor.NOMBRE} no ha registrado actividad en ${horasInactivo} hora(s).`);
-        }
-      }
-    });
-    return mensajes;
-  }, [asesores, estadisticas]);
-
-  // Filtrar y ordenar asesores
   const asesoresFiltrados = asesores.filter((asesor) => {
     const coincideBusqueda =
       asesor.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -669,10 +625,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                   <span className="text-sm">Tasa de respuesta:</span>
                                   <span className="font-semibold">{stats?.tasaRespuesta.toFixed(1)}%</span>
                                 </div>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm">T. Completado:</span>
-                                  <span className="font-semibold">{stats?.tiempoPromedioRespuesta.toFixed(1)}h</span>
-                                </div>
                               </div>
                             </div>
 
@@ -703,12 +655,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                   <span className="text-sm">Tasa de cierre:</span>
                                   <span className="font-semibold">{stats?.porcentajeCierre.toFixed(1)}%</span>
                                 </div>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm">Monto promedio:</span>
-                                  <span className="font-semibold">
-                                    ${stats?.montoPromedioVenta.toLocaleString()}
-                                  </span>
-                                </div>
+                      
                               </div>
                             </div>
                           </div>

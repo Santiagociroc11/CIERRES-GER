@@ -35,6 +35,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { RefreshCcw } from 'lucide-react';
 import { parse } from 'date-fns';
+import CrearClienteModal from './CrearClienteModal';
+
 
 
 interface DashboardAdminProps {
@@ -60,6 +62,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [filtroEstado, setFiltroEstado] = useState('');
   const [tick, setTick] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [mostrarModalCrearCliente, setMostrarModalCrearCliente] = useState(false);
 
   // Función para refrescar manualmente
   const handleRefresh = async () => {
@@ -83,59 +86,64 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     cargarDatos();
   }, [periodoSeleccionado, fechaInicio, fechaFin]);
 
+  const refrescarClientes = async () => {
+    // Si ya tienes una función para cargar datos (cargarDatos), úsala aquí
+    await cargarDatos();
+  };
+  
 
   const cargarDatos = async () => {
     try {
-        console.log("🚀 Cargando datos desde PostgREST...");
+      console.log("🚀 Cargando datos desde PostgREST...");
 
-        // Paso 1️⃣: Obtener asesores ordenados por nombre desde PostgREST
-        const asesoresData = await apiClient.request<any[]>(
-            '/GERSSON_ASESORES?select=*&order=NOMBRE'
-        );
+      // Paso 1️⃣: Obtener asesores ordenados por nombre desde PostgREST
+      const asesoresData = await apiClient.request<any[]>(
+        '/GERSSON_ASESORES?select=*&order=NOMBRE'
+      );
 
-        if (!asesoresData || asesoresData.length === 0) return;
-        setAsesores(asesoresData);
+      if (!asesoresData || asesoresData.length === 0) return;
+      setAsesores(asesoresData);
 
-        console.log("✅ Asesores obtenidos:", asesoresData.length);
+      console.log("✅ Asesores obtenidos:", asesoresData.length);
 
-        // Paso 2️⃣: Obtener clientes, reportes y registros en paralelo SIN paginación
-        const [clientesData, reportesData, registrosData] = await Promise.all([
-            apiClient.request<any[]>('/GERSSON_CLIENTES?select=*'),
-            apiClient.request<any[]>('/GERSSON_REPORTES?select=*'),
-            apiClient.request<any[]>('/GERSSON_REGISTROS?select=*'),
-        ]);
+      // Paso 2️⃣: Obtener clientes, reportes y registros en paralelo SIN paginación
+      const [clientesData, reportesData, registrosData] = await Promise.all([
+        apiClient.request<any[]>('/GERSSON_CLIENTES?select=*'),
+        apiClient.request<any[]>('/GERSSON_REPORTES?select=*'),
+        apiClient.request<any[]>('/GERSSON_REGISTROS?select=*'),
+      ]);
 
-        console.log("✅ Clientes obtenidos:", clientesData.length);
-        console.log("✅ Reportes obtenidos:", reportesData.length);
-        console.log("✅ Registros obtenidos:", registrosData.length);
+      console.log("✅ Clientes obtenidos:", clientesData.length);
+      console.log("✅ Reportes obtenidos:", reportesData.length);
+      console.log("✅ Registros obtenidos:", registrosData.length);
 
-        // Paso 3️⃣: Verificar datos y actualizar el estado
-        if (clientesData && reportesData && registrosData) {
-            setClientes(clientesData);
-            setReportes(reportesData);
-            setRegistros(registrosData);
+      // Paso 3️⃣: Verificar datos y actualizar el estado
+      if (clientesData && reportesData && registrosData) {
+        setClientes(clientesData);
+        setReportes(reportesData);
+        setRegistros(registrosData);
 
-            // Paso 4️⃣: Calcular estadísticas por asesor
-            const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
-            asesoresData.forEach((asesor: any) => {
-                const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
-                const reportesAsesor = reportesData.filter((r: any) => r.ID_ASESOR === asesor.ID);
+        // Paso 4️⃣: Calcular estadísticas por asesor
+        const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
+        asesoresData.forEach((asesor: any) => {
+          const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
+          const reportesAsesor = reportesData.filter((r: any) => r.ID_ASESOR === asesor.ID);
 
-                nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
-                    clientesAsesor,
-                    reportesAsesor,
-                    periodoSeleccionado,
-                    fechaInicio,
-                    fechaFin
-                );
-            });
+          nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
+            clientesAsesor,
+            reportesAsesor,
+            periodoSeleccionado,
+            fechaInicio,
+            fechaFin
+          );
+        });
 
-            setEstadisticas(nuevasEstadisticas);
-        }
+        setEstadisticas(nuevasEstadisticas);
+      }
     } catch (error) {
-        console.error("❌ Error al cargar datos:", error);
+      console.error("❌ Error al cargar datos:", error);
     }
-};
+  };
 
   const calcularEstadisticasDetalladas = (
     clientesAsesor: any[],
@@ -630,7 +638,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                   <span className="text-sm">Tasa de cierre:</span>
                                   <span className="font-semibold">{stats?.porcentajeCierre.toFixed(1)}%</span>
                                 </div>
-                      
+
                               </div>
                             </div>
                           </div>
@@ -758,6 +766,15 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           </>
         ) : (
           <div className="p-4 space-y-8">
+            {/* Botón para crear cliente */}
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => setMostrarModalCrearCliente(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Crear Cliente
+              </button>
+            </div>
             {/* Filtros */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               {/* Buscador */}
@@ -999,6 +1016,15 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           asesor={asesores.find((a) => a.ID === clienteSeleccionado.ID_ASESOR)}
           admin={true}
           onClose={() => setClienteSeleccionado(null)}
+        />
+      )}
+
+// Modal de Crear Cliente
+      {mostrarModalCrearCliente && (
+        <CrearClienteModal
+          asesores={asesores}
+          onClose={() => setMostrarModalCrearCliente(false)}
+          onClienteCreado={refrescarClientes}
         />
       )}
 

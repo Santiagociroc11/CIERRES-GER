@@ -1019,7 +1019,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         />
       )}
 
-// Modal de Crear Cliente
       {mostrarModalCrearCliente && (
         <CrearClienteModal
           asesores={asesores}

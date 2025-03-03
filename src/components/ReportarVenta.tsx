@@ -30,6 +30,8 @@ export default function ReportarVenta({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [medioPago, setMedioPago] = useState('');
+  const [nombreCliente, setNombreCliente] = useState(cliente.NOMBRE);
+
 
   const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -161,7 +163,7 @@ export default function ReportarVenta({
       setError(error instanceof Error ? error.message : 'Error al reportar la venta.');
       return;
     }
-    
+
 
     try {
       await apiClient.request('/GERSSON_REPORTES', 'POST', {
@@ -185,13 +187,14 @@ export default function ReportarVenta({
       setError(error instanceof Error ? error.message : 'Error al reportar la venta.');
       return;
     }
-    
+
 
     try {
       await apiClient.request(
         `/GERSSON_CLIENTES?ID=eq.${cliente.ID}`,
         'PATCH',
         {
+          NOMBRE: nombreCliente,
           ESTADO: 'PAGADO',
           FECHA_COMPRA: getCurrentEpoch(),
           PAIS: tipoVenta === 'EXTERNA' ? pais : null,
@@ -202,12 +205,12 @@ export default function ReportarVenta({
       setError(error instanceof Error ? error.message : 'Error al reportar la venta.');
       return;
     }
-    
+
 
     if (tipoVenta === 'EXTERNA') {
       await handleEnviarVenta(imagenPagoUrl);
     }
-    
+
     if (!error) {
       setLoading(false);
       onComplete();
@@ -238,25 +241,25 @@ export default function ReportarVenta({
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-           {/* Explicación adicional sobre interna/externa */}
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-700">
-          <p>
-            <strong>¿Venta Interna (Hotmart) o Externa?</strong> <br />
-            <ul className="list-disc list-inside">
-              <li>
-                <strong>Interna (Dentro de Hotmart):</strong> Medios de
-                pago de Hotmart (Paypal, tarjetas, etc.) o el link oficial de
-                Hotmart.
-              </li>
-              <li>
-                <strong>Externa (Fuera de Hotmart):</strong> medios
-                externos como Western Union u otros disponibles en los medios de pago dados en la información del asesor. (No
-                aplica ticket ni Paypal de Hotmart).
-              </li>
-            </ul>
-          </p>
-        </div>
-        
+          {/* Explicación adicional sobre interna/externa */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-700">
+            <p>
+              <strong>¿Venta Interna (Hotmart) o Externa?</strong> <br />
+              <ul className="list-disc list-inside">
+                <li>
+                  <strong>Interna (Dentro de Hotmart):</strong> Medios de
+                  pago de Hotmart (Paypal, tarjetas, etc.) o el link oficial de
+                  Hotmart.
+                </li>
+                <li>
+                  <strong>Externa (Fuera de Hotmart):</strong> medios
+                  externos como Western Union u otros disponibles en los medios de pago dados en la información del asesor. (No
+                  aplica ticket ni Paypal de Hotmart).
+                </li>
+              </ul>
+            </p>
+          </div>
+
           {/* Tipo de Venta */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -276,16 +279,19 @@ export default function ReportarVenta({
             </select>
           </div>
 
-          {/* Cliente (solo lectura) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Cliente</label>
+            <label className="block text-sm font-medium text-gray-700">Nombre Cliente</label>
             <input
               type="text"
-              value={cliente.NOMBRE}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-50"
-              disabled
+              value={nombreCliente}
+              onChange={(e) => setNombreCliente(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+              placeholder="Nombre del cliente"
+              required
             />
+            <label className="block text-xs font-normal text-gray-500">👆🏻 Si ves que no es el nombre correcto, modificalo y ponlo completo, nombre y apellido.</label>
           </div>
+
 
           {/* Datos adicionales si es EXTERNA */}
           {tipoVenta === 'EXTERNA' && (

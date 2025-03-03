@@ -34,6 +34,7 @@ import ReasignarCliente from "./ReasignarCliente";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { RefreshCcw } from 'lucide-react';
+import { parse } from 'date-fns';
 
 
 interface DashboardAdminProps {
@@ -135,9 +136,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         console.error("❌ Error al cargar datos:", error);
     }
 };
-
-
-
 
   const calcularEstadisticasDetalladas = (
     clientesAsesor: any[],
@@ -268,7 +266,12 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       date: fecha,
       sales: ventasPorFecha[fecha],
     }));
-    return data.sort((a, b) => (a.date > b.date ? 1 : -1));
+    // Ordenar parseando el string en el formato "dd/MM/yyyy"
+    return data.sort((a, b) => {
+      const dateA = parse(a.date, 'dd/MM/yyyy', new Date());
+      const dateB = parse(b.date, 'dd/MM/yyyy', new Date());
+      return dateA.getTime() - dateB.getTime();
+    });
   }, [reportes]);
 
   const asesoresFiltrados = asesores.filter((asesor) => {

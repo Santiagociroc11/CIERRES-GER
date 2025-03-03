@@ -42,11 +42,11 @@ export default function ListaGeneralClientes({
   const [pagina, setPagina] = useState(1);
   const [forzarBusqueda, setForzarBusqueda] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const clientesPorPagina = 20;
+  const clientesPorPagina = 10;
 
   // Determinar si hay demasiados clientes
   useEffect(() => {
-    setForzarBusqueda(clientes.length > 100);
+    setForzarBusqueda(clientes.length > 1000);
   }, [clientes.length]);
 
   // Verificar si un cliente tiene reporte de venta

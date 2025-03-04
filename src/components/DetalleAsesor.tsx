@@ -37,14 +37,17 @@ interface DetalleAsesorProps {
   estadisticas: EstadisticasDetalladas;
   clientes: Cliente[];
   reportes: Reporte[];
-  registros: Registro[]; // Data de GERSSON_REGISTROS
+  registros: Registro[];
   promedioEquipo: {
     tasaCierre: number;
     tiempoRespuesta: number;
     ventasPorMes: number;
   };
   onBack: () => void;
+  teamStatsByFuente: Record<string, number>;
+  bestRateByFuente: Record<string, number>;
 }
+
 
 type VistaDetalle = 'general' | 'clientes' | 'metricas' | 'fuentes';
 
@@ -57,7 +60,9 @@ export default function DetalleAsesor({
   reportes,
   registros,
   promedioEquipo,
-  onBack
+  onBack,
+  teamStatsByFuente,
+  bestRateByFuente
 }: DetalleAsesorProps) {
   const [vistaActual, setVistaActual] = useState<VistaDetalle>('general');
 
@@ -93,8 +98,8 @@ export default function DetalleAsesor({
   }, [reportes]);
 
   // KPI: Índice de Conversión (Ventas / Total de Clientes)
-  const indiceConversion = clientes.length > 0 
-    ? ((estadisticas.ventasRealizadas || 0) / clientes.length) * 100 
+  const indiceConversion = clientes.length > 0
+    ? ((estadisticas.ventasRealizadas || 0) / clientes.length) * 100
     : 0;
 
   // Datos para Radar Chart (Comparativa Integral)
@@ -137,19 +142,18 @@ export default function DetalleAsesor({
           <button
             key={vista}
             onClick={() => setVistaActual(vista)}
-            className={`py-2 px-4 border-b-2 font-medium text-sm ${
-              vistaActual === vista
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === vista
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
           >
             {vista === 'general'
               ? 'Vista General'
               : vista === 'clientes'
-              ? 'Clientes'
-              : vista === 'metricas'
-              ? 'Métricas Avanzadas'
-              : 'Fuentes'}
+                ? 'Clientes'
+                : vista === 'metricas'
+                  ? 'Métricas Avanzadas'
+                  : 'Fuentes'}
           </button>
         ))}
       </div>
@@ -258,8 +262,8 @@ export default function DetalleAsesor({
         <ListaGeneralClientes
           clientes={clientes}
           reportes={reportes}
-          onActualizarEstado={() => {}}
-          onReportarVenta={() => {}}
+          onActualizarEstado={() => { }}
+          onReportarVenta={() => { }}
           readOnly
           admin={true}
         />
@@ -347,12 +351,15 @@ export default function DetalleAsesor({
       )}
 
       {vistaActual === 'fuentes' && (
+
         <div className="mt-6">
           <FuentesAnalysisPorAsesor 
             clientes={clientes} 
             registros={registros} 
             reportes={reportes} 
             asesorId={asesor.ID} 
+            teamStatsByFuente={teamStatsByFuente}
+            bestRateByFuente={bestRateByFuente}
           />
         </div>
       )}

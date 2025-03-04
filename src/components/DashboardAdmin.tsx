@@ -145,6 +145,61 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     }
   };
 
+  const getFuente = (clienteId: number, registros: any[]) => {
+    const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
+    if (registrosCliente.length > 0) {
+      registrosCliente.sort((a, b) => new Date(a.FECHA_EVENTO).getTime() - new Date(b.FECHA_EVENTO).getTime());
+      return registrosCliente[0].TIPO_EVENTO?.trim() || 'Desconocido';
+    }
+    return 'Desconocido';
+  };
+
+  const calculateTeamStatsByFuente = (clientes: any[], reportes: any[], registros: any[]) => {
+    const stats: Record<string, { total: number; cerrados: number }> = {};
+    clientes.forEach(cliente => {
+      const fuente = getFuente(cliente.ID, registros);
+      if (!stats[fuente]) stats[fuente] = { total: 0, cerrados: 0 };
+      stats[fuente].total += 1;
+      if (reportes.some(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'PAGADO')) {
+        stats[fuente].cerrados += 1;
+      }
+    });
+    const result: Record<string, number> = {};
+    for (const fuente in stats) {
+      const { total, cerrados } = stats[fuente];
+      result[fuente] = total > 0 ? (cerrados / total) * 100 : 0;
+    }
+    return result;
+  };
+
+  const calculateBestRateByFuente = (clientes: any[], reportes: any[], registros: any[]) => {
+    const rates: Record<string, number> = {};
+    // Suponiendo que "asesores" es el array de todos los asesores obtenido en DashboardAdmin
+    asesores.forEach(advisor => {
+      const advisorClients = clientes.filter(c => c.ID_ASESOR === advisor.ID);
+      const stats: Record<string, { total: number; cerrados: number }> = {};
+      advisorClients.forEach(cliente => {
+        const fuente = getFuente(cliente.ID, registros);
+        if (!stats[fuente]) stats[fuente] = { total: 0, cerrados: 0 };
+        stats[fuente].total += 1;
+        if (reportes.some(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'PAGADO')) {
+          stats[fuente].cerrados += 1;
+        }
+      });
+      for (const fuente in stats) {
+        const { total, cerrados } = stats[fuente];
+        // Si el asesor tiene menos de 3 clientes asignados en esa fuente, se ignora.
+        if (total < 3) continue;
+        const rate = total > 0 ? (cerrados / total) * 100 : 0;
+        if (!(fuente in rates) || rate > rates[fuente]) {
+          rates[fuente] = rate;
+        }
+      }
+    });
+    return rates;
+  };
+  
+
   const calcularEstadisticasDetalladas = (
     clientesAsesor: any[],
     reportesAsesor: any[],
@@ -1031,7 +1086,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       {/* Modal de Detalle de Asesor */}
       {asesorSeleccionado && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-8xl bg-white shadow-xl rounded-lg">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-7xl bg-white shadow-xl rounded-lg">
             <DetalleAsesor
               asesor={asesorSeleccionado}
               estadisticas={estadisticas[asesorSeleccionado.ID]}
@@ -1049,6 +1104,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                   Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPorMes, 0) /
                   Object.keys(estadisticas).length,
               }}
+              teamStatsByFuente={calculateTeamStatsByFuente(clientes, reportes, registros)}
+              bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros, asesores)}
               onBack={() => setAsesorSeleccionado(null)}
             />
           </div>

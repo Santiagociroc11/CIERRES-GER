@@ -148,7 +148,11 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     localStorage.removeItem('userSession');
     onLogout();
   };
-  
+
+  useEffect(() => {
+    refreshConnection();
+  }, []);
+
   useEffect(() => {
     cargarDatos();
   }, [asesor.ID]);
@@ -381,7 +385,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           setWhatsappStatus("Conectado");
           showToast("WhatsApp conectado", "success");
         } else if (instance.connectionStatus === "connecting") {
-          setWhatsappStatus("Conectando...");
+          setWhatsappStatus("Desconectado");
         } else {
           setWhatsappStatus("Desconectado");
         }
@@ -436,8 +440,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
               onClick={() => setShowWhatsAppModal(true)}
               className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
             >
-              WhatsApp
+              WhatsApp {whatsappStatus ? `(${whatsappStatus})` : ''}
             </button>
+
             <button
               onClick={handleLogout}
               className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
@@ -451,8 +456,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           <button
             onClick={() => setVistaActual('general')}
             className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'general'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <List className="inline-block h-5 w-5 mr-2" />
@@ -461,8 +466,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           <button
             onClick={() => setVistaActual('seguimientos')}
             className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'seguimientos'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <Clock className="inline-block h-5 w-5 mr-2" />
@@ -471,8 +476,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           <button
             onClick={() => setVistaActual('estadisticas')}
             className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'estadisticas'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <TrendingUp className="inline-block h-5 w-5 mr-2" />

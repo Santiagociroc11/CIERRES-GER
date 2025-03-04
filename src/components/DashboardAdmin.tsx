@@ -90,7 +90,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     // Si ya tienes una función para cargar datos (cargarDatos), úsala aquí
     await cargarDatos();
   };
-  
+
 
   const cargarDatos = async () => {
     try {
@@ -302,7 +302,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     const statsB = estadisticas[b.ID];
     switch (ordenarPor) {
       case 'ventas':
-        return (statsB?.ventasRealizadas || 0) - (statsA?.ventasRealizadas || 0);
+        return (statsB?.ventasReportadas || 0) - (statsA?.ventasReportadas || 0);
       case 'tasa':
         return (statsB?.porcentajeCierre || 0) - (statsA?.porcentajeCierre || 0);
       case 'tiempo':
@@ -616,12 +616,12 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                               <h4 className="text-sm font-medium text-gray-500 mb-2">Ventas</h4>
                               <div className="space-y-2">
                                 <div className="flex justify-between items-center">
-                                  <span className="text-sm">Del período:</span>
+                                  <span className="text-sm">Ventas:</span>
                                   <span className="font-semibold text-green-500">
-                                    {stats?.ventasRealizadas}
+                                    {stats?.ventasReportadas}
                                     {stats?.ventasSinReportar > 0 && (
                                       <span className="text-xs text-red-500 ml-1">
-                                        ({stats.ventasSinReportar} sin reportar)
+                                        ({stats.ventasSinReportar} sin reportar - no incluidas)
                                       </span>
                                     )}
                                   </span>

@@ -383,7 +383,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         setInstanceInfo(instance);
         if (instance.connectionStatus === "open") {
           setWhatsappStatus("Conectado");
-          showToast("WhatsApp conectado", "success");
         } else if (instance.connectionStatus === "connecting") {
           setWhatsappStatus("Desconectado");
         } else {

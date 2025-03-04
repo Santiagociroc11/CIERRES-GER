@@ -173,7 +173,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   };
 
   const calculateBestRateByFuente = (clientes: any[], reportes: any[], registros: any[]) => {
-    const rates: Record<string, number> = {};
+    const bestRates: Record<string, { rate: number; advisorName: string }> = {};
     // Suponiendo que "asesores" es el array de todos los asesores obtenido en DashboardAdmin
     asesores.forEach(advisor => {
       const advisorClients = clientes.filter(c => c.ID_ASESOR === advisor.ID);
@@ -188,17 +188,19 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       });
       for (const fuente in stats) {
         const { total, cerrados } = stats[fuente];
-        // Si el asesor tiene menos de 3 clientes asignados en esa fuente, se ignora.
-        if (total < 3) continue;
+        if (total < 3) continue; // Descartar si tiene menos de 3 asignados
         const rate = total > 0 ? (cerrados / total) * 100 : 0;
-        if (!(fuente in rates) || rate > rates[fuente]) {
-          rates[fuente] = rate;
+        console.log(`Asesor ${advisor.NOMBRE} - Fuente: ${fuente}, total: ${total}, cerrados: ${cerrados}, rate: ${rate}`);
+        if (!(fuente in bestRates) || rate > bestRates[fuente].rate) {
+          bestRates[fuente] = { rate, advisorName: advisor.NOMBRE };
         }
       }
+      
     });
-    return rates;
+    return bestRates;
   };
-  
+
+
 
   const calcularEstadisticasDetalladas = (
     clientesAsesor: any[],
@@ -813,8 +815,11 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                         Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPorMes, 0) /
                         Object.keys(estadisticas).length,
                     }}
+                    teamStatsByFuente={calculateTeamStatsByFuente(clientes, reportes, registros)}
+                    bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
                     onBack={() => setAsesorSeleccionado(null)}
                   />
+
                 </div>
               </div>
             )}

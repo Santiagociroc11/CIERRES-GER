@@ -7,7 +7,7 @@ interface FuentesAnalysisPorAsesorProps {
   reportes: Reporte[];
   asesorId: number;
   teamStatsByFuente: Record<string, number>;
-  bestRateByFuente: Record<string, number>;
+  bestRateByFuente: Record<string, { rate: number; advisorName: string }>;
 }
 
 export default function FuentesAnalysisPorAsesor({
@@ -18,7 +18,7 @@ export default function FuentesAnalysisPorAsesor({
   teamStatsByFuente,
   bestRateByFuente,
 }: FuentesAnalysisPorAsesorProps) {
-  // Filtramos solo los clientes del asesor actual
+  // Filtrar solo los clientes del asesor actual
   const clientesAsesor = useMemo(
     () => clientes.filter(cliente => cliente.ID_ASESOR === asesorId),
     [clientes, asesorId]
@@ -92,7 +92,9 @@ export default function FuentesAnalysisPorAsesor({
               {Object.entries(fuentesStats).map(([fuente, { total, cerrados }]) => {
                 const tasaAsesor = total > 0 ? (cerrados / total) * 100 : 0;
                 const tasaEquipo = teamStatsByFuente[fuente] || 0;
-                const tasaMejor = bestRateByFuente[fuente] || 0;
+                const bestData = bestRateByFuente[fuente];
+                const tasaMejor = bestData ? bestData.rate : 0;
+                const mejorNombre = bestData ? bestData.advisorName : '-';
                 return (
                   <tr key={fuente} className="border-b">
                     <td className="px-6 py-4">{fuente}</td>
@@ -102,7 +104,7 @@ export default function FuentesAnalysisPorAsesor({
                       {tasaAsesor.toFixed(1)}%
                       <br />
                       <span className="text-xs text-gray-500">
-                        vs Equipo: {tasaEquipo.toFixed(1)}% | Mejor: {tasaMejor.toFixed(1)}%
+                        vs Equipo: {tasaEquipo.toFixed(1)}% | Mejor: {tasaMejor.toFixed(1)}% - {mejorNombre}
                       </span>
                     </td>
                   </tr>
@@ -128,7 +130,9 @@ export default function FuentesAnalysisPorAsesor({
         {Object.entries(fuentesStats).map(([fuente, { total, cerrados }]) => {
           const tasaAsesor = total > 0 ? (cerrados / total) * 100 : 0;
           const tasaEquipo = teamStatsByFuente[fuente] || 0;
-          const tasaMejor = bestRateByFuente[fuente] || 0;
+          const bestData = bestRateByFuente[fuente];
+          const tasaMejor = bestData ? bestData.rate : 0;
+          const mejorNombre = bestData ? bestData.advisorName : '-';
           return (
             <div key={fuente} className="bg-white shadow-md rounded-lg p-4">
               <h3 className="text-lg font-semibold text-gray-800">{fuente}</h3>
@@ -144,7 +148,7 @@ export default function FuentesAnalysisPorAsesor({
                 {tasaAsesor.toFixed(1)}%
                 <br />
                 <span className="text-xs text-gray-500">
-                  vs Equipo: {tasaEquipo.toFixed(1)}% | Mejor: {tasaMejor.toFixed(1)}%
+                  vs Equipo: {tasaEquipo.toFixed(1)}% | Mejor: {tasaMejor.toFixed(1)}% - {mejorNombre}
                 </span>
               </div>
             </div>

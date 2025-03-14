@@ -13,9 +13,7 @@ import {
   X,
   AlertTriangle,
   ChevronLeft,
-  ChevronRight,
-  DoubleChevronLeft,
-  DoubleChevronRight,
+  ChevronRight
 } from 'lucide-react';
 import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
@@ -464,8 +462,8 @@ export default function ListaGeneralClientes({
           </tbody>
         </table>
       </div>
-     {/* Paginación */}
-     {totalPaginas > 1 && (
+    {/* Paginación */}
+    {totalPaginas > 1 && (
         <div className="px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
             <button
@@ -498,8 +496,7 @@ export default function ListaGeneralClientes({
                   disabled={pagina === 1}
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  <DoubleChevronLeft className="h-4 w-4" />
-                  <span className="sr-only">Primera</span>
+                  Primera
                 </button>
                 <button
                   onClick={() => setPagina(p => Math.max(1, p - 1))}
@@ -542,8 +539,7 @@ export default function ListaGeneralClientes({
                   disabled={pagina === totalPaginas}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  <DoubleChevronRight className="h-4 w-4" />
-                  <span className="sr-only">Última</span>
+                  Última
                 </button>
               </nav>
             </div>

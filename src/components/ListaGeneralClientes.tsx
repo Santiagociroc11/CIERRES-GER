@@ -17,11 +17,11 @@ import {
 } from 'lucide-react';
 import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
-import ReasignarCliente from "./ReasignarCliente";
+import ReasignarCliente from './ReasignarCliente';
 
 interface ListaGeneralClientesProps {
-  clientes: Cliente;
-  reportes: Reporte;
+  clientes: Cliente[];
+  reportes: Reporte[];
   onActualizarEstado: (cliente: Cliente) => void;
   onReportarVenta: (cliente: Cliente) => void;
   admin: boolean;
@@ -116,7 +116,6 @@ export default function ListaGeneralClientes({
     return sortA - sortB;
   });
 
-
   // Paginación
   const totalPaginas = Math.ceil(clientesOrdenados.length / clientesPorPagina);
   const clientesPaginados = clientesOrdenados.slice(
@@ -175,7 +174,7 @@ export default function ListaGeneralClientes({
   };
 
   const generarNumerosDePagina = () => {
-    const paginas =;
+    const paginas: (number | string)[] = [];
     const maxPaginasMostrar = 5;
     const mitad = Math.floor(maxPaginasMostrar / 2);
 
@@ -206,6 +205,7 @@ export default function ListaGeneralClientes({
     }
     return paginas;
   };
+
   return (
     <div className="bg-white rounded-lg shadow mb-8">
       {/* Encabezado y Filtros */}
@@ -348,7 +348,6 @@ export default function ListaGeneralClientes({
                       />
                     </div>
                   )}
-
                 </div>
               )}
             </div>
@@ -479,7 +478,7 @@ export default function ListaGeneralClientes({
                         </button>
                       </div>
                     )}
-                     {readOnly && (
+                    {readOnly && (
                     <div className="mr-2">
                       <ReasignarCliente
                         clienteId={cliente.ID}
@@ -494,8 +493,8 @@ export default function ListaGeneralClientes({
           </tbody>
         </table>
       </div>
-    {/* Paginación */}
-    {totalPaginas > 1 && (
+      {/* Paginación */}
+      {totalPaginas > 1 && (
         <div className="px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
             <button

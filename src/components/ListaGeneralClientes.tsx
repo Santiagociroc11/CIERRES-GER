@@ -12,6 +12,10 @@ import {
   Menu,
   X,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  DoubleChevronLeft,
+  DoubleChevronRight,
 } from 'lucide-react';
 import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
@@ -460,8 +464,8 @@ export default function ListaGeneralClientes({
           </tbody>
         </table>
       </div>
-      {/* Paginación */}
-      {totalPaginas > 1 && (
+     {/* Paginación */}
+     {totalPaginas > 1 && (
         <div className="px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
             <button
@@ -469,6 +473,7 @@ export default function ListaGeneralClientes({
               disabled={pagina === 1}
               className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
             >
+              <ChevronLeft className="h-5 w-5 mr-2" />
               Anterior
             </button>
             <button
@@ -477,6 +482,7 @@ export default function ListaGeneralClientes({
               className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
             >
               Siguiente
+              <ChevronRight className="h-5 w-5 ml-2" />
             </button>
           </div>
           <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
@@ -492,43 +498,52 @@ export default function ListaGeneralClientes({
                   disabled={pagina === 1}
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Primera
+                  <DoubleChevronLeft className="h-4 w-4" />
+                  <span className="sr-only">Primera</span>
                 </button>
                 <button
                   onClick={() => setPagina(p => Math.max(1, p - 1))}
                   disabled={pagina === 1}
                   className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Anterior
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="sr-only">Anterior</span>
                 </button>
-                {[...Array(Math.min(5, totalPaginas))].map((_, i) => {
-                  const pageNum = i + 1;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setPagina(pageNum)}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${pagina === pageNum
-                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                {generarNumerosDePagina().map((numero, index) => (
+                  <React.Fragment key={index}>
+                    {numero === '...' ? (
+                      <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                        ...
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setPagina(Number(numero))}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${pagina === numero
+                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                          }`}
+                        aria-current={pagina === numero ? "page" : undefined}
+                      >
+                        {numero}
+                      </button>
+                    )}
+                  </React.Fragment>
+                ))}
                 <button
                   onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
                   disabled={pagina === totalPaginas}
                   className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Siguiente
+                  <ChevronRight className="h-4 w-4" />
+                  <span className="sr-only">Siguiente</span>
                 </button>
                 <button
                   onClick={() => setPagina(totalPaginas)}
                   disabled={pagina === totalPaginas}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Última
+                  <DoubleChevronRight className="h-4 w-4" />
+                  <span className="sr-only">Última</span>
                 </button>
               </nav>
             </div>

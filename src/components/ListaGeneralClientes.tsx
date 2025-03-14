@@ -42,7 +42,7 @@ export default function ListaGeneralClientes({
   const [pagina, setPagina] = useState(1);
   const [forzarBusqueda, setForzarBusqueda] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const clientesPorPagina = 10;
+  const clientesPorPagina = 20;
 
   // Determinar si hay demasiados clientes
   useEffect(() => {

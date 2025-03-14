@@ -13,15 +13,15 @@ import {
   X,
   AlertTriangle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from 'lucide-react';
 import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
 import ReasignarCliente from "./ReasignarCliente";
 
 interface ListaGeneralClientesProps {
-  clientes: Cliente[];
-  reportes: Reporte[];
+  clientes: Cliente;
+  reportes: Reporte;
   onActualizarEstado: (cliente: Cliente) => void;
   onReportarVenta: (cliente: Cliente) => void;
   admin: boolean;
@@ -174,6 +174,38 @@ export default function ListaGeneralClientes({
     return estado;
   };
 
+  const generarNumerosDePagina = () => {
+    const paginas =;
+    const maxPaginasMostrar = 5;
+    const mitad = Math.floor(maxPaginasMostrar / 2);
+
+    if (totalPaginas <= maxPaginasMostrar) {
+      for (let i = 1; i <= totalPaginas; i++) {
+        paginas.push(i);
+      }
+    } else if (pagina <= mitad) {
+      for (let i = 1; i <= maxPaginasMostrar; i++) {
+        paginas.push(i);
+      }
+      paginas.push('...');
+      paginas.push(totalPaginas);
+    } else if (pagina >= totalPaginas - mitad + (maxPaginasMostrar % 2 === 0 ? 1 : 0)) {
+      paginas.push(1);
+      paginas.push('...');
+      for (let i = totalPaginas - maxPaginasMostrar + 1; i <= totalPaginas; i++) {
+        paginas.push(i);
+      }
+    } else {
+      paginas.push(1);
+      paginas.push('...');
+      for (let i = pagina - mitad; i <= pagina + mitad; i++) {
+        paginas.push(i);
+      }
+      paginas.push('...');
+      paginas.push(totalPaginas);
+    }
+    return paginas;
+  };
   return (
     <div className="bg-white rounded-lg shadow mb-8">
       {/* Encabezado y Filtros */}

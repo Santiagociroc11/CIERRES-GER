@@ -77,7 +77,7 @@ export default function ReportarVenta({
       }
 
       const response = await fetch(
-        import.meta.env.ENDPOINT_VENTAEXTERNA,
+        import.meta.env.VITE_EVOLUTIONAPI_URL,
         {
           method: 'POST',
           headers: {

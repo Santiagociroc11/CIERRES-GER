@@ -46,6 +46,7 @@ export class APIClient {
 }
 
 // Instancia del cliente con la URL desde las variables de entorno
+console.log("APIURL: ", import.meta.env.VITE_POSTGREST_URL)
 export const apiClient = new APIClient(import.meta.env.VITE_POSTGREST_URL);
 
 // Definición de tipos para mayor claridad y seguridad en tiempo de compilación

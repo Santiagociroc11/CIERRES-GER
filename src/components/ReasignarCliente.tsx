@@ -30,7 +30,7 @@ const ReasignarCliente = ({ clienteId, asesorActual }) => {
   const avisoTG = async (clienteId, asesorViejoId, asesorNuevoId) => {
     try {
       const response = await fetch(
-        import.meta.env.ENDPOINT_REASIGNA,
+        import.meta.env.VITE_ENDPOINT_REASIGNA,
         {
           method: "POST",
           headers: {

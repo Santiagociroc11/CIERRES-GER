@@ -139,8 +139,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
   // Configuración de Evolution API
-  const evolutionServerUrl = "https://evolution.automscc.com";
-  const evolutionApiKey = "429683C4C977415CAAFCCE10F7D57E11";
+  const evolutionServerUrl = import.meta.env.EVOLUTIONAPI_URL;
+  const evolutionApiKey = import.meta.env.EVOLUTIONAPI_TOKEN;
 
   const { toast, showToast, hideToast } = useToast();
 

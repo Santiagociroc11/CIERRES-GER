@@ -30,7 +30,7 @@ const ReasignarCliente = ({ clienteId, asesorActual }) => {
   const avisoTG = async (clienteId, asesorViejoId, asesorNuevoId) => {
     try {
       const response = await fetch(
-        "https://n8n.automscc.com/webhook/reasigna-cierres",
+        import.meta.env.ENDPOINT_REASIGNA,
         {
           method: "POST",
           headers: {

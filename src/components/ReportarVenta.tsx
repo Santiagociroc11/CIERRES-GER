@@ -77,7 +77,7 @@ export default function ReportarVenta({
       }
 
       const response = await fetch(
-        'https://n8n.automscc.com/webhook/reporte-venta-tg',
+        import.meta.env.ENDPOINT_VENTAEXTERNA,
         {
           method: 'POST',
           headers: {

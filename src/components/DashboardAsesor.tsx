@@ -140,7 +140,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
   // Configuración de Evolution API
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
-  console.log("url: ", evolutionServerUrl)
+  console.log("URLEVOLUTION: ", evolutionServerUrl)
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
 
   const { toast, showToast, hideToast } = useToast();

@@ -26,6 +26,7 @@ export default function ConsolidarVenta({
   const [comentario, setComentario] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Se mantiene debugInfo en el estado para propósitos de logging en consola
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [previewInicio, setPreviewInicio] = useState<string | null>(null);
   const [previewFin, setPreviewFin] = useState<string | null>(null);
@@ -84,6 +85,7 @@ export default function ConsolidarVenta({
     e.preventDefault();
     setLoading(true);
     setError('');
+    // Se limpia debugInfo sin mostrarlo en UI
     setDebugInfo('');
 
     if (!imagenInicio || !imagenFin || !video) {
@@ -176,7 +178,6 @@ export default function ConsolidarVenta({
 
       logDebugInfo('Consolidación completada con éxito.');
       setFinalStatus('success');
-      // Opcional: podrías llamar a onComplete() después de unos segundos si prefieres cerrar el modal automáticamente.
     } catch (error: any) {
       const errorMessage = error.message || 'Error al consolidar la venta';
       logDebugInfo(`Error en la consolidación: ${errorMessage}`);
@@ -240,14 +241,6 @@ export default function ConsolidarVenta({
               <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
               <p className="text-sm text-red-600">{error}</p>
             </div>
-          </div>
-        )}
-
-        {debugInfo && (
-          <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
-            <pre className="text-xs text-gray-600 whitespace-pre-wrap">
-              {debugInfo}
-            </pre>
           </div>
         )}
 

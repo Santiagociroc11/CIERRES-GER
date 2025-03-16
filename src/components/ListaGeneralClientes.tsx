@@ -105,7 +105,9 @@ export default function ListaGeneralClientes({
     if (cliente.ESTADO === 'NO CONTESTÓ') return 1;
     if (cliente.ESTADO === 'SEGUIMIENTO') return 2;
     if (cliente.ESTADO === 'PAGADO') return 3;
-    if (cliente.ESTADO === "NO CONTACTAR") return 4;
+    if (cliente.ESTADO === 'VENTA CONSOLIDADA') return 4;
+    if (cliente.ESTADO === "NO INTERESADO") return 5;
+    if (cliente.ESTADO === "NO CONTACTAR") return 6;
     return 5;
   };
 

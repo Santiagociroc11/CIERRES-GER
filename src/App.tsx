@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import DashboardAsesor from './components/DashboardAsesor';
 import DashboardAdmin from './components/DashboardAdmin';
+import AuditorDashboard from './components/AuditorDashboard';
 import Login from './components/Login';
 import { Asesor } from './types';
 import { apiClient } from './lib/apiClient';
@@ -18,8 +19,14 @@ function App() {
     return <Login onLogin={handleLogin} />;
   }
 
+  if (asesorActual.ES_REVISOR) {
+    return (
+      <AuditorDashboard />
+    );
+  }
+
   return isAdmin ? (
-    <DashboardAdmin onLogout={() => setAsesorActual(null)} />
+    <DashboardAdmin asesor={asesorActual} onLogout={() => setAsesorActual(null)} />
   ) : (
     <DashboardAsesor asesorInicial={asesorActual} onLogout={() => setAsesorActual(null)} />
   );

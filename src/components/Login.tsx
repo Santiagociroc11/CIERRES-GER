@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { apiClient } from '../lib/apiClient'; // Nuestro cliente API elegante y moderno
+import { apiClient } from '../lib/apiClient';
 import { Asesor } from '../types';
-import { UserCheck } from 'lucide-react';
+import { UserCheck, Lock } from 'lucide-react';
+import AuditorLogin from './AuditorLogin';
 
 interface LoginProps {
   onLogin: (asesor: Asesor, isAdmin: boolean) => void;
@@ -11,8 +12,8 @@ export default function Login({ onLogin }: LoginProps) {
   const [whatsapp, setWhatsapp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showAuditor, setShowAuditor] = useState(false);
 
-  // Al montar, si ya hay una sesión en localStorage, la reavivamos sin rodeos.
   useEffect(() => {
     const sessionData = localStorage.getItem('userSession');
     if (sessionData) {
@@ -32,7 +33,6 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
 
     try {
-      // 1️⃣: Primero, verificamos si el usuario es admin.
       const admins = await apiClient.request<any[]>(
         `/gersson_admins?whatsapp=eq.${whatsapp}&select=*`
       );
@@ -54,7 +54,6 @@ export default function Login({ onLogin }: LoginProps) {
         return;
       }
 
-      // 2️⃣: Si no es admin, buscamos que sea asesor.
       const asesores = await apiClient.request<Asesor[]>(
         `/GERSSON_ASESORES?WHATSAPP=eq.${whatsapp}&select=*`
       );
@@ -76,9 +75,31 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   const handleWhatsAppChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, ''); // Solo números, como debe ser.
+    const value = e.target.value.replace(/\D/g, '');
     setWhatsapp(value);
   };
+
+  if (showAuditor) {
+    return (
+      <AuditorLogin 
+        onLogin={() => {
+          const auditorUser: Asesor = {
+            ID: 0,
+            NOMBRE: 'Auditor',
+            WHATSAPP: '',
+            LINK: 0,
+            RECHAZADOS: 0,
+            CARRITOS: 0,
+            TICKETS: 0,
+            ES_ADMIN: true,
+            ES_REVISOR: true,
+          };
+          localStorage.setItem('userSession', JSON.stringify({ asesor: auditorUser, isAdmin: true }));
+          onLogin(auditorUser, true);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -125,6 +146,24 @@ export default function Login({ onLogin }: LoginProps) {
             }`}
           >
             {loading ? 'Ingresando...' : 'Ingresar'}
+          </button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">o</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowAuditor(true)}
+            className="w-full flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-purple-600 bg-purple-50 hover:bg-purple-100"
+          >
+            <Lock className="h-4 w-4 mr-2" />
+            Acceso de Auditor
           </button>
         </form>
       </div>

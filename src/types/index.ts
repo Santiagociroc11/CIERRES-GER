@@ -46,10 +46,11 @@ export interface Reporte {
   TELEFONO_CLIENTE?: string;
   MEDIO_PAGO?: string;
   CORREO_PAGO?: string;
-  CONSOLIDADO?: boolean;
-  IMAGEN_INICIO_CONVERSACION?: string;
-  IMAGEN_FIN_CONVERSACION?: string;
-  VIDEO_CONVERSACION?: string;
+  consolidado?: boolean;
+  imagen_inicio_conversacion?: string;
+  imagen_fin_conversacion?: string;
+  video_conversacion?: string;
+  asesor?: Asesor;
 }
 
 export interface Registro {

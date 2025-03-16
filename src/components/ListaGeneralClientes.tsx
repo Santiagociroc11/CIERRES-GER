@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cliente, Reporte, EstadoCliente, esEstadoCritico } from '../types';
+import { Cliente, Reporte, EstadoCliente, esEstadoCritico, Asesor } from '../types';
 import {
   Search,
   Phone,
@@ -211,8 +211,18 @@ export default function ListaGeneralClientes({
     );
     
     if (reporte) {
+      const asesor: Asesor = {
+        ID: reporte.ID_ASESOR,
+        NOMBRE: reporte.NOMBRE_ASESOR,
+        WHATSAPP: cliente.WHA_ASESOR,
+        LINK: 0,
+        RECHAZADOS: 0,
+        CARRITOS: 0,
+        TICKETS: 0
+      };
+      
       setClienteConsolidar(cliente);
-      setReporteConsolidar(reporte);
+      setReporteConsolidar({...reporte, asesor});
     }
   };
 
@@ -587,7 +597,7 @@ export default function ListaGeneralClientes({
                 >
                   <ChevronRight className="h-4 w-4" />
                   <span className="sr-only">Siguiente</span>
-                </button>
+               </button>
                 <button
                   onClick={() => setPagina(totalPaginas)}
                   disabled={pagina === totalPaginas}

@@ -60,6 +60,12 @@ export default function ListaGeneralClientes({
     );
   };
 
+  const estaConsolidado = (clienteId: number) => {
+    return reportes.some(
+      (r) => r.ID_CLIENTE === clienteId && (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA')
+    );
+  };
+
   const clientesFiltrados = clientes.filter((cliente) => {
     if (forzarBusqueda && !busqueda) return false;
 
@@ -170,6 +176,29 @@ export default function ListaGeneralClientes({
     return estado;
   };
 
+  const handleConsolidarVenta = (cliente: Cliente) => {
+    const reporte = reportes.find(r => 
+      r.ID_CLIENTE === cliente.ID && 
+      r.ESTADO_NUEVO === 'PAGADO' && 
+      !r.consolidado
+    );
+    
+    if (reporte) {
+      const asesor: Asesor = {
+        ID: reporte.ID_ASESOR,
+        NOMBRE: reporte.NOMBRE_ASESOR,
+        WHATSAPP: cliente.WHA_ASESOR,
+        LINK: 0,
+        RECHAZADOS: 0,
+        CARRITOS: 0,
+        TICKETS: 0
+      };
+      
+      setClienteConsolidar(cliente);
+      setReporteConsolidar({...reporte, asesor});
+    }
+  };
+
   const generarNumerosDePagina = () => {
     const paginas: (number | string)[] = [];
     const maxPaginasMostrar = 5;
@@ -201,29 +230,6 @@ export default function ListaGeneralClientes({
       paginas.push(totalPaginas);
     }
     return paginas;
-  };
-
-  const handleConsolidarVenta = (cliente: Cliente) => {
-    const reporte = reportes.find(r => 
-      r.ID_CLIENTE === cliente.ID && 
-      r.ESTADO_NUEVO === 'PAGADO' && 
-      !r.CONSOLIDADO
-    );
-    
-    if (reporte) {
-      const asesor: Asesor = {
-        ID: reporte.ID_ASESOR,
-        NOMBRE: reporte.NOMBRE_ASESOR,
-        WHATSAPP: cliente.WHA_ASESOR,
-        LINK: 0,
-        RECHAZADOS: 0,
-        CARRITOS: 0,
-        TICKETS: 0
-      };
-      
-      setClienteConsolidar(cliente);
-      setReporteConsolidar({...reporte, asesor});
-    }
   };
 
   return (
@@ -274,6 +280,7 @@ export default function ListaGeneralClientes({
                 <option value="NO INTERESADO">No Interesado</option>
                 <option value="NO CONTESTÓ">No Contestó</option>
                 <option value="PAGADO">Pagado</option>
+                <option value="VENTA CONSOLIDADA">Venta Consolidada</option>
                 <option value="LINK">Link</option>
               </select>
               <Filter className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
@@ -299,6 +306,7 @@ export default function ListaGeneralClientes({
         {clientesPaginados.map((cliente) => {
           const ultimoReporte = obtenerUltimoReporte(cliente.ID);
           const tieneSeguimiento = tieneSeguimientoPendiente(cliente.ID);
+          const consolidado = estaConsolidado(cliente.ID);
           return (
             <div key={cliente.ID} className="p-4 border-b border-gray-200 space-y-3">
               <div className="flex justify-between items-start">
@@ -359,7 +367,7 @@ export default function ListaGeneralClientes({
                       </button>
                     </>
                   )}
-                  {tieneReporteVenta(cliente.ID) && !reporteConsolidar?.CONSOLIDADO && (
+                  {tieneReporteVenta(cliente.ID) && !consolidado && (
                     <button
                       onClick={() => handleConsolidarVenta(cliente)}
                       className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
@@ -411,6 +419,7 @@ export default function ListaGeneralClientes({
             {clientesPaginados.map((cliente) => {
               const ultimoReporte = obtenerUltimoReporte(cliente.ID);
               const tieneSeguimiento = tieneSeguimientoPendiente(cliente.ID);
+              const consolidado = estaConsolidado(cliente.ID);
               return (
                 <tr key={cliente.ID} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -502,7 +511,7 @@ export default function ListaGeneralClientes({
                         </button>
                       </div>
                     )}
-                    {tieneReporteVenta(cliente.ID) && !reporteConsolidar?.CONSOLIDADO && (
+                    {tieneReporteVenta(cliente.ID) && !consolidado && (
                       <button
                         onClick={() => handleConsolidarVenta(cliente)}
                         className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-purple-600 hover:bg-purple-700"
@@ -597,13 +606,12 @@ export default function ListaGeneralClientes({
                 >
                   <ChevronRight className="h-4 w-4" />
                   <span className="sr-only">Siguiente</span>
-               </button>
+                </button>
                 <button
                   onClick={() => setPagina(totalPaginas)}
                   disabled={pagina === totalPaginas}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
-                
                   Última
                 </button>
               </nav>

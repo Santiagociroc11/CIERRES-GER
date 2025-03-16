@@ -14,10 +14,12 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  FileVideo,
 } from 'lucide-react';
 import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
 import ReasignarCliente from './ReasignarCliente';
+import ConsolidarVenta from './ConsolidarVenta';
 
 interface ListaGeneralClientesProps {
   clientes: Cliente[];
@@ -44,21 +46,20 @@ export default function ListaGeneralClientes({
   const [pagina, setPagina] = useState(1);
   const [forzarBusqueda, setForzarBusqueda] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [clienteConsolidar, setClienteConsolidar] = useState<Cliente | null>(null);
+  const [reporteConsolidar, setReporteConsolidar] = useState<Reporte | null>(null);
   const clientesPorPagina = 20;
 
-  // Determinar si hay demasiados clientes
   useEffect(() => {
     setForzarBusqueda(clientes.length > 1000);
   }, [clientes.length]);
 
-  // Verificar si un cliente tiene reporte de venta
   const tieneReporteVenta = (clienteId: number) => {
     return reportes.some(
       (r) => r.ID_CLIENTE === clienteId && r.ESTADO_NUEVO === 'PAGADO'
     );
   };
 
-  // Filtrar clientes según búsqueda y filtros
   const clientesFiltrados = clientes.filter((cliente) => {
     if (forzarBusqueda && !busqueda) return false;
 
@@ -73,7 +74,6 @@ export default function ListaGeneralClientes({
     return coincideBusqueda && coincideEstado && coincideCriticos;
   });
 
-  // Función para obtener el último reporte de un cliente
   const obtenerUltimoReporte = (clienteId: number) => {
     const reportesCliente = reportes.filter((r) => r.ID_CLIENTE === clienteId);
     if (!reportesCliente.length) return null;
@@ -90,33 +90,27 @@ export default function ListaGeneralClientes({
     })[0];
   };
 
-  // Función para asignar un valor de orden según el estado del cliente
   const getSortValue = (cliente: Cliente): number => {
     const ultimoRpt = obtenerUltimoReporte(cliente.ID);
     if ((!ultimoRpt || cliente.ESTADO !== ultimoRpt.ESTADO_NUEVO) && cliente.ESTADO !== 'PAGADO') {
       return 0;
     }
     if (cliente.ESTADO === 'NO CONTESTÓ') return 1;
-    // Luego, si el estado es "SEGUIMIENTO", valor 1
     if (cliente.ESTADO === 'SEGUIMIENTO') return 2;
-    // Si es "PAGADO", valor 2
     if (cliente.ESTADO === 'PAGADO') return 3;
-    if (cliente.ESTADO == "NO CONTACTAR") return 4;
+    if (cliente.ESTADO === "NO CONTACTAR") return 4;
     return 5;
   };
 
-  // Ordenar los clientes filtrados usando getSortValue
   const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
     const sortA = getSortValue(a);
     const sortB = getSortValue(b);
     if (sortA === sortB) {
-      // Si tienen el mismo valor de estado, ordenamos por FECHA_CREACION descendente
       return b.FECHA_CREACION - a.FECHA_CREACION;
     }
     return sortA - sortB;
   });
 
-  // Paginación
   const totalPaginas = Math.ceil(clientesOrdenados.length / clientesPorPagina);
   const clientesPaginados = clientesOrdenados.slice(
     (pagina - 1) * clientesPorPagina,
@@ -140,6 +134,9 @@ export default function ListaGeneralClientes({
   };
 
   const getEstadoColor = (estado: EstadoCliente, clienteId: number) => {
+    if (estado === 'VENTA CONSOLIDADA') {
+      return 'bg-emerald-100 text-emerald-800 border-2 border-emerald-500';
+    }
     if (estado === 'PAGADO') {
       const tieneReporte = tieneReporteVenta(clienteId);
       return tieneReporte
@@ -206,9 +203,21 @@ export default function ListaGeneralClientes({
     return paginas;
   };
 
+  const handleConsolidarVenta = (cliente: Cliente) => {
+    const reporte = reportes.find(r => 
+      r.ID_CLIENTE === cliente.ID && 
+      r.ESTADO_NUEVO === 'PAGADO' && 
+      !r.CONSOLIDADO
+    );
+    
+    if (reporte) {
+      setClienteConsolidar(cliente);
+      setReporteConsolidar(reporte);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow mb-8">
-      {/* Encabezado y Filtros */}
       <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-800">Lista General de Clientes</h2>
@@ -275,7 +284,7 @@ export default function ListaGeneralClientes({
           </div>
         </div>
       </div>
-      {/* Vista Móvil */}
+
       <div className="md:hidden">
         {clientesPaginados.map((cliente) => {
           const ultimoReporte = obtenerUltimoReporte(cliente.ID);
@@ -340,6 +349,15 @@ export default function ListaGeneralClientes({
                       </button>
                     </>
                   )}
+                  {tieneReporteVenta(cliente.ID) && !reporteConsolidar?.CONSOLIDADO && (
+                    <button
+                      onClick={() => handleConsolidarVenta(cliente)}
+                      className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
+                    >
+                      <FileVideo className="h-4 w-4 mr-2" />
+                      Consolidar Venta
+                    </button>
+                  )}
                   {readOnly && (
                     <div className="mr-2">
                       <ReasignarCliente
@@ -354,16 +372,12 @@ export default function ListaGeneralClientes({
           );
         })}
       </div>
-      {/* Vista Desktop */}
+
       <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                onClick={() => {
-                }}
-              >
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">
                 Cliente
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -478,14 +492,23 @@ export default function ListaGeneralClientes({
                         </button>
                       </div>
                     )}
+                    {tieneReporteVenta(cliente.ID) && !reporteConsolidar?.CONSOLIDADO && (
+                      <button
+                        onClick={() => handleConsolidarVenta(cliente)}
+                        className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-purple-600 hover:bg-purple-700"
+                      >
+                        <FileVideo className="h-4 w-4 mr-1" />
+                        Consolidar
+                      </button>
+                    )}
                     {readOnly && (
-                    <div className="mr-2">
-                      <ReasignarCliente
-                        clienteId={cliente.ID}
-                        asesorActual={cliente.NOMBRE_ASESOR}
-                      />
-                    </div>
-                  )}
+                      <div className="mr-2">
+                        <ReasignarCliente
+                          clienteId={cliente.ID}
+                          asesorActual={cliente.NOMBRE_ASESOR}
+                        />
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -493,7 +516,7 @@ export default function ListaGeneralClientes({
           </tbody>
         </table>
       </div>
-      {/* Paginación */}
+
       {totalPaginas > 1 && (
         <div className="px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
@@ -570,6 +593,7 @@ export default function ListaGeneralClientes({
                   disabled={pagina === totalPaginas}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
+                
                   Última
                 </button>
               </nav>
@@ -577,13 +601,30 @@ export default function ListaGeneralClientes({
           </div>
         </div>
       )}
-      {/* Modal de Historial */}
+
       {clienteHistorial && (
         <HistorialCliente
           cliente={clienteHistorial}
           reportes={reportes.filter(r => r.ID_CLIENTE === clienteHistorial.ID)}
           admin={admin}
           onClose={() => setClienteHistorial(null)}
+        />
+      )}
+
+      {clienteConsolidar && reporteConsolidar && (
+        <ConsolidarVenta
+          cliente={clienteConsolidar}
+          asesor={reporteConsolidar.asesor}
+          reporte={reporteConsolidar}
+          onComplete={() => {
+            setClienteConsolidar(null);
+            setReporteConsolidar(null);
+            // Refresh data if needed
+          }}
+          onClose={() => {
+            setClienteConsolidar(null);
+            setReporteConsolidar(null);
+          }}
         />
       )}
     </div>

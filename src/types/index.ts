@@ -4,11 +4,12 @@ export interface Asesor {
   ID: number;
   NOMBRE: string;
   WHATSAPP: string;
-  LINK: number; // Cambiado de number a string (posiblemente sea una URL)
+  LINK: number;
   RECHAZADOS: number;
   CARRITOS: number;
   TICKETS: number;
   ES_ADMIN?: boolean;
+  ES_REVISOR?: boolean;
 }
 
 export interface Cliente {
@@ -24,7 +25,7 @@ export interface Cliente {
   MEDIO_COMPRA: string;
   MONTO_COMPRA: number;
   MONEDA_COMPRA: 'COP' | 'USD';
-  PAIS?: string; // Nuevo: Ahora el cliente tiene el país registrado
+  PAIS?: string;
 }
 
 export interface Reporte {
@@ -40,13 +41,15 @@ export interface Reporte {
   IMAGEN_PAGO_URL?: string;
   COMPLETADO?: boolean;
   cliente?: Cliente;
-
-  // NUEVOS CAMPOS: Se agregan para que coincida con la API y la BD
   PAIS_CLIENTE?: string;
   CORREO_INSCRIPCION?: string;
   TELEFONO_CLIENTE?: string;
   MEDIO_PAGO?: string;
   CORREO_PAGO?: string;
+  CONSOLIDADO?: boolean;
+  IMAGEN_INICIO_CONVERSACION?: string;
+  IMAGEN_FIN_CONVERSACION?: string;
+  VIDEO_CONVERSACION?: string;
 }
 
 export interface Registro {
@@ -87,19 +90,11 @@ export interface EstadisticasDetalladas extends EstadisticasAsesor {
   ultimaVenta: number | null;
 }
 
-// Estados críticos que vienen del backend (alta intención de compra)
 export type EstadoCritico = 'CARRITOS' | 'RECHAZADOS' | 'TICKETS';
-
-// Estados no críticos que vienen del backend
-export type EstadoNoCritico = 'LINK' | 'PAGADO';
-
-// Estados que puede asignar el asesor
+export type EstadoNoCritico = 'LINK' | 'PAGADO' | 'VENTA CONSOLIDADA';
 export type EstadoAsesor = 'SEGUIMIENTO' | 'NO CONTACTAR' | 'NO CONTESTÓ' | 'NO INTERESADO';
-
-// Tipo unión de todos los estados posibles
 export type EstadoCliente = EstadoCritico | EstadoNoCritico | EstadoAsesor;
 
-// Función para verificar si un estado es crítico
 export const esEstadoCritico = (estado: EstadoCliente): estado is EstadoCritico => {
   return ['CARRITOS', 'RECHAZADOS', 'TICKETS'].includes(estado);
 };

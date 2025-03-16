@@ -29,6 +29,7 @@ export default function ConsolidarVenta({
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [previewInicio, setPreviewInicio] = useState<string | null>(null);
   const [previewFin, setPreviewFin] = useState<string | null>(null);
+  const [finalStatus, setFinalStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const logDebugInfo = (message: string) => {
     setDebugInfo(prev => `${prev}\n${new Date().toISOString()}: ${message}`);
@@ -174,16 +175,51 @@ export default function ConsolidarVenta({
       }
 
       logDebugInfo('Consolidación completada con éxito.');
-      onComplete();
+      setFinalStatus('success');
+      // Opcional: podrías llamar a onComplete() después de unos segundos si prefieres cerrar el modal automáticamente.
     } catch (error: any) {
       const errorMessage = error.message || 'Error al consolidar la venta';
       logDebugInfo(`Error en la consolidación: ${errorMessage}`);
       setError(`Error: ${errorMessage}`);
+      setFinalStatus('error');
     } finally {
       setLoading(false);
       logDebugInfo('Consolidación finalizada.');
     }
   };
+
+  if (finalStatus === 'success') {
+    return (
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
+        <div className="p-5 border w-full max-w-md shadow-lg rounded-md bg-white text-center">
+          <h3 className="text-lg font-medium mb-4">Venta consolidada con éxito</h3>
+          <button
+            onClick={onComplete}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+          >
+            Aceptar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (finalStatus === 'error') {
+    return (
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
+        <div className="p-5 border w-full max-w-md shadow-lg rounded-md bg-white text-center">
+          <h3 className="text-lg font-medium mb-4">Error en la consolidación</h3>
+          <p className="mb-4 text-sm text-red-600">{error}</p>
+          <button
+            onClick={() => setFinalStatus('idle')}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+          >
+            Volver
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">

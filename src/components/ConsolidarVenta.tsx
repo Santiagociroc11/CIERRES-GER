@@ -23,10 +23,17 @@ export default function ConsolidarVenta({
   const [imagenInicio, setImagenInicio] = useState<File | null>(null);
   const [imagenFin, setImagenFin] = useState<File | null>(null);
   const [video, setVideo] = useState<File | null>(null);
+  const [comentario, setComentario] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const [previewInicio, setPreviewInicio] = useState<string | null>(null);
   const [previewFin, setPreviewFin] = useState<string | null>(null);
+
+  const logDebugInfo = (message: string) => {
+    setDebugInfo(prev => `${prev}\n${new Date().toISOString()}: ${message}`);
+    console.log(message);
+  };
 
   const handleImageChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -62,8 +69,8 @@ export default function ConsolidarVenta({
         setError('Por favor, selecciona un archivo de video válido.');
         return;
       }
-      if (file.size > 50 * 1024 * 1024) {
-        setError('El video no debe superar los 50MB.');
+      if (file.size > 100 * 1024 * 1024) {
+        setError('El video no debe superar los 100MB.');
         return;
       }
 
@@ -76,6 +83,7 @@ export default function ConsolidarVenta({
     e.preventDefault();
     setLoading(true);
     setError('');
+    setDebugInfo('');
 
     if (!imagenInicio || !imagenFin || !video) {
       setError('Por favor, sube todos los archivos requeridos.');
@@ -84,41 +92,96 @@ export default function ConsolidarVenta({
     }
 
     try {
-      // Subir archivos a MinIO
-      const imagenInicioUrl = await uploadToMinio(imagenInicio, 'consolidaciones');
-      const imagenFinUrl = await uploadToMinio(imagenFin, 'consolidaciones');
-      const videoUrl = await uploadToMinio(video, 'consolidaciones');
+      logDebugInfo('Iniciando consolidación de venta...');
 
-      // Crear un nuevo reporte de consolidación
-      await apiClient.request('/GERSSON_REPORTES', 'POST', {
+      // Subir archivos a MinIO
+      logDebugInfo('Subiendo imagen de inicio...');
+      const imagenInicioUrl = await uploadToMinio(imagenInicio, 'consolidaciones');
+      logDebugInfo(`Imagen de inicio subida: ${imagenInicioUrl}`);
+
+      logDebugInfo('Subiendo imagen de fin...');
+      const imagenFinUrl = await uploadToMinio(imagenFin, 'consolidaciones');
+      logDebugInfo(`Imagen de fin subida: ${imagenFinUrl}`);
+
+      logDebugInfo('Subiendo video...');
+      const videoUrl = await uploadToMinio(video, 'consolidaciones');
+      logDebugInfo(`Video subido: ${videoUrl}`);
+
+      // Crear nuevo reporte de consolidación
+      logDebugInfo('Creando reporte de consolidación...');
+      const nuevoReporte = {
         ID_CLIENTE: cliente.ID,
         ID_ASESOR: asesor.ID,
         ESTADO_ANTERIOR: cliente.ESTADO,
         ESTADO_NUEVO: 'VENTA CONSOLIDADA',
-        COMENTARIO: 'Venta consolidada con evidencias',
+        COMENTARIO: comentario || 'Sin comentarios',
         NOMBRE_ASESOR: asesor.NOMBRE,
         FECHA_REPORTE: getCurrentEpoch(),
-        CONSOLIDADO: true,
-        IMAGEN_INICIO_CONVERSACION: imagenInicioUrl,
-        IMAGEN_FIN_CONVERSACION: imagenFinUrl,
-        VIDEO_CONVERSACION: videoUrl
-      });
+        consolidado: true,
+        imagen_inicio_conversacion: imagenInicioUrl,
+        imagen_fin_conversacion: imagenFinUrl,
+        video_conversacion: videoUrl
+      };
 
-      // Actualizar el estado del cliente a "VENTA CONSOLIDADA"
-      await apiClient.request(
-        `/GERSSON_CLIENTES?ID=eq.${cliente.ID}`,
-        'PATCH',
-        {
-          ESTADO: 'VENTA CONSOLIDADA'
+      logDebugInfo(`Datos del reporte: ${JSON.stringify(nuevoReporte, null, 2)}`);
+      
+      try {
+        const reporteCreado = await apiClient.request('/GERSSON_REPORTES', 'POST', nuevoReporte);
+        logDebugInfo(`Reporte creado: ${JSON.stringify(reporteCreado, null, 2)}`);
+      } catch (error: any) {
+        logDebugInfo(`Error al crear reporte: ${error.message}`);
+        if (error.response) {
+          const responseText = await error.response.text();
+          logDebugInfo(`Respuesta del servidor: ${responseText}`);
         }
-      );
+        throw error;
+      }
 
+      // Actualizar el estado del cliente
+      logDebugInfo('Actualizando estado del cliente...');
+      try {
+        const clienteActualizado = await apiClient.request(
+          `/GERSSON_CLIENTES?ID=eq.${cliente.ID}`,
+          'PATCH',
+          { ESTADO: 'VENTA CONSOLIDADA' }
+        );
+        logDebugInfo(`Cliente actualizado: ${JSON.stringify(clienteActualizado, null, 2)}`);
+      } catch (error: any) {
+        logDebugInfo(`Error al actualizar cliente: ${error.message}`);
+        if (error.response) {
+          const responseText = await error.response.text();
+          logDebugInfo(`Respuesta del servidor: ${responseText}`);
+        }
+        throw error;
+      }
+
+      // Marcar el reporte original como consolidado
+      logDebugInfo('Marcando reporte original como consolidado...');
+      try {
+        const reporteOriginalActualizado = await apiClient.request(
+          `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+          'PATCH',
+          { consolidado: true }
+        );
+        logDebugInfo(`Reporte original actualizado: ${JSON.stringify(reporteOriginalActualizado, null, 2)}`);
+      } catch (error: any) {
+        logDebugInfo(`Error al actualizar reporte original: ${error.message}`);
+        if (error.response) {
+          const responseText = await error.response.text();
+          logDebugInfo(`Respuesta del servidor: ${responseText}`);
+        }
+        throw error;
+      }
+
+      logDebugInfo('Consolidación completada con éxito.');
       onComplete();
     } catch (error: any) {
-      console.error('Error al consolidar venta:', error);
-      setError(error.message || 'Error al consolidar la venta');
+      const errorMessage = error.message || 'Error al consolidar la venta';
+      logDebugInfo(`Error en la consolidación: ${errorMessage}`);
+      setError(`Error: ${errorMessage}`);
     } finally {
       setLoading(false);
+      logDebugInfo('Consolidación finalizada.');
     }
   };
 
@@ -144,7 +207,35 @@ export default function ConsolidarVenta({
           </div>
         )}
 
+        {debugInfo && (
+          <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+            <pre className="text-xs text-gray-600 whitespace-pre-wrap">
+              {debugInfo}
+            </pre>
+          </div>
+        )}
+
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+          <p className="text-sm text-yellow-800">
+            <strong>Importante:</strong> Todas las pruebas deben tener el número visible del cliente o algo que lo identifique plenamente.
+          </p>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Comentario opcional */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Comentario (opcional)
+            </label>
+            <textarea
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-purple-500 focus:border-purple-500"
+              rows={3}
+              placeholder="Agrega un comentario sobre la consolidación..."
+            />
+          </div>
+
           {/* Imagen de inicio de conversación */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -271,7 +362,7 @@ export default function ConsolidarVenta({
                         />
                       </label>
                     </div>
-                    <p className="text-xs text-gray-500">MP4, WebM hasta 50MB</p>
+                    <p className="text-xs text-gray-500">MP4, WebM hasta 100MB</p>
                   </>
                 )}
               </div>

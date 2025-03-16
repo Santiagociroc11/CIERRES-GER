@@ -48,7 +48,6 @@ interface DetalleAsesorProps {
   bestRateByFuente: Record<string, number>;
 }
 
-
 type VistaDetalle = 'general' | 'clientes' | 'metricas' | 'fuentes';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#a855f7'];
@@ -190,13 +189,13 @@ export default function DetalleAsesor({
               </div>
             </div>
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Ventas del Mes</p>
-                  <p className="mt-1 text-3xl font-semibold text-gray-900">{estadisticas.ventasPorMes}</p>
-                </div>
-                <div className={`text-sm font-medium ${estadisticas.ventasPorMes > promedioEquipo.ventasPorMes ? 'text-green-600' : 'text-red-600'}`}>
-                  vs {promedioEquipo.ventasPorMes.toFixed(1)} equipo
+              <div className="flex flex-col">
+                <p className="text-sm font-medium text-gray-500">Ventas del Mes</p>
+                <p className="mt-1 text-3xl font-semibold text-gray-900">{estadisticas.ventasPorMes}</p>
+                <div className="mt-2 text-sm">
+                  <span className="font-medium text-green-600">Principal: {estadisticas.ventasPrincipal}</span>
+                  <br />
+                  <span className="font-medium text-blue-600">Downsell: {estadisticas.ventasDownsell}</span>
                 </div>
               </div>
             </div>
@@ -351,7 +350,6 @@ export default function DetalleAsesor({
       )}
 
       {vistaActual === 'fuentes' && (
-
         <div className="mt-6">
           <FuentesAnalysisPorAsesor 
             clientes={clientes} 

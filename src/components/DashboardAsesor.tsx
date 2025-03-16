@@ -184,10 +184,11 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       const reportesData = await apiClient.request<Reporte[]>(`/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*,cliente:GERSSON_CLIENTES(*)&order=FECHA_SEGUIMIENTO.asc`);
 
       if (clientesData && reportesData) {
+        // Actualización de clientes: ahora se consideran ventas consolidadas
         const clientesProcesados = clientesData.map(cliente => {
-          if (cliente.ESTADO === 'PAGADO') {
+          if (cliente.ESTADO === 'PAGADO' || cliente.ESTADO === 'VENTA CONSOLIDADA') {
             const tieneReporteVenta = reportesData.some(r =>
-              r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'PAGADO'
+              r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO')
             );
             if (!tieneReporteVenta) {
               const ultimoReporte = reportesData
@@ -205,8 +206,24 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         const clientesConReporte = new Set(reportesData.map(r => r.ID_CLIENTE));
         setClientesSinReporte(clientesProcesados.filter(c => !clientesConReporte.has(c.ID)));
 
-        // Estadísticas básicas
-        const ventasRealizadas = reportesData.filter(r => r.ESTADO_NUEVO === 'PAGADO').length;
+        // Aquí se separan las ventas por producto de forma única
+        const uniqueVentasPrincipal = reportesData
+          .filter(r => (r.ESTADO_NUEVO === 'PAGADO') && r.PRODUCTO === 'PRINCIPAL')
+          .reduce((acc: Record<number, boolean>, r) => {
+            acc[r.ID_CLIENTE] = true;
+            return acc;
+          }, {});
+        const ventasPrincipal = Object.keys(uniqueVentasPrincipal).length;
+
+        const uniqueVentasDownsell = reportesData
+          .filter(r => (r.ESTADO_NUEVO === 'PAGADO' || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA') && r.PRODUCTO === 'DOWNSELL')
+          .reduce((acc: Record<number, boolean>, r) => {
+            acc[r.ID_CLIENTE] = true;
+            return acc;
+          }, {});
+        const ventasDownsell = Object.keys(uniqueVentasDownsell).length;
+
+        const ventasRealizadas = ventasPrincipal + ventasDownsell;
         const seguimientosPendientes = reportesData.filter(r =>
           r.FECHA_SEGUIMIENTO &&
           !r.COMPLETADO &&
@@ -216,18 +233,18 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         const totalSeguimientos = seguimientosPendientes + seguimientosCompletados;
 
         const ventasConFecha = reportesData.filter(r =>
-          r.ESTADO_NUEVO === 'PAGADO' &&
+          (r.ESTADO_NUEVO === 'PAGADO' || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA') &&
           r.cliente?.FECHA_CREACION &&
           r.FECHA_REPORTE
         );
         const tiempoPromedioConversion = ventasConFecha.length > 0
           ? ventasConFecha.reduce((acc, venta) => {
-            const tiempoConversion = venta.FECHA_REPORTE -
-              (typeof venta.cliente?.FECHA_CREACION === 'string'
-                ? parseInt(venta.cliente.FECHA_CREACION)
-                : venta.cliente?.FECHA_CREACION || 0);
-            return acc + tiempoConversion;
-          }, 0) / ventasConFecha.length / (24 * 60 * 60)
+              const tiempoConversion = venta.FECHA_REPORTE -
+                (typeof venta.cliente?.FECHA_CREACION === 'string'
+                  ? parseInt(venta.cliente.FECHA_CREACION)
+                  : venta.cliente?.FECHA_CREACION || 0);
+              return acc + tiempoConversion;
+            }, 0) / ventasConFecha.length / (24 * 60 * 60)
           : 0;
         const tasaRespuesta = totalSeguimientos > 0 ? (seguimientosCompletados / totalSeguimientos) * 100 : 0;
 
@@ -235,6 +252,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           totalClientes: clientesProcesados.length,
           clientesReportados: clientesConReporte.size,
           ventasRealizadas,
+          ventasPrincipal,
+          ventasDownsell,
           seguimientosPendientes,
           seguimientosCompletados,
           porcentajeCierre: clientesProcesados.length ? (ventasRealizadas / clientesProcesados.length) * 100 : 0,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cliente, Reporte, EstadoCliente, esEstadoCritico, Asesor } from '../types';
+import { Cliente, Reporte, Registro, EstadoCliente, esEstadoCritico, Asesor } from '../types';
 import {
   Search,
   Phone,
@@ -66,20 +66,6 @@ export default function ListaGeneralClientes({
     );
   };
 
-  const clientesFiltrados = clientes.filter((cliente) => {
-    if (forzarBusqueda && !busqueda) return false;
-
-    const coincideBusqueda =
-      cliente.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cliente.WHATSAPP.includes(busqueda);
-
-    const coincideEstado =
-      filtroEstado === 'TODOS' || cliente.ESTADO === filtroEstado;
-    const coincideCriticos = !mostrarSoloCriticos || esEstadoCritico(cliente.ESTADO);
-
-    return coincideBusqueda && coincideEstado && coincideCriticos;
-  });
-
   const obtenerUltimoReporte = (clienteId: number) => {
     const reportesCliente = reportes.filter((r) => r.ID_CLIENTE === clienteId);
     if (!reportesCliente.length) return null;
@@ -96,6 +82,21 @@ export default function ListaGeneralClientes({
     })[0];
   };
 
+  // Modificamos getEstadoTexto para incluir el tipo de producto en ventas
+  const getEstadoTexto = (estado: EstadoCliente, clienteId: number) => {
+    if ((estado === 'PAGADO' || estado === 'VENTA CONSOLIDADA')) {
+      const ultimoReporte = obtenerUltimoReporte(clienteId);
+      if (ultimoReporte) {
+        const producto = ultimoReporte.PRODUCTO || '';
+        return `${estado} (${producto})`;
+      }
+    }
+    if (estado === 'PAGADO' && !tieneReporteVenta(clienteId)) {
+      return 'PAGADO (Sin reporte)';
+    }
+    return estado;
+  };
+
   const getSortValue = (cliente: Cliente): number => {
     const ultimoRpt = obtenerUltimoReporte(cliente.ID);
     if ((!ultimoRpt || cliente.ESTADO !== ultimoRpt.ESTADO_NUEVO) && cliente.ESTADO !== 'PAGADO') {
@@ -107,6 +108,20 @@ export default function ListaGeneralClientes({
     if (cliente.ESTADO === "NO CONTACTAR") return 4;
     return 5;
   };
+
+  const clientesFiltrados = clientes.filter((cliente) => {
+    if (forzarBusqueda && !busqueda) return false;
+
+    const coincideBusqueda =
+      cliente.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
+      cliente.WHATSAPP.includes(busqueda);
+
+    const coincideEstado =
+      filtroEstado === 'TODOS' || cliente.ESTADO === filtroEstado;
+    const coincideCriticos = !mostrarSoloCriticos || esEstadoCritico(cliente.ESTADO);
+
+    return coincideBusqueda && coincideEstado && coincideCriticos;
+  });
 
   const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
     const sortA = getSortValue(a);
@@ -169,11 +184,8 @@ export default function ListaGeneralClientes({
     }
   };
 
-  const getEstadoTexto = (estado: EstadoCliente, clienteId: number) => {
-    if (estado === 'PAGADO' && !tieneReporteVenta(clienteId)) {
-      return 'PAGADO (Sin reporte)';
-    }
-    return estado;
+  const getEstadoTextoFinal = (estado: EstadoCliente, clienteId: number) => {
+    return getEstadoTexto(estado, clienteId);
   };
 
   const handleConsolidarVenta = (cliente: Cliente) => {
@@ -287,15 +299,9 @@ export default function ListaGeneralClientes({
             </div>
             <button
               onClick={() => setMostrarSoloCriticos(!mostrarSoloCriticos)}
-              className={`px-4 py-2 rounded-lg border ${mostrarSoloCriticos
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-white text-gray-700 border-gray-300'
-                }`}
+              className={`px-4 py-2 rounded-lg border ${mostrarSoloCriticos ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-700 border-gray-300'}`}
             >
-              <AlertCircle
-                className={`inline-block h-4 w-4 mr-2 ${mostrarSoloCriticos ? 'text-amber-500' : 'text-gray-400'
-                  }`}
-              />
+              <AlertCircle className={`inline-block h-4 w-4 mr-2 ${mostrarSoloCriticos ? 'text-amber-500' : 'text-gray-400'}`} />
               Solo críticos
             </button>
           </div>
@@ -311,10 +317,7 @@ export default function ListaGeneralClientes({
             <div key={cliente.ID} className="p-4 border-b border-gray-200 space-y-3">
               <div className="flex justify-between items-start">
                 <div>
-                  <button
-                    onClick={() => setClienteHistorial(cliente)}
-                    className="text-base font-medium text-gray-900 hover:text-blue-600"
-                  >
+                  <button onClick={() => setClienteHistorial(cliente)} className="text-base font-medium text-gray-900 hover:text-blue-600">
                     {cliente.NOMBRE}
                   </button>
                   <div className="flex items-center mt-1 space-x-2">
@@ -511,7 +514,7 @@ export default function ListaGeneralClientes({
                         </button>
                       </div>
                     )}
-                    {tieneReporteVenta(cliente.ID) && !consolidado && (
+                    {tieneReporteVenta(cliente.ID) && !estaConsolidado(cliente.ID) && (
                       <button
                         onClick={() => handleConsolidarVenta(cliente)}
                         className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-purple-600 hover:bg-purple-700"

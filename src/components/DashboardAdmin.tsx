@@ -14,6 +14,7 @@ import {
   Bell,
   Search,
   Filter,
+  RefreshCcw,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -33,11 +34,8 @@ import {
 import ReasignarCliente from "./ReasignarCliente";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { RefreshCcw } from 'lucide-react';
 import { parse } from 'date-fns';
 import CrearClienteModal from './CrearClienteModal';
-
-
 
 interface DashboardAdminProps {
   onLogout: () => void;
@@ -64,14 +62,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [mostrarModalCrearCliente, setMostrarModalCrearCliente] = useState(false);
 
-  // Función para refrescar manualmente
-  const handleRefresh = async () => {
-    setTick(t => t + 1);
-    setLastUpdated(new Date());
-    await cargarDatos(); // función que actualiza los registros
-  };
-
-  // Nuevo estado para alternar entre vista de Asesores y Clientes
+  // Estado para alternar entre vista de Asesores y Clientes
   const [vistaAdmin, setVistaAdmin] = useState<'asesores' | 'clientes'>('asesores');
   // Estado para el modal de historial de cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
@@ -81,54 +72,49 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     onLogout();
   };
 
+  // Función para refrescar manualmente
+  const handleRefresh = async () => {
+    setTick(t => t + 1);
+    setLastUpdated(new Date());
+    await cargarDatos();
+  };
+
   // Cargar datos al cambiar filtros
   useEffect(() => {
     cargarDatos();
   }, [periodoSeleccionado, fechaInicio, fechaFin]);
 
   const refrescarClientes = async () => {
-    // Si ya tienes una función para cargar datos (cargarDatos), úsala aquí
     await cargarDatos();
   };
-
 
   const cargarDatos = async () => {
     try {
       console.log("🚀 Cargando datos desde PostgREST...");
-
-      // Paso 1️⃣: Obtener asesores ordenados por nombre desde PostgREST
-      const asesoresData = await apiClient.request<any[]>(
-        '/GERSSON_ASESORES?select=*&order=NOMBRE'
-      );
-
+      // Paso 1: Obtener asesores ordenados por nombre
+      const asesoresData = await apiClient.request<any[]>('/GERSSON_ASESORES?select=*&order=NOMBRE');
       if (!asesoresData || asesoresData.length === 0) return;
       setAsesores(asesoresData);
-
       console.log("✅ Asesores obtenidos:", asesoresData.length);
-
-      // Paso 2️⃣: Obtener clientes, reportes y registros en paralelo SIN paginación
+      // Paso 2: Obtener clientes, reportes y registros en paralelo SIN paginación
       const [clientesData, reportesData, registrosData] = await Promise.all([
         apiClient.request<any[]>('/GERSSON_CLIENTES?select=*'),
         apiClient.request<any[]>('/GERSSON_REPORTES?select=*'),
         apiClient.request<any[]>('/GERSSON_REGISTROS?select=*'),
       ]);
-
       console.log("✅ Clientes obtenidos:", clientesData.length);
       console.log("✅ Reportes obtenidos:", reportesData.length);
       console.log("✅ Registros obtenidos:", registrosData.length);
-
-      // Paso 3️⃣: Verificar datos y actualizar el estado
+      // Paso 3: Actualizar el estado
       if (clientesData && reportesData && registrosData) {
         setClientes(clientesData);
         setReportes(reportesData);
         setRegistros(registrosData);
-
-        // Paso 4️⃣: Calcular estadísticas por asesor
+        // Paso 4: Calcular estadísticas por asesor
         const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
         asesoresData.forEach((asesor: any) => {
           const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
           const reportesAsesor = reportesData.filter((r: any) => r.ID_ASESOR === asesor.ID);
-
           nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
             clientesAsesor,
             reportesAsesor,
@@ -137,7 +123,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
             fechaFin
           );
         });
-
         setEstadisticas(nuevasEstadisticas);
       }
     } catch (error) {
@@ -145,6 +130,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     }
   };
 
+  // Función para determinar la fuente del cliente (se puede adaptar según PRODUCTO)
   const getFuente = (clienteId: number, registros: any[]) => {
     const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
     if (registrosCliente.length > 0) {
@@ -160,7 +146,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       const fuente = getFuente(cliente.ID, registros);
       if (!stats[fuente]) stats[fuente] = { total: 0, cerrados: 0 };
       stats[fuente].total += 1;
-      if (reportes.some(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'PAGADO')) {
+      if (reportes.some(r => r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO' ))) {
         stats[fuente].cerrados += 1;
       }
     });
@@ -174,7 +160,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
   const calculateBestRateByFuente = (clientes: any[], reportes: any[], registros: any[]) => {
     const bestRates: Record<string, { rate: number; advisorName: string }> = {};
-    // Suponiendo que "asesores" es el array de todos los asesores obtenido en DashboardAdmin
     asesores.forEach(advisor => {
       const advisorClients = clientes.filter(c => c.ID_ASESOR === advisor.ID);
       const stats: Record<string, { total: number; cerrados: number }> = {};
@@ -182,25 +167,22 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         const fuente = getFuente(cliente.ID, registros);
         if (!stats[fuente]) stats[fuente] = { total: 0, cerrados: 0 };
         stats[fuente].total += 1;
-        if (reportes.some(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'PAGADO')) {
+        if (reportes.some(r => r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO' ))) {
           stats[fuente].cerrados += 1;
         }
       });
       for (const fuente in stats) {
         const { total, cerrados } = stats[fuente];
-        if (total < 3) continue; // Descartar si tiene menos de 3 asignados
+        if (total < 3) continue;
         const rate = total > 0 ? (cerrados / total) * 100 : 0;
         console.log(`Asesor ${advisor.NOMBRE} - Fuente: ${fuente}, total: ${total}, cerrados: ${cerrados}, rate: ${rate}`);
         if (!(fuente in bestRates) || rate > bestRates[fuente].rate) {
           bestRates[fuente] = { rate, advisorName: advisor.NOMBRE };
         }
       }
-      
     });
     return bestRates;
   };
-
-
 
   const calcularEstadisticasDetalladas = (
     clientesAsesor: any[],
@@ -229,28 +211,65 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     const clientesSinReporte = clientesAsesor.filter(
       (c: any) => !reportesAsesor.find((r: any) => r.ID_CLIENTE === c.ID)
     ).length;
-    const ventasRealizadas = reportesFiltrados.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO').length;
+
+    // Agrupar ventas únicas por cliente según producto
+    const uniqueVentasPrincipal = reportesFiltrados
+      .filter((r: any) =>
+        (r.ESTADO_NUEVO === 'PAGADO' ) &&
+        r.PRODUCTO === 'PRINCIPAL'
+      )
+      .reduce((acc: Record<number, boolean>, r: any) => {
+        acc[r.ID_CLIENTE] = true;
+        return acc;
+      }, {});
+    const ventasPrincipal = Object.keys(uniqueVentasPrincipal).length;
+
+    const uniqueVentasDownsell = reportesFiltrados
+      .filter((r: any) =>
+        (r.ESTADO_NUEVO === 'PAGADO' ) &&
+        r.PRODUCTO === 'DOWNSELL'
+      )
+      .reduce((acc: Record<number, boolean>, r: any) => {
+        acc[r.ID_CLIENTE] = true;
+        return acc;
+      }, {});
+    const ventasDownsell = Object.keys(uniqueVentasDownsell).length;
+
+    const ventasRealizadas = ventasPrincipal + ventasDownsell;
+
+    const uniqueVentasReportadas = reportesAsesor
+      .filter((r: any) => r.ESTADO_NUEVO === 'PAGADO' )
+      .reduce((acc: Record<number, boolean>, r: any) => {
+        acc[r.ID_CLIENTE] = true;
+        return acc;
+      }, {});
+    const ventasReportadas = Object.keys(uniqueVentasReportadas).length;
+    const ventasBackend = clientesAsesor.filter(
+      (c: any) => c.ESTADO === 'PAGADO' || c.ESTADO === 'VENTA CONSOLIDADA'
+    ).length;
+    const ventasSinReportar = ventasBackend - ventasReportadas;
 
     const tiemposRespuesta = reportesAsesor
       .filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO)
       .map((r: any) => r.FECHA_SEGUIMIENTO - r.FECHA_REPORTE);
-
     const tiempoPromedioRespuesta = tiemposRespuesta.length
       ? tiemposRespuesta.reduce((a: number, b: number) => a + b, 0) / tiemposRespuesta.length / 3600
       : 0;
 
     const reportesPorCliente = clientesAsesor.length ? reportesAsesor.length / clientesAsesor.length : 0;
     const reportesConSeguimiento = reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO).length;
-
-
     const ultimoReporte = reportesAsesor.length > 0
       ? Math.max(...reportesAsesor.map((r: any) => r.FECHA_REPORTE))
       : null;
     const ultimoSeguimiento = reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO).length > 0
-      ? Math.max(...reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO).map((r: any) => r.FECHA_SEGUIMIENTO))
+      ? Math.max(...reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO).map((r: any) => r.FECHA_SEGURO))
       : null;
-    const ultimaVenta = reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO').length > 0
-      ? Math.max(...reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO').map((r: any) => r.FECHA_REPORTE))
+    const ultimaVenta = reportesAsesor.filter((r: any) =>
+      r.ESTADO_NUEVO === 'PAGADO' 
+    ).length > 0
+      ? Math.max(...reportesAsesor.filter((r: any) =>
+        r.ESTADO_NUEVO === 'PAGADO' 
+      ).map((r: any) => r.FECHA_REPORTE))
       : null;
 
     const tiemposHastaReporte = clientesAsesor
@@ -266,10 +285,10 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       : 0;
 
     const tiemposHastaVenta = clientesAsesor
-      .filter((c: any) => c.ESTADO === 'PAGADO')
+      .filter((c: any) => c.ESTADO === 'PAGADO' || c.ESTADO === 'VENTA CONSOLIDADA')
       .map((cliente: any) => {
         const reporteVenta = reportesAsesor
-          .filter((r: any) => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'PAGADO')
+          .filter((r: any) => r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO' ))
           .sort((a: any, b: any) => a.FECHA_REPORTE - b.FECHA_REPORTE)[0];
         return reporteVenta ? (reporteVenta.FECHA_REPORTE - cliente.FECHA_CREACION) / 3600 : null;
       })
@@ -278,15 +297,12 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       ? tiemposHastaVenta.reduce((a, b) => a + b, 0) / tiemposHastaVenta.length
       : 0;
 
-    const ventasBackend = clientesAsesor.filter((c: any) => c.ESTADO === 'PAGADO').length;
-    const ventasReportadas = reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO').length;
-    const ventasSinReportar = ventasBackend - ventasReportadas;
-
     return {
       ventasReportadas,
       ventasSinReportar,
-      // Usamos ventasBackend para representar las ventas realizadas
-      ventasRealizadas: ventasBackend,
+      ventasRealizadas,
+      ventasPrincipal,
+      ventasDownsell,
       totalClientes: clientesAsesor.length,
       clientesReportados,
       clientesSinReporte,
@@ -319,25 +335,69 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     };
   };
 
-  // Datos para el gráfico de ventas diarios
+  // Hook para obtener datos del gráfico, agrupando ventas únicas por día y por cliente
   const getSalesData = useMemo(() => {
-    const ventas = reportes.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO');
-    const ventasPorFecha: Record<string, number> = {};
-    ventas.forEach((r: any) => {
-      const fecha = formatDateOnly(r.FECHA_REPORTE);
-      ventasPorFecha[fecha] = (ventasPorFecha[fecha] || 0) + 1;
+    // Definir el filtro de fechas según el período seleccionado
+    const now = new Date();
+    let fechaInicioFiltro = new Date();
+    let fechaFinFiltro = now;
+    if (periodoSeleccionado === 'mes') {
+      fechaInicioFiltro.setMonth(now.getMonth() - 1);
+    } else if (periodoSeleccionado === 'semana') {
+      fechaInicioFiltro.setDate(now.getDate() - 7);
+    } else if (periodoSeleccionado === 'personalizado' && fechaInicio) {
+      fechaInicioFiltro = new Date(fechaInicio);
+      if (fechaFin) fechaFinFiltro = new Date(fechaFin);
+    }
+
+    // Filtrar reportes por el período
+    const reportesFiltrados = reportes.filter((r: any) => {
+      const fechaReporte = new Date(r.FECHA_REPORTE * 1000);
+      return fechaReporte >= fechaInicioFiltro && fechaReporte <= fechaFinFiltro;
     });
-    const data = Object.keys(ventasPorFecha).map((fecha) => ({
-      date: fecha,
-      sales: ventasPorFecha[fecha],
-    }));
-    // Ordenar parseando el string en el formato "dd/MM/yyyy"
+
+    // Agrupar por fecha y luego por cliente, priorizando "PRINCIPAL" si existen ambos
+    const ventasPorDia: Record<string, Record<number, 'PRINCIPAL' | 'DOWNSELL'>> = {};
+    reportesFiltrados.forEach((r: any) => {
+      if (r.ESTADO_NUEVO === 'PAGADO' ) {
+        const fecha = formatDateOnly(r.FECHA_REPORTE);
+        if (!ventasPorDia[fecha]) {
+          ventasPorDia[fecha] = {};
+        }
+        const current = ventasPorDia[fecha][r.ID_CLIENTE];
+        // Si no existe registro, lo asignamos
+        if (!current) {
+          ventasPorDia[fecha][r.ID_CLIENTE] = r.PRODUCTO;
+        } else {
+          // Si ya existe y es DOWNSELL, y el nuevo es PRINCIPAL, actualizamos
+          if (current === 'DOWNSELL' && r.PRODUCTO === 'PRINCIPAL') {
+            ventasPorDia[fecha][r.ID_CLIENTE] = 'PRINCIPAL';
+          }
+        }
+      }
+    });
+
+    // Transformar la agrupación en un array de datos para el gráfico
+    const data = Object.entries(ventasPorDia).map(([fecha, clientesObj]) => {
+      let countPrincipal = 0;
+      let countDownsell = 0;
+      Object.values(clientesObj).forEach(producto => {
+        if (producto === 'PRINCIPAL') countPrincipal++;
+        else if (producto === 'DOWNSELL') countDownsell++;
+      });
+      return {
+        date: fecha,
+        principal: countPrincipal,
+        downsell: countDownsell,
+      };
+    });
+
     return data.sort((a, b) => {
       const dateA = parse(a.date, 'dd/MM/yyyy', new Date());
       const dateB = parse(b.date, 'dd/MM/yyyy', new Date());
       return dateA.getTime() - dateB.getTime();
     });
-  }, [reportes]);
+  }, [reportes, periodoSeleccionado, fechaInicio, fechaFin]);
 
   const asesoresFiltrados = asesores.filter((asesor) => {
     const coincideBusqueda =
@@ -374,7 +434,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     }
   });
 
-  // Exportar datos a CSV
+  // Exportar datos a CSV (incluyendo ventas separadas)
   const exportarDatos = () => {
     const data = asesores.map((asesor) => ({
       Nombre: asesor.NOMBRE,
@@ -386,7 +446,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       'Clientes Rechazados': estadisticas[asesor.ID]?.clientesRechazados || 0,
       'Clientes Críticos': estadisticas[asesor.ID]?.clientesCriticos || 0,
       'Clientes Sin Contactar': estadisticas[asesor.ID]?.clientesNoContactados || 0,
-      'Ventas Realizadas': estadisticas[asesor.ID]?.ventasRealizadas || 0,
+      'Ventas Principal': estadisticas[asesor.ID]?.ventasPrincipal || 0,
+      'Ventas Downsell': estadisticas[asesor.ID]?.ventasDownsell || 0,
+      'Ventas Totales': estadisticas[asesor.ID]?.ventasRealizadas || 0,
       'Tasa de Cierre': `${estadisticas[asesor.ID]?.porcentajeCierre.toFixed(1)}%`,
       'Tiempo Promedio': `${estadisticas[asesor.ID]?.tiempoPromedioConversion.toFixed(1)} días`,
       'Tiempo de Completado': `${estadisticas[asesor.ID]?.tiempoPromedioRespuesta.toFixed(1)} horas`,
@@ -464,7 +526,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       <div className="max-w-8xl mx-auto px-4 py-6">
         {vistaAdmin === 'asesores' ? (
           <>
-
             {/* Resumen y lista de asesores */}
             <div className="max-w-7xl mx-auto px-4 py-6">
               {/* Resumen General */}
@@ -479,18 +540,18 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 <div className="bg-white rounded-lg shadow p-4 flex items-center">
                   <Target className="h-8 w-8 text-green-500" />
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Ventas Totales</p>
+                    <p className="text-sm font-medium text-gray-500">Ventas Principal</p>
                     <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                      {Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasRealizadas, 0)}
+                      {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasPrincipal || 0), 0)}
                     </p>
                   </div>
                 </div>
                 <div className="bg-white rounded-lg shadow p-4 flex items-center">
-                  <AlertCircle className="h-8 w-8 text-red-500" />
+                  <Target className="h-8 w-8 text-blue-500" />
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Sin Reporte</p>
+                    <p className="text-sm font-medium text-gray-500">Ventas Downsell</p>
                     <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                      {Object.values(estadisticas).reduce((acc, stats) => acc + stats.clientesSinReporte, 0)}
+                      {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasDownsell || 0), 0)}
                     </p>
                   </div>
                 </div>
@@ -514,7 +575,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       <XAxis dataKey="date" />
                       <YAxis />
                       <Tooltip />
-                      <Line type="monotone" dataKey="sales" stroke="#4ade80" strokeWidth={2} />
+                      <Line type="monotone" dataKey="principal" stroke="#4ade80" strokeWidth={2} />
+                      <Line type="monotone" dataKey="downsell" stroke="#60a5fa" strokeWidth={2} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -543,7 +605,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       <option value="semana">Última semana</option>
                       <option value="personalizado">Personalizado</option>
                     </select>
-
                     {periodoSeleccionado === 'personalizado' && (
                       <div className="flex gap-4">
                         <input
@@ -593,7 +654,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       const horasSinActividad = ultimaActividadDate
                         ? Math.floor((Date.now() - ultimaActividadDate.getTime()) / (1000 * 60 * 60))
                         : null;
-
                       return (
                         <div key={asesor.ID} className="bg-gray-50 rounded-lg p-4">
                           {/* Encabezado del asesor */}
@@ -614,7 +674,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                               <span className="text-lg font-bold">{stats?.porcentajeCierre.toFixed(1)}% Cierre</span>
                             </div>
                           </div>
-
                           {/* Estadísticas del asesor */}
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {/* Estado de Clientes */}
@@ -648,7 +707,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                 </div>
                               </div>
                             </div>
-
                             {/* Seguimientos */}
                             <div className="bg-white p-4 rounded-lg shadow">
                               <h4 className="text-sm font-medium text-gray-500 mb-2">Seguimientos</h4>
@@ -667,7 +725,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                 </div>
                               </div>
                             </div>
-
                             {/* Ventas */}
                             <div className="bg-white p-4 rounded-lg shadow">
                               <h4 className="text-sm font-medium text-gray-500 mb-2">Ventas</h4>
@@ -695,11 +752,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                   <span className="text-sm">Tasa de cierre:</span>
                                   <span className="font-semibold">{stats?.porcentajeCierre.toFixed(1)}%</span>
                                 </div>
-
                               </div>
                             </div>
                           </div>
-
                           {/* Últimas Actividades */}
                           <div className="mt-4 bg-white p-4 rounded-lg shadow">
                             <h4 className="text-sm font-medium text-gray-500 mb-2">Últimas Actividades</h4>
@@ -724,7 +779,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                               </div>
                             </div>
                           </div>
-
                           {/* Alertas individuales */}
                           {(stats?.clientesSinReporte > 0 ||
                             (horasSinActividad !== null && horasSinActividad > 10) ||
@@ -770,7 +824,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                 </ul>
                               </div>
                             )}
-
                           {/* Botón para ver detalle */}
                           <div className="mt-4 flex justify-end">
                             <button
@@ -783,7 +836,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                         </div>
                       );
                     })}
-
                     {asesoresOrdenados.length === 0 && (
                       <div className="text-center py-8 text-gray-500">
                         No se encontraron asesores que coincidan con los filtros aplicados
@@ -793,7 +845,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 </div>
               </div>
             </div>
-
             {/* Modal de Detalle de Asesor */}
             {asesorSeleccionado && (
               <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -819,7 +870,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
                     onBack={() => setAsesorSeleccionado(null)}
                   />
-
                 </div>
               </div>
             )}
@@ -882,7 +932,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 </span>
               </div>
             </div>
-
             {/* Tabla de Clientes */}
             <div className="overflow-x-auto">
               {(() => {
@@ -922,6 +971,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                             Estado
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Producto
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Último Reporte
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
@@ -947,8 +999,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
                           const tiempoReporte = ultimoReporte
                             ? (() => {
-                              const diff =
-                                ultimoReporte.FECHA_REPORTE - cliente.FECHA_CREACION;
+                              const diff = ultimoReporte.FECHA_REPORTE - cliente.FECHA_CREACION;
                               const hours = Math.floor(diff / 3600);
                               if (hours < 24) return `(${hours}h)`;
                               const days = Math.floor(hours / 24);
@@ -966,9 +1017,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
                           return (
                             <tr key={cliente.ID} className="hover:bg-gray-50">
-                              <td
-                                className={`px-6 py-4 whitespace-nowrap text-sm text-gray-800 truncate ${borderClass}`}
-                              >
+                              <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-800 truncate ${borderClass}`}>
                                 {cliente.NOMBRE}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
@@ -979,6 +1028,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
                                 {cliente.ESTADO || "Sin definir"}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
+                                {ultimoReporte ? ultimoReporte.PRODUCTO : 'Sin definir'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm truncate">
                                 {ultimoReporte ? (
@@ -998,13 +1050,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm truncate">
                                 {asesorAsignado ? (
-                                  <span
-                                    className={
-                                      !ultimoReporte
-                                        ? "text-red-700 font-bold"
-                                        : "text-gray-800"
-                                    }
-                                  >
+                                  <span className={!ultimoReporte ? "text-red-700 font-bold" : "text-gray-800"}>
                                     {asesorAsignado.NOMBRE}
                                   </span>
                                 ) : (
@@ -1035,9 +1081,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     {totalPages > 1 && (
                       <div className="flex justify-end items-center space-x-2 mt-4">
                         <button
-                          onClick={() =>
-                            setCurrentPage((prev) => Math.max(prev - 1, 1))
-                          }
+                          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                           disabled={currentPage === 1}
                           className="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                         >
@@ -1047,9 +1091,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                           Página {currentPage} de {totalPages}
                         </span>
                         <button
-                          onClick={() =>
-                            setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                          }
+                          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                           disabled={currentPage === totalPages}
                           className="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                         >
@@ -1062,9 +1104,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               })()}
             </div>
           </div>
-
-
-
         )}
       </div>
 
@@ -1086,7 +1125,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           onClienteCreado={refrescarClientes}
         />
       )}
-
 
       {/* Modal de Detalle de Asesor */}
       {asesorSeleccionado && (
@@ -1110,7 +1148,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                   Object.keys(estadisticas).length,
               }}
               teamStatsByFuente={calculateTeamStatsByFuente(clientes, reportes, registros)}
-              bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros, asesores)}
+              bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
               onBack={() => setAsesorSeleccionado(null)}
             />
           </div>

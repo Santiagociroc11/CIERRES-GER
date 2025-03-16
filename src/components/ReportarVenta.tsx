@@ -304,7 +304,7 @@ export default function ReportarVenta({
               </label>
               <input
                 type="text"
-                value="Interna (Forzada por Downsell)"
+                value="Interna (Downsell solo por Hotmart)"
                 disabled
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100 text-gray-700"
               />

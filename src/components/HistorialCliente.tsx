@@ -7,7 +7,7 @@ import { apiClient, eliminarReporte } from '../lib/apiClient';
 interface HistorialClienteProps {
   cliente: Cliente;
   reportes: Reporte[];
-  asesor?: Asesor;
+  asesor?: any;
   admin?: boolean;
   onClose: () => void;
 }
@@ -102,11 +102,20 @@ export default function HistorialCliente({
     }
   };
 
+  // Función modificada para diferenciar reportes de venta según el producto,
+  // sin quitar nada de la lógica existente.
   const getIconForReporte = (reporte: Reporte) => {
-    if (reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
+    if (reporte.ESTADO_NUEVO === 'PAGADO' || reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
+      if (reporte.PRODUCTO === 'PRINCIPAL') {
+        return <DollarSign className="h-4 w-4 text-green-600" />;
+      } else if (reporte.PRODUCTO === 'DOWNSELL') {
+        return <DollarSign className="h-4 w-4 text-blue-600" />;
+      } else {
+        return <DollarSign className="h-4 w-4 text-green-600" />;
+      }
+    } else if (reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
+      // Caso extra, aunque normalmente se evalúa arriba
       return <FileVideo className="h-4 w-4 text-emerald-600" />;
-    } else if (reporte.ESTADO_NUEVO === 'PAGADO') {
-      return <DollarSign className="h-4 w-4 text-green-600" />;
     } else {
       return <MessageSquare className="h-4 w-4 text-blue-600" />;
     }
@@ -162,9 +171,11 @@ export default function HistorialCliente({
                     <div className="relative flex items-start">
                       <div className="absolute -left-3.5 mt-1.5">
                         <div className={`w-7 h-7 rounded-full flex items-center justify-center ${item.tipo === 'registro' ? 'bg-purple-100' :
-                          item.data.ESTADO_NUEVO === 'VENTA CONSOLIDADA' ? 'bg-emerald-100' :
-                            item.data.ESTADO_NUEVO === 'PAGADO' ? 'bg-green-100' :
-                              'bg-blue-100'
+                          item.data.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
+                            ? 'bg-emerald-100'
+                            : item.data.ESTADO_NUEVO === 'PAGADO'
+                              ? 'bg-green-100'
+                              : 'bg-blue-100'
                           }`}>
                           {item.tipo === 'registro' ? (
                             <Activity className="h-4 w-4 text-purple-600" />
@@ -213,33 +224,26 @@ export default function HistorialCliente({
                               )}
                             </div>
                             <p className="mt-2 text-sm text-gray-900">{item.data.COMENTARIO}</p>
-
-                            {/* Datos adicionales del reporte */}
                             {item.data.PAIS_CLIENTE && (
                               <p className="text-sm text-gray-700">
                                 🌍 País: <strong>{item.data.PAIS_CLIENTE}</strong>
                               </p>
                             )}
-
                             {item.data.CORREO_INSCRIPCION && (
                               <p className="text-sm text-gray-700">
                                 📧 Correo de inscripción: <strong>{item.data.CORREO_INSCRIPCION}</strong>
                               </p>
                             )}
-
                             {item.data.TELEFONO_CLIENTE && (
                               <p className="text-sm text-gray-700">
                                 📞 Teléfono: <strong>{item.data.TELEFONO_CLIENTE}</strong>
                               </p>
                             )}
-
                             {item.data.CORREO_PAGO && (
                               <p className="text-sm text-gray-700">
                                 💳 Correo de pago (Stripe): <strong>{item.data.CORREO_PAGO}</strong>
                               </p>
                             )}
-
-                            {/* Seguimiento */}
                             {item.data.FECHA_SEGUIMIENTO && (
                               <div className="mt-2 flex items-center space-x-2 text-sm bg-blue-50 p-2 rounded-md">
                                 <Clock className="h-4 w-4 text-blue-500" />
@@ -251,8 +255,6 @@ export default function HistorialCliente({
                                 )}
                               </div>
                             )}
-
-                            {/* Imágenes y video de consolidación */}
                             {(item.data.imagen_inicio_conversacion ||
                               item.data.imagen_fin_conversacion ||
                               item.data.video_conversacion) && (
@@ -289,8 +291,6 @@ export default function HistorialCliente({
                                   </div>
                                 </div>
                               )}
-
-                            {/* Comprobante de pago */}
                             {item.data.IMAGEN_PAGO_URL && (
                               <div className="mt-2">
                                 <button

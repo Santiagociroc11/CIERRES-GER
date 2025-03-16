@@ -13,9 +13,9 @@ function levenshteinDistance(a: string, b: string): number {
     for (let j = 1; j <= b.length; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
       matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,      // eliminación
-        matrix[i][j - 1] + 1,      // inserción
-        matrix[i - 1][j - 1] + cost // sustitución
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
       );
     }
   }
@@ -30,20 +30,19 @@ function similarity(s1: string, s2: string): number {
   return 1 - dist / maxLength;
 }
 
-// Función que determina si dos clientes son similares (fuzzy) según nombre o WhatsApp
+// Determina si dos clientes son similares (fuzzy) según nombre o WhatsApp
 function sonSimilares(c1: Cliente, c2: Cliente, umbral = 0.8): boolean {
   const nombreSim = similarity(c1.NOMBRE.toLowerCase(), c2.NOMBRE.toLowerCase());
   const whatsappSim = similarity((c1.WHATSAPP || '').trim(), (c2.WHATSAPP || '').trim());
   return nombreSim >= umbral || whatsappSim >= umbral;
 }
 
-// Función para analizar duplicados de forma fuzzy entre clientes, comparando solo aquellos que tienen asesor asignado.
-// Además, se agrupa por similitud y se filtra el grupo si los asesores asignados (por nombre) son distintos.
+// Función para analizar duplicados de forma fuzzy entre clientes (con asesor asignado)
+// Se agrupan y se filtra el grupo si los asesores asignados (por nombre) son distintos.
 const analizarDuplicados = (
   clientes: Cliente[],
   getNombreAsesor: (asesorId: number) => string
 ): Cliente[][] => {
-  // Solo considerar clientes con asesor asignado (ID_ASESOR)
   const clientesConAsesor = clientes.filter(cliente => !!cliente.ID_ASESOR);
   const grupos: Cliente[][] = [];
   clientesConAsesor.forEach(cliente => {
@@ -59,7 +58,6 @@ const analizarDuplicados = (
       grupos.push([cliente]);
     }
   });
-  // Filtrar grupos con más de un elemento y que tengan asesores con nombres distintos
   return grupos.filter(grupo =>
     grupo.length > 1 && new Set(grupo.map(c => getNombreAsesor(c.ID_ASESOR))).size > 1
   );
@@ -83,7 +81,6 @@ function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistori
       cliente.NOMBRE.toLowerCase().includes(searchTerm.toLowerCase()) ||
       cliente.WHATSAPP.includes(searchTerm)
     )
-    // Orden: primero los no consolidados y luego los consolidados; en caso de empate, por nombre
     .sort((a, b) => {
       const aConsolidado = reportes.some(r =>
         r.ID_CLIENTE === a.ID &&
@@ -111,7 +108,6 @@ function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistori
             <X className="h-6 w-6" />
           </button>
         </div>
-
         <div className="mb-4">
           <div className="relative">
             <input
@@ -124,7 +120,6 @@ function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistori
             <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
           </div>
         </div>
-
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -196,6 +191,8 @@ function AuditorDashboard() {
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  // Filtro por producto: solo "PRINCIPAL" o "DOWNSELL"
+  const [productoFiltro, setProductoFiltro] = useState<'PRINCIPAL' | 'DOWNSELL'>('PRINCIPAL');
   const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
 
@@ -207,13 +204,13 @@ function AuditorDashboard() {
     try {
       const [asesoresData, clientesData, reportesData] = await Promise.all([
         apiClient.request<Asesor[]>('/GERSSON_ASESORES?select=*'),
-        // Filtrar solo clientes con estado PAGADO o VENTA CONSOLIDADA
         apiClient.request<Cliente[]>('/GERSSON_CLIENTES?ESTADO=in.(PAGADO,VENTA CONSOLIDADA)'),
         apiClient.request<Reporte[]>('/GERSSON_REPORTES?ESTADO_NUEVO=in.(PAGADO,VENTA CONSOLIDADA)'),
       ]);
       setAsesores(asesoresData);
       setClientes(clientesData);
       setReportes(reportesData);
+      console.log("Total reportes:", reportesData.length);
     } catch (error) {
       console.error('Error al cargar datos:', error);
     } finally {
@@ -221,24 +218,36 @@ function AuditorDashboard() {
     }
   };
 
-  // Calcula estadísticas para cada asesor, deduplicando ventas por cliente
+  // Filtrar reportes según el producto seleccionado (ya no hay opción "TODOS")
+  const reportesFiltrados = useMemo(() => {
+    const filtered = reportes.filter(r => r.PRODUCTO === productoFiltro);
+    console.log(`Reportes filtrados (${productoFiltro}):`, filtered.length);
+    return filtered;
+  }, [productoFiltro, reportes]);
+
+  // Filtrar clientes según reportes que correspondan al producto seleccionado
+  const clientesFiltradosPorProducto = useMemo(() => {
+    return clientes.filter(cliente =>
+      reportes.some(reporte => reporte.ID_CLIENTE === cliente.ID && reporte.PRODUCTO === productoFiltro)
+    );
+  }, [clientes, productoFiltro, reportes]);
+
+  // Estadísticas para cada asesor usando reportesFiltrados
   const getEstadisticasAsesor = (asesorId: number) => {
     const ventasReportadas = Array.from(
       new Set(
-        reportes
+        reportesFiltrados
           .filter(r => r.ID_ASESOR === asesorId && r.ESTADO_NUEVO === 'PAGADO')
           .map(r => r.ID_CLIENTE)
       )
     ).length;
-
     const ventasConsolidadas = Array.from(
       new Set(
-        reportes
+        reportesFiltrados
           .filter(r => r.ID_ASESOR === asesorId && (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'))
           .map(r => r.ID_CLIENTE)
       )
     ).length;
-
     return { ventasReportadas, ventasConsolidadas };
   };
 
@@ -254,9 +263,12 @@ function AuditorDashboard() {
     return asesor ? asesor.NOMBRE : '';
   };
 
-  // Analizar duplicados (fuzzy) entre clientes que tengan asesor asignado y
-  // agrupar aquellos que tengan asesores con nombres distintos.
-  const duplicados = useMemo(() => analizarDuplicados(clientes, getNombreAsesor), [clientes]);
+  // Para duplicados, usamos la lista de clientes filtrada por producto
+  const duplicados = useMemo(() => {
+    const groups = analizarDuplicados(clientesFiltradosPorProducto, getNombreAsesor);
+    console.log("Grupos de duplicados (fuzzy) filtrados por producto:", groups.length);
+    return groups;
+  }, [clientesFiltradosPorProducto, getNombreAsesor]);
 
   const handleLogout = () => {
     localStorage.removeItem('userSession');
@@ -288,7 +300,7 @@ function AuditorDashboard() {
           </div>
         </div>
       </div>
-
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Buscador de asesores */}
         <div className="mb-6">
@@ -303,7 +315,22 @@ function AuditorDashboard() {
             <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
           </div>
         </div>
-
+        
+        {/* Filtro por Producto (sin opción "TODOS") */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700">Filtrar por Producto:</label>
+          <select
+            value={productoFiltro}
+            onChange={(e) =>
+              setProductoFiltro(e.target.value as 'PRINCIPAL' | 'DOWNSELL')
+            }
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-purple-500 focus:border-purple-500"
+          >
+            <option value="PRINCIPAL">Principal</option>
+            <option value="DOWNSELL">Downsell</option>
+          </select>
+        </div>
+        
         {/* Lista de Asesores */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -312,7 +339,7 @@ function AuditorDashboard() {
           <div className="divide-y divide-gray-200">
             {asesoresFiltrados.map(asesor => {
               const { ventasReportadas, ventasConsolidadas } = getEstadisticasAsesor(asesor.ID);
-              const porcentajeConsolidacion = ventasReportadas > 0 
+              const porcentajeConsolidacion = ventasReportadas > 0
                 ? ((ventasConsolidadas / ventasReportadas) * 100).toFixed(1)
                 : '0';
               return (
@@ -346,7 +373,7 @@ function AuditorDashboard() {
             })}
           </div>
         </div>
-
+        
         {/* Sección de duplicados (fuzzy) */}
         {duplicados.length > 0 && (
           <div className="mt-8 bg-white rounded-lg shadow p-6">
@@ -366,7 +393,7 @@ function AuditorDashboard() {
           </div>
         )}
       </div>
-
+      
       {/* Modal de Clientes del Asesor */}
       {asesorSeleccionado && (
         <ClientesAsesorModal
@@ -379,7 +406,7 @@ function AuditorDashboard() {
           }}
         />
       )}
-
+      
       {/* Modal de Historial de Cliente */}
       {clienteHistorial && (
         <HistorialCliente

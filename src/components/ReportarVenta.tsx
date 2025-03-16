@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { uploadToMinio } from '../lib/minio';
 import { Cliente, Asesor } from '../types';
@@ -18,6 +18,9 @@ export default function ReportarVenta({
   onComplete,
   onClose,
 }: ReportarVentaProps) {
+  // Primero se selecciona el producto
+  const [producto, setProducto] = useState<'PRINCIPAL' | 'DOWNSELL' | ''>('');
+  // Si el producto es downsell, solo se permite venta interna
   const [tipoVenta, setTipoVenta] = useState<'INTERNA' | 'EXTERNA' | ''>('');
   const [esStripe, setEsStripe] = useState(false);
   const [comentario, setComentario] = useState('');
@@ -32,6 +35,12 @@ export default function ReportarVenta({
   const [medioPago, setMedioPago] = useState('');
   const [nombreCliente, setNombreCliente] = useState(cliente.NOMBRE);
 
+  // Si se selecciona "DOWNSELL", forzamos que la venta sea interna
+  useEffect(() => {
+    if (producto === 'DOWNSELL') {
+      setTipoVenta('INTERNA');
+    }
+  }, [producto]);
 
   const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -107,8 +116,21 @@ export default function ReportarVenta({
     setLoading(true);
     setError('');
 
+    if (!producto) {
+      setError('Selecciona primero el producto (Principal o Downsell).');
+      setLoading(false);
+      return;
+    }
+
     if (!tipoVenta) {
       setError('Selecciona si la venta es interna (Hotmart) o externa.');
+      setLoading(false);
+      return;
+    }
+
+    // Si el producto es downsell, forzamos venta interna
+    if (producto === 'DOWNSELL' && tipoVenta !== 'INTERNA') {
+      setError('Las ventas downsell solo pueden ser internas.');
       setLoading(false);
       return;
     }
@@ -164,7 +186,6 @@ export default function ReportarVenta({
       return;
     }
 
-
     try {
       await apiClient.request('/GERSSON_REPORTES', 'POST', {
         ID_CLIENTE: cliente.ID,
@@ -181,13 +202,13 @@ export default function ReportarVenta({
         TELEFONO_CLIENTE: tipoVenta === 'EXTERNA' ? telefono : null,
         CORREO_PAGO: esStripe ? correoPago : null,
         MEDIO_PAGO: tipoVenta === 'EXTERNA' ? medioPago : null,
+        PRODUCTO: producto, // Se almacena el producto
       });
     } catch (error: any) {
       setLoading(false);
       setError(error instanceof Error ? error.message : 'Error al reportar la venta.');
       return;
     }
-
 
     try {
       await apiClient.request(
@@ -205,7 +226,6 @@ export default function ReportarVenta({
       setError(error instanceof Error ? error.message : 'Error al reportar la venta.');
       return;
     }
-
 
     if (tipoVenta === 'EXTERNA') {
       await handleEnviarVenta(imagenPagoUrl);
@@ -240,45 +260,58 @@ export default function ReportarVenta({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-
-          {/* Explicación adicional sobre interna/externa */}
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-700">
-            <p>
-              <strong>¿Venta Interna (Hotmart) o Externa?</strong> <br />
-              <ul className="list-disc list-inside">
-                <li>
-                  <strong>Interna (Dentro de Hotmart):</strong> Medios de
-                  pago de Hotmart (Paypal, tarjetas, etc.) o el link oficial de
-                  Hotmart.
-                </li>
-                <li>
-                  <strong>Externa (Fuera de Hotmart):</strong> medios
-                  externos como Western Union u otros disponibles en los medios de pago dados en la información del asesor. (No
-                  aplica ticket ni Paypal de Hotmart).
-                </li>
-              </ul>
-            </p>
-          </div>
-
-          {/* Tipo de Venta */}
+          {/* Selección del Producto */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Tipo de Venta
+              Producto
             </label>
             <select
-              value={tipoVenta}
-              onChange={(e) =>
-                setTipoVenta(e.target.value as 'INTERNA' | 'EXTERNA' | '')
-              }
+              value={producto}
+              onChange={(e) => setProducto(e.target.value as 'PRINCIPAL' | 'DOWNSELL' | '')}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
               required
             >
-              <option value="">-- Selecciona --</option>
-              <option value="INTERNA">Interna (Por Hotmart)</option>
-              <option value="EXTERNA">Externa (Fuera de Hotmart)</option>
+              <option value="">-- Selecciona Producto --</option>
+              <option value="PRINCIPAL">Producto Principal</option>
+              <option value="DOWNSELL">Downsell</option>
             </select>
           </div>
 
+          {/* Tipo de Venta */}
+          {producto !== 'DOWNSELL' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Tipo de Venta
+              </label>
+              <select
+                value={tipoVenta}
+                onChange={(e) =>
+                  setTipoVenta(e.target.value as 'INTERNA' | 'EXTERNA' | '')
+                }
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+                required
+              >
+                <option value="">-- Selecciona --</option>
+                <option value="INTERNA">Interna (Por Hotmart)</option>
+                <option value="EXTERNA">Externa (Fuera de Hotmart)</option>
+              </select>
+            </div>
+          )}
+          {producto === 'DOWNSELL' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Tipo de Venta
+              </label>
+              <input
+                type="text"
+                value="Interna (Forzada por Downsell)"
+                disabled
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100 text-gray-700"
+              />
+            </div>
+          )}
+
+          {/* Nombre del Cliente */}
           <div>
             <label className="block text-sm font-medium text-gray-700">Nombre Cliente</label>
             <input
@@ -289,14 +322,14 @@ export default function ReportarVenta({
               placeholder="Nombre del cliente"
               required
             />
-            <label className="block text-xs font-normal text-gray-500">👆🏻 Si ves que no es el nombre correcto, modificalo y ponlo completo, nombre y apellido.</label>
+            <label className="block text-xs font-normal text-gray-500">
+              👆🏻 Si ves que no es el nombre correcto, modifícalo y ponlo completo (nombre y apellido).
+            </label>
           </div>
 
-
-          {/* Datos adicionales si es EXTERNA */}
+          {/* Datos adicionales para ventas EXTERNAS */}
           {tipoVenta === 'EXTERNA' && (
             <>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Medio de Pago
@@ -365,7 +398,6 @@ export default function ReportarVenta({
                 </label>
               </div>
 
-              {/* Solo si es Stripe, correo de pago */}
               {esStripe && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
@@ -384,7 +416,7 @@ export default function ReportarVenta({
             </>
           )}
 
-          {/* Comentarios para ambos tipos de venta */}
+          {/* Comentarios de la Venta */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Comentarios de la Venta
@@ -399,7 +431,7 @@ export default function ReportarVenta({
             />
           </div>
 
-          {/* Comprobante de Pago (siempre) */}
+          {/* Comprobante de Pago */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Comprobante de Pago
@@ -428,7 +460,7 @@ export default function ReportarVenta({
                   <>
                     <Image className="mx-auto h-12 w-12 text-gray-400" />
                     <div className="flex text-sm text-gray-600">
-                      <label className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus:ring-green-500">
+                      <label className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-green-500">
                         <span>Subir comprobante</span>
                         <input
                           type="file"
@@ -446,7 +478,7 @@ export default function ReportarVenta({
             </div>
           </div>
 
-          {/* Botón de Confirmar */}
+          {/* Botón Confirmar Venta */}
           <button
             type="submit"
             disabled={loading}
@@ -467,3 +499,4 @@ export default function ReportarVenta({
     </div>
   );
 }
+

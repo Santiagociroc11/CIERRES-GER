@@ -161,12 +161,11 @@ export default function HistorialCliente({
                   >
                     <div className="relative flex items-start">
                       <div className="absolute -left-3.5 mt-1.5">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                          item.tipo === 'registro' ? 'bg-purple-100' : 
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${item.tipo === 'registro' ? 'bg-purple-100' :
                           item.data.ESTADO_NUEVO === 'VENTA CONSOLIDADA' ? 'bg-emerald-100' :
-                          item.data.ESTADO_NUEVO === 'PAGADO' ? 'bg-green-100' : 
-                          'bg-blue-100'
-                        }`}>
+                            item.data.ESTADO_NUEVO === 'PAGADO' ? 'bg-green-100' :
+                              'bg-blue-100'
+                          }`}>
                           {item.tipo === 'registro' ? (
                             <Activity className="h-4 w-4 text-purple-600" />
                           ) : (
@@ -254,42 +253,42 @@ export default function HistorialCliente({
                             )}
 
                             {/* Imágenes y video de consolidación */}
-                            {(item.data.imagen_inicio_conversacion || 
-                             item.data.imagen_fin_conversacion || 
-                             item.data.video_conversacion) && (
-                              <div className="mt-4 space-y-2">
-                                <h4 className="text-sm font-medium text-gray-700">Pruebas de consolidación:</h4>
-                                <div className="flex flex-wrap gap-2">
-                                  {item.data.imagen_inicio_conversacion && (
-                                    <button
-                                      onClick={() => setImagenConsolidacion(item.data.imagen_inicio_conversacion)}
-                                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
-                                    >
-                                      <ImageIcon className="h-4 w-4 mr-1" />
-                                      Ver inicio de conversación
-                                    </button>
-                                  )}
-                                  {item.data.imagen_fin_conversacion && (
-                                    <button
-                                      onClick={() => setImagenConsolidacion(item.data.imagen_fin_conversacion)}
-                                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
-                                    >
-                                      <ImageIcon className="h-4 w-4 mr-1" />
-                                      Ver fin de conversación
-                                    </button>
-                                  )}
-                                  {item.data.video_conversacion && (
-                                    <button
-                                      onClick={() => setVideoConsolidacion(item.data.video_conversacion)}
-                                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
-                                    >
-                                      <FileVideo className="h-4 w-4 mr-1" />
-                                      Ver video
-                                    </button>
-                                  )}
+                            {(item.data.imagen_inicio_conversacion ||
+                              item.data.imagen_fin_conversacion ||
+                              item.data.video_conversacion) && (
+                                <div className="mt-4 space-y-2">
+                                  <h4 className="text-sm font-medium text-gray-700">Pruebas de consolidación:</h4>
+                                  <div className="flex flex-wrap gap-2">
+                                    {item.data.imagen_inicio_conversacion && (
+                                      <button
+                                        onClick={() => setImagenConsolidacion(item.data.imagen_inicio_conversacion)}
+                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
+                                      >
+                                        <ImageIcon className="h-4 w-4 mr-1" />
+                                        Ver inicio de conversación
+                                      </button>
+                                    )}
+                                    {item.data.imagen_fin_conversacion && (
+                                      <button
+                                        onClick={() => setImagenConsolidacion(item.data.imagen_fin_conversacion)}
+                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
+                                      >
+                                        <ImageIcon className="h-4 w-4 mr-1" />
+                                        Ver fin de conversación
+                                      </button>
+                                    )}
+                                    {item.data.video_conversacion && (
+                                      <button
+                                        onClick={() => setVideoConsolidacion(item.data.video_conversacion)}
+                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
+                                      >
+                                        <FileVideo className="h-4 w-4 mr-1" />
+                                        Ver video
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
 
                             {/* Comprobante de pago */}
                             {item.data.IMAGEN_PAGO_URL && (
@@ -335,12 +334,12 @@ export default function HistorialCliente({
             className="absolute inset-0 bg-black bg-opacity-40 transition-opacity"
             onClick={() => setImagenPago(null)}
           ></div>
-          <div className="relative bg-white rounded-lg shadow-lg overflow-hidden transform transition-all w-full max-w-md mx-4 sm:max-w-lg">
+          <div className="relative bg-white rounded-lg shadow-lg overflow-auto transform transition-all max-w-3xl w-full max-h-[90vh] mx-4">
             <div className="p-4">
               <img
                 src={imagenPago}
                 alt="Comprobante de pago"
-                className="w-full h-auto object-contain rounded-md"
+                className="w-full h-auto object-contain max-h-[80vh] rounded-md"
               />
             </div>
             <div className="px-4 py-3 bg-gray-100 text-right">
@@ -362,12 +361,12 @@ export default function HistorialCliente({
             className="absolute inset-0 bg-black bg-opacity-40 transition-opacity"
             onClick={() => setImagenConsolidacion(null)}
           ></div>
-          <div className="relative bg-white rounded-lg shadow-lg overflow-hidden transform transition-all w-full max-w-md mx-4 sm:max-w-lg">
+          <div className="relative bg-white rounded-lg shadow-lg overflow-auto transform transition-all max-w-3xl w-full max-h-[90vh] mx-4">
             <div className="p-4">
               <img
                 src={imagenConsolidacion}
                 alt="Imagen de consolidación"
-                className="w-full h-auto object-contain rounded-md"
+                className="w-full h-auto object-contain max-h-[80vh] rounded-md"
               />
             </div>
             <div className="px-4 py-3 bg-gray-100 text-right">
@@ -389,12 +388,12 @@ export default function HistorialCliente({
             className="absolute inset-0 bg-black bg-opacity-40 transition-opacity"
             onClick={() => setVideoConsolidacion(null)}
           ></div>
-          <div className="relative bg-white rounded-lg shadow-lg overflow-hidden transform transition-all w-full max-w-4xl mx-4">
+          <div className="relative bg-white rounded-lg shadow-lg overflow-auto transform transition-all max-w-4xl w-full max-h-[90vh] mx-4">
             <div className="p-4">
               <video
                 src={videoConsolidacion}
                 controls
-                className="w-full h-auto rounded-md"
+                className="w-full h-auto rounded-md max-h-[80vh]"
               >
                 Tu navegador no soporta la reproducción de video.
               </video>

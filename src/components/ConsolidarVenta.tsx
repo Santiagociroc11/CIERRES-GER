@@ -3,6 +3,7 @@ import { Cliente, Reporte, Asesor } from '../types';
 import { X, Upload, FileVideo, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { apiClient } from '../lib/apiClient';
 import { uploadToMinio } from '../lib/minio';
+import { getCurrentEpoch } from '../utils/dateUtils';
 
 interface ConsolidarVentaProps {
   cliente: Cliente;
@@ -88,17 +89,20 @@ export default function ConsolidarVenta({
       const imagenFinUrl = await uploadToMinio(imagenFin, 'consolidaciones');
       const videoUrl = await uploadToMinio(video, 'consolidaciones');
 
-      // Actualizar el reporte
-      await apiClient.request(
-        `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
-        'PATCH',
-        {
-          CONSOLIDADO: true,
-          IMAGEN_INICIO_CONVERSACION: imagenInicioUrl,
-          IMAGEN_FIN_CONVERSACION: imagenFinUrl,
-          VIDEO_CONVERSACION: videoUrl
-        }
-      );
+      // Crear un nuevo reporte de consolidación
+      await apiClient.request('/GERSSON_REPORTES', 'POST', {
+        ID_CLIENTE: cliente.ID,
+        ID_ASESOR: asesor.ID,
+        ESTADO_ANTERIOR: cliente.ESTADO,
+        ESTADO_NUEVO: 'VENTA CONSOLIDADA',
+        COMENTARIO: 'Venta consolidada con evidencias',
+        NOMBRE_ASESOR: asesor.NOMBRE,
+        FECHA_REPORTE: getCurrentEpoch(),
+        CONSOLIDADO: true,
+        IMAGEN_INICIO_CONVERSACION: imagenInicioUrl,
+        IMAGEN_FIN_CONVERSACION: imagenFinUrl,
+        VIDEO_CONVERSACION: videoUrl
+      });
 
       // Actualizar el estado del cliente a "VENTA CONSOLIDADA"
       await apiClient.request(
@@ -139,12 +143,6 @@ export default function ConsolidarVenta({
             </div>
           </div>
         )}
-
-        <li>
-          <strong>Importante:</strong> Todas las pruebas deben tener el numero visible del cliente o algo que lo deje identificar plenamente.
-        </li>
-        
-        <br></br>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Imagen de inicio de conversación */}
@@ -283,8 +281,9 @@ export default function ConsolidarVenta({
           <button
             type="submit"
             disabled={loading}
-            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 ${loading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             {loading ? (
               <span className="flex items-center">

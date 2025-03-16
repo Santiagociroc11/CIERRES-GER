@@ -140,6 +140,12 @@ export default function ConsolidarVenta({
           </div>
         )}
 
+        <li>
+          <strong>Importante:</strong> Todas las pruebas deben tener el numero visible del cliente o algo que lo deje identificar plenamente.
+        </li>
+        
+        <br></br>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Imagen de inicio de conversación */}
           <div>
@@ -277,9 +283,8 @@ export default function ConsolidarVenta({
           <button
             type="submit"
             disabled={loading}
-            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 ${
-              loading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 ${loading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
           >
             {loading ? (
               <span className="flex items-center">

@@ -43,12 +43,18 @@ function similarity(s1: string, s2: string): number {
   return 1 - dist / maxLength;
 }
 
-// Determina si dos clientes son similares (fuzzy) según nombre o WhatsApp (sin cambiar la lógica)
-function sonSimilares(c1: Cliente, c2: Cliente, umbral = 0.8): boolean {
-  const nombreSim = similarity(c1.NOMBRE.toLowerCase(), c2.NOMBRE.toLowerCase());
-  const whatsappSim = similarity((c1.WHATSAPP || '').trim(), (c2.WHATSAPP || '').trim());
+// Función para normalizar cadenas: elimina acentos, espacios extra y convierte a minúsculas.
+function normalizeString(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+// Determina si dos clientes son similares (fuzzy) según nombre o WhatsApp usando un umbral (por defecto 0.76)
+function sonSimilares(c1: Cliente, c2: Cliente, umbral = 0.76): boolean {
+  const nombreSim = similarity(normalizeString(c1.NOMBRE), normalizeString(c2.NOMBRE));
+  const whatsappSim = similarity(normalizeString(c1.WHATSAPP || ''), normalizeString(c2.WHATSAPP || ''));
   return nombreSim >= umbral || whatsappSim >= umbral;
 }
+
 
 /* ––––––– COMPONENTE ClientesAsesorModal ––––––– */
 interface ClientesAsesorModalProps {
@@ -158,8 +164,8 @@ function ClientesAsesorModal({
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${consolidado
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-green-100 text-green-800'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-green-100 text-green-800'
                           }`}
                       >
                         {consolidado ? 'CONSOLIDADO' : 'PAGADO'}
@@ -284,7 +290,7 @@ function AuditorDashboard() {
     console.log(`Reportes filtrados (${productoFiltro}):`, filtered.length);
     return filtered;
   }, [productoFiltro, reportes]);
-  
+
 
   // Filtrar clientes en base al producto (se conserva la lógica original)
   const clientesFiltradosPorProducto = useMemo(() => {
@@ -296,7 +302,7 @@ function AuditorDashboard() {
       )
     );
   }, [clientes, productoFiltro, reportes]);
-  
+
 
   // Función auxiliar para obtener el nombre de un asesor
   const getNombreAsesor = (asesorId: number): string => {
@@ -322,7 +328,7 @@ function AuditorDashboard() {
     ).length;
     return { ventasReportadas, ventasConsolidadas };
   };
-  
+
 
   // Filtrar asesores según el término de búsqueda
   const asesoresFiltrados = useMemo(() => {
@@ -381,9 +387,12 @@ function AuditorDashboard() {
         const dist = levenshteinDistance(s1, s2);
         return 1 - dist / maxLength;
       }
-      function sonSimilares(c1, c2, umbral = 0.8) {
-        const nombreSim = similarity(c1.NOMBRE.toLowerCase(), c2.NOMBRE.toLowerCase());
-        const whatsappSim = similarity((c1.WHATSAPP || '').trim(), (c2.WHATSAPP || '').trim());
+      function normalizeString(str) {
+        return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      }
+      function sonSimilares(c1, c2, umbral = 0.76) {
+        const nombreSim = similarity(normalizeString(c1.NOMBRE), normalizeString(c2.NOMBRE));
+        const whatsappSim = similarity(normalizeString(c1.WHATSAPP || ''), normalizeString(c2.WHATSAPP || ''));
         return nombreSim >= umbral || whatsappSim >= umbral;
       }
       self.onmessage = function(e) {
@@ -496,7 +505,7 @@ function AuditorDashboard() {
     },
     [asesoresFiltrados, reportesFiltrados]
   );
-  
+
   /* ––––––– MANEJO DE LOGOUT ––––––– */
   const handleLogout = () => {
     localStorage.removeItem('userSession');
@@ -607,13 +616,13 @@ function AuditorDashboard() {
               <div key={idx} className="mb-4 border p-4 rounded">
                 <p className="text-sm font-bold text-gray-800">Grupo {idx + 1}</p>
                 <ul className="mt-2 space-y-1">
-                  {grupo.map(cliente => (
-                    <li key={cliente.ID} className="text-sm text-gray-700">
-                      {cliente.NOMBRE} — WhatsApp: {cliente.WHATSAPP} — Asesor:{' '}
-                      {getNombreAsesor(cliente.ID_ASESOR)}
+                  {grupo.map((cliente, i) => (
+                    <li key={`${cliente.ID}-${i}`} className="text-sm text-gray-700">
+                      {cliente.NOMBRE} — WhatsApp: {cliente.WHATSAPP} — Asesor: {getNombreAsesor(cliente.ID_ASESOR)}
                     </li>
                   ))}
                 </ul>
+
               </div>
             ))
           ) : (

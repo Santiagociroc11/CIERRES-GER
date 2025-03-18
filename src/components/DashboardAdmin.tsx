@@ -79,6 +79,28 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     await cargarDatos();
   };
 
+  const fetchAllPages = async (
+    endpoint: string,
+    filter: string,
+    pageSize = 100
+  ): Promise<any[]> => {
+    let allData: any[] = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const url = `${endpoint}?${filter}&limit=${pageSize}&offset=${offset}`;
+      const data = await apiClient.request<any[]>(url);
+      if (data.length > 0) {
+        allData = [...allData, ...data];
+        offset += pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
+    return allData;
+  };
+  
+
   // Cargar datos al cambiar filtros
   useEffect(() => {
     cargarDatos();
@@ -91,44 +113,46 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const cargarDatos = async () => {
     try {
       console.log("🚀 Cargando datos desde PostgREST...");
-      // Paso 1: Obtener asesores ordenados por nombre
+      // Paso 1: Obtener asesores ordenados por nombre (suponiendo que el dataset de asesores es pequeño)
       const asesoresData = await apiClient.request<any[]>('/GERSSON_ASESORES?select=*&order=NOMBRE');
       if (!asesoresData || asesoresData.length === 0) return;
       setAsesores(asesoresData);
       console.log("✅ Asesores obtenidos:", asesoresData.length);
-      // Paso 2: Obtener clientes, reportes y registros en paralelo SIN paginación
+      
+      // Paso 2: Obtener clientes, reportes y registros en paralelo usando paginación
       const [clientesData, reportesData, registrosData] = await Promise.all([
-        apiClient.request<any[]>('/GERSSON_CLIENTES?select=*'),
-        apiClient.request<any[]>('/GERSSON_REPORTES?select=*'),
-        apiClient.request<any[]>('/GERSSON_REGISTROS?select=*'),
+        fetchAllPages('/GERSSON_CLIENTES', 'select=*'), // o agregar filtros si es necesario
+        fetchAllPages('/GERSSON_REPORTES', 'select=*'),
+        fetchAllPages('/GERSSON_REGISTROS', 'select=*'),
       ]);
       console.log("✅ Clientes obtenidos:", clientesData.length);
       console.log("✅ Reportes obtenidos:", reportesData.length);
       console.log("✅ Registros obtenidos:", registrosData.length);
+      
       // Paso 3: Actualizar el estado
-      if (clientesData && reportesData && registrosData) {
-        setClientes(clientesData);
-        setReportes(reportesData);
-        setRegistros(registrosData);
-        // Paso 4: Calcular estadísticas por asesor
-        const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
-        asesoresData.forEach((asesor: any) => {
-          const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
-          const reportesAsesor = reportesData.filter((r: any) => r.ID_ASESOR === asesor.ID);
-          nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
-            clientesAsesor,
-            reportesAsesor,
-            periodoSeleccionado,
-            fechaInicio,
-            fechaFin
-          );
-        });
-        setEstadisticas(nuevasEstadisticas);
-      }
+      setClientes(clientesData);
+      setReportes(reportesData);
+      setRegistros(registrosData);
+      
+      // Paso 4: Calcular estadísticas por asesor
+      const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
+      asesoresData.forEach((asesor: any) => {
+        const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
+        const reportesAsesor = reportesData.filter((r: any) => r.ID_ASESOR === asesor.ID);
+        nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
+          clientesAsesor,
+          reportesAsesor,
+          periodoSeleccionado,
+          fechaInicio,
+          fechaFin
+        );
+      });
+      setEstadisticas(nuevasEstadisticas);
     } catch (error) {
       console.error("❌ Error al cargar datos:", error);
     }
   };
+  
 
   // Función para determinar la fuente del cliente (se puede adaptar según PRODUCTO)
   const getFuente = (clienteId: number, registros: any[]) => {

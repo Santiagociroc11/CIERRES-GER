@@ -665,9 +665,9 @@ function AuditorDashboard() {
           
           {/* Use virtualized list for better performance with large datasets */}
           {asesoresFiltrados.length > 0 ? (
-            <div className="divide-y divide-gray-200" style={{ height: '60vh' }}>
+            <div className="divide-y divide-gray-200" style={{ height: '100vh' }}>
               <List
-                height={500} // Fixed height for virtualized list
+                height={1000} // Fixed height for virtualized list
                 itemCount={asesoresFiltrados.length}
                 itemSize={100} // Approximate height of each row
                 width="100%"

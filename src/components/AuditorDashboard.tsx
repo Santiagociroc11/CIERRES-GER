@@ -494,7 +494,7 @@ function AuditorDashboard() {
         />
       );
     },
-    [asesoresFiltrados, reportesFiltrados] // Agregamos reportesFiltrados aquí
+    [asesoresFiltrados, reportesFiltrados]
   );
   
   /* ––––––– MANEJO DE LOGOUT ––––––– */

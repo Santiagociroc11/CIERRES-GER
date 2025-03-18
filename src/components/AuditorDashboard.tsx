@@ -1,29 +1,188 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense, lazy } from 'react';
 import { Asesor, Cliente, Reporte } from '../types';
 import { apiClient } from '../lib/apiClient';
 import { Search, LogOut, X } from 'lucide-react';
-import HistorialCliente from './HistorialCliente';
 
-// Componente memoizado para mostrar un asesor individual
-const AsesorItem = React.memo(({
-  asesor,
-  ventasReportadas,
-  ventasConsolidadas,
-  onClick
-}: {
-  asesor: Asesor,
-  ventasReportadas: number,
-  ventasConsolidadas: number,
-  onClick: () => void
+// Lazy load components to reduce initial bundle size
+const HistorialCliente = lazy(() => import('./HistorialCliente'));
+
+// Virtualized list for asesores to efficiently render large lists
+import { FixedSizeList as List } from 'react-window';
+
+// Offload expensive calculations to a Web Worker
+const createDuplicateAnalysisWorker = () => {
+  const workerCode = `
+    // Improved Levenshtein function for web worker
+    const memoizedLevenshtein = (() => {
+      const cache = new Map();
+      
+      return (a, b) => {
+        const key = \`\${a}|\${b}\`;
+        if (cache.has(key)) return cache.get(key);
+        
+        if (a.length === 0) return b.length;
+        if (b.length === 0) return a.length;
+        
+        const matrix = Array(a.length + 1).fill(null).map(() => Array(b.length + 1).fill(null));
+        
+        for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+        for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+        
+        for (let i = 1; i <= a.length; i++) {
+          for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j] + 1,
+              matrix[i][j - 1] + 1,
+              matrix[i - 1][j - 1] + cost
+            );
+          }
+        }
+        
+        const result = matrix[a.length][b.length];
+        cache.set(key, result);
+        return result;
+      };
+    })();
+
+    // Function to check if clients are similar
+    function sonSimilares(c1, c2, umbral = 0.8) {
+      const s1 = c1.NOMBRE.toLowerCase();
+      const s2 = c2.NOMBRE.toLowerCase();
+      
+      if (s1 === s2) return true;
+      
+      const maxLen = Math.max(s1.length, s2.length);
+      const minLen = Math.min(s1.length, s2.length);
+      if (minLen / maxLen < umbral) return false;
+      
+      const w1 = (c1.WHATSAPP || '').trim();
+      const w2 = (c2.WHATSAPP || '').trim();
+      if (w1 !== '' && w2 !== '' && w1 === w2) return true;
+      
+      if (maxLen === 0) return true;
+      
+      const dist = memoizedLevenshtein(s1, s2);
+      const nombreSim = 1 - (dist / maxLen);
+      
+      return nombreSim >= umbral;
+    }
+
+    // Optimized duplicate analysis
+    self.onmessage = function(e) {
+      const { clientes, asesores } = e.data;
+      
+      // Create a map for quick asesor lookup by ID
+      const asesorMap = new Map();
+      asesores.forEach(asesor => asesorMap.set(asesor.ID, asesor));
+      
+      // Only consider clients with assigned asesor
+      const clientesConAsesor = clientes.filter(cliente => !!cliente.ID_ASESOR);
+      
+      const grupos = [];
+      const clienteProcesado = new Set();
+      
+      // Index clients by first letters of name to reduce comparisons
+      const clientesPorInicial = new Map();
+      
+      clientesConAsesor.forEach(cliente => {
+        if (cliente.NOMBRE.length > 0) {
+          const inicial = cliente.NOMBRE.substring(0, 2).toLowerCase();
+          if (!clientesPorInicial.has(inicial)) {
+            clientesPorInicial.set(inicial, []);
+          }
+          clientesPorInicial.get(inicial).push(cliente);
+        }
+      });
+      
+      // Process in batches to report progress
+      const batchSize = 100;
+      let processedCount = 0;
+      
+      for (let i = 0; i < clientesConAsesor.length; i++) {
+        const cliente = clientesConAsesor[i];
+        
+        if (clienteProcesado.has(cliente.ID)) continue;
+        
+        const grupoNuevo = [cliente];
+        clienteProcesado.add(cliente.ID);
+        
+        const iniciales = [cliente.NOMBRE.substring(0, 2).toLowerCase()];
+        
+        if (cliente.NOMBRE.length > 0) {
+          const primerLetra = cliente.NOMBRE[0].toLowerCase();
+          for (let i = 0; i < 26; i++) {
+            const letraPosible = String.fromCharCode(97 + i);
+            iniciales.push(primerLetra + letraPosible);
+          }
+        }
+        
+        const candidatos = [];
+        iniciales.forEach(inicial => {
+          if (clientesPorInicial.has(inicial)) {
+            candidatos.push(...clientesPorInicial.get(inicial));
+          }
+        });
+        
+        candidatos.forEach(candidato => {
+          if (candidato.ID !== cliente.ID && !clienteProcesado.has(candidato.ID)) {
+            if (sonSimilares(cliente, candidato)) {
+              grupoNuevo.push(candidato);
+              clienteProcesado.add(candidato.ID);
+            }
+          }
+        });
+        
+        if (grupoNuevo.length > 1) {
+          const asesoresUnicos = new Set(
+            grupoNuevo.map(c => asesorMap.get(c.ID_ASESOR)?.NOMBRE || '')
+          );
+          if (asesoresUnicos.size > 1) {
+            grupos.push(grupoNuevo);
+          }
+        }
+        
+        // Report progress periodically
+        processedCount++;
+        if (processedCount % batchSize === 0 || i === clientesConAsesor.length - 1) {
+          self.postMessage({
+            type: 'progress',
+            progress: Math.round((processedCount / clientesConAsesor.length) * 100)
+          });
+        }
+      }
+      
+      self.postMessage({
+        type: 'complete',
+        duplicados: grupos
+      });
+    };
+  `;
+
+  const blob = new Blob([workerCode], { type: 'application/javascript' });
+  const workerUrl = URL.createObjectURL(blob);
+  const worker = new Worker(workerUrl);
+  
+  return worker;
+};
+
+// Memoized component for asesor item to prevent unnecessary re-renders
+const AsesorItem = React.memo(({ 
+  asesor, 
+  ventasReportadas, 
+  ventasConsolidadas, 
+  onClick,
+  style // Added for virtualized list
 }) => {
-  const porcentajeConsolidacion = ventasReportadas > 0
+  const porcentajeConsolidacion = ventasReportadas > 0 
     ? ((ventasConsolidadas / ventasReportadas) * 100).toFixed(1)
     : '0';
-
+    
   return (
     <div
       className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
       onClick={onClick}
+      style={style} // For virtualized list
     >
       <div className="flex items-center justify-between">
         <div>
@@ -49,204 +208,22 @@ const AsesorItem = React.memo(({
   );
 });
 
-// Versión mejorada de Levenshtein distance usando memoización interna
-const memoizedLevenshtein = (() => {
-  const cache = new Map();
-
-  return (a: string, b: string): number => {
-    const key = `${a}|${b}`;
-    if (cache.has(key)) return cache.get(key);
-
-    if (a.length === 0) return b.length;
-    if (b.length === 0) return a.length;
-
-    const matrix = Array(a.length + 1).fill(null).map(() => Array(b.length + 1).fill(null));
-
-    for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
-    for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
-
-    for (let i = 1; i <= a.length; i++) {
-      for (let j = 1; j <= b.length; j++) {
-        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j] + 1,      // eliminación
-          matrix[i][j - 1] + 1,      // inserción 
-          matrix[i - 1][j - 1] + cost // sustitución
-        );
-      }
-    }
-
-    const result = matrix[a.length][b.length];
-    cache.set(key, result);
-    return result;
-  };
-})();
-
-// Función que determina si dos clientes son similares (fuzzy) según nombre o WhatsApp
-function sonSimilares(c1: Cliente, c2: Cliente, umbral = 0.8): boolean {
-  const s1 = c1.NOMBRE.toLowerCase();
-  const s2 = c2.NOMBRE.toLowerCase();
-
-  // Optimización: comprobar si los nombres son idénticos
-  if (s1 === s2) return true;
-
-  // Optimización: verificar longitud para rechazar rápidamente
-  const maxLen = Math.max(s1.length, s2.length);
-  const minLen = Math.min(s1.length, s2.length);
-  if (minLen / maxLen < umbral) return false;
-
-  // Optimización: comprobar si WhatsApp son idénticos (si existen)
-  const w1 = (c1.WHATSAPP || '').trim();
-  const w2 = (c2.WHATSAPP || '').trim();
-  if (w1 !== '' && w2 !== '' && w1 === w2) return true;
-
-  // Solo si las comprobaciones rápidas fallan, calculamos la distancia
-  const maxLength = Math.max(s1.length, s2.length);
-  if (maxLength === 0) return true;
-
-  const dist = memoizedLevenshtein(s1, s2);
-  const nombreSim = 1 - (dist / maxLength);
-
-  return nombreSim >= umbral;
-}
-
-// Versión optimizada de la función de análisis de duplicados
-const analizarDuplicadosOptimizado = (
-  clientes: Cliente[],
-  asesores: Asesor[]
-): Cliente[][] => {
-  // Crear un mapa para búsqueda rápida de asesores por ID
-  const asesorMap = new Map<number, Asesor>();
-  asesores.forEach(asesor => asesorMap.set(asesor.ID, asesor));
-
-  // Solo considerar clientes con asesor asignado
-  const clientesConAsesor = clientes.filter(cliente => !!cliente.ID_ASESOR);
-
-  // Optimización: usar Map para agrupación más rápida
-  const grupos: Cliente[][] = [];
-  const clienteProcesado = new Set<number>();
-
-  // Indexar clientes por las primeras letras del nombre para reducir comparaciones
-  const clientesPorInicial = new Map<string, Cliente[]>();
-
-  clientesConAsesor.forEach(cliente => {
-    if (cliente.NOMBRE.length > 0) {
-      // Usar las primeras 2 letras como índice
-      const inicial = cliente.NOMBRE.substring(0, 2).toLowerCase();
-      if (!clientesPorInicial.has(inicial)) {
-        clientesPorInicial.set(inicial, []);
-      }
-      clientesPorInicial.get(inicial)!.push(cliente);
-    }
-  });
-
-  // Proceso de agrupación optimizado
-  clientesConAsesor.forEach(cliente => {
-    if (clienteProcesado.has(cliente.ID)) return;
-
-    const grupoNuevo = [cliente];
-    clienteProcesado.add(cliente.ID);
-
-    // Solo comparar con clientes que tengan iniciales similares
-    const iniciales = [
-      cliente.NOMBRE.substring(0, 2).toLowerCase()
-    ];
-
-    // Agregar algunas variaciones de la inicial para mejorar detección
-    if (cliente.NOMBRE.length > 0) {
-      const primerLetra = cliente.NOMBRE[0].toLowerCase();
-      for (let i = 0; i < 26; i++) {
-        const letraPosible = String.fromCharCode(97 + i); // a-z
-        iniciales.push(primerLetra + letraPosible);
-      }
-    }
-
-    // Obtener candidatos solo de las iniciales relevantes
-    const candidatos: Cliente[] = [];
-    iniciales.forEach(inicial => {
-      if (clientesPorInicial.has(inicial)) {
-        candidatos.push(...clientesPorInicial.get(inicial)!);
-      }
-    });
-
-    // Comparar solo con los candidatos filtrados
-    candidatos.forEach(candidato => {
-      if (candidato.ID !== cliente.ID && !clienteProcesado.has(candidato.ID)) {
-        if (sonSimilares(cliente, candidato)) {
-          grupoNuevo.push(candidato);
-          clienteProcesado.add(candidato.ID);
-        }
-      }
-    });
-
-    // Solo agregar grupos con más de un cliente y asesores diferentes
-    if (grupoNuevo.length > 1) {
-      const asesoresUnicos = new Set(
-        grupoNuevo.map(c => asesorMap.get(c.ID_ASESOR)?.NOMBRE || '')
-      );
-      if (asesoresUnicos.size > 1) {
-        grupos.push(grupoNuevo);
-      }
-    }
-  });
-
-  return grupos;
-};
-
-// Versión optimizada y memoizada para estadísticas de asesores
-const useAsesorEstadisticas = (reportes: Reporte[]) => {
-  return useMemo(() => {
-    // Crear índice para búsqueda rápida
-    const clientesPorAsesor = new Map<number, Set<number>>();
-    const clientesConsolidadosPorAsesor = new Map<number, Set<number>>();
-
-    reportes.forEach(reporte => {
-      const asesorId = reporte.ID_ASESOR;
-      const clienteId = reporte.ID_CLIENTE;
-
-      // Para ventas reportadas (PAGADO)
-      if (reporte.ESTADO_NUEVO === 'PAGADO') {
-        if (!clientesPorAsesor.has(asesorId)) {
-          clientesPorAsesor.set(asesorId, new Set());
-        }
-        clientesPorAsesor.get(asesorId)!.add(clienteId);
-      }
-
-      // Para ventas consolidadas
-      if (reporte.consolidado || reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
-        if (!clientesConsolidadosPorAsesor.has(asesorId)) {
-          clientesConsolidadosPorAsesor.set(asesorId, new Set());
-        }
-        clientesConsolidadosPorAsesor.get(asesorId)!.add(clienteId);
-      }
-    });
-
-    // Convertir a objeto para fácil acceso
-    const estadisticas: Record<number, { ventasReportadas: number, ventasConsolidadas: number }> = {};
-
-    clientesPorAsesor.forEach((clientes, asesorId) => {
-      const consolidados = clientesConsolidadosPorAsesor.get(asesorId) || new Set();
-      estadisticas[asesorId] = {
-        ventasReportadas: clientes.size,
-        ventasConsolidadas: consolidados.size
-      };
-    });
-
-    return estadisticas;
-  }, [reportes]);
-};
-
-function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistorial }: ClientesAsesorModalProps) {
+// More efficient modal with proper client filtering
+function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistorial }) {
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Filtrar los clientes asignados a este asesor
-  const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
-  const clientesFiltrados = clientesAsesor
-    .filter(cliente =>
-      cliente.NOMBRE.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cliente.WHATSAPP.includes(searchTerm)
-    )
-    .sort((a, b) => {
+  
+  // Memoize client filtration to avoid recalculation on every render
+  const { clientesAsesor, clientesFiltrados } = useMemo(() => {
+    const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
+    
+    const clientesFiltrados = searchTerm.trim() 
+      ? clientesAsesor.filter(cliente =>
+          cliente.NOMBRE.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          cliente.WHATSAPP.includes(searchTerm)
+        )
+      : clientesAsesor;
+      
+    clientesFiltrados.sort((a, b) => {
       const aConsolidado = reportes.some(r =>
         r.ID_CLIENTE === a.ID &&
         (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA')
@@ -260,6 +237,51 @@ function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistori
       }
       return aConsolidado ? 1 : -1;
     });
+    
+    return { clientesAsesor, clientesFiltrados };
+  }, [asesor.ID, clientes, reportes, searchTerm]);
+
+  // Virtualized list for clients to handle large datasets efficiently
+  const ClientRow = useCallback(({ index, style }) => {
+    const cliente = clientesFiltrados[index];
+    const consolidado = reportes.some(r =>
+      r.ID_CLIENTE === cliente.ID &&
+      (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA')
+    );
+    
+    return (
+      <tr key={cliente.ID} className="hover:bg-gray-50" style={style}>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <button
+            onClick={() => onVerHistorial(cliente)}
+            className="text-sm font-medium text-gray-900 hover:text-purple-600"
+          >
+            {cliente.NOMBRE}
+          </button>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+            consolidado
+              ? 'bg-purple-100 text-purple-800'
+              : 'bg-green-100 text-green-800'
+          }`}>
+            {consolidado ? 'CONSOLIDADO' : 'PAGADO'}
+          </span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          {cliente.WHATSAPP}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+          <button
+            onClick={() => onVerHistorial(cliente)}
+            className="text-purple-600 hover:text-purple-900"
+          >
+            Ver Historial
+          </button>
+        </td>
+      </tr>
+    );
+  }, [clientesFiltrados, reportes, onVerHistorial]);
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -304,7 +326,7 @@ function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistori
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {clientesFiltrados.map(cliente => {
+              {clientesFiltrados.slice(0, 100).map(cliente => {
                 const consolidado = reportes.some(r =>
                   r.ID_CLIENTE === cliente.ID &&
                   (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA')
@@ -320,10 +342,11 @@ function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistori
                       </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${consolidado
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        consolidado
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-green-100 text-green-800'
-                        }`}>
+                      }`}>
                         {consolidado ? 'CONSOLIDADO' : 'PAGADO'}
                       </span>
                     </td>
@@ -341,6 +364,13 @@ function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistori
                   </tr>
                 );
               })}
+              {clientesFiltrados.length > 100 && (
+                <tr>
+                  <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
+                    Mostrando 100 de {clientesFiltrados.length} clientes. Use el buscador para filtrar.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -348,142 +378,248 @@ function ClientesAsesorModal({ asesor, clientes, reportes, onClose, onVerHistori
     </div>
   );
 }
+
+// Optimized statististics calculation
+const useAsesorEstadisticas = (reportes) => {
+  return useMemo(() => {
+    // Create index for fast lookup
+    const clientesPorAsesor = new Map();
+    const clientesConsolidadosPorAsesor = new Map();
+    
+    // Process in batches to avoid blocking the main thread
+    const batchSize = 1000;
+    const batches = [];
+    
+    for (let i = 0; i < reportes.length; i += batchSize) {
+      batches.push(reportes.slice(i, i + batchSize));
+    }
+    
+    batches.forEach(batch => {
+      batch.forEach(reporte => {
+        const asesorId = reporte.ID_ASESOR;
+        const clienteId = reporte.ID_CLIENTE;
+        
+        // For reported sales (PAGADO)
+        if (reporte.ESTADO_NUEVO === 'PAGADO') {
+          if (!clientesPorAsesor.has(asesorId)) {
+            clientesPorAsesor.set(asesorId, new Set());
+          }
+          clientesPorAsesor.get(asesorId).add(clienteId);
+        }
+        
+        // For consolidated sales
+        if (reporte.consolidado || reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
+          if (!clientesConsolidadosPorAsesor.has(asesorId)) {
+            clientesConsolidadosPorAsesor.set(asesorId, new Set());
+          }
+          clientesConsolidadosPorAsesor.get(asesorId).add(clienteId);
+        }
+      });
+    });
+    
+    // Convert to object for easy access
+    const estadisticas = {};
+    
+    clientesPorAsesor.forEach((clientes, asesorId) => {
+      const consolidados = clientesConsolidadosPorAsesor.get(asesorId) || new Set();
+      estadisticas[asesorId] = {
+        ventasReportadas: clientes.size,
+        ventasConsolidadas: consolidados.size
+      };
+    });
+    
+    return estadisticas;
+  }, [reportes]);
+};
+
 function AuditorDashboard() {
-  const [asesores, setAsesores] = useState<Asesor[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [reportes, setReportes] = useState<Reporte[]>([]);
-  const [clientesVisibles, setClientesVisibles] = useState<Cliente[]>([]);
+  const [asesores, setAsesores] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [reportes, setReportes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);
-  const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
+  const [clienteHistorial, setClienteHistorial] = useState(null);
+  const [asesorSeleccionado, setAsesorSeleccionado] = useState(null);
+  const [duplicados, setDuplicados] = useState([]);
+  const [duplicadosProgress, setDuplicadosProgress] = useState(0);
+  const [duplicadosCargando, setDuplicadosCargando] = useState(false);
 
-  // Obtener estadísticas pre-calculadas
+  // Track data loading state
+  const [asesoresCargados, setAsesoresCargados] = useState(false);
+  const [clientesCargados, setClientesCargados] = useState(false);
+  const [reportesCargados, setReportesCargados] = useState(false);
+
+  // Get pre-calculated statistics
   const estadisticasAsesores = useAsesorEstadisticas(reportes);
-
-  // Cargar datos solo cuando se monta el componente
+  
+  // Load data only when the component mounts
   useEffect(() => {
-    cargarDatos();
+    cargarDatosOptimizados();
+    return () => {
+      // Clean up worker on unmount
+      if (window.duplicadosWorker) {
+        window.duplicadosWorker.terminate();
+        window.duplicadosWorker = null;
+      }
+    };
   }, []);
 
-  // Usar un filtrado diferido para la búsqueda
+  // Create and initialize the web worker
   useEffect(() => {
-    const filtrarAsesores = () => {
-      if (!searchTerm.trim()) {
-        setClientesVisibles(clientes);
-        return;
-      }
+    if (clientes.length > 0 && asesores.length > 0 && !window.duplicadosWorker) {
+      window.duplicadosWorker = createDuplicateAnalysisWorker();
+      
+      window.duplicadosWorker.onmessage = (e) => {
+        if (e.data.type === 'progress') {
+          setDuplicadosProgress(e.data.progress);
+        } else if (e.data.type === 'complete') {
+          setDuplicados(e.data.duplicados);
+          setDuplicadosCargando(false);
+        }
+      };
+      
+      // Start analyzing duplicates
+      analizarDuplicados();
+    }
+  }, [clientes, asesores]);
 
-      const termLower = searchTerm.toLowerCase();
-      setClientesVisibles(
-        clientes.filter(cliente =>
-          cliente.NOMBRE.toLowerCase().includes(termLower) ||
-          cliente.WHATSAPP.includes(searchTerm)
-        )
-      );
-    };
+  // Analyze duplicates using the web worker
+  const analizarDuplicados = useCallback(() => {
+    if (window.duplicadosWorker && clientes.length > 0 && asesores.length > 0) {
+      setDuplicadosCargando(true);
+      setDuplicadosProgress(0);
+      
+      // Send data to worker for processing
+      window.duplicadosWorker.postMessage({
+        clientes,
+        asesores
+      });
+    }
+  }, [clientes, asesores]);
 
-    // Debounce para el filtrado de clientes si el asesor está seleccionado
-    const handler = setTimeout(filtrarAsesores, 300);
-    return () => clearTimeout(handler);
-  }, [searchTerm, clientes]);
-
-  // Asesores filtrados en memoria
-  const asesoresFiltrados = useMemo(() => {
-    if (!searchTerm.trim()) return asesores;
-
-    const termLower = searchTerm.toLowerCase();
-    return asesores.filter(asesor =>
-      asesor.NOMBRE.toLowerCase().includes(termLower) ||
-      asesor.WHATSAPP.includes(searchTerm)
-    );
-  }, [asesores, searchTerm]);
-
-  // Versión optimizada de "Cargar Datos" con worker
-  const cargarDatos = async () => {
+  // Optimized data loading with pagination and progress tracking
+  const cargarDatosOptimizados = async () => {
     try {
       setLoading(true);
-
-      // Dividir las solicitudes para permitir la visualización temprana
-      const asesoresData = await apiClient.request<Asesor[]>('/GERSSON_ASESORES?select=*');
+      setLoadingProgress(10);
+      
+      // First fetch asesores (smaller dataset)
+      const asesoresData = await apiClient.request('/GERSSON_ASESORES?select=*');
       setAsesores(asesoresData);
-
-      // Cargar los siguientes datos en segundo plano
-      setTimeout(async () => {
-        try {
-          const [clientesData, reportesData] = await Promise.all([
-            apiClient.request<Cliente[]>('/GERSSON_CLIENTES?ESTADO=in.(PAGADO,VENTA CONSOLIDADA)'),
-            apiClient.request<Reporte[]>('/GERSSON_REPORTES?ESTADO_NUEVO=in.(PAGADO,VENTA CONSOLIDADA)'),
-          ]);
-
-          // Procesar los datos de forma incremental para evitar bloquear la UI
-          procesarDatosIncrementalmente(clientesData, reportesData);
-        } catch (error) {
-          console.error('Error al cargar datos secundarios:', error);
-        }
-      }, 100);
-
+      setAsesoresCargados(true);
+      setLoadingProgress(30);
+      
+      // Then fetch clientes and reportes in parallel
+      Promise.all([
+        // Use pagination for larger datasets
+        fetchAllPages('/GERSSON_CLIENTES', 'ESTADO=in.(PAGADO,VENTA CONSOLIDADA)', 100),
+        fetchAllPages('/GERSSON_REPORTES', 'ESTADO_NUEVO=in.(PAGADO,VENTA CONSOLIDADA)', 100)
+      ]).then(([clientesData, reportesData]) => {
+        setClientes(clientesData);
+        setClientesCargados(true);
+        setReportes(reportesData);
+        setReportesCargados(true);
+        setLoadingProgress(100);
+        setLoading(false);
+      }).catch(error => {
+        console.error('Error cargando datos paginados:', error);
+        setLoading(false);
+      });
+      
     } catch (error) {
       console.error('Error al cargar datos:', error);
-    } finally {
       setLoading(false);
     }
   };
 
-  // Procesar datos en trozos para evitar bloquear la UI
-  const procesarDatosIncrementalmente = (clientesData: Cliente[], reportesData: Reporte[]) => {
-    // Definir un procesador de datos incremental
-    const chunkSize = 500; // Ajustar según rendimiento
-    let clienteIndex = 0;
-    let reporteIndex = 0;
-
-    // Reiniciar los estados para evitar duplicación
-    setClientes([]);
-    setReportes([]);
-
-    // Función para procesar un fragmento de datos
-    const procesarFragmento = () => {
-      // Procesar un fragmento de clientes
-      if (clienteIndex < clientesData.length) {
-        const clientesChunk = clientesData.slice(clienteIndex, clienteIndex + chunkSize);
-        setClientes(prevClientes => [...prevClientes, ...clientesChunk]);
-        clienteIndex += chunkSize;
+  // Helper function to fetch paginated data
+  const fetchAllPages = async (endpoint, filter, pageSize = 100) => {
+    let allData = [];
+    let offset = 0;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const url = `${endpoint}?${filter}&limit=${pageSize}&offset=${offset}`;
+      const data = await apiClient.request(url);
+      
+      if (data.length > 0) {
+        allData = [...allData, ...data];
+        offset += pageSize;
+        
+        // Update loading progress
+        if (endpoint.includes('CLIENTES')) {
+          setLoadingProgress(prev => Math.min(30 + Math.floor((offset / (offset + 100)) * 30), 60));
+        } else if (endpoint.includes('REPORTES')) {
+          setLoadingProgress(prev => Math.min(60 + Math.floor((offset / (offset + 100)) * 30), 90));
+        }
+      } else {
+        hasMore = false;
       }
-
-      // Procesar un fragmento de reportes
-      if (reporteIndex < reportesData.length) {
-        const reportesChunk = reportesData.slice(reporteIndex, reporteIndex + chunkSize);
-        setReportes(prevReportes => [...prevReportes, ...reportesChunk]);
-        reporteIndex += chunkSize;
-      }
-
-      // Si hay más datos por procesar, programar el siguiente fragmento
-      if (clienteIndex < clientesData.length || reporteIndex < reportesData.length) {
-        setTimeout(procesarFragmento, 10); // Pequeña pausa para permitir actualización de UI
-      }
-    };
-
-    // Iniciar el procesamiento incremental
-    procesarFragmento();
+    }
+    
+    return allData;
   };
 
-  // Calcular duplicados de forma optimizada y con memoización
-  const duplicados = useMemo(() => {
-    if (clientes.length === 0 || asesores.length === 0) return [];
-
-    // Solo recalcular si los datos han cambiado
-    return analizarDuplicadosOptimizado(clientes, asesores);
-  }, [clientes, asesores]);
+  // Filtered asesores in memory with debounce
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    
+    return () => clearTimeout(timerId);
+  }, [searchTerm]);
+  
+  const asesoresFiltrados = useMemo(() => {
+    if (!debouncedSearchTerm.trim()) return asesores;
+    
+    const termLower = debouncedSearchTerm.toLowerCase();
+    return asesores.filter(asesor =>
+      asesor.NOMBRE.toLowerCase().includes(termLower) ||
+      asesor.WHATSAPP.includes(debouncedSearchTerm)
+    );
+  }, [asesores, debouncedSearchTerm]);
 
   const handleLogout = () => {
     localStorage.removeItem('userSession');
     window.location.reload();
   };
 
+  // Virtualized list setup for asesores
+  const renderAsesorRow = useCallback(({ index, style }) => {
+    const asesor = asesoresFiltrados[index];
+    const stats = estadisticasAsesores[asesor.ID] || { ventasReportadas: 0, ventasConsolidadas: 0 };
+    
+    return (
+      <AsesorItem
+        key={asesor.ID}
+        asesor={asesor}
+        ventasReportadas={stats.ventasReportadas}
+        ventasConsolidadas={stats.ventasConsolidadas}
+        onClick={() => setAsesorSeleccionado(asesor)}
+        style={style}
+      />
+    );
+  }, [asesoresFiltrados, estadisticasAsesores, setAsesorSeleccionado]);
+
+  // Improved loading UI with progress
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+        <div className="w-64 bg-white rounded-full h-4 mb-4">
+          <div 
+            className="bg-purple-600 h-4 rounded-full" 
+            style={{ width: `${loadingProgress}%` }}
+          ></div>
+        </div>
+        <p className="text-gray-700">Cargando datos ({loadingProgress}%)</p>
+        <div className="mt-4 text-sm text-gray-500">
+          {asesoresCargados ? "✓" : "⏳"} Asesores
+          {clientesCargados ? "✓" : "⏳"} Clientes
+          {reportesCargados ? "✓" : "⏳"} Reportes
+        </div>
       </div>
     );
   }
@@ -526,50 +662,77 @@ function AuditorDashboard() {
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-900">Asesores y sus Ventas</h2>
           </div>
-          <div className="divide-y divide-gray-200">
-            {asesoresFiltrados.map(asesor => {
-              const stats = estadisticasAsesores[asesor.ID] || { ventasReportadas: 0, ventasConsolidadas: 0 };
-              return (
-                <AsesorItem
-                  key={asesor.ID}
-                  asesor={asesor}
-                  ventasReportadas={stats.ventasReportadas}
-                  ventasConsolidadas={stats.ventasConsolidadas}
-                  onClick={() => setAsesorSeleccionado(asesor)}
-                />
-              );
-            })}
-          </div>
+          
+          {/* Use virtualized list for better performance with large datasets */}
+          {asesoresFiltrados.length > 0 ? (
+            <div className="divide-y divide-gray-200" style={{ height: '60vh' }}>
+              <List
+                height={500} // Fixed height for virtualized list
+                itemCount={asesoresFiltrados.length}
+                itemSize={100} // Approximate height of each row
+                width="100%"
+              >
+                {renderAsesorRow}
+              </List>
+            </div>
+          ) : (
+            <div className="p-6 text-center text-gray-500">
+              No se encontraron asesores con ese criterio de búsqueda
+            </div>
+          )}
         </div>
 
         {/* Sección de duplicados (fuzzy) */}
-        {duplicados.length > 0 && (
-          <div className="mt-8 bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-red-600 mb-4">
-              Posibles Ventas Duplicadas ({duplicados.length})
-            </h2>
-            {duplicados.slice(0, 10).map((grupo, idx) => (
-              <div key={idx} className="mb-4 border p-4 rounded">
-                <p className="text-sm font-bold text-gray-800">Grupo {idx + 1}</p>
-                <ul className="mt-2 space-y-1">
-                  {grupo.map(cliente => {
-                    const asesor = asesores.find(a => a.ID === cliente.ID_ASESOR);
-                    return (
-                      <li key={cliente.ID} className="text-sm text-gray-700">
-                        {cliente.NOMBRE} — WhatsApp: {cliente.WHATSAPP} — Asesor: {asesor?.NOMBRE || ''}
-                      </li>
-                    );
-                  })}
-                </ul>
+        <div className="mt-8 bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center justify-between">
+            <span>
+              {duplicadosCargando 
+                ? `Analizando posibles duplicados (${duplicadosProgress}%)` 
+                : `Posibles Ventas Duplicadas (${duplicados.length})`}
+            </span>
+            {duplicadosCargando && (
+              <div className="w-32 bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-purple-600 h-2.5 rounded-full" 
+                  style={{ width: `${duplicadosProgress}%` }}
+                ></div>
               </div>
-            ))}
-            {duplicados.length > 10 && (
-              <p className="text-sm text-gray-500 mt-2">
-                Mostrando 10 de {duplicados.length} grupos de duplicados.
-              </p>
             )}
-          </div>
-        )}
+          </h2>
+          
+          {duplicadosCargando ? (
+            <p className="text-sm text-gray-500">
+              Este proceso puede tomar algunos minutos dependiendo del volumen de datos...
+            </p>
+          ) : duplicados.length > 0 ? (
+            <>
+              {duplicados.slice(0, 10).map((grupo, idx) => (
+                <div key={idx} className="mb-4 border p-4 rounded">
+                  <p className="text-sm font-bold text-gray-800">Grupo {idx + 1}</p>
+                  <ul className="mt-2 space-y-1">
+                    {grupo.map(cliente => {
+                      const asesor = asesores.find(a => a.ID === cliente.ID_ASESOR);
+                      return (
+                        <li key={cliente.ID} className="text-sm text-gray-700">
+                          {cliente.NOMBRE} — WhatsApp: {cliente.WHATSAPP} — Asesor: {asesor?.NOMBRE || ''}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+              {duplicados.length > 10 && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Mostrando 10 de {duplicados.length} grupos de duplicados.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">
+              No se encontraron duplicados en la base de datos actual.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Modal de Clientes del Asesor */}
@@ -587,11 +750,17 @@ function AuditorDashboard() {
 
       {/* Modal de Historial de Cliente */}
       {clienteHistorial && (
-        <HistorialCliente
-          cliente={clienteHistorial}
-          reportes={reportes.filter(r => r.ID_CLIENTE === clienteHistorial.ID)}
-          onClose={() => setClienteHistorial(null)}
-        />
+        <Suspense fallback={
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+          </div>
+        }>
+          <HistorialCliente
+            cliente={clienteHistorial}
+            reportes={reportes.filter(r => r.ID_CLIENTE === clienteHistorial.ID)}
+            onClose={() => setClienteHistorial(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

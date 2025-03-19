@@ -52,6 +52,7 @@ export const apiClient = new APIClient(import.meta.env.VITE_POSTGREST_URL);
 export type Reporte = {
   ID_CLIENTE: string;
   ESTADO_ANTERIOR: string;
+  ESTADO_NUEVO: String;
 };
 
 
@@ -60,7 +61,7 @@ export const eliminarReporte = async (reporteId: string): Promise<{ success: boo
   try {
     // 1️⃣: Extraemos el reporte; como una oda al pasado, buscamos la verdad en los datos
     const reportes = await apiClient.request<Reporte[]>(
-      `/GERSSON_REPORTES?ID=eq.${reporteId}&select=ID_CLIENTE,ESTADO_ANTERIOR`
+      `/GERSSON_REPORTES?ID=eq.${reporteId}&select=ID_CLIENTE,ESTADO_ANTERIOR,ESTADO_NUEVO`
     );
     const reporte = reportes[0];
     if (!reporte) throw new Error('Reporte no encontrado o inaccesible.');
@@ -71,6 +72,15 @@ export const eliminarReporte = async (reporteId: string): Promise<{ success: boo
       'PATCH',
       { ESTADO: reporte.ESTADO_ANTERIOR }
     );
+
+    // 2.1️⃣: Si el reporte a eliminar tiene el ESTADO_NUEVO "VENTA CONSOLIDADA", marcamos todos los reportes de ese cliente como consolidado:false
+    if (reporte.ESTADO_NUEVO === "VENTA CONSOLIDADA") {
+      await apiClient.request(
+        `/GERSSON_REPORTES?ID_CLIENTE=eq.${reporte.ID_CLIENTE}`,
+        'PATCH',
+        { consolidado: false }
+      );
+    }
 
     // 3️⃣: Eliminamos el reporte, cerrando un ciclo y abriendo paso a lo nuevo
     await apiClient.request(
@@ -85,3 +95,4 @@ export const eliminarReporte = async (reporteId: string): Promise<{ success: boo
     return { success: false, message: error.message || 'Error desconocido' };
   }
 };
+

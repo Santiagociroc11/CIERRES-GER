@@ -18,7 +18,7 @@ export default function ClientesSinReporte({
   onReportarVenta
 }: ClientesSinReporteProps) {
   const [pagina, setPagina] = useState(1);
-  const [clientesPorPagina] = useState(6);
+  const [clientesPorPagina] = useState(10);
   const [busqueda, setBusqueda] = useState('');
 
   // Filtrar clientes por búsqueda

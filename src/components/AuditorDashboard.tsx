@@ -151,6 +151,23 @@ function ClientesAsesorModal({
                   r.ID_CLIENTE === cliente.ID &&
                   (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA')
                 );
+                const tieneReporte = reportes.some(r => r.ID_CLIENTE === cliente.ID);
+                // Se define el texto según la condición:
+                // - Si está consolidado, se muestra "CONSOLIDADO"
+                // - Si tiene reporte (y no consolidado), se muestra "PAGADO"
+                // - Si no tiene reporte, se muestra "PAGADO (sin reporte)"
+                const estadoTexto = consolidado
+                  ? 'CONSOLIDADO'
+                  : tieneReporte
+                    ? 'PAGADO'
+                    : 'PAGADO (no tiene reporte de venta)';
+                // Se asigna la clase: naranja para "sin reporte"
+                const estadoClase = consolidado
+                  ? 'bg-purple-100 text-purple-800'
+                  : tieneReporte
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-orange-100 text-orange-800';
+
                 return (
                   <tr key={cliente.ID} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -162,13 +179,8 @@ function ClientesAsesorModal({
                       </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${consolidado
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-green-100 text-green-800'
-                          }`}
-                      >
-                        {consolidado ? 'CONSOLIDADO' : 'PAGADO'}
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${estadoClase}`}>
+                        {estadoTexto}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -185,6 +197,7 @@ function ClientesAsesorModal({
                   </tr>
                 );
               })}
+
               {clientesFiltrados.length > 100 && (
                 <tr>
                   <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">

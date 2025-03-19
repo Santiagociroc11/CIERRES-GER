@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Cliente, Asesor, Reporte, EstadisticasAsesor } from '../types';
-import { List, Clock, TrendingUp } from 'lucide-react';
+import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
+import ClientesPendientes from './ClientesPendientes';
 import ActualizarEstadoCliente from './ActualizarEstadoCliente';
 import ReportarVenta from './ReportarVenta';
 import ListaGeneralClientes from './ListaGeneralClientes';
@@ -11,7 +12,28 @@ import EstadisticasAvanzadas from './EstadisticasAvanzadas';
 import { useToast } from '../hooks/useToast';
 import Toast from './Toast';
 
-// Modal para el control de WhatsApp
+type Vista = 'general' | 'seguimientos' | 'estadisticas' | 'pendientes' | 'sin-reporte';
+
+interface NavItem {
+  id: Vista;
+  label: string;
+  icon: typeof List;
+  badge?: number;
+  color?: 'red' | 'yellow' | 'blue';
+}
+
+const getActiveClasses = (color?: 'red' | 'yellow' | 'blue') => {
+  switch (color) {
+    case 'red':
+      return 'border-red-500 text-red-600';
+    case 'yellow':
+      return 'border-yellow-500 text-yellow-600';
+    case 'blue':
+    default:
+      return 'border-blue-500 text-blue-600';
+  }
+};
+
 function WhatsAppModal({
   isOpen,
   onClose,
@@ -34,19 +56,17 @@ function WhatsAppModal({
           </div>
         )}
         <h2 className="text-xl font-bold mb-4">Sesión de WhatsApp</h2>
-        {/* Si no existe instancia ni QR, mostrar botón para conectar */}
         {!instanceInfo && !qrCode && !isLoadingWhatsApp && (
           <div className="text-center">
             <button
               onClick={onCreateInstance}
               disabled={isLoadingWhatsApp}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition duration-300"
             >
               Conectar
             </button>
           </div>
         )}
-        {/* Si existe QR y la instancia existe pero no está conectada */}
         {instanceInfo && instanceInfo.connectionStatus !== "open" && !isLoadingWhatsApp && (
           <div className="text-center">
             <p className="mb-2 font-medium">Escanea el QR para conectar:</p>
@@ -58,13 +78,12 @@ function WhatsAppModal({
             <button
               onClick={onRefreshInstance}
               disabled={isLoadingWhatsApp}
-              className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition duration-300"
             >
               Refrescar Conexión
             </button>
           </div>
         )}
-        {/* Si la instancia existe y está conectada */}
         {instanceInfo && instanceInfo.connectionStatus === "open" && !isLoadingWhatsApp && (
           <div>
             <p className="mb-2">
@@ -87,7 +106,7 @@ function WhatsAppModal({
             <button
               onClick={onDisconnect}
               disabled={isLoadingWhatsApp}
-              className="mt-4 w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              className="mt-4 w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition duration-300"
             >
               Desconectar
             </button>
@@ -96,7 +115,7 @@ function WhatsAppModal({
         <div className="mt-6 text-right">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition duration-300"
           >
             Cerrar
           </button>
@@ -118,7 +137,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [clienteParaEstado, setClienteParaEstado] = useState<Cliente | null>(null);
   const [clienteParaVenta, setClienteParaVenta] = useState<Cliente | null>(null);
-  const [vistaActual, setVistaActual] = useState<'general' | 'seguimientos' | 'estadisticas'>('general');
+  const [vistaActual, setVistaActual] = useState<Vista>('general');
+  const [menuMobileAbierto, setMenuMobileAbierto] = useState(false);
   const [estadisticas, setEstadisticas] = useState<EstadisticasAsesor>({
     totalClientes: 0,
     clientesReportados: 0,
@@ -131,14 +151,12 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     tasaRespuesta: 0
   });
 
-  // Estados para WhatsApp y modal
   const [whatsappStatus, setWhatsappStatus] = useState<string | null>(null);
   const [isLoadingWhatsApp, setIsLoadingWhatsApp] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [instanceInfo, setInstanceInfo] = useState<any>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
-  // Configuración de Evolution API
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
 
@@ -157,14 +175,12 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     cargarDatos();
   }, [asesor.ID]);
 
-  // Al abrir el modal, se refresca la conexión (obteniendo QR e info) de inmediato
   useEffect(() => {
     if (showWhatsAppModal) {
       refreshConnection();
     }
   }, [showWhatsAppModal, asesor.NOMBRE]);
 
-  // Polling: cada 30 segundos, si la instancia existe pero no está conectada, se refresca la conexión
   useEffect(() => {
     let pollingInterval;
     if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
@@ -177,6 +193,67 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     };
   }, [showWhatsAppModal, instanceInfo]);
 
+  const getClientesEstadoPendiente = () => {
+    return clientes.filter(cliente => {
+      const ultimoReporte = reportes
+        .filter(r => r.ID_CLIENTE === cliente.ID)
+        .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
+      return ultimoReporte && cliente.ESTADO !== ultimoReporte.ESTADO_NUEVO;
+    });
+  };
+
+  const navItems: NavItem[] = [
+    { id: 'general', label: 'Vista General', icon: List },
+    { 
+      id: 'pendientes', 
+      label: 'Cambios de Estados', 
+      icon: AlertCircle,
+      badge: getClientesEstadoPendiente().length,
+      color: 'red'
+    },
+    { 
+      id: 'sin-reporte', 
+      label: 'Sin Reporte', 
+      icon: MessageSquare,
+      badge: clientesSinReporte.length,
+      color: 'yellow'
+    },
+    { id: 'seguimientos', label: 'Seguimientos', icon: Clock },
+    { id: 'estadisticas', label: 'Estadísticas', icon: TrendingUp }
+  ];
+
+  const NavButton = ({ item }: { item: NavItem }) => {
+    const isActive = vistaActual === item.id;
+    const Icon = item.icon;
+    
+    return (
+      <button
+        onClick={() => {
+          setVistaActual(item.id);
+          setMenuMobileAbierto(false);
+        }}
+        className={`
+          flex items-center py-2 px-4 text-sm font-medium w-full
+          ${isActive ? getActiveClasses(item.color) : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}
+        `}
+      >
+        <Icon className="h-5 w-5 mr-2" />
+        <span>{item.label}</span>
+        {item.badge !== undefined && item.badge > 0 && (
+          <span className={
+            item.color === 'red'
+              ? 'ml-2 bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
+              : item.color === 'yellow'
+              ? 'ml-2 bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
+              : 'ml-2 bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
+          }>
+            {item.badge}
+          </span>
+        )}
+      </button>
+    );
+  };
+
   const cargarDatos = async () => {
     try {
       console.log('Cargando datos para asesor:', asesor.ID);
@@ -184,7 +261,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       const reportesData = await apiClient.request<Reporte[]>(`/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*,cliente:GERSSON_CLIENTES(*)&order=FECHA_SEGUIMIENTO.asc`);
 
       if (clientesData && reportesData) {
-        // Actualización de clientes: ahora se consideran ventas consolidadas
         const clientesProcesados = clientesData.map(cliente => {
           if (cliente.ESTADO === 'PAGADO' || cliente.ESTADO === 'VENTA CONSOLIDADA') {
             const tieneReporteVenta = reportesData.some(r =>
@@ -206,7 +282,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         const clientesConReporte = new Set(reportesData.map(r => r.ID_CLIENTE));
         setClientesSinReporte(clientesProcesados.filter(c => !clientesConReporte.has(c.ID)));
 
-        // Aquí se separan las ventas por producto de forma única
         const uniqueVentasPrincipal = reportesData
           .filter(r => (r.ESTADO_NUEVO === 'PAGADO') && r.PRODUCTO === 'PRINCIPAL')
           .reduce((acc: Record<number, boolean>, r) => {
@@ -268,7 +343,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
-  // Función para crear la instancia
   const handleCreateInstance = async () => {
     const payload = {
       instanceName: asesor.NOMBRE,
@@ -277,7 +351,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     };
     try {
       setIsLoadingWhatsApp(true);
-      // Abrir el modal inmediatamente para mostrar el spinner de carga
       setShowWhatsAppModal(true);
       const response = await fetch(`${evolutionServerUrl}/instance/create`, {
         method: "POST",
@@ -289,7 +362,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       });
       if (!response.ok) throw new Error("No se pudo crear la instancia");
       await response.json();
-      // Luego de crear la instancia, configuramos Chatwoot y refrescamos la conexión.
       await setChatwootIntegration(asesor.NOMBRE);
       await refreshConnection();
       setWhatsappStatus("Desconectado");
@@ -302,7 +374,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
-  // Función para configurar Chatwoot
   const setChatwootIntegration = async (instanceName) => {
     try {
       const url = `${evolutionServerUrl}/chatwoot/set/${encodeURIComponent(instanceName)}`;
@@ -342,7 +413,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
-  // Función para llamar al endpoint "Instance Connect" y obtener el QR
   const handleInstanceConnect = async () => {
     try {
       setIsLoadingWhatsApp(true);
@@ -375,13 +445,11 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
-  // Función combinada para refrescar la conexión: obtiene el QR y consulta la info
   const refreshConnection = async () => {
     await handleInstanceConnect();
     await handleFetchInstanceInfo();
   };
 
-  // Función para obtener la info de la instancia usando fetchInstances
   const handleFetchInstanceInfo = async () => {
     try {
       setIsLoadingWhatsApp(true);
@@ -418,7 +486,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
-  // Función para desconectar la instancia
   const handleDisconnectInstance = async () => {
     try {
       setIsLoadingWhatsApp(true);
@@ -438,7 +505,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setWhatsappStatus("Desconectado");
       setInstanceInfo(null);
       showToast("WhatsApp desconectado", "success");
-      // Después de desconectar, refrescamos para obtener el QR inmediatamente.
       await refreshConnection();
     } catch (error) {
       console.error("Error desconectando instancia:", error);
@@ -456,77 +522,84 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           <div className="flex space-x-4">
             <button
               onClick={() => setShowWhatsAppModal(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition duration-300"
             >
               WhatsApp {whatsappStatus ? `(${whatsappStatus})` : ''}
             </button>
 
             <button
               onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+              className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition duration-300"
             >
               Cerrar Sesión
             </button>
           </div>
         </div>
-        {/* Pestañas de navegación */}
-        <div className="flex space-x-4 border-b border-gray-200 px-4">
+
+        {/* Navegación móvil */}
+        <div className="md:hidden px-4 py-2 border-b border-gray-200">
           <button
-            onClick={() => setVistaActual('general')}
-            className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'general'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+            onClick={() => setMenuMobileAbierto(!menuMobileAbierto)}
+            className="flex items-center justify-between w-full py-2 px-4 bg-gray-100 rounded-lg shadow hover:bg-gray-200 transition duration-300"
           >
-            <List className="inline-block h-5 w-5 mr-2" />
-            Vista General
+            <span className="font-medium">Menú</span>
+            {menuMobileAbierto ? (
+              <X className="h-6 w-6 transition-transform duration-300 transform rotate-90" />
+            ) : (
+              <MenuIcon className="h-6 w-6 transition-transform duration-300" />
+            )}
           </button>
-          <button
-            onClick={() => setVistaActual('seguimientos')}
-            className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'seguimientos'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            <Clock className="inline-block h-5 w-5 mr-2" />
-            Seguimientos
-          </button>
-          <button
-            onClick={() => setVistaActual('estadisticas')}
-            className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaActual === 'estadisticas'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            <TrendingUp className="inline-block h-5 w-5 mr-2" />
-            Estadísticas
-          </button>
+          
+          {menuMobileAbierto && (
+            <div className="mt-2 space-y-1">
+              {navItems.map(item => (
+                <NavButton key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Navegación desktop */}
+        <div className="hidden md:flex space-x-4 border-b border-gray-200 px-4">
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setVistaActual(item.id)}
+              className={`
+                py-2 px-4 border-b-2 font-medium text-sm
+                ${vistaActual === item.id ? getActiveClasses(item.color) : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+              `}
+            >
+              <item.icon className="inline-block h-5 w-5 mr-2" />
+              {item.label}
+              {item.badge !== undefined && item.badge > 0 && (
+                <span className={
+                  item.color === 'red'
+                    ? 'ml-2 bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
+                    : item.color === 'yellow'
+                    ? 'ml-2 bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
+                    : 'ml-2 bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
+                }>
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="max-w-[1800px] mx-auto px-4 py-6">
         {vistaActual === 'general' && (
-          <>
-            <ClientesSinReporte
-              clientes={clientesSinReporte}
-              onActualizarEstado={setClienteParaEstado}
-              onReportarVenta={setClienteParaVenta}
-            />
-            <div className="h-4"></div>
-            <ListaGeneralClientes
-              clientes={clientes}
-              reportes={reportes}
-              onActualizarEstado={setClienteParaEstado}
-              onReportarVenta={setClienteParaVenta}
-              admin={false}
-            />
-          </>
+          <ListaGeneralClientes
+            clientes={clientes}
+            reportes={reportes}
+            onActualizarEstado={setClienteParaEstado}
+            onReportarVenta={setClienteParaVenta}
+            admin={false}
+          />
         )}
         {vistaActual === 'seguimientos' && (
-          <SeguimientosClientes
-            reportes={reportes}
-            onRefrescar={cargarDatos}
-          />
+          <SeguimientosClientes reportes={reportes} onRefrescar={cargarDatos} />
         )}
         {vistaActual === 'estadisticas' && (
           <EstadisticasAvanzadas
@@ -535,6 +608,21 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             clientes={clientes}
           />
         )}
+        {vistaActual === 'pendientes' && (
+          <ClientesPendientes
+            clientes={clientes}
+            reportes={reportes}
+            onActualizarEstado={setClienteParaEstado}
+          />
+        )}
+        {vistaActual === 'sin-reporte' && (
+          <ClientesSinReporte
+            clientes={clientesSinReporte}
+            onActualizarEstado={setClienteParaEstado}
+            onReportarVenta={setClienteParaVenta}
+          />
+        )}
+
         {clienteParaEstado && (
           <ActualizarEstadoCliente
             cliente={clienteParaEstado}
@@ -564,7 +652,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         )}
       </div>
 
-      {/* Modal de control de WhatsApp */}
       <WhatsAppModal
         isOpen={showWhatsAppModal}
         onClose={() => setShowWhatsAppModal(false)}

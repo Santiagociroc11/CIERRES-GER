@@ -45,7 +45,7 @@ export default function ListaGeneralClientes({
   const [clienteAcciones, setClienteAcciones] = useState<number | null>(null);
   const [pagina, setPagina] = useState(1);
   const [forzarBusqueda, setForzarBusqueda] = useState(false);
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [mostrarFiltros, setMostrarFiltros] = useState(true);
   const [clienteConsolidar, setClienteConsolidar] = useState<Cliente | null>(null);
   const [reporteConsolidar, setReporteConsolidar] = useState<Reporte | null>(null);
   const clientesPorPagina = 20;

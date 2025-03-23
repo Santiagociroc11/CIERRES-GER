@@ -579,81 +579,155 @@ function AuditorDashboard() {
 
   // Función de exportación que utiliza los valores ingresados
   const exportarConDatosExtra = (
-    commissionData: Record<string, string>,
-    bonus10: string,
-    bonus20: string,
-    bonus30: string,
-    bonus50: string,
-    bestSellerBonus: string
+    commissionData,
+    bonus10,
+    bonus20,
+    bonus30,
+    bonus50,
+    bestSellerBonus
   ) => {
     if (!clientes.length || !asesores.length) return;
-
+  
     const workbook = XLSX.utils.book_new();
-
+  
+    /*** 1. Hoja “Parametros” ***/
+    // Se obtienen las fuentes únicas (excluyendo "COMPRA")
+    const uniqueSources = Array.from(
+      new Set(
+        registros
+          .map(r => (r.TIPO_EVENTO?.trim() || 'Desconocido'))
+          .filter(f => f.toUpperCase() !== 'COMPRA')
+      )
+    );
+    const numSources = uniqueSources.length;
+    // Construir la tabla de comisión por fuente
+    const parametrosData = [];
+    parametrosData.push(["Fuente", "Comisión"]);
+    uniqueSources.forEach(source => {
+      parametrosData.push([source, Number(commissionData[source]) || 0]);
+    });
+    // Separador y sección de bonos (ubicados en columnas D a H)
+    parametrosData.push([]); // fila vacía
+    parametrosData.push(["", "", "", "Bono10", "Bono20", "Bono30", "Bono50", "BestSellerBonus"]);
+    parametrosData.push(["", "", "", Number(bonus10) || 0, Number(bonus20) || 0, Number(bonus30) || 0, Number(bonus50) || 0, Number(bestSellerBonus) || 0]);
+  
+    const wsParametros = XLSX.utils.aoa_to_sheet(parametrosData);
+    XLSX.utils.book_append_sheet(workbook, wsParametros, "Parametros");
+  
+    /*** Funciones auxiliares para obtener la fuente ***///
+    // Función para parsear la fecha de evento (similar a tu código original)
+    const parseFechaEvento = (fechaEvento) => {
+      let t = new Date(fechaEvento).getTime();
+      if (isNaN(t)) t = Number(fechaEvento) * 1000;
+      return t;
+    };
+  
+    // Función para obtener la fuente de un cliente
+    const obtenerFuente = (clienteId) => {
+      const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
+      if (registrosCliente.length > 0) {
+        registrosCliente.sort((a, b) => parseFechaEvento(a.FECHA_EVENTO) - parseFechaEvento(b.FECHA_EVENTO));
+        return registrosCliente[0].TIPO_EVENTO?.trim() || 'Desconocido';
+      }
+      return 'Desconocido';
+    };
+  
+    /*** 2. Hoja “Detalle” ***/
+    // Encabezados: Asesor, Cliente, WhatsApp, Fuente, Estado y Comisión
+    const detalleData = [];
+    detalleData.push(["Asesor", "Cliente", "WhatsApp", "Fuente", "Estado", "Comisión"]);
+    
     asesores.forEach(asesor => {
       const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
-      const dataExport = clientesAsesor.map(cliente => {
+      clientesAsesor.forEach(cliente => {
+        // Buscar el reporte correspondiente
         const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID);
-        const consolidado = reporte?.consolidado || reporte?.ESTADO_NUEVO === 'VENTA CONSOLIDADA';
-        const verificada = !!reporte?.verificada;
-        const tieneReporte = !!reporte;
-        const estado = consolidado
-          ? (verificada ? 'VERIFICADA' : 'CONSOLIDADO')
-          : (tieneReporte ? 'PAGADO' : 'PAGADO (sin reporte)');
-        const eventos = registros.filter(r => r.ID_CLIENTE === cliente.ID);
-        const fuente = eventos.length > 0
-          ? eventos.sort((a, b) => new Date(a.FECHA_EVENTO).getTime() - new Date(b.FECHA_EVENTO).getTime())[0].TIPO_EVENTO?.trim()
-          : 'Desconocido';
-
-        const comision = commissionData[fuente] || '';
-
-        return {
-          Cliente: cliente.NOMBRE,
-          WhatsApp: cliente.WHATSAPP,
-          Fuente: fuente,
-          Estado: estado,
-          Comisión: comision,
-          'Bono a las 10': bonus10,
-          'Bono a las 20': bonus20,
-          'Bono a las 30': bonus30,
-        };
+        // La venta es válida para comisión solo si existe reporte, está verificada y el estado_verificacion es "aprobada"
+        const validaParaComision = reporte && reporte.verificada && (reporte.estado_verificacion === 'aprobada');
+        // Definir el estado para la exportación:
+        // Si hay reporte: "VERIFICADA" solo si cumple la validación, sino "NO APLICABLE"
+        // Si no hay reporte se indica "SIN REPORTE"
+        const estado = reporte ? (validaParaComision ? "VERIFICADA" : "NO APLICABLE") : "SIN REPORTE";
+  
+        // Se obtiene la fuente usando la función auxiliar
+        const fuente = obtenerFuente(cliente.ID);
+        
+        const currentRow = detalleData.length + 1; // Fila actual (fila 1 es el encabezado)
+        // Fórmula para comisión: solo se paga si el estado es "VERIFICADA"
+        const commissionFormula = `=IF(E${currentRow}="VERIFICADA",IFERROR(VLOOKUP(D${currentRow},Parametros!$A$2:$B$${numSources+1},2,FALSE),0),0)`;
+        
+        detalleData.push([
+          asesor.NOMBRE,
+          cliente.NOMBRE,
+          cliente.WHATSAPP,
+          fuente,
+          estado,
+          { f: commissionFormula }
+        ]);
       });
-
-      if (dataExport.length > 0) {
-        const sheet = XLSX.utils.json_to_sheet(dataExport);
-        XLSX.utils.book_append_sheet(workbook, sheet, asesor.NOMBRE.substring(0, 31));
-      }
     });
-
-    const resumen = asesores.map(asesor => {
-      const ventas = reportes.filter(r => r.ID_ASESOR === asesor.ID).length;
-      return {
-        Asesor: asesor.NOMBRE,
-        Ventas: ventas,
-      };
+    const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData);
+    XLSX.utils.book_append_sheet(workbook, wsDetalle, "Detalle");
+  
+    /*** 3. Hoja “Resumen” ***/
+    // Se agrupa la información por asesor:
+    // - Total Ventas Verificadas (solo las con estado "VERIFICADA")
+    // - Total Comisión (suma de las comisiones de ventas verificadas)
+    // - Bonus Fuente (acumulado por fuente al alcanzar umbrales de 10, 20 y 30 ventas verificadas)
+    // - Bonus 50 (si total ventas verificadas >= 50)
+    // - Best Seller Bonus (para el asesor con mayor cantidad, considerando solo ventas > 30)
+    // - Total Ingreso: suma de comisión, bonus fuente, bonus 50 y best seller bonus
+    const bonusRow = numSources + 4; // Ubicación de los bonos en "Parametros"
+    const numAsesores = asesores.length;
+  
+    const resumenData = [];
+    resumenData.push([
+      "Asesor",
+      "Total Ventas Verificadas",
+      "Total Comisión",
+      "Bonus 50",
+      "Best Seller Bonus",
+      "Bonus Fuente",
+      "Total Ingreso"
+    ]);
+  
+    asesores.forEach((asesor, idx) => {
+      const row = idx + 2; // fila en "Resumen" (fila 1 es encabezado)
+      const totalVentasFormula = `=COUNTIFS(Detalle!$A:$A, A${row}, Detalle!$E:$E, "VERIFICADA")`;
+      const totalComisionFormula = `=SUMIFS(Detalle!$F:$F,Detalle!$A:$A, A${row},Detalle!$E:$E, "VERIFICADA")`;
+      const bonus50Formula = `=IF(B${row}>=50,Parametros!$G$${bonusRow},0)`;
+      const bestSellerFormula = `=IF(AND(B${row}>30,RANK(B${row},$B$2:$B$${numAsesores+1},0)=1),Parametros!$H$${bonusRow},0)`;
+  
+      // BONUS FUENTE: Para cada fuente se evalúa si se alcanzan umbrales de 10, 20 y 30 ventas verificadas
+      let bonusFuenteParts = uniqueSources.map(source => {
+        return `(IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=10,Parametros!$D$${bonusRow},0)
+  +IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=20,Parametros!$E$${bonusRow},0)
+  +IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=30,Parametros!$F$${bonusRow},0))`;
+      });
+      const bonusFuenteFormula = bonusFuenteParts.join("+");
+      const totalIngresoFormula = `=C${row}+D${row}+E${row}+(${bonusFuenteFormula})`;
+  
+      resumenData.push([
+        asesor.NOMBRE,
+        { f: totalVentasFormula },
+        { f: totalComisionFormula },
+        { f: bonus50Formula },
+        { f: bestSellerFormula },
+        { f: bonusFuenteFormula },
+        { f: totalIngresoFormula }
+      ]);
     });
-
-    const elegibles = resumen.filter(item => item.Ventas > 30);
-    let mejorVendedor: { Asesor: string; Ventas: number } | null = null;
-    if (elegibles.length > 0) {
-      mejorVendedor = elegibles.reduce((prev, curr) =>
-        prev.Ventas > curr.Ventas ? prev : curr
-      );
-    }
-
-    resumen.forEach(item => {
-      item['Premio Mejor Vendedor'] = (mejorVendedor && item.Asesor === mejorVendedor.Asesor) ? 'Sí' : 'No';
-      item['Bono Grupal'] = item.Ventas > 30 ? 'Participa' : 'No Participa';
-    });
-
-    resumen.push({ Asesor: 'BONO MEJOR VENDEDOR', Ventas: bestSellerBonus, 'Premio Mejor Vendedor': '', 'Bono Grupal': '' });
-    resumen.push({ Asesor: 'BONO 50 TOT.', Ventas: bonus50, 'Premio Mejor Vendedor': '', 'Bono Grupal': '' });
-
-    const sheetResumen = XLSX.utils.json_to_sheet(resumen);
-    XLSX.utils.book_append_sheet(workbook, sheetResumen, 'Resumen');
-
-    XLSX.writeFile(workbook, `Auditoría-Ventas-${new Date().toLocaleDateString()}.xlsx`);
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+    XLSX.utils.book_append_sheet(workbook, wsResumen, "Resumen");
+  
+    // Escritura final del archivo (el nombre incluye la fecha actual)
+    XLSX.writeFile(
+      workbook,
+      `Auditoria-Ventas-${new Date().toLocaleDateString()}.xlsx`
+    );
   };
+  
+  
 
   const cargarDatosOptimizados = async () => {
     try {
@@ -934,14 +1008,10 @@ function AuditorDashboard() {
         }
       );
       console.log('Respuesta del PATCH:', response);
-      // Actualización en memoria
-      const updatedReporte = {
-        ...reporte,
-        verificada: decision === 'aprobada',
-        estado_verificacion: decision,
-        comentario_rechazo: decision === 'rechazada' ? comentario : ''
-      };
+      // Actualiza en memoria local
+      const updatedReporte = { ...reporte, verificada: true , estado_verificacion: decision, comentario_rechazo: decision === 'rechazada' ? comentario : ''};
       const nuevosReportes = [...reportes];
+
       nuevosReportes[reporteIndex] = updatedReporte;
       setReportes(nuevosReportes);
       toast.success(`✅ Venta de ${cliente.NOMBRE} ${decision === 'aprobada' ? 'aprobada' : 'rechazada'}`, {

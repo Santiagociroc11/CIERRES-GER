@@ -11,13 +11,12 @@ import { Asesor, Cliente, Reporte, Registro } from '../types';
 import { apiClient } from '../lib/apiClient';
 import { FileVideo, DollarSign, Search, LogOut, X, CheckCircle } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
-
+import * as XLSX from 'xlsx';
 
 // Lazy load para reducir el tamaño inicial del bundle
 const HistorialCliente = lazy(() => import('./HistorialCliente'));
 
 /* ––––––– FUNCIONES DE SIMILITUD ––––––– */
-// Función para calcular la distancia de Levenshtein (sin cambios)
 function levenshteinDistance(a: string, b: string): number {
   const matrix = Array.from({ length: a.length + 1 }, () =>
     new Array(b.length + 1).fill(0)
@@ -37,7 +36,6 @@ function levenshteinDistance(a: string, b: string): number {
   return matrix[a.length][b.length];
 }
 
-// Función que devuelve una similitud entre 0 y 1 (sin cambios)
 function similarity(s1: string, s2: string): number {
   const maxLength = Math.max(s1.length, s2.length);
   if (maxLength === 0) return 1;
@@ -45,12 +43,10 @@ function similarity(s1: string, s2: string): number {
   return 1 - dist / maxLength;
 }
 
-// Función para normalizar cadenas: elimina acentos, espacios extra y convierte a minúsculas.
 function normalizeString(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
-// Determina si dos clientes son similares (fuzzy) según nombre o WhatsApp usando un umbral (por defecto 0.76)
 function sonSimilares(c1: Cliente, c2: Cliente, umbral = 0.76): boolean {
   const nombreSim = similarity(normalizeString(c1.NOMBRE), normalizeString(c2.NOMBRE));
   const whatsappSim = similarity(normalizeString(c1.WHATSAPP || ''), normalizeString(c2.WHATSAPP || ''));
@@ -70,6 +66,100 @@ interface ClientesAsesorModalProps {
   onResolverDisputa: (grupo: Cliente[]) => void;
 }
 
+// Componente para renderizar cada fila de cliente y usar memo para actualizar solo esa fila
+const ClienteRow = React.memo(({
+  cliente,
+  reporte,
+  getFuente,
+  onVerHistorial,
+  onVerificarVenta
+}: {
+  cliente: Cliente;
+  reporte: Reporte | undefined;
+  getFuente: (id: number) => string;
+  onVerHistorial: (cliente: Cliente) => void;
+  onVerificarVenta: (cliente: Cliente) => void;
+}) => {
+  // Función para obtener el texto del estado, incluyendo detalle de verificación
+  const getEstadoFinal = (): string => {
+    if (!reporte) return 'PAGADO (sin reporte)';
+    const consolidado = reporte.consolidado || reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA';
+    let estado = consolidado ? (reporte.verificada ? 'VERIFICADA' : 'CONSOLIDADO') : 'PAGADO';
+    if (reporte.verificada && reporte.estado_verificacion) {
+      if (reporte.estado_verificacion === 'aprobada') {
+        estado += ' - Aprobada';
+      } else if (reporte.estado_verificacion === 'rechazada') {
+        estado += ' - Rechazada';
+        if (reporte.comentario_rechazo) {
+          estado += ` (${reporte.comentario_rechazo})`;
+        }
+      }
+    }
+    return estado;
+  };
+
+  // Función para asignar la clase de estilo según el estado
+  const getEstadoClass = (): string => {
+    if (reporte) {
+      if (reporte.verificada) {
+        if (reporte.estado_verificacion === 'rechazada') {
+          return 'bg-red-100 text-red-800';
+        } else if (reporte.estado_verificacion === 'aprobada') {
+          return 'bg-green-100 text-blue-800';
+        }
+      } else if (reporte.consolidado || reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
+        return 'bg-purple-100 text-purple-800';
+      } else {
+        return 'bg-green-100 text-green-800';
+      }
+    }
+    return 'bg-orange-100 text-orange-800';
+  };
+
+  return (
+    <tr className="hover:bg-gray-50">
+      <td className="px-6 py-4 whitespace-nowrap">
+        <button
+          onClick={() => onVerHistorial(cliente)}
+          className="text-sm font-medium text-gray-900 hover:text-purple-600"
+        >
+          {cliente.NOMBRE}
+        </button>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {getFuente(cliente.ID)}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <span className={`px-2 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${getEstadoClass()}`}>
+          {getEstadoFinal()}
+          {reporte && reporte.verificada && reporte.estado_verificacion === 'aprobada' && (
+            <CheckCircle className="h-4 w-4 text-blue-600" />
+          )}
+        </span>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {cliente.WHATSAPP}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+        <button
+          onClick={() => onVerHistorial(cliente)}
+          className="text-purple-600 hover:text-purple-900"
+        >
+          Ver Historial
+        </button>
+        {(!reporte || !reporte.verificada) && reporte && (
+          <button
+            onClick={() => onVerificarVenta(cliente)}
+            className="ml-2 text-blue-600 hover:text-blue-800"
+          >
+            Verificar
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+});
+
 
 function ClientesAsesorModal({
   asesor,
@@ -84,7 +174,6 @@ function ClientesAsesorModal({
 }: ClientesAsesorModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Filtra los clientes del asesor y aplica el término de búsqueda
   const { clientesAsesor, clientesFiltrados } = useMemo(() => {
     const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
     const clientesFiltrados = searchTerm.trim()
@@ -93,7 +182,6 @@ function ClientesAsesorModal({
         (cliente.WHATSAPP || '').includes(searchTerm)
       )
       : clientesAsesor;
-    // Ordena según si tienen reporte consolidado o no
     clientesFiltrados.sort((a, b) => {
       const aConsolidado = reportes.some(r =>
         r.ID_CLIENTE === a.ID &&
@@ -111,39 +199,17 @@ function ClientesAsesorModal({
     return { clientesAsesor, clientesFiltrados };
   }, [asesor.ID, clientes, reportes, searchTerm]);
 
-  // Función auxiliar para obtener el reporte de un cliente
   const getReporteForCliente = (cliente: Cliente): Reporte | undefined => {
     return reportes.find(r => r.ID_CLIENTE === cliente.ID);
   };
 
-  // Determina si la venta ya fue verificada (campo "verificada" en el reporte)
-  const isVentaVerificada = (cliente: Cliente): boolean => {
-    const reporte = getReporteForCliente(cliente);
-    return reporte ? !!reporte.verificada : false;
-  };
-
-  function getFuente(clienteId: number): string {
+  const getFuente = (clienteId: number): string => {
     const eventos = registros.filter(r => r.ID_CLIENTE === clienteId);
     if (eventos.length > 0) {
-      eventos.sort((a, b) => {
-        const aTime = new Date(a.FECHA_EVENTO).getTime();
-        const bTime = new Date(b.FECHA_EVENTO).getTime();
-        return aTime - bTime;
-      });
+      eventos.sort((a, b) => new Date(a.FECHA_EVENTO).getTime() - new Date(b.FECHA_EVENTO).getTime());
       return eventos[0].TIPO_EVENTO?.trim() || 'Desconocido';
     }
     return 'Desconocido';
-  }
-
-
-  // Determina si el cliente forma parte de un grupo duplicado
-  const getGrupoDuplicado = (cliente: Cliente): Cliente[] | null => {
-    for (let grupo of duplicados) {
-      if (grupo.some(c => c.ID === cliente.ID)) {
-        return grupo;
-      }
-    }
-    return null;
   };
 
   return (
@@ -196,76 +262,20 @@ function ClientesAsesorModal({
             <tbody className="bg-white divide-y divide-gray-200">
               {clientesFiltrados.slice(0, 100).map(cliente => {
                 const reporte = getReporteForCliente(cliente);
-                const consolidado = reporte?.consolidado || reporte?.ESTADO_NUEVO === 'VENTA CONSOLIDADA';
-                const verificada = !!reporte?.verificada;
-                const tieneReporte = !!reporte;
-
-                // Nuevo texto del estado
-                const estadoTexto = consolidado
-                  ? verificada
-                    ? 'VERIFICADA'
-                    : 'CONSOLIDADO'
-                  : tieneReporte
-                    ? 'PAGADO'
-                    : 'PAGADO (no tiene reporte de venta)';
-
-                // Nueva clase de color
-                const estadoClase = consolidado
-                  ? verificada
-                    ? 'bg-green-100 text-blue-800'
-                    : 'bg-purple-100 text-purple-800'
-                  : tieneReporte
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-orange-100 text-orange-800';
-
                 return (
-                  <tr key={cliente.ID} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => onVerHistorial(cliente)}
-                        className="text-sm font-medium text-gray-900 hover:text-purple-600"
-                      >
-                        {cliente.NOMBRE}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {getFuente(cliente.ID)}
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${estadoClase}`}>
-                        {estadoTexto}
-                        {estadoTexto === 'VERIFICADA' && <CheckCircle className="h-4 w-4 text-blue-600" />}
-                      </span>
-
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {cliente.WHATSAPP}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => onVerHistorial(cliente)}
-                        className="text-purple-600 hover:text-purple-900"
-                      >
-                        Ver Historial
-                      </button>
-                      {/* Botón para verificar la venta si no está verificada */}
-                      {!isVentaVerificada(cliente) && getReporteForCliente(cliente) && (
-                        <button
-                          onClick={() => onVerificarVenta(cliente)}
-                          className="ml-2 text-blue-600 hover:text-blue-800"
-                        >
-                          Verificar
-                        </button>
-                      )}
-
-                    </td>
-                  </tr>
+                  <ClienteRow
+                    key={cliente.ID}
+                    cliente={cliente}
+                    reporte={reporte}
+                    getFuente={getFuente}
+                    onVerHistorial={onVerHistorial}
+                    onVerificarVenta={onVerificarVenta}
+                  />
                 );
               })}
               {clientesFiltrados.length > 100 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
                     Mostrando 100 de {clientesFiltrados.length} clientes. Use el buscador para filtrar.
                   </td>
                 </tr>
@@ -278,25 +288,75 @@ function ClientesAsesorModal({
   );
 }
 
-/* ––––––– MODAL: Verificar Venta ––––––– */
+/* ––––––– MODAL: Verificar Venta con Decisión ––––––– */
 interface ModalVerificarVentaProps {
   cliente: Cliente;
-  onConfirm: () => void;
+  onConfirm: (decision: 'aprobada' | 'rechazada', comentario: string) => void;
   onCancel: () => void;
 }
 function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVentaProps) {
+  const [decision, setDecision] = useState<'aprobada' | 'rechazada'>('aprobada');
+  const [comentario, setComentario] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleConfirm = () => {
+    if (!password.trim()) {
+      toast.error('Debe ingresar la contraseña.');
+      return;
+    }
+    if (decision === 'rechazada' && !comentario.trim()) {
+      toast.error('Debe ingresar el motivo del rechazo.');
+      return;
+    }
+    if (password !== '0911') {
+      toast.error('Contraseña incorrecta.');
+      return;
+    }
+    onConfirm(decision, decision === 'rechazada' ? comentario : '');
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded shadow-lg max-w-sm w-full">
-        <h2 className="text-xl font-bold mb-4">Verificar Venta</h2>
-        <p className="mb-4">
-          ¿Está seguro de verificar la venta de <strong>{cliente.NOMBRE}</strong>?
-        </p>
+        <h2 className="text-xl font-bold mb-4">Verificar Venta de {cliente.NOMBRE}</h2>
+        <div className="mb-4">
+          <label className="block font-medium">Decisión:</label>
+          <select
+            value={decision}
+            onChange={(e) => setDecision(e.target.value as 'aprobada' | 'rechazada')}
+            className="mt-1 block w-full border rounded-md p-2"
+          >
+            <option value="aprobada">Aprobar</option>
+            <option value="rechazada">Rechazar</option>
+          </select>
+        </div>
+        {decision === 'rechazada' && (
+          <div className="mb-4">
+            <label className="block font-medium">Motivo del rechazo:</label>
+            <textarea
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              className="mt-1 block w-full border rounded-md p-2"
+              placeholder="Ingrese el motivo del rechazo"
+            />
+          </div>
+        )}
+        {/* Campo de contraseña siempre visible */}
+        <div className="mb-4">
+          <label className="block font-medium">Contraseña:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 block w-full border rounded-md p-2"
+            placeholder="Escriba la contraseña"
+          />
+        </div>
         <div className="flex justify-end space-x-4">
-          <button onClick={onCancel} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+          <button onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded">
             Cancelar
           </button>
-          <button onClick={onConfirm} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          <button onClick={handleConfirm} className="px-4 py-2 bg-blue-600 text-white rounded">
             Confirmar
           </button>
         </div>
@@ -339,6 +399,117 @@ function ModalResolverDisputa({ grupo, onResolve, onCancel }: ModalResolverDispu
   );
 }
 
+/* ––––––– COMPONENTE ExportExcelModal ––––––– */
+interface ExportExcelModalProps {
+  fuentes: string[];
+  onCancel: () => void;
+  onExport: (
+    commissionData: Record<string, string>,
+    bonus10: string,
+    bonus20: string,
+    bonus30: string,
+    bonus50: string,
+    bestSellerBonus: string
+  ) => void;
+}
+
+function ExportExcelModal({ fuentes, onCancel, onExport }: ExportExcelModalProps) {
+  const [commissionValues, setCommissionValues] = useState<Record<string, string>>({});
+  // Bonos globales
+  const [bonus10, setBonus10] = useState('');
+  const [bonus20, setBonus20] = useState('');
+  const [bonus30, setBonus30] = useState('');
+  const [bonus50, setBonus50] = useState('');
+  const [bestSellerBonus, setBestSellerBonus] = useState('');
+
+  const handleCommissionChange = (source: string, value: string) => {
+    setCommissionValues(prev => ({ ...prev, [source]: value }));
+  };
+
+  const handleSubmit = () => {
+    onExport(commissionValues, bonus10, bonus20, bonus30, bonus50, bestSellerBonus);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded shadow-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4">Exportar a Excel</h2>
+        <p className="mb-4">Ingrese el valor de la comisión para cada fuente:</p>
+        {fuentes.map(source => (
+          <div key={source} className="mb-4 border p-2 rounded">
+            <h3 className="font-semibold">{source}</h3>
+            <input
+              type="number"
+              placeholder="Comisión"
+              value={commissionValues[source] || ''}
+              onChange={e => handleCommissionChange(source, e.target.value)}
+              className="border p-2 w-full"
+            />
+          </div>
+        ))}
+        <div className="mb-4">
+          <label className="block font-semibold">Bono a las 10 (Global)</label>
+          <input
+            type="number"
+            placeholder="Bono a las 10"
+            value={bonus10}
+            onChange={e => setBonus10(e.target.value)}
+            className="border p-2 w-full"
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block font-semibold">Bono a las 20 (Global)</label>
+          <input
+            type="number"
+            placeholder="Bono a las 20"
+            value={bonus20}
+            onChange={e => setBonus20(e.target.value)}
+            className="border p-2 w-full"
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block font-semibold">Bono a las 30 (Global)</label>
+          <input
+            type="number"
+            placeholder="Bono a las 30"
+            value={bonus30}
+            onChange={e => setBonus30(e.target.value)}
+            className="border p-2 w-full"
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block font-semibold">Bono por 50 Totales</label>
+          <input
+            type="number"
+            placeholder="Bono 50 Totales"
+            value={bonus50}
+            onChange={e => setBonus50(e.target.value)}
+            className="border p-2 w-full"
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block font-semibold">Bono al Mejor Vendedor</label>
+          <input
+            type="number"
+            placeholder="Bono Mejor Vendedor"
+            value={bestSellerBonus}
+            onChange={e => setBestSellerBonus(e.target.value)}
+            className="border p-2 w-full"
+          />
+        </div>
+        <div className="flex justify-end space-x-4">
+          <button onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded">
+            Cancelar
+          </button>
+          <button onClick={handleSubmit} className="px-4 py-2 bg-green-600 text-white rounded">
+            Exportar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ––––––– COMPONENTE AuditorDashboard ––––––– */
 function AuditorDashboard() {
   // Estados para datos y carga
@@ -353,22 +524,22 @@ function AuditorDashboard() {
   const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
 
-  // Estados para el análisis de duplicados con Worker
+  // Estados para duplicados, progresos y modales
   const [duplicados, setDuplicados] = useState<Cliente[][]>([]);
   const [duplicadosProgress, setDuplicadosProgress] = useState(0);
   const [duplicadosCargando, setDuplicadosCargando] = useState(false);
 
-  // Estados para el progreso de carga
   const [asesoresCargados, setAsesoresCargados] = useState(false);
   const [clientesCargados, setClientesCargados] = useState(false);
   const [reportesCargados, setReportesCargados] = useState(false);
 
-  // Estados para modales de verificación y resolución de disputas
   const [ventaVerificar, setVentaVerificar] = useState<Cliente | null>(null);
   const [disputaGrupo, setDisputaGrupo] = useState<Cliente[] | null>(null);
 
-  /* ––––––– CARGA DE DATOS MEJORADA ––––––– */
-  // Función auxiliar para cargar datos con paginación y actualizar el progreso
+  // Estado para el modal de exportación
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  // Función para cargar datos con paginación
   const fetchAllPages = async (
     endpoint: string,
     filter: string,
@@ -395,16 +566,99 @@ function AuditorDashboard() {
     return allData;
   };
 
+  // Se abre el modal de exportación
+  const exportarPanelAuditorAGlobalExcel = () => {
+    setShowExportModal(true);
+  };
+
+  // Función de exportación que utiliza los valores ingresados
+  const exportarConDatosExtra = (
+    commissionData: Record<string, string>,
+    bonus10: string,
+    bonus20: string,
+    bonus30: string,
+    bonus50: string,
+    bestSellerBonus: string
+  ) => {
+    if (!clientes.length || !asesores.length) return;
+
+    const workbook = XLSX.utils.book_new();
+
+    asesores.forEach(asesor => {
+      const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
+      const dataExport = clientesAsesor.map(cliente => {
+        const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID);
+        const consolidado = reporte?.consolidado || reporte?.ESTADO_NUEVO === 'VENTA CONSOLIDADA';
+        const verificada = !!reporte?.verificada;
+        const tieneReporte = !!reporte;
+        const estado = consolidado
+          ? (verificada ? 'VERIFICADA' : 'CONSOLIDADO')
+          : (tieneReporte ? 'PAGADO' : 'PAGADO (sin reporte)');
+        const eventos = registros.filter(r => r.ID_CLIENTE === cliente.ID);
+        const fuente = eventos.length > 0
+          ? eventos.sort((a, b) => new Date(a.FECHA_EVENTO).getTime() - new Date(b.FECHA_EVENTO).getTime())[0].TIPO_EVENTO?.trim()
+          : 'Desconocido';
+
+        const comision = commissionData[fuente] || '';
+
+        return {
+          Cliente: cliente.NOMBRE,
+          WhatsApp: cliente.WHATSAPP,
+          Fuente: fuente,
+          Estado: estado,
+          Comisión: comision,
+          'Bono a las 10': bonus10,
+          'Bono a las 20': bonus20,
+          'Bono a las 30': bonus30,
+        };
+      });
+
+      if (dataExport.length > 0) {
+        const sheet = XLSX.utils.json_to_sheet(dataExport);
+        XLSX.utils.book_append_sheet(workbook, sheet, asesor.NOMBRE.substring(0, 31));
+      }
+    });
+
+    const resumen = asesores.map(asesor => {
+      const ventas = reportes.filter(r => r.ID_ASESOR === asesor.ID).length;
+      return {
+        Asesor: asesor.NOMBRE,
+        Ventas: ventas,
+      };
+    });
+
+    const elegibles = resumen.filter(item => item.Ventas > 30);
+    let mejorVendedor: { Asesor: string; Ventas: number } | null = null;
+    if (elegibles.length > 0) {
+      mejorVendedor = elegibles.reduce((prev, curr) =>
+        prev.Ventas > curr.Ventas ? prev : curr
+      );
+    }
+
+    resumen.forEach(item => {
+      item['Premio Mejor Vendedor'] = (mejorVendedor && item.Asesor === mejorVendedor.Asesor) ? 'Sí' : 'No';
+      item['Bono Grupal'] = item.Ventas > 30 ? 'Participa' : 'No Participa';
+    });
+
+    resumen.push({ Asesor: 'BONO MEJOR VENDEDOR', Ventas: bestSellerBonus, 'Premio Mejor Vendedor': '', 'Bono Grupal': '' });
+    resumen.push({ Asesor: 'BONO 50 TOT.', Ventas: bonus50, 'Premio Mejor Vendedor': '', 'Bono Grupal': '' });
+
+    const sheetResumen = XLSX.utils.json_to_sheet(resumen);
+    XLSX.utils.book_append_sheet(workbook, sheetResumen, 'Resumen');
+
+    XLSX.writeFile(workbook, `Auditoría-Ventas-${new Date().toLocaleDateString()}.xlsx`);
+  };
+
   const cargarDatosOptimizados = async () => {
     try {
       setLoading(true);
       setLoadingProgress(10);
-      // Cargar primero asesores (dataset más pequeño)
+      // Cargar asesores
       const asesoresData = await apiClient.request<Asesor[]>('/GERSSON_ASESORES?select=*');
       setAsesores(asesoresData);
       setAsesoresCargados(true);
       setLoadingProgress(30);
-      // Luego, carga clientes y reportes en paralelo con paginación
+      // Cargar clientes, reportes y registros
       const [clientesData, reportesData, registrosData] = await Promise.all([
         fetchAllPages('/GERSSON_CLIENTES', 'ESTADO=in.(PAGADO,VENTA CONSOLIDADA)', 100),
         fetchAllPages('/GERSSON_REPORTES', 'ESTADO_NUEVO=in.(PAGADO,VENTA CONSOLIDADA)', 100),
@@ -428,7 +682,6 @@ function AuditorDashboard() {
   }, []);
 
   /* ––––––– FILTRADOS ––––––– */
-  // Filtrar reportes según el producto seleccionado
   const reportesFiltrados = useMemo(() => {
     const filtered = reportes.filter(
       r => r.PRODUCTO && r.PRODUCTO.toUpperCase() === productoFiltro
@@ -437,7 +690,6 @@ function AuditorDashboard() {
     return filtered;
   }, [productoFiltro, reportes]);
 
-  // Filtrar clientes en base al producto (lógica original)
   const clientesFiltradosPorProducto = useMemo(() => {
     return clientes.filter(cliente =>
       reportes.some(reporte =>
@@ -448,13 +700,11 @@ function AuditorDashboard() {
     );
   }, [clientes, productoFiltro, reportes]);
 
-  // Función auxiliar para obtener el nombre de un asesor
   const getNombreAsesor = (asesorId: number): string => {
     const asesor = asesores.find(a => a.ID === asesorId);
     return asesor ? asesor.NOMBRE : '';
   };
 
-  // Estadísticas para cada asesor usando reportesFiltrados
   const getEstadisticasAsesor = (asesorId: number) => {
     const ventasReportadas = Array.from(
       new Set(
@@ -473,7 +723,6 @@ function AuditorDashboard() {
     return { ventasReportadas, ventasConsolidadas };
   };
 
-  // Filtrar asesores según el término de búsqueda
   const asesoresFiltrados = useMemo(() => {
     return asesores.filter(asesor =>
       asesor.NOMBRE.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -490,15 +739,12 @@ function AuditorDashboard() {
           setDuplicadosProgress(e.data.progress);
         } else if (e.data.type === 'complete') {
           const grupos: Cliente[][] = e.data.duplicados;
-
-          // 🔍 Filtrar grupos donde no haya ninguna venta ya verificada
           const gruposSinVerificadas = grupos.filter(grupo => {
             return !grupo.some(cliente => {
               const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID);
               return reporte?.verificada;
             });
           });
-
           setDuplicados(gruposSinVerificadas);
           setDuplicadosCargando(false);
         }
@@ -512,8 +758,6 @@ function AuditorDashboard() {
     }
   }, [clientes, asesores, clientesFiltradosPorProducto, reportes]);
 
-
-  // Función que crea el Web Worker para análisis de duplicados
   const createDuplicateAnalysisWorker = () => {
     const workerCode = `
       function levenshteinDistance(a, b) {
@@ -659,108 +903,79 @@ function AuditorDashboard() {
     [asesoresFiltrados, reportesFiltrados]
   );
 
-  /* ––––––– MANEJO DE LOGOUT ––––––– */
   const handleLogout = () => {
     localStorage.removeItem('userSession');
     window.location.reload();
   };
 
-  /* ––––––– FUNCIONES PARA VERIFICAR VENTAS Y RESOLVER DISPUTAS ––––––– */
   const handleVerificarVenta = (cliente: Cliente) => {
-    // Abre modal de confirmación para verificar venta
     setVentaVerificar(cliente);
   };
 
-  const confirmVerificarVenta = async (cliente: Cliente) => {
+  // Función de verificación que actualiza en memoria y en BD
+  const confirmVerificarVenta = async (cliente: Cliente, decision: 'aprobada' | 'rechazada', comentario: string) => {
     const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID);
     if (reporteIndex === -1) return;
-
     const reporte = reportes[reporteIndex];
-
     try {
-      try {
-        await apiClient.request(
-          `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
-          'PATCH',
-          { verificada: true }
-        );
-      } catch (error: any) {
-        const responseText = await error.response?.text?.();
-        console.error('Error al verificar venta:', responseText);
-      }
-
-      // Actualiza en memoria local
-      const updatedReporte = { ...reporte, verificada: true };
+      const response = await apiClient.request(
+        `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+        'PATCH',
+        {
+          verificada: true,
+          estado_verificacion: decision,
+          comentario_rechazo: decision === 'rechazada' ? comentario : ''
+        }
+      );
+      console.log('Respuesta del PATCH:', response);
+      // Actualización en memoria
+      const updatedReporte = {
+        ...reporte,
+        verificada: decision === 'aprobada',
+        estado_verificacion: decision,
+        comentario_rechazo: decision === 'rechazada' ? comentario : ''
+      };
       const nuevosReportes = [...reportes];
       nuevosReportes[reporteIndex] = updatedReporte;
       setReportes(nuevosReportes);
-
-      toast.success(`✅ Venta de ${cliente.NOMBRE} verificada con éxito`, {
-        style: {
-          borderRadius: '8px',
-          background: '#4f46e5',
-          color: '#fff',
-        },
-        icon: '🎉',
+      toast.success(`✅ Venta de ${cliente.NOMBRE} ${decision === 'aprobada' ? 'aprobada' : 'rechazada'}`, {
+        style: { borderRadius: '8px', background: '#4f46e5', color: '#fff' },
+        icon: '🎉'
       });
-
     } catch (err) {
       console.error('❌ Error al verificar la venta:', err);
       alert('Hubo un error al intentar verificar la venta.');
     }
-
     setVentaVerificar(null);
   };
 
   const confirmResolverDisputa = async (clienteGanador: Cliente) => {
     const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === clienteGanador.ID);
     if (reporteIndex === -1) return;
-
     const reporte = reportes[reporteIndex];
-
     try {
-      // Actualiza en la BD
-      try {
-        await apiClient.request(
-          `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
-          'PATCH',
-          { verificada: true }
-        );
-      } catch (error: any) {
-        const responseText = await error.response?.text?.();
-        console.error('Error al verificar venta:', responseText);
-      }
-
-
-      // Actualiza en memoria
-      const updatedReporte = { ...reporte, verificada: true };
+      await apiClient.request(
+        `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+        'PATCH',
+        { verificada: true, estado_verificacion: 'aprobada', comentario_rechazo: '' }
+      );
+      const updatedReporte = { ...reporte, verificada: true, estado_verificacion: 'aprobada', comentario_rechazo: '' };
       const nuevosReportes = [...reportes];
       nuevosReportes[reporteIndex] = updatedReporte;
       setReportes(nuevosReportes);
-
-      // Elimina grupo duplicado al que pertenece el cliente
       setDuplicados(prev =>
         prev.filter(grupo => !grupo.some(c => c.ID === clienteGanador.ID))
       );
-
       toast.success(`✅ Disputa asignada a ${clienteGanador.NOMBRE}`, {
-        style: {
-          borderRadius: '8px',
-          background: '#16a34a',
-          color: '#fff',
-        },
-        icon: '📌',
+        style: { borderRadius: '8px', background: '#16a34a', color: '#fff' },
+        icon: '📌'
       });
-
     } catch (err) {
       console.error('❌ Error al resolver disputa:', err);
       alert('Hubo un error al resolver la disputa.');
     }
-
     setDisputaGrupo(null);
   };
-
-
 
   const cancelVerificarVenta = () => {
     setVentaVerificar(null);
@@ -774,15 +989,11 @@ function AuditorDashboard() {
     setDisputaGrupo(null);
   };
 
-  /* ––––––– RENDER PRINCIPAL ––––––– */
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
         <div className="w-64 bg-white rounded-full h-4 mb-4">
-          <div
-            className="bg-purple-600 h-4 rounded-full"
-            style={{ width: `${loadingProgress}%` }}
-          ></div>
+          <div className="bg-purple-600 h-4 rounded-full" style={{ width: `${loadingProgress}%` }}></div>
         </div>
         <p className="text-gray-700">Cargando datos ({loadingProgress}%)</p>
         <div className="mt-4 text-sm text-gray-500">
@@ -801,6 +1012,12 @@ function AuditorDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <h1 className="text-3xl font-bold text-gray-900">Panel de Auditoría</h1>
+            <button
+              onClick={exportarPanelAuditorAGlobalExcel}
+              className="ml-4 inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+            >
+              📊 Exportar Auditoría
+            </button>
             <button
               onClick={handleLogout}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
@@ -826,7 +1043,6 @@ function AuditorDashboard() {
             <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
           </div>
         </div>
-
         {/* Filtro por Producto */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700">
@@ -843,7 +1059,6 @@ function AuditorDashboard() {
             <option value="DOWNSELL">Downsell</option>
           </select>
         </div>
-
         {/* Lista de Asesores con virtualización */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -861,7 +1076,6 @@ function AuditorDashboard() {
             </div>
           )}
         </div>
-
         {/* Sección de duplicados (análisis fuzzy) */}
         <div className="mt-8 bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-red-600 mb-4">
@@ -892,7 +1106,6 @@ function AuditorDashboard() {
                     Resolver Disputa
                   </button>
                 </div>
-
               </div>
             ))
           ) : (
@@ -916,7 +1129,6 @@ function AuditorDashboard() {
           onResolverDisputa={handleResolverDisputa}
           registros={registros}
         />
-
       )}
 
       {/* Modal de Historial de Cliente */}
@@ -940,7 +1152,7 @@ function AuditorDashboard() {
       {ventaVerificar && (
         <ModalVerificarVenta
           cliente={ventaVerificar}
-          onConfirm={() => confirmVerificarVenta(ventaVerificar)}
+          onConfirm={(decision, comentario) => confirmVerificarVenta(ventaVerificar, decision, comentario)}
           onCancel={cancelVerificarVenta}
         />
       )}
@@ -954,8 +1166,20 @@ function AuditorDashboard() {
         />
       )}
 
-      <Toaster position="top-right" />
+      {/* Modal de Exportación */}
+      {showExportModal && (
+        <ExportExcelModal
+          fuentes={Array.from(new Set(registros.map(r => (r.TIPO_EVENTO?.trim() || 'Desconocido'))))
+            .filter(f => f.toUpperCase() !== 'COMPRA')}
+          onCancel={() => setShowExportModal(false)}
+          onExport={(commissionData, bonus10, bonus20, bonus30, bonus50, bestSellerBonus) => {
+            exportarConDatosExtra(commissionData, bonus10, bonus20, bonus30, bonus50, bestSellerBonus);
+            setShowExportModal(false);
+          }}
+        />
+      )}
 
+      <Toaster position="top-right" />
     </div>
   );
 }

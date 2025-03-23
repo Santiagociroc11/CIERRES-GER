@@ -203,11 +203,17 @@ function ClientesAsesorModal({
     return reportes.find(r => r.ID_CLIENTE === cliente.ID);
   };
 
-  const getFuente = (clienteId: number): string => {
-    const eventos = registros.filter(r => r.ID_CLIENTE === clienteId);
-    if (eventos.length > 0) {
-      eventos.sort((a, b) => new Date(a.FECHA_EVENTO).getTime() - new Date(b.FECHA_EVENTO).getTime());
-      return eventos[0].TIPO_EVENTO?.trim() || 'Desconocido';
+  const parseFechaEvento = (fechaEvento: any): number => {
+    let t = new Date(fechaEvento).getTime();
+    if (isNaN(t)) t = Number(fechaEvento) * 1000;
+    return t;
+  };
+
+  const getFuente = (clienteId: number) => {
+    const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
+    if (registrosCliente.length > 0) {
+      registrosCliente.sort((a, b) => parseFechaEvento(a.FECHA_EVENTO) - parseFechaEvento(b.FECHA_EVENTO));
+      return registrosCliente[0].TIPO_EVENTO?.trim() || 'Desconocido';
     }
     return 'Desconocido';
   };

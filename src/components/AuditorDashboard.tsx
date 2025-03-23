@@ -7,9 +7,11 @@ import React, {
   lazy
 } from 'react';
 import { FixedSizeList as List } from 'react-window';
-import { Asesor, Cliente, Reporte } from '../types';
+import { Asesor, Cliente, Reporte, Registro } from '../types';
 import { apiClient } from '../lib/apiClient';
-import { FileVideo, DollarSign, Search, LogOut, X } from 'lucide-react';
+import { FileVideo, DollarSign, Search, LogOut, X, CheckCircle } from 'lucide-react';
+import { Toaster, toast } from 'react-hot-toast';
+
 
 // Lazy load para reducir el tamaño inicial del bundle
 const HistorialCliente = lazy(() => import('./HistorialCliente'));
@@ -55,32 +57,40 @@ function sonSimilares(c1: Cliente, c2: Cliente, umbral = 0.76): boolean {
   return nombreSim >= umbral || whatsappSim >= umbral;
 }
 
-
 /* ––––––– COMPONENTE ClientesAsesorModal ––––––– */
 interface ClientesAsesorModalProps {
   asesor: Asesor;
   clientes: Cliente[];
   reportes: Reporte[];
+  registros: Registro[];
+  duplicados: Cliente[][];
   onClose: () => void;
   onVerHistorial: (cliente: Cliente) => void;
+  onVerificarVenta: (cliente: Cliente) => void;
+  onResolverDisputa: (grupo: Cliente[]) => void;
 }
+
 
 function ClientesAsesorModal({
   asesor,
   clientes,
   reportes,
+  registros,
+  duplicados,
   onClose,
   onVerHistorial,
+  onVerificarVenta,
+  onResolverDisputa,
 }: ClientesAsesorModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Memoizamos la filtración para evitar cálculos innecesarios
+  // Filtra los clientes del asesor y aplica el término de búsqueda
   const { clientesAsesor, clientesFiltrados } = useMemo(() => {
     const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
     const clientesFiltrados = searchTerm.trim()
       ? clientesAsesor.filter(cliente =>
         cliente.NOMBRE.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        cliente.WHATSAPP.includes(searchTerm)
+        (cliente.WHATSAPP || '').includes(searchTerm)
       )
       : clientesAsesor;
     // Ordena según si tienen reporte consolidado o no
@@ -101,9 +111,44 @@ function ClientesAsesorModal({
     return { clientesAsesor, clientesFiltrados };
   }, [asesor.ID, clientes, reportes, searchTerm]);
 
+  // Función auxiliar para obtener el reporte de un cliente
+  const getReporteForCliente = (cliente: Cliente): Reporte | undefined => {
+    return reportes.find(r => r.ID_CLIENTE === cliente.ID);
+  };
+
+  // Determina si la venta ya fue verificada (campo "verificada" en el reporte)
+  const isVentaVerificada = (cliente: Cliente): boolean => {
+    const reporte = getReporteForCliente(cliente);
+    return reporte ? !!reporte.verificada : false;
+  };
+
+  function getFuente(clienteId: number): string {
+    const eventos = registros.filter(r => r.ID_CLIENTE === clienteId);
+    if (eventos.length > 0) {
+      eventos.sort((a, b) => {
+        const aTime = new Date(a.FECHA_EVENTO).getTime();
+        const bTime = new Date(b.FECHA_EVENTO).getTime();
+        return aTime - bTime;
+      });
+      return eventos[0].TIPO_EVENTO?.trim() || 'Desconocido';
+    }
+    return 'Desconocido';
+  }
+
+
+  // Determina si el cliente forma parte de un grupo duplicado
+  const getGrupoDuplicado = (cliente: Cliente): Cliente[] | null => {
+    for (let grupo of duplicados) {
+      if (grupo.some(c => c.ID === cliente.ID)) {
+        return grupo;
+      }
+    }
+    return null;
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+      <div className="relative top-20 mx-auto p-5 border w-full max-w-7xl shadow-lg rounded-md bg-white">
         <div className="flex justify-between items-center mb-4 border-b pb-4">
           <div>
             <h3 className="text-lg font-medium text-gray-900">
@@ -135,6 +180,9 @@ function ClientesAsesorModal({
                   Cliente
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Fuente
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estado
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -147,23 +195,25 @@ function ClientesAsesorModal({
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {clientesFiltrados.slice(0, 100).map(cliente => {
-                const consolidado = reportes.some(r =>
-                  r.ID_CLIENTE === cliente.ID &&
-                  (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA')
-                );
-                const tieneReporte = reportes.some(r => r.ID_CLIENTE === cliente.ID);
-                // Se define el texto según la condición:
-                // - Si está consolidado, se muestra "CONSOLIDADO"
-                // - Si tiene reporte (y no consolidado), se muestra "PAGADO"
-                // - Si no tiene reporte, se muestra "PAGADO (sin reporte)"
+                const reporte = getReporteForCliente(cliente);
+                const consolidado = reporte?.consolidado || reporte?.ESTADO_NUEVO === 'VENTA CONSOLIDADA';
+                const verificada = !!reporte?.verificada;
+                const tieneReporte = !!reporte;
+
+                // Nuevo texto del estado
                 const estadoTexto = consolidado
-                  ? 'CONSOLIDADO'
+                  ? verificada
+                    ? 'VERIFICADA'
+                    : 'CONSOLIDADO'
                   : tieneReporte
                     ? 'PAGADO'
                     : 'PAGADO (no tiene reporte de venta)';
-                // Se asigna la clase: naranja para "sin reporte"
+
+                // Nueva clase de color
                 const estadoClase = consolidado
-                  ? 'bg-purple-100 text-purple-800'
+                  ? verificada
+                    ? 'bg-green-100 text-blue-800'
+                    : 'bg-purple-100 text-purple-800'
                   : tieneReporte
                     ? 'bg-green-100 text-green-800'
                     : 'bg-orange-100 text-orange-800';
@@ -178,10 +228,16 @@ function ClientesAsesorModal({
                         {cliente.NOMBRE}
                       </button>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {getFuente(cliente.ID)}
+                    </td>
+
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${estadoClase}`}>
+                      <span className={`px-2 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${estadoClase}`}>
                         {estadoTexto}
+                        {estadoTexto === 'VERIFICADA' && <CheckCircle className="h-4 w-4 text-blue-600" />}
                       </span>
+
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {cliente.WHATSAPP}
@@ -193,11 +249,20 @@ function ClientesAsesorModal({
                       >
                         Ver Historial
                       </button>
+                      {/* Botón para verificar la venta si no está verificada */}
+                      {!isVentaVerificada(cliente) && getReporteForCliente(cliente) && (
+                        <button
+                          onClick={() => onVerificarVenta(cliente)}
+                          className="ml-2 text-blue-600 hover:text-blue-800"
+                        >
+                          Verificar
+                        </button>
+                      )}
+
                     </td>
                   </tr>
                 );
               })}
-
               {clientesFiltrados.length > 100 && (
                 <tr>
                   <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
@@ -213,12 +278,74 @@ function ClientesAsesorModal({
   );
 }
 
+/* ––––––– MODAL: Verificar Venta ––––––– */
+interface ModalVerificarVentaProps {
+  cliente: Cliente;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVentaProps) {
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded shadow-lg max-w-sm w-full">
+        <h2 className="text-xl font-bold mb-4">Verificar Venta</h2>
+        <p className="mb-4">
+          ¿Está seguro de verificar la venta de <strong>{cliente.NOMBRE}</strong>?
+        </p>
+        <div className="flex justify-end space-x-4">
+          <button onClick={onCancel} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+            Cancelar
+          </button>
+          <button onClick={onConfirm} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ––––––– MODAL: Resolver Disputa ––––––– */
+interface ModalResolverDisputaProps {
+  grupo: Cliente[];
+  onResolve: (cliente: Cliente) => void;
+  onCancel: () => void;
+}
+function ModalResolverDisputa({ grupo, onResolve, onCancel }: ModalResolverDisputaProps) {
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded shadow-lg max-w-md w-full">
+        <h2 className="text-xl font-bold mb-4">Resolver Disputa</h2>
+        <p className="mb-4">Seleccione la venta correcta:</p>
+        <ul className="space-y-2">
+          {grupo.map(cliente => (
+            <li key={cliente.ID}>
+              <button
+                onClick={() => onResolve(cliente)}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                {cliente.NOMBRE} — WhatsApp: {cliente.WHATSAPP} — Asesor: {cliente.ID_ASESOR}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 flex justify-end">
+          <button onClick={onCancel} className="text-gray-600 hover:text-gray-800">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ––––––– COMPONENTE AuditorDashboard ––––––– */
 function AuditorDashboard() {
   // Estados para datos y carga
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [reportes, setReportes] = useState<Reporte[]>([]);
+  const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
@@ -235,6 +362,10 @@ function AuditorDashboard() {
   const [asesoresCargados, setAsesoresCargados] = useState(false);
   const [clientesCargados, setClientesCargados] = useState(false);
   const [reportesCargados, setReportesCargados] = useState(false);
+
+  // Estados para modales de verificación y resolución de disputas
+  const [ventaVerificar, setVentaVerificar] = useState<Cliente | null>(null);
+  const [disputaGrupo, setDisputaGrupo] = useState<Cliente[] | null>(null);
 
   /* ––––––– CARGA DE DATOS MEJORADA ––––––– */
   // Función auxiliar para cargar datos con paginación y actualizar el progreso
@@ -268,20 +399,22 @@ function AuditorDashboard() {
     try {
       setLoading(true);
       setLoadingProgress(10);
-      // Carga primero asesores (dataset más pequeño)
+      // Cargar primero asesores (dataset más pequeño)
       const asesoresData = await apiClient.request<Asesor[]>('/GERSSON_ASESORES?select=*');
       setAsesores(asesoresData);
       setAsesoresCargados(true);
       setLoadingProgress(30);
       // Luego, carga clientes y reportes en paralelo con paginación
-      const [clientesData, reportesData] = await Promise.all([
+      const [clientesData, reportesData, registrosData] = await Promise.all([
         fetchAllPages('/GERSSON_CLIENTES', 'ESTADO=in.(PAGADO,VENTA CONSOLIDADA)', 100),
-        fetchAllPages('/GERSSON_REPORTES', 'ESTADO_NUEVO=in.(PAGADO,VENTA CONSOLIDADA)', 100)
+        fetchAllPages('/GERSSON_REPORTES', 'ESTADO_NUEVO=in.(PAGADO,VENTA CONSOLIDADA)', 100),
+        fetchAllPages('/GERSSON_REGISTROS', 'ID_CLIENTE=not.is.null', 100)
       ]);
       setClientes(clientesData);
       setClientesCargados(true);
       setReportes(reportesData);
       setReportesCargados(true);
+      setRegistros(registrosData);
       setLoadingProgress(100);
       setLoading(false);
     } catch (error) {
@@ -304,8 +437,7 @@ function AuditorDashboard() {
     return filtered;
   }, [productoFiltro, reportes]);
 
-
-  // Filtrar clientes en base al producto (se conserva la lógica original)
+  // Filtrar clientes en base al producto (lógica original)
   const clientesFiltradosPorProducto = useMemo(() => {
     return clientes.filter(cliente =>
       reportes.some(reporte =>
@@ -315,7 +447,6 @@ function AuditorDashboard() {
       )
     );
   }, [clientes, productoFiltro, reportes]);
-
 
   // Función auxiliar para obtener el nombre de un asesor
   const getNombreAsesor = (asesorId: number): string => {
@@ -342,17 +473,15 @@ function AuditorDashboard() {
     return { ventasReportadas, ventasConsolidadas };
   };
 
-
   // Filtrar asesores según el término de búsqueda
   const asesoresFiltrados = useMemo(() => {
     return asesores.filter(asesor =>
       asesor.NOMBRE.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asesor.WHATSAPP.includes(searchTerm)
+      (asesor.WHATSAPP || '').includes(searchTerm)
     );
   }, [asesores, searchTerm]);
 
   /* ––––––– ANÁLISIS DE DUPLICADOS CON WEB WORKER ––––––– */
-  // Se utiliza un worker para no bloquear el hilo principal durante el análisis
   useEffect(() => {
     if (clientes.length > 0 && asesores.length > 0) {
       const worker = createDuplicateAnalysisWorker();
@@ -360,18 +489,29 @@ function AuditorDashboard() {
         if (e.data.type === 'progress') {
           setDuplicadosProgress(e.data.progress);
         } else if (e.data.type === 'complete') {
-          setDuplicados(e.data.duplicados);
+          const grupos: Cliente[][] = e.data.duplicados;
+
+          // 🔍 Filtrar grupos donde no haya ninguna venta ya verificada
+          const gruposSinVerificadas = grupos.filter(grupo => {
+            return !grupo.some(cliente => {
+              const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID);
+              return reporte?.verificada;
+            });
+          });
+
+          setDuplicados(gruposSinVerificadas);
           setDuplicadosCargando(false);
         }
       };
+
       setDuplicadosCargando(true);
-      // Enviamos al worker la lista de clientes filtrados por producto y la lista de asesores
       worker.postMessage({ clientes: clientesFiltradosPorProducto, asesores });
       return () => {
         worker.terminate();
       };
     }
-  }, [clientes, asesores, clientesFiltradosPorProducto]);
+  }, [clientes, asesores, clientesFiltradosPorProducto, reportes]);
+
 
   // Función que crea el Web Worker para análisis de duplicados
   const createDuplicateAnalysisWorker = () => {
@@ -525,6 +665,115 @@ function AuditorDashboard() {
     window.location.reload();
   };
 
+  /* ––––––– FUNCIONES PARA VERIFICAR VENTAS Y RESOLVER DISPUTAS ––––––– */
+  const handleVerificarVenta = (cliente: Cliente) => {
+    // Abre modal de confirmación para verificar venta
+    setVentaVerificar(cliente);
+  };
+
+  const confirmVerificarVenta = async (cliente: Cliente) => {
+    const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID);
+    if (reporteIndex === -1) return;
+
+    const reporte = reportes[reporteIndex];
+
+    try {
+      try {
+        await apiClient.request(
+          `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+          'PATCH',
+          { verificada: true }
+        );
+      } catch (error: any) {
+        const responseText = await error.response?.text?.();
+        console.error('Error al verificar venta:', responseText);
+      }
+
+      // Actualiza en memoria local
+      const updatedReporte = { ...reporte, verificada: true };
+      const nuevosReportes = [...reportes];
+      nuevosReportes[reporteIndex] = updatedReporte;
+      setReportes(nuevosReportes);
+
+      toast.success(`✅ Venta de ${cliente.NOMBRE} verificada con éxito`, {
+        style: {
+          borderRadius: '8px',
+          background: '#4f46e5',
+          color: '#fff',
+        },
+        icon: '🎉',
+      });
+
+    } catch (err) {
+      console.error('❌ Error al verificar la venta:', err);
+      alert('Hubo un error al intentar verificar la venta.');
+    }
+
+    setVentaVerificar(null);
+  };
+
+  const confirmResolverDisputa = async (clienteGanador: Cliente) => {
+    const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === clienteGanador.ID);
+    if (reporteIndex === -1) return;
+
+    const reporte = reportes[reporteIndex];
+
+    try {
+      // Actualiza en la BD
+      try {
+        await apiClient.request(
+          `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+          'PATCH',
+          { verificada: true }
+        );
+      } catch (error: any) {
+        const responseText = await error.response?.text?.();
+        console.error('Error al verificar venta:', responseText);
+      }
+
+
+      // Actualiza en memoria
+      const updatedReporte = { ...reporte, verificada: true };
+      const nuevosReportes = [...reportes];
+      nuevosReportes[reporteIndex] = updatedReporte;
+      setReportes(nuevosReportes);
+
+      // Elimina grupo duplicado al que pertenece el cliente
+      setDuplicados(prev =>
+        prev.filter(grupo => !grupo.some(c => c.ID === clienteGanador.ID))
+      );
+
+      toast.success(`✅ Disputa asignada a ${clienteGanador.NOMBRE}`, {
+        style: {
+          borderRadius: '8px',
+          background: '#16a34a',
+          color: '#fff',
+        },
+        icon: '📌',
+      });
+
+    } catch (err) {
+      console.error('❌ Error al resolver disputa:', err);
+      alert('Hubo un error al resolver la disputa.');
+    }
+
+    setDisputaGrupo(null);
+  };
+
+
+
+  const cancelVerificarVenta = () => {
+    setVentaVerificar(null);
+  };
+
+  const handleResolverDisputa = (grupo: Cliente[]) => {
+    setDisputaGrupo(grupo);
+  };
+
+  const cancelResolverDisputa = () => {
+    setDisputaGrupo(null);
+  };
+
   /* ––––––– RENDER PRINCIPAL ––––––– */
   if (loading) {
     return (
@@ -635,6 +884,14 @@ function AuditorDashboard() {
                     </li>
                   ))}
                 </ul>
+                <div className="mt-2">
+                  <button
+                    onClick={() => handleResolverDisputa(grupo)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded"
+                  >
+                    Resolver Disputa
+                  </button>
+                </div>
 
               </div>
             ))
@@ -652,9 +909,14 @@ function AuditorDashboard() {
           asesor={asesorSeleccionado}
           clientes={clientes}
           reportes={reportes}
+          duplicados={duplicados}
           onClose={() => setAsesorSeleccionado(null)}
           onVerHistorial={(cliente) => setClienteHistorial(cliente)}
+          onVerificarVenta={handleVerificarVenta}
+          onResolverDisputa={handleResolverDisputa}
+          registros={registros}
         />
+
       )}
 
       {/* Modal de Historial de Cliente */}
@@ -673,6 +935,27 @@ function AuditorDashboard() {
           />
         </Suspense>
       )}
+
+      {/* Modal para confirmar verificación de venta */}
+      {ventaVerificar && (
+        <ModalVerificarVenta
+          cliente={ventaVerificar}
+          onConfirm={() => confirmVerificarVenta(ventaVerificar)}
+          onCancel={cancelVerificarVenta}
+        />
+      )}
+
+      {/* Modal para resolver disputa */}
+      {disputaGrupo && (
+        <ModalResolverDisputa
+          grupo={disputaGrupo}
+          onResolve={confirmResolverDisputa}
+          onCancel={cancelResolverDisputa}
+        />
+      )}
+
+      <Toaster position="top-right" />
+
     </div>
   );
 }

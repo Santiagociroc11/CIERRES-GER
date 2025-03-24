@@ -72,13 +72,15 @@ const ClienteRow = React.memo(({
   reporte,
   getFuente,
   onVerHistorial,
-  onVerificarVenta
+  onVerificarVenta,
+  enDisputa
 }: {
   cliente: Cliente;
   reporte: Reporte | undefined;
   getFuente: (id: number) => string;
   onVerHistorial: (cliente: Cliente) => void;
   onVerificarVenta: (cliente: Cliente) => void;
+  enDisputa: boolean;
 }) => {
   // Función para obtener el texto del estado, incluyendo detalle de verificación
   const getEstadoFinal = (): string => {
@@ -147,18 +149,25 @@ const ClienteRow = React.memo(({
         >
           Ver Historial
         </button>
-        {(!reporte || !reporte.verificada) && reporte && (
-          <button
-            onClick={() => onVerificarVenta(cliente)}
-            className="ml-2 text-blue-600 hover:text-blue-800"
-          >
-            Verificar
-          </button>
+        {reporte && !reporte.verificada && (
+          enDisputa ? (
+            <span className="ml-2 px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300">
+              EN DISPUTA
+            </span>
+          ) : (
+            <button
+              onClick={() => onVerificarVenta(cliente)}
+              className="ml-2 px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
+            >
+              Verificar
+            </button>
+          )
         )}
       </td>
     </tr>
   );
 });
+
 
 
 function ClientesAsesorModal({
@@ -198,6 +207,16 @@ function ClientesAsesorModal({
     });
     return { clientesAsesor, clientesFiltrados };
   }, [asesor.ID, clientes, reportes, searchTerm]);
+
+  const clientesEnDisputa = useMemo(() => {
+    const ids = new Set();
+    duplicados.forEach(grupo => {
+      grupo.forEach(cliente => {
+        ids.add(cliente.ID);
+      });
+    });
+    return Array.from(ids);
+  }, [duplicados]);
 
   const getReporteForCliente = (cliente: Cliente): Reporte | undefined => {
     return reportes.find(r => r.ID_CLIENTE === cliente.ID);
@@ -268,6 +287,7 @@ function ClientesAsesorModal({
             <tbody className="bg-white divide-y divide-gray-200">
               {clientesFiltrados.slice(0, 100).map(cliente => {
                 const reporte = getReporteForCliente(cliente);
+                const enDisputa = clientesEnDisputa.includes(cliente.ID);
                 return (
                   <ClienteRow
                     key={cliente.ID}
@@ -276,6 +296,7 @@ function ClientesAsesorModal({
                     getFuente={getFuente}
                     onVerHistorial={onVerHistorial}
                     onVerificarVenta={onVerificarVenta}
+                    enDisputa={enDisputa}
                   />
                 );
               })}
@@ -374,13 +395,14 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
 /* ––––––– MODAL: Resolver Disputa ––––––– */
 interface ModalResolverDisputaProps {
   grupo: Cliente[];
-  asesores: Asesor[]; // Se pasa la lista de asesores para obtener el nombre
+  asesores: Asesor[];
   onResolve: (cliente: Cliente, comentario: string) => void;
   onCancel: () => void;
 }
 
 function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalResolverDisputaProps) {
   const [comentario, setComentario] = useState("");
+  const [password, setPassword] = useState("");
 
   const getNombreAsesor = (id: number) => {
     const asesor = asesores.find(a => a.ID === id);
@@ -389,7 +411,15 @@ function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalRes
 
   const handleResolve = (cliente: Cliente) => {
     if (!comentario.trim()) {
-      toast.error("Por favor, ingrese el motivo de rechazo para los duplicados.");
+      toast.error("Por favor, ingrese el motivo de rechazo para las ventas duplicadas.");
+      return;
+    }
+    if (!password.trim()) {
+      toast.error("Por favor, ingrese la clave para resolver la disputa.");
+      return;
+    }
+    if (password !== '0911') {
+      toast.error("Clave incorrecta.");
       return;
     }
     onResolve(cliente, comentario);
@@ -402,7 +432,7 @@ function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalRes
           Resolver Disputa de Ventas Duplicadas
         </h2>
         <p className="text-gray-700 mb-4">
-          Se han detectado ventas duplicadas. Ingrese el motivo de rechazo que se aplicará a todas las ventas duplicadas, excepto a la que usted seleccione como válida.
+          Se han detectado ventas duplicadas. Ingrese el motivo de rechazo que se aplicará a todas las ventas duplicadas (excepto la seleccionada como válida), y confirme con su clave.
         </p>
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-600 mb-1">
@@ -414,6 +444,18 @@ function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalRes
             className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
             placeholder="Escriba el motivo del rechazo..."
             rows={3}
+          />
+        </div>
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-600 mb-1">
+            Clave
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Ingrese la clave"
           />
         </div>
         <p className="text-gray-700 mb-2">

@@ -374,29 +374,68 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
 /* ––––––– MODAL: Resolver Disputa ––––––– */
 interface ModalResolverDisputaProps {
   grupo: Cliente[];
-  onResolve: (cliente: Cliente) => void;
+  asesores: Asesor[]; // Se pasa la lista de asesores para obtener el nombre
+  onResolve: (cliente: Cliente, comentario: string) => void;
   onCancel: () => void;
 }
-function ModalResolverDisputa({ grupo, onResolve, onCancel }: ModalResolverDisputaProps) {
+
+function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalResolverDisputaProps) {
+  const [comentario, setComentario] = useState("");
+
+  const getNombreAsesor = (id: number) => {
+    const asesor = asesores.find(a => a.ID === id);
+    return asesor ? asesor.NOMBRE : "Desconocido";
+  };
+
+  const handleResolve = (cliente: Cliente) => {
+    if (!comentario.trim()) {
+      toast.error("Por favor, ingrese el motivo de rechazo para los duplicados.");
+      return;
+    }
+    onResolve(cliente, comentario);
+  };
+
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded shadow-lg max-w-md w-full">
-        <h2 className="text-xl font-bold mb-4">Resolver Disputa</h2>
-        <p className="mb-4">Seleccione la venta correcta:</p>
-        <ul className="space-y-2">
+    <div className="fixed inset-0 bg-gray-700 bg-opacity-70 flex items-center justify-center z-50">
+      <div className="bg-white p-8 rounded-lg shadow-xl max-w-lg w-full">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">
+          Resolver Disputa de Ventas Duplicadas
+        </h2>
+        <p className="text-gray-700 mb-4">
+          Se han detectado ventas duplicadas. Ingrese el motivo de rechazo que se aplicará a todas las ventas duplicadas, excepto a la que usted seleccione como válida.
+        </p>
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-600 mb-1">
+            Motivo de Rechazo
+          </label>
+          <textarea
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Escriba el motivo del rechazo..."
+            rows={3}
+          />
+        </div>
+        <p className="text-gray-700 mb-2">
+          Seleccione el asesor al que se asignará la venta válida:
+        </p>
+        <ul className="space-y-3 mb-6">
           {grupo.map(cliente => (
-            <li key={cliente.ID}>
+            <li key={cliente.ID} className="border border-gray-200 rounded p-3 hover:bg-gray-50">
               <button
-                onClick={() => onResolve(cliente)}
-                className="text-blue-600 hover:text-blue-800"
+                onClick={() => handleResolve(cliente)}
+                className="w-full text-left text-lg text-blue-700 font-medium hover:underline"
               >
-                {cliente.NOMBRE} — WhatsApp: {cliente.WHATSAPP} — Asesor: {cliente.ID_ASESOR}
+                {getNombreAsesor(cliente.ID_ASESOR)}
               </button>
             </li>
           ))}
         </ul>
-        <div className="mt-4 flex justify-end">
-          <button onClick={onCancel} className="text-gray-600 hover:text-gray-800">
+        <div className="flex justify-end">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+          >
             Cancelar
           </button>
         </div>
@@ -404,6 +443,9 @@ function ModalResolverDisputa({ grupo, onResolve, onCancel }: ModalResolverDispu
     </div>
   );
 }
+
+
+
 
 /* ––––––– COMPONENTE ExportExcelModal ––––––– */
 interface ExportExcelModalProps {
@@ -587,9 +629,9 @@ function AuditorDashboard() {
     bestSellerBonus
   ) => {
     if (!clientes.length || !asesores.length) return;
-  
+
     const workbook = XLSX.utils.book_new();
-  
+
     /*** 1. Hoja “Parametros” ***/
     // Se obtienen las fuentes únicas (excluyendo "COMPRA")
     const uniqueSources = Array.from(
@@ -610,10 +652,10 @@ function AuditorDashboard() {
     parametrosData.push([]); // fila vacía
     parametrosData.push(["", "", "", "Bono10", "Bono20", "Bono30", "Bono50", "BestSellerBonus"]);
     parametrosData.push(["", "", "", Number(bonus10) || 0, Number(bonus20) || 0, Number(bonus30) || 0, Number(bonus50) || 0, Number(bestSellerBonus) || 0]);
-  
+
     const wsParametros = XLSX.utils.aoa_to_sheet(parametrosData);
     XLSX.utils.book_append_sheet(workbook, wsParametros, "Parametros");
-  
+
     /*** Funciones auxiliares para obtener la fuente ***///
     // Función para parsear la fecha de evento (similar a tu código original)
     const parseFechaEvento = (fechaEvento) => {
@@ -621,7 +663,7 @@ function AuditorDashboard() {
       if (isNaN(t)) t = Number(fechaEvento) * 1000;
       return t;
     };
-  
+
     // Función para obtener la fuente de un cliente
     const obtenerFuente = (clienteId) => {
       const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
@@ -631,12 +673,12 @@ function AuditorDashboard() {
       }
       return 'Desconocido';
     };
-  
+
     /*** 2. Hoja “Detalle” ***/
     // Encabezados: Asesor, Cliente, WhatsApp, Fuente, Estado y Comisión
     const detalleData = [];
     detalleData.push(["Asesor", "Cliente", "WhatsApp", "Fuente", "Estado", "Comisión"]);
-    
+
     asesores.forEach(asesor => {
       const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
       clientesAsesor.forEach(cliente => {
@@ -648,14 +690,14 @@ function AuditorDashboard() {
         // Si hay reporte: "VERIFICADA" solo si cumple la validación, sino "NO APLICABLE"
         // Si no hay reporte se indica "SIN REPORTE"
         const estado = reporte ? (validaParaComision ? "VERIFICADA" : "NO APLICABLE") : "SIN REPORTE";
-  
+
         // Se obtiene la fuente usando la función auxiliar
         const fuente = obtenerFuente(cliente.ID);
-        
+
         const currentRow = detalleData.length + 1; // Fila actual (fila 1 es el encabezado)
         // Fórmula para comisión: solo se paga si el estado es "VERIFICADA"
-        const commissionFormula = `=IF(E${currentRow}="VERIFICADA",IFERROR(VLOOKUP(D${currentRow},Parametros!$A$2:$B$${numSources+1},2,FALSE),0),0)`;
-        
+        const commissionFormula = `=IF(E${currentRow}="VERIFICADA",IFERROR(VLOOKUP(D${currentRow},Parametros!$A$2:$B$${numSources + 1},2,FALSE),0),0)`;
+
         detalleData.push([
           asesor.NOMBRE,
           cliente.NOMBRE,
@@ -668,7 +710,7 @@ function AuditorDashboard() {
     });
     const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData);
     XLSX.utils.book_append_sheet(workbook, wsDetalle, "Detalle");
-  
+
     /*** 3. Hoja “Resumen” ***/
     // Se agrupa la información por asesor:
     // - Total Ventas Verificadas (solo las con estado "VERIFICADA")
@@ -679,7 +721,7 @@ function AuditorDashboard() {
     // - Total Ingreso: suma de comisión, bonus fuente, bonus 50 y best seller bonus
     const bonusRow = numSources + 4; // Ubicación de los bonos en "Parametros"
     const numAsesores = asesores.length;
-  
+
     const resumenData = [];
     resumenData.push([
       "Asesor",
@@ -690,14 +732,14 @@ function AuditorDashboard() {
       "Bonus Fuente",
       "Total Ingreso"
     ]);
-  
+
     asesores.forEach((asesor, idx) => {
       const row = idx + 2; // fila en "Resumen" (fila 1 es encabezado)
       const totalVentasFormula = `=COUNTIFS(Detalle!$A:$A, A${row}, Detalle!$E:$E, "VERIFICADA")`;
       const totalComisionFormula = `=SUMIFS(Detalle!$F:$F,Detalle!$A:$A, A${row},Detalle!$E:$E, "VERIFICADA")`;
       const bonus50Formula = `=IF(B${row}>=50,Parametros!$G$${bonusRow},0)`;
-      const bestSellerFormula = `=IF(AND(B${row}>30,RANK(B${row},$B$2:$B$${numAsesores+1},0)=1),Parametros!$H$${bonusRow},0)`;
-  
+      const bestSellerFormula = `=IF(AND(B${row}>30,RANK(B${row},$B$2:$B$${numAsesores + 1},0)=1),Parametros!$H$${bonusRow},0)`;
+
       // BONUS FUENTE: Para cada fuente se evalúa si se alcanzan umbrales de 10, 20 y 30 ventas verificadas
       let bonusFuenteParts = uniqueSources.map(source => {
         return `(IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=10,Parametros!$D$${bonusRow},0)
@@ -706,7 +748,7 @@ function AuditorDashboard() {
       });
       const bonusFuenteFormula = bonusFuenteParts.join("+");
       const totalIngresoFormula = `=C${row}+D${row}+E${row}+(${bonusFuenteFormula})`;
-  
+
       resumenData.push([
         asesor.NOMBRE,
         { f: totalVentasFormula },
@@ -719,15 +761,15 @@ function AuditorDashboard() {
     });
     const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
     XLSX.utils.book_append_sheet(workbook, wsResumen, "Resumen");
-  
+
     // Escritura final del archivo (el nombre incluye la fecha actual)
     XLSX.writeFile(
       workbook,
       `Auditoria-Ventas-${new Date().toLocaleDateString()}.xlsx`
     );
   };
-  
-  
+
+
 
   const cargarDatosOptimizados = async () => {
     try {
@@ -822,7 +864,7 @@ function AuditorDashboard() {
           const gruposSinVerificadas = grupos.filter(grupo => {
             return !grupo.some(cliente => {
               const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID);
-              return reporte?.verificada;
+              return reporte && reporte.verificada && reporte.estado_verificacion === 'aprobada';
             });
           });
           setDuplicados(gruposSinVerificadas);
@@ -1009,7 +1051,7 @@ function AuditorDashboard() {
       );
       console.log('Respuesta del PATCH:', response);
       // Actualiza en memoria local
-      const updatedReporte = { ...reporte, verificada: true , estado_verificacion: decision, comentario_rechazo: decision === 'rechazada' ? comentario : ''};
+      const updatedReporte = { ...reporte, verificada: true, estado_verificacion: decision, comentario_rechazo: decision === 'rechazada' ? comentario : '' };
       const nuevosReportes = [...reportes];
 
       nuevosReportes[reporteIndex] = updatedReporte;
@@ -1025,31 +1067,58 @@ function AuditorDashboard() {
     setVentaVerificar(null);
   };
 
-  const confirmResolverDisputa = async (clienteGanador: Cliente) => {
-    const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === clienteGanador.ID);
-    if (reporteIndex === -1) return;
-    const reporte = reportes[reporteIndex];
-    try {
-      await apiClient.request(
-        `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
-        'PATCH',
-        { verificada: true, estado_verificacion: 'aprobada', comentario_rechazo: '' }
-      );
-      const updatedReporte = { ...reporte, verificada: true, estado_verificacion: 'aprobada', comentario_rechazo: '' };
-      const nuevosReportes = [...reportes];
-      nuevosReportes[reporteIndex] = updatedReporte;
-      setReportes(nuevosReportes);
-      setDuplicados(prev =>
-        prev.filter(grupo => !grupo.some(c => c.ID === clienteGanador.ID))
-      );
-      toast.success(`✅ Disputa asignada a ${clienteGanador.NOMBRE}`, {
-        style: { borderRadius: '8px', background: '#16a34a', color: '#fff' },
-        icon: '📌'
-      });
-    } catch (err) {
-      console.error('❌ Error al resolver disputa:', err);
-      alert('Hubo un error al resolver la disputa.');
+  const confirmResolverDisputa = async (clienteGanador: Cliente, comentario: string) => {
+    // Se busca el grupo de duplicados que contiene al ganador
+    const grupo = duplicados.find(grupo => grupo.some(c => c.ID === clienteGanador.ID));
+    if (!grupo) return;
+
+    // Se recorre cada cliente en el grupo para actualizar su reporte
+    for (const cliente of grupo) {
+      const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID);
+      if (reporteIndex === -1) continue;
+      const reporte = reportes[reporteIndex];
+      let newEstado, newComentario;
+      if (cliente.ID === clienteGanador.ID) {
+        // Para el ganador se marca "aprobada" sin comentario
+        newEstado = 'aprobada';
+        newComentario = '';
+      } else {
+        // Para los otros se marca "rechazada" y se asigna el comentario ingresado
+        newEstado = 'rechazada';
+        newComentario = comentario;
+      }
+      try {
+        await apiClient.request(
+          `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+          'PATCH',
+          {
+            verificada: true,
+            estado_verificacion: newEstado,
+            comentario_rechazo: newComentario
+          }
+        );
+        // Actualiza en memoria el reporte modificado
+        const updatedReporte = {
+          ...reporte,
+          verificada: true,
+          estado_verificacion: newEstado,
+          comentario_rechazo: newComentario
+        };
+        const nuevosReportes = [...reportes];
+        nuevosReportes[reporteIndex] = updatedReporte;
+        setReportes(nuevosReportes);
+      } catch (err) {
+        console.error(`Error al actualizar la venta para ${cliente.NOMBRE}:`, err);
+        alert(`Hubo un error al actualizar la venta de ${cliente.NOMBRE}.`);
+      }
     }
+
+    // Se elimina el grupo de duplicados resuelto
+    setDuplicados(prev => prev.filter(grupo => !grupo.some(c => c.ID === clienteGanador.ID)));
+    toast.success(`✅ Disputa resuelta: ${clienteGanador.NOMBRE} aprobado, otros rechazados.`, {
+      style: { borderRadius: '8px', background: '#16a34a', color: '#fff' },
+      icon: '📌'
+    });
     setDisputaGrupo(null);
   };
 
@@ -1237,10 +1306,12 @@ function AuditorDashboard() {
       {disputaGrupo && (
         <ModalResolverDisputa
           grupo={disputaGrupo}
+          asesores={asesores}  // Asegúrate de pasar el arreglo de asesores aquí
           onResolve={confirmResolverDisputa}
           onCancel={cancelResolverDisputa}
         />
       )}
+
 
       {/* Modal de Exportación */}
       {showExportModal && (

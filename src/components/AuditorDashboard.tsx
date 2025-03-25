@@ -958,8 +958,25 @@ function AuditorDashboard() {
 
   const sortedAsesores = [...asesoresFiltrados].sort((a, b) => a.NOMBRE.localeCompare(b.NOMBRE));
 
+ // Usa tu función getReporteForCliente para obtener el último reporte
+ function isVentaVerificada(cliente: Cliente, reportes: Reporte[]): boolean {
+  // Filtramos solo los reportes de "VENTA CONSOLIDADA" para el cliente
+  const clientReports = reportes.filter(
+    r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
+  );
+  if (clientReports.length === 0) return false;
+  // Ordenamos para obtener el reporte más reciente
+  clientReports.sort((a, b) => {
+    const fechaA = typeof a.FECHA_REPORTE === 'string' ? parseInt(a.FECHA_REPORTE, 10) : a.FECHA_REPORTE;
+    const fechaB = typeof b.FECHA_REPORTE === 'string' ? parseInt(b.FECHA_REPORTE, 10) : b.FECHA_REPORTE;
+    return fechaB - fechaA;
+  });
+  const ultimo = clientReports[0];
+  return !!ultimo.verificada;
+}
 
 
+  
   /* ––––––– ANÁLISIS DE DUPLICADOS CON WEB WORKER ––––––– */
   useEffect(() => {
     if (clientes.length > 0 && asesores.length > 0) {
@@ -969,24 +986,27 @@ function AuditorDashboard() {
           setDuplicadosProgress(e.data.progress);
         } else if (e.data.type === 'complete') {
           const grupos: Cliente[][] = e.data.duplicados;
-          const gruposSinVerificadas = grupos.filter(grupo => {
-            return !grupo.some(cliente => {
-              const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID);
-              return reporte && reporte.verificada && reporte.estado_verificacion === 'aprobada';
-            });
-          });
+          // Se pueden filtrar nuevamente si se requiere:
+          const gruposSinVerificadas = grupos
+            .map(grupo => grupo.filter(cliente => !isVentaVerificada(cliente, reportes)))
+            .filter(grupo => grupo.length > 1);
           setDuplicados(gruposSinVerificadas);
           setDuplicadosCargando(false);
         }
       };
-
+  
       setDuplicadosCargando(true);
-      worker.postMessage({ clientes: clientesFiltradosPorProducto, asesores });
+      // Aquí se filtran los clientes antes de enviarlos al worker
+      const clientesParaWorker = clientesFiltradosPorProducto.filter(
+        cliente => !isVentaVerificada(cliente, reportes)
+      );
+      worker.postMessage({ clientes: clientesParaWorker, asesores });
       return () => {
         worker.terminate();
       };
     }
   }, [clientes, asesores, clientesFiltradosPorProducto, reportes]);
+
 
   const createDuplicateAnalysisWorker = () => {
     const workerCode = `
@@ -1350,18 +1370,18 @@ function AuditorDashboard() {
           </div>
           {asesoresFiltrados.length > 0 ? (
             <div className="divide-y divide-gray-200">
-            {sortedAsesores.map((asesor, index) => (
-              <AsesorItem
-                key={asesor.ID}
-                asesor={asesor}
-                ventasReportadas={getEstadisticasAsesor(asesor.ID).ventasReportadas}
-                ventasConsolidadas={getEstadisticasAsesor(asesor.ID).ventasConsolidadas}
-                onClick={() => setAsesorSeleccionado(asesor)}
-                style={{ height: '100px' }}
-              />
-            ))}
-          </div>
-          
+              {sortedAsesores.map((asesor, index) => (
+                <AsesorItem
+                  key={asesor.ID}
+                  asesor={asesor}
+                  ventasReportadas={getEstadisticasAsesor(asesor.ID).ventasReportadas}
+                  ventasConsolidadas={getEstadisticasAsesor(asesor.ID).ventasConsolidadas}
+                  onClick={() => setAsesorSeleccionado(asesor)}
+                  style={{ height: '100px' }}
+                />
+              ))}
+            </div>
+
           ) : (
             <div className="p-6 text-center text-gray-500">
               No se encontraron asesores con ese criterio de búsqueda

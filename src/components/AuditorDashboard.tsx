@@ -239,7 +239,7 @@ function ClientesAsesorModal({
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-full max-w-7xl shadow-lg rounded-md bg-white">
+      <div className="relative top-20 mx-auto p-5 border w-full max-w-8xl shadow-lg rounded-md bg-white">
         <div className="flex justify-between items-center mb-4 border-b pb-4">
           <div>
             <h3 className="text-lg font-medium text-gray-900">

@@ -223,14 +223,14 @@ function ClientesAsesorModal({
     if (isNaN(t)) t = Number(fecha) * 1000;
     return t;
   };
-  
+
   const getReporteForCliente = (cliente: Cliente): Reporte | undefined => {
     const clientReports = reportes.filter(r => r.ID_CLIENTE === cliente.ID);
     if (clientReports.length === 0) return undefined;
     clientReports.sort((a, b) => parseFechaReporte(b.FECHA_REPORTE) - parseFechaReporte(a.FECHA_REPORTE));
     return clientReports[0];
   };
-  
+
 
   const parseFechaEvento = (fechaEvento: any): number => {
     let t = new Date(fechaEvento).getTime();
@@ -834,8 +834,12 @@ function AuditorDashboard() {
       setLoadingProgress(30);
       // Cargar clientes, reportes y registros
       const [clientesData, reportesData, registrosData] = await Promise.all([
-        fetchAllPages('/GERSSON_CLIENTES', 'ESTADO=in.(PAGADO,VENTA CONSOLIDADA)', 100),
-        fetchAllPages('/GERSSON_REPORTES', 'ESTADO_NUEVO=in.(PAGADO,VENTA CONSOLIDADA)', 100),
+        fetchAllPages('/GERSSON_CLIENTES', 'or=(ESTADO.ilike.*PAGADO*,ESTADO.ilike.*CONSOLIDADA*)', 100),
+        fetchAllPages(
+          '/GERSSON_REPORTES',
+          'or=(ESTADO_NUEVO.ilike.*PAGADO*,ESTADO_NUEVO.ilike.*CONSOLIDADA*)',
+          100
+        ),        
         fetchAllPages('/GERSSON_REGISTROS', 'ID_CLIENTE=not.is.null', 100)
       ]);
       setClientes(clientesData);

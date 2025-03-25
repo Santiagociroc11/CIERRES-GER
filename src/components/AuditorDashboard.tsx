@@ -122,7 +122,7 @@ const ClienteRow = React.memo(({
 
   return (
     <tr className="hover:bg-gray-50">
-      <td className="px-6 py-4 whitespace-nowrap">
+      <td className="px-6 py-4 whitespace-normal break-words">
         <button
           onClick={() => onVerHistorial(cliente)}
           className="text-sm font-medium text-gray-900 hover:text-purple-600"
@@ -130,10 +130,10 @@ const ClienteRow = React.memo(({
           {cliente.NOMBRE}
         </button>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+      <td className="px-6 py-4 whitespace-normal break-words text-sm text-gray-500">
         {getFuente(cliente.ID)}
       </td>
-      <td className="px-6 py-4 whitespace-nowrap">
+      <td className="px-6 py-4 whitespace-normal break-words">
         <span className={`px-2 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${getEstadoClass()}`}>
           {getEstadoFinal()}
           {reporte && reporte.verificada && reporte.estado_verificacion === 'aprobada' && (
@@ -141,10 +141,10 @@ const ClienteRow = React.memo(({
           )}
         </span>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+      <td className="px-6 py-4 whitespace-normal break-words text-sm text-gray-500">
         {cliente.WHATSAPP}
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+      <td className="px-6 py-4 whitespace-normal break-words text-right text-sm font-medium">
         <button
           onClick={() => onVerHistorial(cliente)}
           className="text-purple-600 hover:text-purple-900"
@@ -177,6 +177,7 @@ const ClienteRow = React.memo(({
     </tr>
   );
 });
+
 
 
 
@@ -816,7 +817,7 @@ function AuditorDashboard() {
     const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData);
     XLSX.utils.book_append_sheet(workbook, wsDetalle, "Detalle");
 
-    const bonusRow = numSources + 4; 
+    const bonusRow = numSources + 4;
     const numAsesores = asesores.length;
 
     const resumenData = [];
@@ -945,12 +946,19 @@ function AuditorDashboard() {
     return { ventasReportadas, ventasConsolidadas };
   };
 
+  const normalizeString = (str: string) =>
+    str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
   const asesoresFiltrados = useMemo(() => {
     return asesores.filter(asesor =>
-      asesor.NOMBRE.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (asesor.WHATSAPP || '').includes(searchTerm)
+      normalizeString(asesor.NOMBRE).includes(normalizeString(searchTerm)) ||
+      normalizeString(asesor.WHATSAPP || '').includes(normalizeString(searchTerm))
     );
   }, [asesores, searchTerm]);
+
+  const sortedAsesores = [...asesoresFiltrados].sort((a, b) => a.NOMBRE.localeCompare(b.NOMBRE));
+
+
 
   /* ––––––– ANÁLISIS DE DUPLICADOS CON WEB WORKER ––––––– */
   useEffect(() => {
@@ -1341,11 +1349,19 @@ function AuditorDashboard() {
             <h2 className="text-lg font-medium text-gray-900">Asesores y sus Ventas</h2>
           </div>
           {asesoresFiltrados.length > 0 ? (
-            <div className="divide-y divide-gray-200" style={{ height: '100vh' }}>
-              <List height={1000} itemCount={asesoresFiltrados.length} itemSize={100} width="100%">
-                {renderAsesorRow}
-              </List>
-            </div>
+            <div className="divide-y divide-gray-200">
+            {sortedAsesores.map((asesor, index) => (
+              <AsesorItem
+                key={asesor.ID}
+                asesor={asesor}
+                ventasReportadas={getEstadisticasAsesor(asesor.ID).ventasReportadas}
+                ventasConsolidadas={getEstadisticasAsesor(asesor.ID).ventasConsolidadas}
+                onClick={() => setAsesorSeleccionado(asesor)}
+                style={{ height: '100px' }}
+              />
+            ))}
+          </div>
+          
           ) : (
             <div className="p-6 text-center text-gray-500">
               No se encontraron asesores con ese criterio de búsqueda

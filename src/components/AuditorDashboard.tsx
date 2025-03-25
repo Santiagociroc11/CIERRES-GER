@@ -1307,7 +1307,7 @@ function AuditorDashboard() {
       {asesorSeleccionado && (
         <ClientesAsesorModal
           asesor={asesorSeleccionado}
-          clientes={clientes}
+          clientes={clientesFiltradosPorProducto}  // Aquí aplicamos el filtro de producto
           reportes={reportes}
           duplicados={duplicados}
           onClose={() => setAsesorSeleccionado(null)}
@@ -1317,6 +1317,7 @@ function AuditorDashboard() {
           registros={registros}
         />
       )}
+
 
       {/* Modal de Historial de Cliente */}
       {clienteHistorial && (

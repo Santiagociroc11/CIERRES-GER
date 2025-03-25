@@ -974,8 +974,6 @@ function AuditorDashboard() {
   const ultimo = clientReports[0];
   return !!ultimo.verificada;
 }
-
-
   
   /* ––––––– ANÁLISIS DE DUPLICADOS CON WEB WORKER ––––––– */
   useEffect(() => {

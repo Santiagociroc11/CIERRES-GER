@@ -63,6 +63,7 @@ interface ClientesAsesorModalProps {
   onClose: () => void;
   onVerHistorial: (cliente: Cliente) => void;
   onVerificarVenta: (cliente: Cliente) => void;
+  onDesverificarVenta: (cliente: Cliente) => void;
   onResolverDisputa: (grupo: Cliente[]) => void;
 }
 
@@ -73,6 +74,7 @@ const ClienteRow = React.memo(({
   getFuente,
   onVerHistorial,
   onVerificarVenta,
+  onDesverificarVenta,
   enDisputa
 }: {
   cliente: Cliente;
@@ -149,20 +151,28 @@ const ClienteRow = React.memo(({
         >
           Ver Historial
         </button>
-        {reporte && !reporte.verificada && (
-          enDisputa ? (
-            <span className="ml-2 px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300">
-              EN DISPUTA
-            </span>
-          ) : (
+        {reporte &&
+          (reporte.verificada ? (
             <button
-              onClick={() => onVerificarVenta(cliente)}
-              className="ml-2 px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
+              onClick={() => onDesverificarVenta(cliente)}
+              className="ml-2 px-3 py-1 rounded border bg-red-100 text-red-800 hover:bg-red-200"
             >
-              Verificar
+              Quitar verificación
             </button>
-          )
-        )}
+          ) : (
+            enDisputa ? (
+              <span className="ml-2 px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300">
+                EN DISPUTA
+              </span>
+            ) : (
+              <button
+                onClick={() => onVerificarVenta(cliente)}
+                className="ml-2 px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
+              >
+                Verificar
+              </button>
+            )
+          ))}
       </td>
     </tr>
   );
@@ -179,6 +189,7 @@ function ClientesAsesorModal({
   onClose,
   onVerHistorial,
   onVerificarVenta,
+  onDesverificarVenta,
   onResolverDisputa,
 }: ClientesAsesorModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -306,6 +317,7 @@ function ClientesAsesorModal({
                     getFuente={getFuente}
                     onVerHistorial={onVerHistorial}
                     onVerificarVenta={onVerificarVenta}
+                    onDesverificarVenta={onDesverificarVenta}
                     enDisputa={enDisputa}
                   />
                 );
@@ -401,6 +413,56 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
     </div>
   );
 }
+
+interface ModalDesverificarVentaProps {
+  cliente: Cliente;
+  onConfirm: (comentario: string) => void;
+  onCancel: () => void;
+}
+function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverificarVentaProps) {
+  const [password, setPassword] = useState('');
+  const [comentario, setComentario] = useState('');
+
+  const handleConfirm = () => {
+    if (!password.trim()) {
+      toast.error('Debe ingresar la contraseña.');
+      return;
+    }
+    if (password !== '0911') {
+      toast.error('Contraseña incorrecta.');
+      return;
+    }
+    onConfirm(comentario); // Puedes enviar el comentario o simplemente ""
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded shadow-lg max-w-sm w-full">
+        <h2 className="text-xl font-bold mb-4">Quitar verificación de {cliente.NOMBRE}</h2>
+        {/* Puedes dejar un textarea opcional para comentarios */}
+        <div className="mb-4">
+          <label className="block font-medium">Contraseña:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 block w-full border rounded-md p-2"
+            placeholder="Escriba la contraseña"
+          />
+        </div>
+        <div className="flex justify-end space-x-4">
+          <button onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded">
+            Cancelar
+          </button>
+          <button onClick={handleConfirm} className="px-4 py-2 bg-blue-600 text-white rounded">
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 /* ––––––– MODAL: Resolver Disputa ––––––– */
 interface ModalResolverDisputaProps {
@@ -623,6 +685,8 @@ function AuditorDashboard() {
   const [productoFiltro, setProductoFiltro] = useState<'PRINCIPAL' | 'DOWNSELL'>('PRINCIPAL');
   const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
+  const [ventaDesverificar, setVentaDesverificar] = useState<Cliente | null>(null);
+
 
   // Estados para duplicados, progresos y modales
   const [duplicados, setDuplicados] = useState<Cliente[][]>([]);
@@ -839,7 +903,7 @@ function AuditorDashboard() {
           '/GERSSON_REPORTES',
           'or=(ESTADO_NUEVO.ilike.*PAGADO*,ESTADO_NUEVO.ilike.*CONSOLIDADA*)',
           100
-        ),        
+        ),
         fetchAllPages('/GERSSON_REGISTROS', 'ID_CLIENTE=not.is.null', 100)
       ]);
       setClientes(clientesData);
@@ -1090,6 +1154,37 @@ function AuditorDashboard() {
     setVentaVerificar(cliente);
   };
 
+  const confirmDesverificarVenta = async (cliente: Cliente) => {
+    const reporteIndex = reportes.findIndex(
+      r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
+    );
+    if (reporteIndex === -1) return;
+    const reporte = reportes[reporteIndex];
+    try {
+      const response = await apiClient.request(
+        `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+        'PATCH',
+        {
+          verificada: false,
+          estado_verificacion: '',
+          comentario_rechazo: ''
+        }
+      );
+      console.log('Respuesta del PATCH (desverificar):', response);
+      const updatedReporte = { ...reporte, verificada: false, estado_verificacion: '', comentario_rechazo: '' };
+      const nuevosReportes = [...reportes];
+      nuevosReportes[reporteIndex] = updatedReporte;
+      setReportes(nuevosReportes);
+      toast.success(`✅ Venta de ${cliente.NOMBRE} desverificada`, {
+        style: { borderRadius: '8px', background: '#4f46e5', color: '#fff' },
+        icon: '🎉'
+      });
+    } catch (err) {
+      console.error('❌ Error al desverificar la venta:', err);
+      alert('Hubo un error al intentar desverificar la venta.');
+    }
+  };
+
   // Función de verificación que actualiza en memoria y en BD
   const confirmVerificarVenta = async (cliente: Cliente, decision: 'aprobada' | 'rechazada', comentario: string) => {
     const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
@@ -1327,6 +1422,7 @@ function AuditorDashboard() {
           onClose={() => setAsesorSeleccionado(null)}
           onVerHistorial={(cliente) => setClienteHistorial(cliente)}
           onVerificarVenta={handleVerificarVenta}
+          onDesverificarVenta={(cliente) => setVentaDesverificar(cliente)}
           onResolverDisputa={handleResolverDisputa}
           registros={registros}
         />
@@ -1368,6 +1464,19 @@ function AuditorDashboard() {
           onCancel={cancelResolverDisputa}
         />
       )}
+
+      {ventaDesverificar && (
+        <ModalDesverificarVenta
+          cliente={ventaDesverificar}
+          onConfirm={(comentario) => {
+            // Llama a tu función existente para desverificar:
+            confirmDesverificarVenta(ventaDesverificar, comentario);
+            setVentaDesverificar(null);
+          }}
+          onCancel={() => setVentaDesverificar(null)}
+        />
+      )}
+
 
 
       {/* Modal de Exportación */}

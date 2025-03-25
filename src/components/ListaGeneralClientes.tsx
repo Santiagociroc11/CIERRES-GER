@@ -82,20 +82,41 @@ export default function ListaGeneralClientes({
     })[0];
   };
 
+  const obtenerUltimoReportePagado = (clienteId: number) => {
+    const reportesPagados = reportes.filter(
+      (r) =>
+        r.ID_CLIENTE === clienteId &&
+        (r.ESTADO_NUEVO === 'PAGADO')
+    );
+    if (!reportesPagados.length) return null;
+    return reportesPagados.sort((a, b) => {
+      const fechaA =
+        typeof a.FECHA_REPORTE === 'string'
+          ? parseInt(a.FECHA_REPORTE, 10)
+          : a.FECHA_REPORTE;
+      const fechaB =
+        typeof b.FECHA_REPORTE === 'string'
+          ? parseInt(b.FECHA_REPORTE, 10)
+          : b.FECHA_REPORTE;
+      return fechaB - fechaA;
+    })[0];
+  };
+  
+
   // Modificamos getEstadoTexto para incluir el tipo de producto en ventas
   const getEstadoTexto = (estado: EstadoCliente, clienteId: number) => {
-    if ((estado === 'PAGADO' || estado === 'VENTA CONSOLIDADA')) {
-      const ultimoReporte = obtenerUltimoReporte(clienteId);
-      if (ultimoReporte) {
-        const producto = ultimoReporte.PRODUCTO || '';
+    if (estado === 'PAGADO' || estado === 'VENTA CONSOLIDADA') {
+      const ultimoReportePagado = obtenerUltimoReportePagado(clienteId);
+      if (ultimoReportePagado) {
+        const producto = ultimoReportePagado.PRODUCTO || '';
         return `${estado} (${producto})`;
       }
     }
     if (estado === 'PAGADO' && !tieneReporteVenta(clienteId)) {
-      return 'PAGADO (Sin reporte)';
+      return 'PAGADO (NO REPORTADA)';
     }
     return estado;
-  };
+  };  
 
   const getSortValue = (cliente: Cliente): number => {
     const ultimoRpt = obtenerUltimoReporte(cliente.ID);

@@ -102,8 +102,6 @@ export default function HistorialCliente({
     }
   };
 
-  // Función modificada para diferenciar reportes de venta según el producto,
-  // sin quitar nada de la lógica existente.
   const getIconForReporte = (reporte: Reporte) => {
     if (reporte.ESTADO_NUEVO === 'PAGADO' || reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
       if (reporte.PRODUCTO === 'PRINCIPAL') {
@@ -114,10 +112,9 @@ export default function HistorialCliente({
         return <DollarSign className="h-4 w-4 text-green-600" />;
       }
     } else if (reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
-      // Caso extra, aunque normalmente se evalúa arriba
       return <FileVideo className="h-4 w-4 text-emerald-600" />;
     } else {
-      return <MessageSquare className="h-4 w-4 text-blue-600" />;
+      return <MessageSquare className="h-4 w-4 text-gray-600" />;
     }
   };
 
@@ -205,12 +202,18 @@ export default function HistorialCliente({
                                 <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getEstadoColor(item.data.ESTADO_NUEVO)}`}>
                                   {item.data.ESTADO_NUEVO}
                                 </span>
+                                {(item.data.ESTADO_NUEVO === 'PAGADO') && (
+                                  <span className="ml-2 px-2 py-0.5 text-[12px] font-medium text-black-700 bg-yellow-100 rounded">
+                                    {item.data.PRODUCTO === 'DOWNSELL' ? 'DOWNSELL' : 'PRINCIPAL'}
+                                  </span>
+                                )}
                                 {item.data.ESTADO_ANTERIOR && (
                                   <span className="text-sm text-gray-500">
                                     (Anterior: {item.data.ESTADO_ANTERIOR})
                                   </span>
                                 )}
                               </div>
+
                               <span className="text-sm text-gray-500 mt-1 sm:mt-0">
                                 {formatDate(item.data.FECHA_REPORTE)}
                               </span>

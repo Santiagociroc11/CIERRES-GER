@@ -790,28 +790,17 @@ function AuditorDashboard() {
       return 'Desconocido';
     };
 
-    /*** 2. Hoja “Detalle” ***/
-    // Encabezados: Asesor, Cliente, WhatsApp, Fuente, Estado y Comisión
     const detalleData = [];
     detalleData.push(["Asesor", "Cliente", "WhatsApp", "Fuente", "Estado", "Comisión"]);
 
     asesores.forEach(asesor => {
       const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
       clientesAsesor.forEach(cliente => {
-        // Buscar el reporte correspondiente
-        const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID);
-        // La venta es válida para comisión solo si existe reporte, está verificada y el estado_verificacion es "aprobada"
+        const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
         const validaParaComision = reporte && reporte.verificada && (reporte.estado_verificacion === 'aprobada');
-        // Definir el estado para la exportación:
-        // Si hay reporte: "VERIFICADA" solo si cumple la validación, sino "NO APLICABLE"
-        // Si no hay reporte se indica "SIN REPORTE"
         const estado = reporte ? (validaParaComision ? "VERIFICADA" : "NO APLICABLE") : "SIN REPORTE";
-
-        // Se obtiene la fuente usando la función auxiliar
         const fuente = obtenerFuente(cliente.ID);
-
         const currentRow = detalleData.length + 1; // Fila actual (fila 1 es el encabezado)
-        // Fórmula para comisión: solo se paga si el estado es "VERIFICADA"
         const commissionFormula = `=IF(E${currentRow}="VERIFICADA",IFERROR(VLOOKUP(D${currentRow},Parametros!$A$2:$B$${numSources + 1},2,FALSE),0),0)`;
 
         detalleData.push([
@@ -827,15 +816,7 @@ function AuditorDashboard() {
     const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData);
     XLSX.utils.book_append_sheet(workbook, wsDetalle, "Detalle");
 
-    /*** 3. Hoja “Resumen” ***/
-    // Se agrupa la información por asesor:
-    // - Total Ventas Verificadas (solo las con estado "VERIFICADA")
-    // - Total Comisión (suma de las comisiones de ventas verificadas)
-    // - Bonus Fuente (acumulado por fuente al alcanzar umbrales de 10, 20 y 30 ventas verificadas)
-    // - Bonus 50 (si total ventas verificadas >= 50)
-    // - Best Seller Bonus (para el asesor con mayor cantidad, considerando solo ventas > 30)
-    // - Total Ingreso: suma de comisión, bonus fuente, bonus 50 y best seller bonus
-    const bonusRow = numSources + 4; // Ubicación de los bonos en "Parametros"
+    const bonusRow = numSources + 4; 
     const numAsesores = asesores.length;
 
     const resumenData = [];
@@ -856,7 +837,6 @@ function AuditorDashboard() {
       const bonus50Formula = `=IF(B${row}>=50,Parametros!$G$${bonusRow},0)`;
       const bestSellerFormula = `=IF(AND(B${row}>30,RANK(B${row},$B$2:$B$${numAsesores + 1},0)=1),Parametros!$H$${bonusRow},0)`;
 
-      // BONUS FUENTE: Para cada fuente se evalúa si se alcanzan umbrales de 10, 20 y 30 ventas verificadas
       let bonusFuenteParts = uniqueSources.map(source => {
         return `(IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=10,Parametros!$D$${bonusRow},0)
   +IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=20,Parametros!$E$${bonusRow},0)

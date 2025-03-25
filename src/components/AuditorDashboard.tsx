@@ -218,9 +218,19 @@ function ClientesAsesorModal({
     return Array.from(ids);
   }, [duplicados]);
 
-  const getReporteForCliente = (cliente: Cliente): Reporte | undefined => {
-    return reportes.find(r => r.ID_CLIENTE === cliente.ID);
+  const parseFechaReporte = (fecha: any): number => {
+    let t = new Date(fecha).getTime();
+    if (isNaN(t)) t = Number(fecha) * 1000;
+    return t;
   };
+  
+  const getReporteForCliente = (cliente: Cliente): Reporte | undefined => {
+    const clientReports = reportes.filter(r => r.ID_CLIENTE === cliente.ID);
+    if (clientReports.length === 0) return undefined;
+    clientReports.sort((a, b) => parseFechaReporte(b.FECHA_REPORTE) - parseFechaReporte(a.FECHA_REPORTE));
+    return clientReports[0];
+  };
+  
 
   const parseFechaEvento = (fechaEvento: any): number => {
     let t = new Date(fechaEvento).getTime();
@@ -1078,7 +1088,7 @@ function AuditorDashboard() {
 
   // Función de verificación que actualiza en memoria y en BD
   const confirmVerificarVenta = async (cliente: Cliente, decision: 'aprobada' | 'rechazada', comentario: string) => {
-    const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID);
+    const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
     if (reporteIndex === -1) return;
     const reporte = reportes[reporteIndex];
     try {
@@ -1116,7 +1126,7 @@ function AuditorDashboard() {
 
     // Se recorre cada cliente en el grupo para actualizar su reporte
     for (const cliente of grupo) {
-      const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID);
+      const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
       if (reporteIndex === -1) continue;
       const reporte = reportes[reporteIndex];
       let newEstado, newComentario;

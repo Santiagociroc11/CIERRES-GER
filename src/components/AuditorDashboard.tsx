@@ -1511,14 +1511,24 @@ function AuditorDashboard() {
       {/* Modal de Exportación */}
       {showExportModal && (
         <ExportExcelModal
-          fuentes={Array.from(new Set(registros.map(r => (r.TIPO_EVENTO?.trim() || 'Desconocido'))))
-            .filter(f => f.toUpperCase() !== 'COMPRA')}
+          fuentes={Array.from(
+            new Set(
+              registros.map(r => {
+                let fuente = r.TIPO_EVENTO?.trim() || 'Desconocido';
+                if (!['LINK', 'MASIVOS'].includes(fuente.toUpperCase())) {
+                  fuente = 'HOTMART';
+                }
+                return fuente;
+              })
+            )
+          ).filter(f => f.toUpperCase() !== 'COMPRA')}
           onCancel={() => setShowExportModal(false)}
           onExport={(commissionData, bonus10, bonus20, bonus30, bonus50, bestSellerBonus) => {
             exportarConDatosExtra(commissionData, bonus10, bonus20, bonus30, bonus50, bestSellerBonus);
             setShowExportModal(false);
           }}
         />
+
       )}
 
       <Toaster position="top-right" />

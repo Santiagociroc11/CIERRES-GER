@@ -746,17 +746,19 @@ function AuditorDashboard() {
     bestSellerBonus: string
   ) => {
     if (!clientes.length || !asesores.length) return;
-  
+
     const workbook = XLSX.utils.book_new();
-  
+
     /*** 1. Hoja “Parametros” ***/
     // Agrupar fuentes: si la fuente no es "LINKS" ni "MASIVOS", se agrupa como "HOTMART"
+    // Para la hoja "Parametros"
     const uniqueSources = Array.from(
       new Set(
         registros
           .map(r => {
             let fuente = (r.TIPO_EVENTO?.trim() || 'Desconocido');
-            if (fuente.toUpperCase() !== 'LINKS' && fuente.toUpperCase() !== 'MASIVOS') {
+            // Si la fuente NO es LINK ni MASIVOS, se agrupa como HOTMART
+            if (!['LINK', 'MASIVOS'].includes(fuente.toUpperCase())) {
               fuente = 'HOTMART';
             }
             return fuente;
@@ -775,14 +777,14 @@ function AuditorDashboard() {
     parametrosData.push([]); // fila vacía
     parametrosData.push(["", "", "", "Bono10", "Bono20", "Bono30", "Bono50", "BestSellerBonus"]);
     parametrosData.push(["", "", "", Number(bonus10) || 0, Number(bonus20) || 0, Number(bonus30) || 0, Number(bonus50) || 0, Number(bestSellerBonus) || 0]);
-  
+
     const wsParametros = XLSX.utils.aoa_to_sheet(parametrosData);
     XLSX.utils.book_append_sheet(workbook, wsParametros, "Parametros");
-  
+
     /*** 2. Hoja “Detalle” ***/
     const detalleData = [];
     detalleData.push(["Asesor", "Cliente", "WhatsApp", "Fuente", "Estado", "Comisión"]);
-  
+
     // Función auxiliar ya definida en tu código (para obtener la fuente según el primer registro)
     const obtenerFuente = (clienteId: number): string => {
       const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
@@ -798,7 +800,7 @@ function AuditorDashboard() {
       }
       return 'Desconocido';
     };
-  
+
     asesores.forEach(asesor => {
       const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
       clientesAsesor.forEach(cliente => {
@@ -807,12 +809,12 @@ function AuditorDashboard() {
         const estado = reporte ? (validaParaComision ? "VERIFICADA" : "NO APLICABLE") : "SIN REPORTE";
         // Obtener fuente y agruparla
         let fuente = obtenerFuente(cliente.ID);
-        if (fuente.toUpperCase() !== 'LINKS' && fuente.toUpperCase() !== 'MASIVOS') {
+        if (!['LINK', 'MASIVOS'].includes(fuente.toUpperCase())) {
           fuente = 'HOTMART';
         }
         const currentRow = detalleData.length + 1; // Fila actual (la 1 es encabezado)
         const commissionFormula = `=IF(E${currentRow}="VERIFICADA",IFERROR(VLOOKUP(D${currentRow},Parametros!$A$2:$B$${numSources + 1},2,FALSE),0),0)`;
-  
+
         detalleData.push([
           asesor.NOMBRE,
           cliente.NOMBRE,
@@ -825,7 +827,7 @@ function AuditorDashboard() {
     });
     const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData);
     XLSX.utils.book_append_sheet(workbook, wsDetalle, "Detalle");
-  
+
     /*** 3. Hoja “Resumen” ***/
     // Nuevo encabezado con columnas para ventas reportadas y válidas
     const resumenData = [];
@@ -839,10 +841,10 @@ function AuditorDashboard() {
       "Bonus Fuente",
       "Total Ingreso"
     ]);
-  
+
     const bonusRow = numSources + 4;
     const numAsesores = asesores.length;
-  
+
     asesores.forEach((asesor, idx) => {
       const row = idx + 2; // fila en "Resumen" (la 1 es el encabezado)
       const totalReportadasFormula = `=COUNTIF(Detalle!$A:$A, A${row})`;
@@ -850,7 +852,7 @@ function AuditorDashboard() {
       const totalComisionFormula = `=SUMIFS(Detalle!$F:$F,Detalle!$A:$A, A${row},Detalle!$E:$E, "VERIFICADA")`;
       const bonus50Formula = `=IF(B${row}>=50,Parametros!$G$${bonusRow},0)`;
       const bestSellerFormula = `=IF(AND(B${row}>30,RANK(B${row},$B$2:$B$${numAsesores + 1},0)=1),Parametros!$H$${bonusRow},0)`;
-  
+
       // Fórmula para calcular el bonus por fuente para cada fuente agrupada
       let bonusFuenteParts = uniqueSources.map(source => {
         return `(IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=10,Parametros!$D$${bonusRow},0)
@@ -859,7 +861,7 @@ function AuditorDashboard() {
       });
       const bonusFuenteFormula = bonusFuenteParts.join("+");
       const totalIngresoFormula = `=D${row}+E${row}+F${row}+(${bonusFuenteFormula})`;
-  
+
       resumenData.push([
         asesor.NOMBRE,
         { f: totalReportadasFormula },
@@ -873,7 +875,7 @@ function AuditorDashboard() {
     });
     const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
     XLSX.utils.book_append_sheet(workbook, wsResumen, "Resumen");
-  
+
     // Escritura final del archivo (el nombre incluye la fecha actual)
     XLSX.writeFile(
       workbook,
@@ -971,23 +973,23 @@ function AuditorDashboard() {
 
   const sortedAsesores = [...asesoresFiltrados].sort((a, b) => a.NOMBRE.localeCompare(b.NOMBRE));
 
- // Usa tu función getReporteForCliente para obtener el último reporte
- function isVentaVerificada(cliente: Cliente, reportes: Reporte[]): boolean {
-  // Filtramos solo los reportes de "VENTA CONSOLIDADA" para el cliente
-  const clientReports = reportes.filter(
-    r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
-  );
-  if (clientReports.length === 0) return false;
-  // Ordenamos para obtener el reporte más reciente
-  clientReports.sort((a, b) => {
-    const fechaA = typeof a.FECHA_REPORTE === 'string' ? parseInt(a.FECHA_REPORTE, 10) : a.FECHA_REPORTE;
-    const fechaB = typeof b.FECHA_REPORTE === 'string' ? parseInt(b.FECHA_REPORTE, 10) : b.FECHA_REPORTE;
-    return fechaB - fechaA;
-  });
-  const ultimo = clientReports[0];
-  return !!ultimo.verificada;
-}
-  
+  // Usa tu función getReporteForCliente para obtener el último reporte
+  function isVentaVerificada(cliente: Cliente, reportes: Reporte[]): boolean {
+    // Filtramos solo los reportes de "VENTA CONSOLIDADA" para el cliente
+    const clientReports = reportes.filter(
+      r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
+    );
+    if (clientReports.length === 0) return false;
+    // Ordenamos para obtener el reporte más reciente
+    clientReports.sort((a, b) => {
+      const fechaA = typeof a.FECHA_REPORTE === 'string' ? parseInt(a.FECHA_REPORTE, 10) : a.FECHA_REPORTE;
+      const fechaB = typeof b.FECHA_REPORTE === 'string' ? parseInt(b.FECHA_REPORTE, 10) : b.FECHA_REPORTE;
+      return fechaB - fechaA;
+    });
+    const ultimo = clientReports[0];
+    return !!ultimo.verificada;
+  }
+
   /* ––––––– ANÁLISIS DE DUPLICADOS CON WEB WORKER ––––––– */
   useEffect(() => {
     if (clientes.length > 0 && asesores.length > 0) {
@@ -1005,7 +1007,7 @@ function AuditorDashboard() {
           setDuplicadosCargando(false);
         }
       };
-  
+
       setDuplicadosCargando(true);
       // Aquí se filtran los clientes antes de enviarlos al worker
       const clientesParaWorker = clientesFiltradosPorProducto.filter(

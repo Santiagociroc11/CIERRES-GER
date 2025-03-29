@@ -847,7 +847,7 @@ function AuditorDashboard() {
 
     asesores.forEach((asesor, idx) => {
       const row = idx + 2; // fila en "Resumen" (la 1 es el encabezado)
-      const totalReportadasFormula = `=COUNTIF(Detalle!$A:$A, A${row})`;
+      const totalReportadasFormula = `=COUNTIFS(Detalle!$A:$A, A${row}, Detalle!$E:$E, "<>NO APLICABLE")`;
       const totalValidasFormula = `=COUNTIFS(Detalle!$A:$A, A${row}, Detalle!$E:$E, "VERIFICADA")`;
       const totalComisionFormula = `=SUMIFS(Detalle!$F:$F,Detalle!$A:$A, A${row},Detalle!$E:$E, "VERIFICADA")`;
       const bonus50Formula = `=IF(B${row}>=50,Parametros!$G$${bonusRow},0)`;

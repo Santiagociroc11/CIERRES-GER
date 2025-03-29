@@ -738,23 +738,29 @@ function AuditorDashboard() {
 
   // Función de exportación que utiliza los valores ingresados
   const exportarConDatosExtra = (
-    commissionData,
-    bonus10,
-    bonus20,
-    bonus30,
-    bonus50,
-    bestSellerBonus
+    commissionData: Record<string, string>,
+    bonus10: string,
+    bonus20: string,
+    bonus30: string,
+    bonus50: string,
+    bestSellerBonus: string
   ) => {
     if (!clientes.length || !asesores.length) return;
-
+  
     const workbook = XLSX.utils.book_new();
-
+  
     /*** 1. Hoja “Parametros” ***/
-    // Se obtienen las fuentes únicas (excluyendo "COMPRA")
+    // Agrupar fuentes: si la fuente no es "LINKS" ni "MASIVOS", se agrupa como "HOTMART"
     const uniqueSources = Array.from(
       new Set(
         registros
-          .map(r => (r.TIPO_EVENTO?.trim() || 'Desconocido'))
+          .map(r => {
+            let fuente = (r.TIPO_EVENTO?.trim() || 'Desconocido');
+            if (fuente.toUpperCase() !== 'LINKS' && fuente.toUpperCase() !== 'MASIVOS') {
+              fuente = 'HOTMART';
+            }
+            return fuente;
+          })
           .filter(f => f.toUpperCase() !== 'COMPRA')
       )
     );
@@ -769,41 +775,44 @@ function AuditorDashboard() {
     parametrosData.push([]); // fila vacía
     parametrosData.push(["", "", "", "Bono10", "Bono20", "Bono30", "Bono50", "BestSellerBonus"]);
     parametrosData.push(["", "", "", Number(bonus10) || 0, Number(bonus20) || 0, Number(bonus30) || 0, Number(bonus50) || 0, Number(bestSellerBonus) || 0]);
-
+  
     const wsParametros = XLSX.utils.aoa_to_sheet(parametrosData);
     XLSX.utils.book_append_sheet(workbook, wsParametros, "Parametros");
-
-    /*** Funciones auxiliares para obtener la fuente ***///
-    // Función para parsear la fecha de evento (similar a tu código original)
-    const parseFechaEvento = (fechaEvento) => {
-      let t = new Date(fechaEvento).getTime();
-      if (isNaN(t)) t = Number(fechaEvento) * 1000;
-      return t;
-    };
-
-    // Función para obtener la fuente de un cliente
-    const obtenerFuente = (clienteId) => {
+  
+    /*** 2. Hoja “Detalle” ***/
+    const detalleData = [];
+    detalleData.push(["Asesor", "Cliente", "WhatsApp", "Fuente", "Estado", "Comisión"]);
+  
+    // Función auxiliar ya definida en tu código (para obtener la fuente según el primer registro)
+    const obtenerFuente = (clienteId: number): string => {
       const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
       if (registrosCliente.length > 0) {
-        registrosCliente.sort((a, b) => parseFechaEvento(a.FECHA_EVENTO) - parseFechaEvento(b.FECHA_EVENTO));
+        registrosCliente.sort((a, b) => {
+          let tA = new Date(a.FECHA_EVENTO).getTime();
+          let tB = new Date(b.FECHA_EVENTO).getTime();
+          if (isNaN(tA)) tA = Number(a.FECHA_EVENTO) * 1000;
+          if (isNaN(tB)) tB = Number(b.FECHA_EVENTO) * 1000;
+          return tA - tB;
+        });
         return registrosCliente[0].TIPO_EVENTO?.trim() || 'Desconocido';
       }
       return 'Desconocido';
     };
-
-    const detalleData = [];
-    detalleData.push(["Asesor", "Cliente", "WhatsApp", "Fuente", "Estado", "Comisión"]);
-
+  
     asesores.forEach(asesor => {
       const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
       clientesAsesor.forEach(cliente => {
         const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
         const validaParaComision = reporte && reporte.verificada && (reporte.estado_verificacion === 'aprobada');
         const estado = reporte ? (validaParaComision ? "VERIFICADA" : "NO APLICABLE") : "SIN REPORTE";
-        const fuente = obtenerFuente(cliente.ID);
-        const currentRow = detalleData.length + 1; // Fila actual (fila 1 es el encabezado)
+        // Obtener fuente y agruparla
+        let fuente = obtenerFuente(cliente.ID);
+        if (fuente.toUpperCase() !== 'LINKS' && fuente.toUpperCase() !== 'MASIVOS') {
+          fuente = 'HOTMART';
+        }
+        const currentRow = detalleData.length + 1; // Fila actual (la 1 es encabezado)
         const commissionFormula = `=IF(E${currentRow}="VERIFICADA",IFERROR(VLOOKUP(D${currentRow},Parametros!$A$2:$B$${numSources + 1},2,FALSE),0),0)`;
-
+  
         detalleData.push([
           asesor.NOMBRE,
           cliente.NOMBRE,
@@ -816,39 +825,45 @@ function AuditorDashboard() {
     });
     const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData);
     XLSX.utils.book_append_sheet(workbook, wsDetalle, "Detalle");
-
-    const bonusRow = numSources + 4;
-    const numAsesores = asesores.length;
-
+  
+    /*** 3. Hoja “Resumen” ***/
+    // Nuevo encabezado con columnas para ventas reportadas y válidas
     const resumenData = [];
     resumenData.push([
       "Asesor",
-      "Total Ventas Verificadas",
+      "Ventas Reportadas",
+      "Ventas Válidas",
       "Total Comisión",
       "Bonus 50",
       "Best Seller Bonus",
       "Bonus Fuente",
       "Total Ingreso"
     ]);
-
+  
+    const bonusRow = numSources + 4;
+    const numAsesores = asesores.length;
+  
     asesores.forEach((asesor, idx) => {
-      const row = idx + 2; // fila en "Resumen" (fila 1 es encabezado)
-      const totalVentasFormula = `=COUNTIFS(Detalle!$A:$A, A${row}, Detalle!$E:$E, "VERIFICADA")`;
+      const row = idx + 2; // fila en "Resumen" (la 1 es el encabezado)
+      const totalReportadasFormula = `=COUNTIF(Detalle!$A:$A, A${row})`;
+      const totalValidasFormula = `=COUNTIFS(Detalle!$A:$A, A${row}, Detalle!$E:$E, "VERIFICADA")`;
       const totalComisionFormula = `=SUMIFS(Detalle!$F:$F,Detalle!$A:$A, A${row},Detalle!$E:$E, "VERIFICADA")`;
       const bonus50Formula = `=IF(B${row}>=50,Parametros!$G$${bonusRow},0)`;
       const bestSellerFormula = `=IF(AND(B${row}>30,RANK(B${row},$B$2:$B$${numAsesores + 1},0)=1),Parametros!$H$${bonusRow},0)`;
-
+  
+      // Fórmula para calcular el bonus por fuente para cada fuente agrupada
       let bonusFuenteParts = uniqueSources.map(source => {
         return `(IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=10,Parametros!$D$${bonusRow},0)
   +IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=20,Parametros!$E$${bonusRow},0)
   +IF(COUNTIFS(Detalle!$A:$A,A${row},Detalle!$D:$D,"${source}",Detalle!$E:$E,"VERIFICADA")>=30,Parametros!$F$${bonusRow},0))`;
       });
       const bonusFuenteFormula = bonusFuenteParts.join("+");
-      const totalIngresoFormula = `=C${row}+D${row}+E${row}+(${bonusFuenteFormula})`;
-
+      const totalIngresoFormula = `=D${row}+E${row}+F${row}+(${bonusFuenteFormula})`;
+  
       resumenData.push([
         asesor.NOMBRE,
-        { f: totalVentasFormula },
+        { f: totalReportadasFormula },
+        { f: totalValidasFormula },
         { f: totalComisionFormula },
         { f: bonus50Formula },
         { f: bestSellerFormula },
@@ -858,15 +873,13 @@ function AuditorDashboard() {
     });
     const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
     XLSX.utils.book_append_sheet(workbook, wsResumen, "Resumen");
-
+  
     // Escritura final del archivo (el nombre incluye la fecha actual)
     XLSX.writeFile(
       workbook,
       `Auditoria-Ventas-${new Date().toLocaleDateString()}.xlsx`
     );
   };
-
-
 
   const cargarDatosOptimizados = async () => {
     try {

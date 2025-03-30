@@ -850,8 +850,9 @@ function AuditorDashboard() {
       const totalReportadasFormula = `=COUNTIFS(Detalle!$A:$A, A${row}, Detalle!$E:$E, "<>SIN REPORTE")`;
       const totalValidasFormula = `=COUNTIFS(Detalle!$A:$A, A${row}, Detalle!$E:$E, "VERIFICADA")`;
       const totalComisionFormula = `=SUMIFS(Detalle!$F:$F,Detalle!$A:$A, A${row},Detalle!$E:$E, "VERIFICADA")`;
-      const bonus50Formula = `=IF(B${row}>=50,Parametros!$G$${bonusRow},0)`;
-      const bestSellerFormula = `=IF(AND(B${row}>30,RANK(B${row},$B$2:$B$${numAsesores + 1},0)=1),Parametros!$H$${bonusRow},0)`;
+      const bonus50Formula = `=IF(C${row}>=50,Parametros!$G$${bonusRow},0)`;
+      const bestSellerFormula = `=IF(AND(C${row}>30,RANK(C${row},$C$2:$C$${numAsesores + 1},0)=1),Parametros!$H$${bonusRow},0)`;
+
 
       // Fórmula para calcular el bonus por fuente para cada fuente agrupada
       let bonusFuenteParts = uniqueSources.map(source => {

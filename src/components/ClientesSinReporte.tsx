@@ -10,12 +10,14 @@ interface ClientesSinReporteProps {
   clientes: Cliente[];
   onActualizarEstado: (cliente: Cliente) => void;
   onReportarVenta: (cliente: Cliente) => void;
+  onChat?: (cliente: Cliente) => void;
 }
 
 export default function ClientesSinReporte({
   clientes,
   onActualizarEstado,
-  onReportarVenta
+  onReportarVenta,
+  onChat
 }: ClientesSinReporteProps) {
   const [pagina, setPagina] = useState(1);
   const [clientesPorPagina] = useState(10);
@@ -81,17 +83,17 @@ export default function ClientesSinReporte({
   const getEstadoInfo = (estado: string) => {
     switch (estado) {
       case 'LINK':
-        return { icon: LinkIcon, color: 'purple', label: 'Link' };
+        return { icon: LinkIcon, color: 'purple', label: 'Link', bgColor: 'bg-purple-50', textColor: 'text-purple-600', borderColor: 'border-purple-200' };
       case 'CARRITOS':
-        return { icon: ShoppingCart, color: 'amber', label: 'Carrito Abandonado' };
+        return { icon: ShoppingCart, color: 'amber', label: 'Carrito Abandonado', bgColor: 'bg-amber-50', textColor: 'text-amber-600', borderColor: 'border-amber-200' };
       case 'TICKETS':
-        return { icon: Ticket, color: 'indigo', label: 'Ticket' };
+        return { icon: Ticket, color: 'indigo', label: 'Ticket', bgColor: 'bg-indigo-50', textColor: 'text-indigo-600', borderColor: 'border-indigo-200' };
       case 'RECHAZADOS':
-        return { icon: AlertCircle, color: 'rose', label: 'Rechazado' };
+        return { icon: AlertCircle, color: 'rose', label: 'Rechazado', bgColor: 'bg-rose-50', textColor: 'text-rose-600', borderColor: 'border-rose-200' };
       case 'MASIVOS':
-        return { icon: MessageSquare, color: 'blue', label: 'Masivos' };
+        return { icon: MessageSquare, color: 'blue', label: 'Masivos', bgColor: 'bg-blue-50', textColor: 'text-blue-600', borderColor: 'border-blue-200' };
       default:
-        return { icon: MessageSquare, color: 'gray', label: estado };
+        return { icon: MessageSquare, color: 'gray', label: estado, bgColor: 'bg-gray-50', textColor: 'text-gray-600', borderColor: 'border-gray-200' };
     }
   };
 
@@ -140,68 +142,87 @@ export default function ClientesSinReporte({
             return (
               <div
                 key={cliente.ID}
-                className={`rounded-lg p-5 transition-shadow hover:shadow-2xl ${
-                  isCritical 
-                    ? `bg-${estadoInfo.color}-50 border-2 border-${estadoInfo.color}-200` 
-                    : isUrgent 
-                      ? 'bg-red-50 border-2 border-red-200'
-                      : 'bg-yellow-50 border'
-                }`}
+                className={`rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 border ${estadoInfo.borderColor}`}
               >
-                {/* Etiqueta de estado */}
-                <div className={`flex items-center gap-2 mb-4 text-${estadoInfo.color}-700 bg-${estadoInfo.color}-100 px-3 py-1 rounded-md`}>
-                  <EstadoIcon className="h-4 w-4" />
-                  <span className="text-sm font-medium">
-                    Estado: {isCritical ? '⚠️ ' : ''}{estadoInfo.label}
-                  </span>
+                {/* Header with status and avatar */}
+                <div className={`flex items-center p-4 ${estadoInfo.bgColor}`}>
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl font-bold shadow-sm">
+                    {cliente.NOMBRE.charAt(0)}
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <h3 className="font-semibold text-gray-900">{cliente.NOMBRE}</h3>
+                    <div className="flex items-center mt-1">
+                      <EstadoIcon className={`h-3.5 w-3.5 ${estadoInfo.textColor} mr-1`} />
+                      <span className={`text-xs font-medium ${estadoInfo.textColor}`}>
+                        {estadoInfo.label}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Urgency indicator */}
+                  {isUrgent && (
+                    <span className="flex-shrink-0 px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
+                      Urgente
+                    </span>
+                  )}
                 </div>
 
-                {/* Información del cliente */}
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-gray-900 text-lg">{cliente.NOMBRE}</h3>
-
-                  {/* Botón de WhatsApp */}
-                  <button
-                    onClick={() => abrirWhatsApp(cliente.WHATSAPP)}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                  >
-                    <Phone className="h-4 w-4" />
-                    <span className="font-medium">Contactar: {cliente.WHATSAPP}</span>
-                  </button>
-
-                  {/* Detalles adicionales */}
+                {/* Client details */}
+                <div className="p-4 bg-white">
                   <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Calendar className="h-4 w-4" />
+                    <div className="flex items-center text-gray-600">
+                      <Calendar className="h-4 w-4 mr-2 text-gray-400" />
                       <span>Asignado: {formatDate(cliente.FECHA_ASIGNADO || cliente.FECHA_CREACION)}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Clock className="h-4 w-4" />
-                      <span>Inactividad: {inactivityStatus}</span>
+                    <div className="flex items-center text-gray-600">
+                      <Clock className="h-4 w-4 mr-2 text-gray-400" />
+                      <span className={isUrgent ? 'text-red-600 font-medium' : ''}>
+                        Inactividad: {inactivityStatus}
+                      </span>
                     </div>
                     {cliente.PAIS && (
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <MapPin className="h-4 w-4" />
+                      <div className="flex items-center text-gray-600">
+                        <MapPin className="h-4 w-4 mr-2 text-gray-400" />
                         <span>País: {cliente.PAIS}</span>
                       </div>
                     )}
                   </div>
+                </div>
 
-                  {/* Botones de acción */}
-                  <div className="grid grid-cols-2 gap-2 mt-4">
+                {/* Actions */}
+                <div className="p-4 bg-gray-50 border-t border-gray-100">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => abrirWhatsApp(cliente.WHATSAPP)}
+                      className="inline-flex items-center justify-center px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm flex-grow md:flex-grow-0"
+                    >
+                      <Phone className="h-3.5 w-3.5 mr-1" />
+                      Contactar
+                    </button>
+                    
+                    {onChat && (
+                      <button
+                        onClick={() => onChat(cliente)}
+                        className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors flex-grow md:flex-grow-0"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                        Chat
+                      </button>
+                    )}
+                    
                     <button
                       onClick={() => onActualizarEstado(cliente)}
-                      className="flex items-center justify-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                      className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors flex-grow md:flex-grow-0"
                     >
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      <span className="font-medium">Estado</span>
+                      <AlertCircle className="h-3.5 w-3.5 mr-1" />
+                      Actualizar
                     </button>
+                    
                     <button
                       onClick={() => onReportarVenta(cliente)}
-                      className="flex items-center justify-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                      className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors flex-grow md:flex-grow-0"
                     >
-                      <DollarSign className="h-4 w-4 mr-1" />
-                      <span className="font-medium">Venta</span>
+                      <DollarSign className="h-3.5 w-3.5 mr-1" />
+                      Venta
                     </button>
                   </div>
                 </div>

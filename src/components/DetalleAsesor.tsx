@@ -46,6 +46,7 @@ interface DetalleAsesorProps {
   onBack: () => void;
   teamStatsByFuente: Record<string, number>;
   bestRateByFuente: Record<string, number>;
+  onChat?: (cliente: Cliente) => void;
 }
 
 type VistaDetalle = 'general' | 'clientes' | 'metricas' | 'fuentes';
@@ -61,7 +62,8 @@ export default function DetalleAsesor({
   promedioEquipo,
   onBack,
   teamStatsByFuente,
-  bestRateByFuente
+  bestRateByFuente,
+  onChat
 }: DetalleAsesorProps) {
   const [vistaActual, setVistaActual] = useState<VistaDetalle>('general');
 
@@ -263,6 +265,7 @@ export default function DetalleAsesor({
           reportes={reportes}
           onActualizarEstado={() => { }}
           onReportarVenta={() => { }}
+          onChat={onChat || (() => {})}
           readOnly
           admin={true}
         />

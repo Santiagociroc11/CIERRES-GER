@@ -15,6 +15,7 @@ import {
   Search,
   Filter,
   RefreshCcw,
+  MessageSquare,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -36,6 +37,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { parse } from 'date-fns';
 import CrearClienteModal from './CrearClienteModal';
+import ChatModal from './ChatModal';
 
 interface DashboardAdminProps {
   onLogout: () => void;
@@ -61,6 +63,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [tick, setTick] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [mostrarModalCrearCliente, setMostrarModalCrearCliente] = useState(false);
+  const [clienteParaChat, setClienteParaChat] = useState<any | null>(null);
 
   // Estado para alternar entre vista de Asesores y Clientes
   const [vistaAdmin, setVistaAdmin] = useState<'asesores' | 'clientes'>('asesores');
@@ -497,6 +500,37 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     document.body.removeChild(a);
   };
 
+  // Add a helper function to get state colors, similar to the one in ListaGeneralClientes
+  const getClienteEstadoColor = (estado: string) => {
+    switch (estado) {
+      case 'VENTA CONSOLIDADA':
+        return 'bg-emerald-100 text-emerald-800 border-2 border-emerald-500';
+      case 'PAGADO':
+        return 'bg-green-100 text-green-800';
+      case 'SEGUIMIENTO':
+        return 'bg-blue-100 text-blue-800';
+      case 'NO CONTACTAR':
+        return 'bg-red-100 text-red-800';
+      case 'LINK':
+        return 'bg-purple-200 text-purple-800 border-2 border-purple-400 font-bold';
+      case 'CARRITOS':
+        return 'bg-amber-100 text-amber-800 border-2 border-amber-500';
+      case 'RECHAZADOS':
+        return 'bg-rose-100 text-rose-800 border-2 border-rose-500';
+      case 'TICKETS':
+        return 'bg-indigo-100 text-indigo-800 border-2 border-indigo-500';
+      case 'NO CONTESTÓ':
+      case 'NO CONTESTO':
+        return 'bg-orange-100 text-orange-800';
+      case 'NO INTERESADO':
+        return 'bg-gray-100 text-gray-800';
+      case 'MASIVOS':
+        return 'bg-gray-200 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Encabezado y navegación principal */}
@@ -893,6 +927,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     teamStatsByFuente={calculateTeamStatsByFuente(clientes, reportes, registros)}
                     bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
                     onBack={() => setAsesorSeleccionado(null)}
+                    onChat={setClienteParaChat}
                   />
                 </div>
               </div>
@@ -982,28 +1017,37 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     <table className="min-w-full bg-white shadow rounded-lg">
                       <thead className="bg-gray-100">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Nombre
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             WhatsApp
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Fecha de Creación
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            <div className="flex flex-col">
+                              <span>Fecha de</span>
+                              <span>Creación</span>
+                            </div>
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Estado
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Producto
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Último Reporte
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            <div className="flex flex-col">
+                              <span>Último</span>
+                              <span>Reporte</span>
+                            </div>
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Asesor Asignado
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            <div className="flex flex-col">
+                              <span>Asesor</span>
+                              <span>Asignado</span>
+                            </div>
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Acciones
                           </th>
                         </tr>
@@ -1041,25 +1085,36 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
                           return (
                             <tr key={cliente.ID} className="hover:bg-gray-50">
-                              <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-800 truncate ${borderClass}`}>
-                                {cliente.NOMBRE}
+                              <td className={`px-4 py-3 text-sm text-gray-800 ${borderClass}`}>
+                                <div className="truncate max-w-[150px]">
+                                  {cliente.NOMBRE}
+                                </div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
-                                {cliente.WHATSAPP}
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                <div className="truncate max-w-[120px]">
+                                  {cliente.WHATSAPP}
+                                </div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
-                                {formatDate(cliente.FECHA_CREACION)}
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                <div className="flex flex-col">
+                                  <span>{formatDate(cliente.FECHA_CREACION).split(' ')[0]}</span>
+                                  <span className="text-xs text-gray-500">{formatDate(cliente.FECHA_CREACION).split(' ')[1]}</span>
+                                </div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
-                                {cliente.ESTADO || "Sin definir"}
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full w-fit inline-block ${getClienteEstadoColor(cliente.ESTADO)}`}>
+                                  {cliente.ESTADO || "Sin definir"}
+                                </span>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate">
-                                {ultimoReporte ? ultimoReporte.PRODUCTO : 'Sin definir'}
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                <div className="truncate max-w-[100px]">
+                                  {ultimoReporte ? ultimoReporte.PRODUCTO : 'Sin definir'}
+                                </div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm truncate">
+                              <td className="px-4 py-3 text-sm">
                                 {ultimoReporte ? (
                                   <div className="flex flex-col">
-                                    <span className="text-gray-700">
+                                    <span className="text-gray-700 truncate">
                                       {formatDate(ultimoReporte.FECHA_REPORTE)}
                                     </span>
                                     <span className="text-xs text-gray-500">
@@ -1067,35 +1122,44 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                     </span>
                                   </div>
                                 ) : (
-                                  <span className="inline-block bg-red-50 text-red-600 px-2 py-1 rounded-full font-semibold">
+                                  <span className="inline-block text-xs bg-red-50 text-red-600 px-2 py-1 rounded-full font-semibold">
                                     Sin reporte – {tiempoSinReporte}
                                   </span>
                                 )}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm truncate">
+                              <td className="px-4 py-3 text-sm">
                                 {asesorAsignado ? (
-                                  <span className={!ultimoReporte ? "text-red-700 font-bold" : "text-gray-800"}>
+                                  <span className={`truncate max-w-[120px] inline-block ${!ultimoReporte ? "text-red-700 font-bold" : "text-gray-800"}`}>
                                     {asesorAsignado.NOMBRE}
                                   </span>
                                 ) : (
                                   "Sin asignar"
                                 )}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap flex items-center">
-                                {asesorAsignado && (
-                                  <div className="mr-2">
-                                    <ReasignarCliente
-                                      clienteId={cliente.ID}
-                                      asesorActual={asesorAsignado.NOMBRE}
-                                    />
-                                  </div>
-                                )}
-                                <button
-                                  onClick={() => setClienteSeleccionado(cliente)}
-                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
-                                  Ver Historial
-                                </button>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center space-x-1">
+                                  {asesorAsignado && (
+                                    <div>
+                                      <ReasignarCliente
+                                        clienteId={cliente.ID}
+                                        asesorActual={asesorAsignado.NOMBRE}
+                                      />
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={() => setClienteSeleccionado(cliente)}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"
+                                  >
+                                    Ver Historial
+                                  </button>
+                                  <button
+                                    onClick={() => setClienteParaChat(cliente)}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded"
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                                    Chat
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1174,9 +1238,20 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               teamStatsByFuente={calculateTeamStatsByFuente(clientes, reportes, registros)}
               bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
               onBack={() => setAsesorSeleccionado(null)}
+              onChat={setClienteParaChat}
             />
           </div>
         </div>
+      )}
+
+      {/* Add the ChatModal component */}
+      {clienteParaChat && (
+        <ChatModal
+          isOpen={!!clienteParaChat}
+          onClose={() => setClienteParaChat(null)}
+          cliente={clienteParaChat}
+          asesor={asesorSeleccionado}
+        />
       )}
     </div>
   );

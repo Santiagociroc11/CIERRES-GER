@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
 import { Cliente, Reporte } from '../types';
-import { AlertTriangle, MessageSquare, Phone, Search, Clock } from 'lucide-react';
+import { AlertTriangle, MessageSquare, Phone, Search, Clock, AlertCircle, DollarSign } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 
 interface ClientesPendientesProps {
   clientes: Cliente[];
   reportes: Reporte[];
   onActualizarEstado: (cliente: Cliente) => void;
+  onReportarVenta?: (cliente: Cliente) => void;
+  onChat?: (cliente: Cliente) => void;
 }
 
 export default function ClientesPendientes({
   clientes,
   reportes,
-  onActualizarEstado
+  onActualizarEstado,
+  onReportarVenta,
+  onChat
 }: ClientesPendientesProps) {
   const [busqueda, setBusqueda] = useState('');
 
@@ -26,7 +30,12 @@ export default function ClientesPendientes({
   // Filtrar clientes que necesitan actualización de estado
   const clientesPendientes = clientes.filter(cliente => {
     const ultimoReporte = obtenerUltimoReporte(cliente.ID);
-    return ultimoReporte && cliente.ESTADO !== ultimoReporte.ESTADO_NUEVO && cliente.ESTADO !== 'PAGADO';
+    // No mostrar clientes cuyo último reporte tenga estado "PAGADO" o "VENTA CONSOLIDADA"
+    if (!ultimoReporte || ultimoReporte.ESTADO_NUEVO === 'PAGADO' || ultimoReporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
+      return false;
+    }
+    // Mostrar solo clientes cuyo estado actual sea diferente al último reporte
+    return cliente.ESTADO !== ultimoReporte.ESTADO_NUEVO && cliente.ESTADO !== 'PAGADO' && cliente.ESTADO !== 'VENTA CONSOLIDADA';
   });
 
   // Filtrar por búsqueda
@@ -126,6 +135,26 @@ export default function ClientesPendientes({
                       <span className="font-medium">Actualizar</span>
                     </button>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  {onChat && (
+                    <button
+                      onClick={() => onChat(cliente)}
+                      className="flex items-center justify-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition duration-300"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      <span className="font-medium">Chat</span>
+                    </button>
+                  )}
+                  {onReportarVenta && (
+                    <button
+                      onClick={() => onReportarVenta(cliente)}
+                      className="flex items-center justify-center px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition duration-300"
+                    >
+                      <DollarSign className="h-4 w-4 mr-1" />
+                      <span className="font-medium">Reportar Venta</span>
+                    </button>
+                  )}
                 </div>
               </div>
             );

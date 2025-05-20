@@ -609,7 +609,11 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           />
         )}
         {vistaActual === 'seguimientos' && (
-          <SeguimientosClientes reportes={reportes} onRefrescar={cargarDatos} />
+          <SeguimientosClientes 
+            reportes={reportes} 
+            onRefrescar={cargarDatos}
+            onChat={setClienteParaChat}
+          />
         )}
         {vistaActual === 'estadisticas' && (
           <EstadisticasAvanzadas
@@ -623,6 +627,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             clientes={clientes}
             reportes={reportes}
             onActualizarEstado={setClienteParaEstado}
+            onReportarVenta={setClienteParaVenta}
+            onChat={setClienteParaChat}
           />
         )}
         {vistaActual === 'sin-reporte' && (
@@ -630,6 +636,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             clientes={clientesSinReporte}
             onActualizarEstado={setClienteParaEstado}
             onReportarVenta={setClienteParaVenta}
+            onChat={setClienteParaChat}
           />
         )}
 

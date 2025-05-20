@@ -110,7 +110,7 @@ export default function ListaGeneralClientes({
     if (estado === 'PAGADO' || estado === 'VENTA CONSOLIDADA') {
       const ultimoReportePagado = obtenerUltimoReportePagado(clienteId);
       if (ultimoReportePagado) {
-        const producto = ultimoReportePagado.PRODUCTO || '';
+        const producto = ultimoReportePagado.PRODUCTO as string || '';
         return `${estado} (${producto})`;
       }
     }
@@ -152,7 +152,7 @@ export default function ListaGeneralClientes({
     const sortA = getSortValue(a);
     const sortB = getSortValue(b);
     if (sortA === sortB) {
-      return b.FECHA_CREACION - a.FECHA_CREACION;
+      return (b.FECHA_CREACION as number) - (a.FECHA_CREACION as number);
     }
     return sortA - sortB;
   });
@@ -195,7 +195,7 @@ export default function ListaGeneralClientes({
       case 'NO CONTACTAR':
         return 'bg-red-100 text-red-800';
       case 'LINK':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-200 text-purple-800 border-2 border-purple-400 font-bold';
       case 'CARRITOS':
         return 'bg-amber-100 text-amber-800 border-2 border-amber-500';
       case 'RECHAZADOS':
@@ -346,11 +346,15 @@ export default function ListaGeneralClientes({
                     {cliente.NOMBRE}
                   </button>
                   <div className="flex items-center mt-1 space-x-2">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getEstadoColor(cliente.ESTADO, cliente.ID)}`}>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full w-fit ${
+                      cliente.ESTADO === 'LINK' 
+                        ? 'bg-purple-200 text-purple-800 border-2 border-purple-400 font-bold' 
+                        : getEstadoColor(cliente.ESTADO, cliente.ID)
+                    }`}>
                       {getEstadoTexto(cliente.ESTADO, cliente.ID)}
                     </span>
-                    {!ultimoReporte && <AlertCircle className="h-4 w-4 text-red-500" title="Sin reporte" />}
-                    {tieneSeguimiento && <Clock className="h-4 w-4 text-blue-500" title="Seguimiento pendiente" />}
+                    {!ultimoReporte && <AlertCircle className="h-4 w-4 text-red-500" aria-label="Sin reporte" />}
+                    {tieneSeguimiento && <Clock className="h-4 w-4 text-blue-500" aria-label="Seguimiento pendiente" />}
                   </div>
                 </div>
                 <button onClick={() => setClienteAcciones(clienteAcciones === cliente.ID ? null : cliente.ID)} className="p-1 hover:bg-gray-100 rounded-full">
@@ -430,53 +434,60 @@ export default function ListaGeneralClientes({
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Cliente
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Estado
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Último Reporte
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Fecha Asignación
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <div className="flex flex-col">
+                  <span>Fecha</span>
+                  <span>Asignación</span>
+                </div>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 WhatsApp
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Acciones
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white divide-y divide-gray-100">
             {clientesPaginados.map((cliente) => {
               const ultimoReporte = obtenerUltimoReporte(cliente.ID);
               const tieneSeguimiento = tieneSeguimientoPendiente(cliente.ID);
               const consolidado = estaConsolidado(cliente.ID);
               return (
                 <tr key={cliente.ID} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3">
                     <div className="flex items-center">
                       <button onClick={() => setClienteHistorial(cliente)} className="text-sm font-medium text-gray-900 hover:text-blue-600">
                         {cliente.NOMBRE}
                       </button>
                       {!ultimoReporte && (
                         <span className="ml-2 flex-shrink-0">
-                          <AlertCircle className="h-5 w-5 text-red-500" title="Sin reporte" />
+                          <AlertCircle className="h-5 w-5 text-red-500" aria-label="Sin reporte" />
                         </span>
                       )}
                       {tieneSeguimiento && (
                         <span className="ml-2 flex-shrink-0">
-                          <Clock className="h-5 w-5 text-blue-500" title="Seguimiento pendiente" />
+                          <Clock className="h-5 w-5 text-blue-500" aria-label="Seguimiento pendiente" />
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center space-x-2">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getEstadoColor(cliente.ESTADO, cliente.ID)}`}>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col items-start space-y-1">
+                      <span className={`px-2 py-1 text-xs leading-5 font-semibold rounded-full w-fit ${
+                        cliente.ESTADO === 'LINK' 
+                          ? 'bg-purple-200 text-purple-800 border-2 border-purple-400 font-bold' 
+                          : getEstadoColor(cliente.ESTADO, cliente.ID)
+                      }`}>
                         {getEstadoTexto(cliente.ESTADO, cliente.ID)}
                       </span>
                       {(() => {
@@ -487,31 +498,31 @@ export default function ListaGeneralClientes({
                           cliente.ESTADO !== 'PAGADO'
                         ) {
                           return (
-                            <span className="px-2 inline-flex text-xs leading-5 font-semibold text-red-700 bg-red-50 rounded-full">
-                              ACTUALIZACION DE ESTADO PENDIENTE
+                            <span className="px-2 py-1 text-xs leading-5 font-semibold text-red-700 bg-red-50 rounded-full w-fit">
+                              ACTUALIZACION PENDIENTE
                             </span>
                           );
                         }
                         return null;
                       })()}
                       {cliente.ESTADO === 'PAGADO' && !tieneReporteVenta(cliente.ID) && !readOnly && (
-                        <AlertTriangle className="h-4 w-4 text-yellow-500" title="Venta sin reportar" />
+                        <AlertTriangle className="h-4 w-4 text-yellow-500 mt-1" aria-label="Venta sin reportar" />
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3">
                     {ultimoReporte ? (
-                      <div className="text-sm">
+                      <div className="text-sm max-w-[200px]">
                         <p className="font-medium text-gray-900">
                           {formatDate(ultimoReporte.FECHA_REPORTE)}
                         </p>
-                        <p className="text-gray-500 truncate max-w-xs">
+                        <p className="text-gray-500 line-clamp-2 break-words">
                           {ultimoReporte.COMENTARIO}
                         </p>
                         {ultimoReporte.FECHA_SEGUIMIENTO && (
-                          <p className="text-blue-600 text-xs mt-1">
+                          <p className="text-blue-600 text-xs mt-1 flex items-center">
                             <Clock className="h-4 w-4 inline mr-1" />
-                            Seguimiento: {formatDate(ultimoReporte.FECHA_SEGUIMIENTO)}
+                            <span className="truncate">Seg: {formatDate(ultimoReporte.FECHA_SEGUIMIENTO)}</span>
                             {ultimoReporte.COMPLETADO && (
                               <CheckCircle className="h-4 w-4 inline ml-1 text-green-500" />
                             )}
@@ -522,50 +533,57 @@ export default function ListaGeneralClientes({
                       <span className="text-red-500 text-sm">Reporte pendiente</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {isValidDate(cliente.FECHA_CREACION)
-                      ? formatDate(cliente.FECHA_CREACION)
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {isValidDate(cliente.FECHA_CREACION) 
+                      ? (
+                        <div className="flex flex-col">
+                          <span>{formatDate(cliente.FECHA_CREACION).split(' ')[0]}</span>
+                          <span className="text-xs text-gray-400">{formatDate(cliente.FECHA_CREACION).split(' ')[1]}</span>
+                        </div>
+                      ) 
                       : 'Fecha no disponible'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3">
                     <button onClick={() => abrirWhatsApp(cliente.WHATSAPP)} className="inline-flex items-center text-blue-600 hover:text-blue-900">
-                      <Phone className="h-4 w-4 mr-1" />
-                      {cliente.WHATSAPP}
+                      <Phone className="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span className="text-sm truncate max-w-[120px] block">{cliente.WHATSAPP}</span>
                     </button>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end space-x-2">
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end items-center space-x-1">
                       <button
                         onClick={() => onChat(cliente)}
-                        className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-indigo-600 hover:bg-indigo-700"
-                        title="Chat"
+                        className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-white bg-indigo-600 hover:bg-indigo-700"
+                        aria-label="Chat"
                       >
-                        <MessageSquare className="h-4 w-4 mr-1" />
-                        Chat
+                        <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                        <span>Chat</span>
                       </button>
                       {!readOnly && !tieneReporteVenta(cliente.ID) && (
                         <>
-                          <button onClick={() => onActualizarEstado(cliente)} className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700">
-                            <MessageSquare className="h-4 w-4 mr-1" />
-                            Estado
+                          <button onClick={() => onActualizarEstado(cliente)} 
+                            className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700">
+                            <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                            <span>Estado</span>
                           </button>
-                          <button onClick={() => onReportarVenta(cliente)} className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700">
-                            <DollarSign className="h-4 w-4 mr-1" />
-                            Venta
+                          <button onClick={() => onReportarVenta(cliente)} 
+                            className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700">
+                            <DollarSign className="h-3.5 w-3.5 mr-1" />
+                            <span>Venta</span>
                           </button>
                         </>
                       )}
                       {tieneReporteVenta(cliente.ID) && !estaConsolidado(cliente.ID) && (
                         <button
                           onClick={() => handleConsolidarVenta(cliente)}
-                          className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-purple-600 hover:bg-purple-700"
+                          className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-white bg-purple-600 hover:bg-purple-700"
                         >
-                          <FileVideo className="h-4 w-4 mr-1" />
-                          Consolidar
+                          <FileVideo className="h-3.5 w-3.5 mr-1" />
+                          <span>Consolidar</span>
                         </button>
                       )}
                       {readOnly && (
-                        <div className="mr-2">
+                        <div>
                           <ReasignarCliente
                             clienteId={cliente.ID}
                             asesorActual={cliente.NOMBRE_ASESOR}
@@ -677,7 +695,7 @@ export default function ListaGeneralClientes({
       {clienteConsolidar && reporteConsolidar && (
         <ConsolidarVenta
           cliente={clienteConsolidar}
-          asesor={reporteConsolidar.asesor}
+          asesor={reporteConsolidar.asesor as Asesor}
           reporte={reporteConsolidar}
           onComplete={() => {
             setClienteConsolidar(null);

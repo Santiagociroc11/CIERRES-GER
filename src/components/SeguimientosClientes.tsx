@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Reporte } from '../types';
-import { Calendar, Phone, CheckCircle, History, Clock, Menu, Loader2 } from 'lucide-react';
+import { Calendar, Phone, CheckCircle, History, Clock, Menu, Loader2, MessageSquare } from 'lucide-react';
 import { formatTime } from '../utils/dateUtils';
 import { apiClient } from '../lib/apiClient';
 
@@ -11,6 +11,7 @@ import { apiClient } from '../lib/apiClient';
 interface SeguimientosClientesProps {
   reportes: Reporte[];
   onRefrescar?: () => void; // Para recargar datos en el padre
+  onChat?: (cliente: any) => void;
 }
 
 /**
@@ -182,7 +183,8 @@ function ModalCompletarActualizar({
 
 export default function SeguimientosClientes({
   reportes,
-  onRefrescar
+  onRefrescar,
+  onChat
 }: SeguimientosClientesProps) {
   const [mostrarCompletados, setMostrarCompletados] = useState(false);
 
@@ -257,7 +259,7 @@ export default function SeguimientosClientes({
         // Contar solo si COMPLETADO == true
         return r.COMPLETADO === true;
       } else {
-        // Contar COMPLETADO == false o null como “pendiente”
+        // Contar COMPLETADO == false o null como "pendiente"
         return r.COMPLETADO === false || r.COMPLETADO == null;
       }
     }).length;
@@ -396,6 +398,19 @@ export default function SeguimientosClientes({
                           >
                             <CheckCircle className="h-4 w-4 mr-1" />
                             Completar y Actualizar
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Chat button */}
+                      <div className="flex items-center justify-end mt-4 space-x-2">
+                        {onChat && reporte.cliente && (
+                          <button
+                            onClick={() => onChat(reporte.cliente)}
+                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
+                          >
+                            <MessageSquare className="h-4 w-4 mr-1" />
+                            Chat
                           </button>
                         )}
                       </div>

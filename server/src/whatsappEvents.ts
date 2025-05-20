@@ -23,6 +23,16 @@ export interface WhatsAppMessage {
       mimetype: string;
       fileName: string;
     };
+    audioMessage?: {
+      url: string;
+      mimetype: string;
+      caption?: string;
+    };
+    stickerMessage?: {
+      url: string;
+      mimetype: string;
+    };
+    [key: string]: any; // Para cualquier otro tipo de mensaje
   };
   messageTimestamp: number;
   status: number;
@@ -42,11 +52,12 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
 
       const eventData = {
         from: message.key.remoteJid,
-        text: message.message.conversation,
+        text: message.message.conversation || message.message.caption || '',
         timestamp: new Date(message.messageTimestamp * 1000).toISOString(),
         messageId: message.key.id,
         fromMe: message.key.fromMe,
-        instance: data.instance || data.data.instanceId || 'desconocida'
+        instance: data.instance || data.data.instanceId || 'desconocida',
+        tipo: getMessageType(message)
       };
 
       // FILTRO DE DUPLICADOS
@@ -63,9 +74,25 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       const header = message.key.fromMe
         ? `\x1b[32m✅ [${eventData.instance}] Mensaje ENVIADO POR MÍ\x1b[0m`
         : `\x1b[36m📥 [${eventData.instance}] Mensaje RECIBIDO\x1b[0m`;
-      const body = `De: ${eventData.from}\nTexto: ${eventData.text}\nID: ${eventData.messageId}\nFecha: ${eventData.timestamp}`;
+      const body = `De: ${eventData.from}\nTipo: ${eventData.tipo}\nTexto/Caption: ${eventData.text}\nID: ${eventData.messageId}\nFecha: ${eventData.timestamp}`;
       console.log(`${header}\n${body}\n${'-'.repeat(40)}`);
+
+      // LOG DEL CUERPO RAW DEL EVENTO
+      console.log(`\x1b[90m[RAW data.data]:\n${JSON.stringify(data.data, null, 2)}\x1b[0m\n${'='.repeat(40)}`);
     }
     // Si no es un mensaje válido, ignorar
   });
+}
+
+function getMessageType(message: WhatsAppMessage): string {
+  if (message.message.conversation) return 'text';
+  if (message.message.imageMessage) return 'image';
+  if (message.message.videoMessage) return 'video';
+  if (message.message.documentMessage) return 'document';
+  if (message.message.audioMessage) return 'audio';
+  if (message.message.stickerMessage) return 'sticker';
+  // Si hay otro tipo de mensaje
+  const keys = Object.keys(message.message).filter(k => k.endsWith('Message'));
+  if (keys.length > 0) return keys.join(',');
+  return 'unknown';
 } 

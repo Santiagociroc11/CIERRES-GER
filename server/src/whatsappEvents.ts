@@ -1,6 +1,14 @@
 import { Socket } from 'socket.io-client';
 import winston from 'winston';
 
+// Contador de eventos para monitoreo
+let eventCounters = {
+  messagesReceived: 0,
+  messagesUpdated: 0,
+  connectionUpdates: 0,
+  lastEventTimestamp: null as Date | null
+};
+
 export interface WhatsAppMessage {
   key: {
     remoteJid: string;
@@ -40,16 +48,32 @@ export interface ConnectionUpdate {
   qr?: string;
 }
 
+// Función para obtener estadísticas de eventos
+export function getEventStats() {
+  return {
+    ...eventCounters,
+    uptime: process.uptime(),
+    lastEventTime: eventCounters.lastEventTimestamp?.toISOString() || null
+  };
+}
+
 export function setupWhatsAppEventHandlers(socket: Socket, logger: winston.Logger) {
   // Manejar nuevos mensajes
   socket.on('messages.upsert', (data: { messages: WhatsAppMessage[] }) => {
+    eventCounters.messagesReceived += data.messages.length;
+    eventCounters.lastEventTimestamp = new Date();
+
     data.messages.forEach(message => {
       if (!message.key.fromMe) {
-        logger.info('Mensaje recibido:', {
+        const eventData = {
           from: message.key.remoteJid,
           type: getMessageType(message),
-          timestamp: new Date(message.messageTimestamp * 1000).toISOString()
-        });
+          timestamp: new Date(message.messageTimestamp * 1000).toISOString(),
+          messageId: message.key.id
+        };
+
+        logger.info('Mensaje recibido:', eventData);
+        console.log('📥 Nuevo mensaje:', JSON.stringify(eventData, null, 2));
 
         // Aquí puedes agregar lógica para procesar diferentes tipos de mensajes
         if (message.message.conversation) {
@@ -67,30 +91,49 @@ export function setupWhatsAppEventHandlers(socket: Socket, logger: winston.Logge
 
   // Manejar actualizaciones de mensajes
   socket.on('messages.update', (data: { messages: WhatsAppMessage[] }) => {
+    eventCounters.messagesUpdated += data.messages.length;
+    eventCounters.lastEventTimestamp = new Date();
+
     data.messages.forEach(message => {
-      logger.info('Mensaje actualizado:', {
+      const eventData = {
         from: message.key.remoteJid,
         status: message.status,
-        timestamp: new Date(message.messageTimestamp * 1000).toISOString()
-      });
+        timestamp: new Date(message.messageTimestamp * 1000).toISOString(),
+        messageId: message.key.id
+      };
+
+      logger.info('Mensaje actualizado:', eventData);
+      console.log('🔄 Mensaje actualizado:', JSON.stringify(eventData, null, 2));
     });
   });
 
   // Manejar actualizaciones de conexión
   socket.on('connection.update', (data: ConnectionUpdate) => {
-    logger.info('Estado de conexión actualizado:', {
+    eventCounters.connectionUpdates++;
+    eventCounters.lastEventTimestamp = new Date();
+
+    const eventData = {
       connection: data.connection,
       error: data.lastDisconnect?.error?.message,
-      hasQR: !!data.qr
-    });
+      hasQR: !!data.qr,
+      timestamp: new Date().toISOString()
+    };
+
+    logger.info('Estado de conexión actualizado:', eventData);
+    console.log('🔌 Estado de conexión:', JSON.stringify(eventData, null, 2));
 
     if (data.connection === 'close') {
       logger.warn('Conexión cerrada:', {
         error: data.lastDisconnect?.error?.message,
         status: data.lastDisconnect?.error?.status
       });
+      console.log('❌ Conexión cerrada:', data.lastDisconnect?.error?.message);
     }
   });
+
+  // Log inicial de conexión
+  logger.info('Manejadores de eventos de WhatsApp configurados');
+  console.log('✅ Manejadores de eventos de WhatsApp configurados');
 }
 
 // Funciones auxiliares para procesar diferentes tipos de mensajes
@@ -104,43 +147,55 @@ function getMessageType(message: WhatsAppMessage): string {
 
 function processTextMessage(message: WhatsAppMessage, logger: winston.Logger) {
   const text = message.message.conversation;
-  logger.info('Procesando mensaje de texto:', {
+  const eventData = {
     from: message.key.remoteJid,
     text,
-    timestamp: new Date(message.messageTimestamp * 1000).toISOString()
-  });
-  // Aquí puedes agregar lógica específica para procesar mensajes de texto
+    timestamp: new Date(message.messageTimestamp * 1000).toISOString(),
+    messageId: message.key.id
+  };
+
+  logger.info('Procesando mensaje de texto:', eventData);
+  console.log('💬 Mensaje de texto:', JSON.stringify(eventData, null, 2));
 }
 
 function processImageMessage(message: WhatsAppMessage, logger: winston.Logger) {
   const image = message.message.imageMessage;
-  logger.info('Procesando mensaje de imagen:', {
+  const eventData = {
     from: message.key.remoteJid,
     url: image?.url,
     caption: image?.caption,
-    timestamp: new Date(message.messageTimestamp * 1000).toISOString()
-  });
-  // Aquí puedes agregar lógica específica para procesar imágenes
+    timestamp: new Date(message.messageTimestamp * 1000).toISOString(),
+    messageId: message.key.id
+  };
+
+  logger.info('Procesando mensaje de imagen:', eventData);
+  console.log('🖼️ Mensaje de imagen:', JSON.stringify(eventData, null, 2));
 }
 
 function processVideoMessage(message: WhatsAppMessage, logger: winston.Logger) {
   const video = message.message.videoMessage;
-  logger.info('Procesando mensaje de video:', {
+  const eventData = {
     from: message.key.remoteJid,
     url: video?.url,
     caption: video?.caption,
-    timestamp: new Date(message.messageTimestamp * 1000).toISOString()
-  });
-  // Aquí puedes agregar lógica específica para procesar videos
+    timestamp: new Date(message.messageTimestamp * 1000).toISOString(),
+    messageId: message.key.id
+  };
+
+  logger.info('Procesando mensaje de video:', eventData);
+  console.log('🎥 Mensaje de video:', JSON.stringify(eventData, null, 2));
 }
 
 function processDocumentMessage(message: WhatsAppMessage, logger: winston.Logger) {
   const document = message.message.documentMessage;
-  logger.info('Procesando mensaje de documento:', {
+  const eventData = {
     from: message.key.remoteJid,
     url: document?.url,
     fileName: document?.fileName,
-    timestamp: new Date(message.messageTimestamp * 1000).toISOString()
-  });
-  // Aquí puedes agregar lógica específica para procesar documentos
+    timestamp: new Date(message.messageTimestamp * 1000).toISOString(),
+    messageId: message.key.id
+  };
+
+  logger.info('Procesando mensaje de documento:', eventData);
+  console.log('📄 Mensaje de documento:', JSON.stringify(eventData, null, 2));
 } 

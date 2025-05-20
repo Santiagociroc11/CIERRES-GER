@@ -70,7 +70,7 @@ export function setupWhatsAppEventHandlers(socket: Socket, logger: winston.Logge
     eventCounters.messagesReceived += data.messages.length;
     eventCounters.lastEventTimestamp = new Date();
 
-    data.messages.forEach(message => {
+    data.messages.forEach((message: WhatsAppMessage) => {
       if (!message.key.fromMe) {
         const eventData = {
           from: message.key.remoteJid,
@@ -108,7 +108,7 @@ export function setupWhatsAppEventHandlers(socket: Socket, logger: winston.Logge
     eventCounters.messagesUpdated += data.messages.length;
     eventCounters.lastEventTimestamp = new Date();
 
-    data.messages.forEach(message => {
+    data.messages.forEach((message: WhatsAppMessage) => {
       const eventData = {
         from: message.key.remoteJid,
         status: message.status,

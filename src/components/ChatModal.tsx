@@ -58,7 +58,17 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
 
   useEffect(() => {
     if (isOpen) {
-      cargarMensajes();
+      cargarMensajes(false); // Carga inicial con spinner
+      
+      // Configurar polling para actualizar mensajes cada 5 segundos
+      const pollingInterval = setInterval(() => {
+        cargarMensajes(true); // Actualizaciones silenciosas
+      }, 3000); // 5 segundos
+      
+      // Limpiar intervalo al cerrar modal o desmontar componente
+      return () => {
+        clearInterval(pollingInterval);
+      };
     }
   }, [isOpen, cliente.ID]);
 
@@ -66,17 +76,26 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     scrollToBottom();
   }, [mensajes]);
 
-  const cargarMensajes = async () => {
+  const cargarMensajes = async (silencioso = false) => {
     try {
-      setIsLoading(true);
+      if (!silencioso) {
+        setIsLoading(true);
+      }
+      
       const response = await apiClient.request<Mensaje[]>(
         `/conversaciones?select=*&or=(id_cliente.eq.${cliente.ID},wha_cliente.ilike.*${cliente.WHATSAPP.slice(-7)}*)&order=timestamp.asc`
       );
-      setMensajes(response || []);
+      
+      // Solo actualizar si hay mensajes nuevos o es la carga inicial
+      if (!silencioso || (response && response.length > mensajes.length)) {
+        setMensajes(response || []);
+      }
     } catch (error) {
       console.error('Error al cargar mensajes:', error);
     } finally {
-      setIsLoading(false);
+      if (!silencioso) {
+        setIsLoading(false);
+      }
     }
   };
 

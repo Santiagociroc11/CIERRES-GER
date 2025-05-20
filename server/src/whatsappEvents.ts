@@ -46,18 +46,23 @@ export interface WhatsAppMessage {
 const processedMessages = new Set<string>();
 let asesores: { ID: number; NOMBRE: string }[] = [];
 
-// Cargar asesores al iniciar
-(async () => {
+// Función para cargar asesores
+async function recargarAsesores() {
   try {
     asesores = await getAsesores();
-    console.log('Asesores cargados:', asesores.map(a => a.NOMBRE).join(', '));
+    console.log('[ASESORES] Asesores cargados:', asesores.map(a => a.NOMBRE).join(', '));
   } catch (err) {
-    console.error('Error cargando asesores:', err);
+    console.error('[ASESORES] Error cargando asesores:', err);
   }
-})();
+}
+
+// Cargar asesores al iniciar y recargar cada 5 minutos
+recargarAsesores();
+setInterval(recargarAsesores, 5 * 60 * 1000);
 
 export function setupWhatsAppEventHandlers(socket: Socket) {
   socket.on('messages.upsert', async (data: any) => {
+    console.log('[EVENT] messages.upsert recibido:', JSON.stringify(data));
     if (data && data.data && data.data.key && data.data.message) {
       const message = {
         key: data.data.key,
@@ -69,6 +74,7 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       // IGNORAR reactionMessage
       const tipo = getMessageType(message);
       if (tipo === 'reactionMessage') {
+        console.log('[SKIP] Mensaje de tipo reactionMessage ignorado.');
         return;
       }
 
@@ -85,6 +91,7 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       // FILTRO DE DUPLICADOS
       const uniqueKey = `${eventData.instance}:${eventData.messageId}`;
       if (processedMessages.has(uniqueKey)) {
+        console.log('[SKIP] Mensaje duplicado:', uniqueKey);
         return; // Ya lo procesamos
       }
       processedMessages.add(uniqueKey);
@@ -102,7 +109,11 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
 
       // Buscar asesor por nombre de instancia
       const asesor = asesores.find(a => a.NOMBRE.trim().toLowerCase() === (eventData.instance || '').trim().toLowerCase());
-      if (!asesor) return;
+      if (!asesor) {
+        console.warn('[NO BD] No se encontró asesor para la instancia:', eventData.instance);
+        return;
+      }
+      console.log('[BD] Asesor encontrado:', asesor);
 
       // Determinar modo
       const modo = message.key.fromMe ? 'saliente' : 'entrante';
@@ -129,9 +140,14 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       let id_cliente: number | null = null;
       try {
         const cliente = await getClienteByWhatsapp(eventData.from);
-        if (cliente) id_cliente = cliente.ID;
+        if (cliente) {
+          id_cliente = cliente.ID;
+          console.log('[BD] Cliente encontrado:', cliente);
+        } else {
+          console.warn('[NO BD] No se encontró cliente para el número:', eventData.from);
+        }
       } catch (err) {
-        console.error('Error buscando cliente por whatsapp:', err);
+        console.error('[ERROR] Buscando cliente por whatsapp:', err);
       }
 
       // Insertar en la tabla conversaciones
@@ -144,11 +160,13 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
           timestamp: Math.floor(Date.now() / 1000),
           mensaje
         });
+        console.log('[BD] Conversación insertada correctamente.');
       } catch (err) {
-        console.error('Error insertando conversación:', err);
+        console.error('[ERROR] Insertando conversación:', err);
       }
+    } else {
+      console.warn('[SKIP] Evento messages.upsert no tiene data válida.');
     }
-    // Si no es un mensaje válido, ignorar
   });
 }
 

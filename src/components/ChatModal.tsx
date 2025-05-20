@@ -60,11 +60,15 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     }
   };
 
+  const evolutionApiUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
+  const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
+
   const enviarMensaje = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoMensaje.trim()) return;
 
     try {
+      // 1. Guardar en la base de datos
       const mensajeData = {
         id_asesor: asesor.ID,
         id_cliente: cliente.ID,
@@ -73,12 +77,34 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         timestamp: Math.floor(Date.now() / 1000),
         mensaje: nuevoMensaje.trim()
       };
-
       await apiClient.request('/conversaciones', 'POST', mensajeData);
+
+      // 2. Enviar a Evolution API
+      const instance = asesor.NOMBRE;
+      const number = cliente.WHATSAPP.replace(/\D/g, ''); // Solo dígitos
+      const text = nuevoMensaje.trim();
+
+      const response = await fetch(
+        `${evolutionApiUrl}/message/sendText/${encodeURIComponent(instance)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': evolutionApiKey,
+          },
+          body: JSON.stringify({ number, text }),
+        }
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error enviando mensaje a Evolution API: ${response.status} - ${errorText}`);
+      }
+
       setNuevoMensaje('');
       await cargarMensajes();
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
+      // Aquí puedes mostrar un toast o alerta al usuario si quieres
     }
   };
 

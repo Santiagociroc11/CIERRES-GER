@@ -24,7 +24,7 @@ export async function insertConversacion(data: {
 }
 
 export async function getAsesores(): Promise<{ ID: number; NOMBRE: string }[]> {
-  const response = await fetch(`${POSTGREST_URL}/asesores?select=ID,NOMBRE`);
+  const response = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?select=ID,NOMBRE`);
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Error al obtener asesores: ${response.status} - ${errorText}`);

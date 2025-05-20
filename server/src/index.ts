@@ -22,8 +22,8 @@ const logger = winston.createLogger({
 });
 
 // Configuración del cliente WebSocket
-const evolutionApiUrl = process.env.EVOLUTION_API_URL;
-const evolutionApiKey = process.env.EVOLUTION_API_KEY;
+const evolutionApiUrl = process.env.EVOLUTION_API_URL || process.env.VITE_EVOLUTIONAPI_URL;
+const evolutionApiKey = process.env.EVOLUTION_API_KEY || process.env.VITE_EVOLUTIONAPI_TOKEN;
 
 console.log('ENV:', process.env.EVOLUTION_API_URL, process.env.EVOLUTION_API_KEY);
 

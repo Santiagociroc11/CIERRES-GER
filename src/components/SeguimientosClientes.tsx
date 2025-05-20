@@ -339,22 +339,23 @@ export default function SeguimientosClientes({
               {reportesPorFecha[fecha].map((reporte) => (
                 <div
                   key={reporte.ID}
-                  className={`p-4 ${reporte.COMPLETADO ? 'bg-gray-50' : 'bg-white'
-                    }`}
+                  className={`p-4 ${reporte.COMPLETADO ? 'bg-gray-50' : 'bg-white'}`}
                 >
                   <div className="flex flex-col gap-3">
-                    {/* Encabezado */}
+                    {/* Encabezado y botones */}
                     <div className="flex justify-between items-start">
+                      {/* Info del cliente */}
                       <div>
                         <h3 className="font-medium text-gray-900">
                           {reporte.cliente?.NOMBRE}
                         </h3>
                         <div className="flex items-center gap-2 mt-1">
                           <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${reporte.COMPLETADO
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              reporte.COMPLETADO
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-blue-100 text-blue-800'
-                              }`}
+                            }`}
                           >
                             {reporte.COMPLETADO
                               ? 'Completado'
@@ -366,54 +367,42 @@ export default function SeguimientosClientes({
                         </div>
                       </div>
 
-                      {/* Botón menú mobile (toggle) */}
-                      <button
-                        onClick={() =>
-                          setReporteAcciones(
-                            reporteAcciones === reporte.ID
-                              ? null
-                              : reporte.ID
-                          )
-                        }
-                        className="p-1 hover:bg-gray-100 rounded-full sm:hidden"
-                      >
-                        <Menu className="h-5 w-5 text-gray-500" />
-                      </button>
-
-                      {/* Botones en desktop */}
-                      <div className="hidden sm:flex sm:space-x-2">
+                      {/* Botones desktop */}
+                      <div className="hidden sm:flex sm:items-center sm:space-x-2">
                         <button
-                          onClick={() =>
-                            abrirWhatsApp(reporte.cliente?.WHATSAPP || '')
-                          }
+                          onClick={() => abrirWhatsApp(reporte.cliente?.WHATSAPP || '')}
                           className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
                         >
                           <Phone className="h-4 w-4 mr-1" />
                           Contactar
                         </button>
+                        {onChat && reporte.cliente && (
+                          <button
+                            onClick={() => onChat(reporte.cliente)}
+                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                          >
+                            <MessageSquare className="h-4 w-4 mr-1" />
+                            Chat
+                          </button>
+                        )}
                         {!reporte.COMPLETADO && (
                           <button
                             onClick={() => handleAbrirModal(reporte)}
                             className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
                           >
                             <CheckCircle className="h-4 w-4 mr-1" />
-                            Completar y Actualizar
+                            Completar
                           </button>
                         )}
                       </div>
 
-                      {/* Chat button */}
-                      <div className="flex items-center justify-end mt-4 space-x-2">
-                        {onChat && reporte.cliente && (
-                          <button
-                            onClick={() => onChat(reporte.cliente)}
-                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
-                          >
-                            <MessageSquare className="h-4 w-4 mr-1" />
-                            Chat
-                          </button>
-                        )}
-                      </div>
+                      {/* Botón menú mobile */}
+                      <button
+                        onClick={() => setReporteAcciones(reporteAcciones === reporte.ID ? null : reporte.ID)}
+                        className="sm:hidden p-1 hover:bg-gray-100 rounded-full"
+                      >
+                        <Menu className="h-5 w-5 text-gray-500" />
+                      </button>
                     </div>
 
                     {/* Comentario */}
@@ -423,9 +412,9 @@ export default function SeguimientosClientes({
                       </p>
                     </div>
 
-                    {/* Menú de acciones móvil */}
+                    {/* Menú mobile */}
                     {reporteAcciones === reporte.ID && (
-                      <div className="flex flex-col gap-2 sm:hidden mt-2">
+                      <div className="sm:hidden flex flex-col gap-2">
                         <button
                           onClick={() => {
                             abrirWhatsApp(reporte.cliente?.WHATSAPP || '');
@@ -436,7 +425,18 @@ export default function SeguimientosClientes({
                           <Phone className="h-4 w-4 mr-2" />
                           Contactar
                         </button>
-
+                        {onChat && reporte.cliente && (
+                          <button
+                            onClick={() => {
+                              onChat(reporte.cliente);
+                              setReporteAcciones(null);
+                            }}
+                            className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Chat
+                          </button>
+                        )}
                         {!reporte.COMPLETADO && (
                           <button
                             onClick={() => {

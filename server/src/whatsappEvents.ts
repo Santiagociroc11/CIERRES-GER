@@ -1,4 +1,5 @@
 import { Socket } from 'socket.io-client';
+import { insertConversacion, getAsesores, getClienteByWhatsapp } from './dbClient';
 
 export interface WhatsAppMessage {
   key: {
@@ -43,9 +44,20 @@ export interface WhatsAppMessage {
 }
 
 const processedMessages = new Set<string>();
+let asesores: { ID: number; NOMBRE: string }[] = [];
+
+// Cargar asesores al iniciar
+(async () => {
+  try {
+    asesores = await getAsesores();
+    console.log('Asesores cargados:', asesores.map(a => a.NOMBRE).join(', '));
+  } catch (err) {
+    console.error('Error cargando asesores:', err);
+  }
+})();
 
 export function setupWhatsAppEventHandlers(socket: Socket) {
-  socket.on('messages.upsert', (data: any) => {
+  socket.on('messages.upsert', async (data: any) => {
     if (data && data.data && data.data.key && data.data.message) {
       const message = {
         key: data.data.key,
@@ -86,9 +98,55 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         : `\x1b[36m📥 [${eventData.instance}] Mensaje RECIBIDO\x1b[0m`;
       const body = `De: ${eventData.from}\nTipo: ${eventData.tipo}\nTexto/Caption: ${eventData.text}\nID: ${eventData.messageId}\nFecha: ${eventData.timestamp}`;
       console.log(`${header}\n${body}\n${'-'.repeat(40)}`);
-
-      // LOG DEL CUERPO RAW DEL EVENTO
       console.log(`\x1b[90m[RAW data.data]:\n${JSON.stringify(data.data, null, 2)}\x1b[0m\n${'='.repeat(40)}`);
+
+      // Buscar asesor por nombre de instancia
+      const asesor = asesores.find(a => a.NOMBRE.trim().toLowerCase() === (eventData.instance || '').trim().toLowerCase());
+      if (!asesor) return;
+
+      // Determinar modo
+      const modo = message.key.fromMe ? 'saliente' : 'entrante';
+
+      // Determinar mensaje para la BD
+      let mensaje = '';
+      if (tipo === 'text') {
+        mensaje = eventData.text;
+      } else if (tipo === 'image') {
+        mensaje = message.key.fromMe ? '🖼️ (imagen) enviado' : '🖼️ (imagen) recibido';
+      } else if (tipo === 'video') {
+        mensaje = message.key.fromMe ? '🎥 (video) enviado' : '🎥 (video) recibido';
+      } else if (tipo === 'audio') {
+        mensaje = message.key.fromMe ? '🎵 (audio) enviado' : '🎵 (audio) recibido';
+      } else if (tipo === 'document') {
+        mensaje = message.key.fromMe ? '📄 (documento) enviado' : '📄 (documento) recibido';
+      } else if (tipo === 'sticker') {
+        mensaje = message.key.fromMe ? '💬 (sticker) enviado' : '💬 (sticker) recibido';
+      } else {
+        mensaje = message.key.fromMe ? `📦 (${tipo}) enviado` : `📦 (${tipo}) recibido`;
+      }
+
+      // Buscar id_cliente por wha_cliente
+      let id_cliente: number | null = null;
+      try {
+        const cliente = await getClienteByWhatsapp(eventData.from);
+        if (cliente) id_cliente = cliente.ID;
+      } catch (err) {
+        console.error('Error buscando cliente por whatsapp:', err);
+      }
+
+      // Insertar en la tabla conversaciones
+      try {
+        await insertConversacion({
+          id_asesor: asesor.ID,
+          id_cliente,
+          wha_cliente: eventData.from,
+          modo,
+          timestamp: Math.floor(Date.now() / 1000),
+          mensaje
+        });
+      } catch (err) {
+        console.error('Error insertando conversación:', err);
+      }
     }
     // Si no es un mensaje válido, ignorar
   });

@@ -51,6 +51,7 @@ export interface Reporte {
   imagen_fin_conversacion?: string;
   video_conversacion?: string;
   asesor?: Asesor;
+  PRODUCTO?: 'PRINCIPAL' | 'DOWNSELL';
 }
 
 export interface Registro {
@@ -64,6 +65,8 @@ export interface EstadisticasAsesor {
   totalClientes: number;
   clientesReportados: number;
   ventasRealizadas: number;
+  ventasPrincipal: number;
+  ventasDownsell: number;
   seguimientosPendientes: number;
   seguimientosCompletados: number;
   porcentajeCierre: number;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../lib/apiClient';
-import { Cliente, Asesor, Reporte, EstadisticasAsesor } from '../types';
+import { Cliente, Asesor, Reporte, EstadisticasAsesor, EstadoCliente } from '../types';
 import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
 import ClientesPendientes from './ClientesPendientes';
@@ -35,6 +35,18 @@ const getActiveClasses = (color?: 'red' | 'yellow' | 'blue') => {
   }
 };
 
+interface WhatsAppModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  whatsappStatus: string | null;
+  instanceInfo: any;
+  qrCode: string | null;
+  isLoadingWhatsApp: boolean;
+  onCreateInstance: () => Promise<void>;
+  onDisconnect: () => Promise<void>;
+  onRefreshInstance: () => Promise<void>;
+}
+
 function WhatsAppModal({
   isOpen,
   onClose,
@@ -45,7 +57,7 @@ function WhatsAppModal({
   onCreateInstance,
   onDisconnect,
   onRefreshInstance,
-}) {
+}: WhatsAppModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -126,6 +138,44 @@ function WhatsAppModal({
   );
 }
 
+interface WhatsAppWarningModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConnect: () => void;
+}
+
+function WhatsAppWarningModal({ isOpen, onClose, onConnect }: WhatsAppWarningModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+        <div className="flex flex-col items-center text-center">
+          <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">WhatsApp No Conectado</h2>
+          <p className="text-gray-600 mb-6">
+            Para poder recibir clientes y trabajar en la plataforma, necesitas escanear y conectar tu sesión de WhatsApp.
+          </p>
+          <div className="flex gap-4">
+            <button
+              onClick={onConnect}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition duration-300"
+            >
+              Escanear Sesión
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition duration-300"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface DashboardAsesorProps {
   asesorInicial: Asesor;
   onLogout: () => void;
@@ -145,6 +195,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     totalClientes: 0,
     clientesReportados: 0,
     ventasRealizadas: 0,
+    ventasPrincipal: 0,
+    ventasDownsell: 0,
     seguimientosPendientes: 0,
     seguimientosCompletados: 0,
     porcentajeCierre: 0,
@@ -158,6 +210,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [instanceInfo, setInstanceInfo] = useState<any>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [showWhatsAppWarning, setShowWhatsAppWarning] = useState(true);
 
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
@@ -184,7 +237,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   }, [showWhatsAppModal, asesor.NOMBRE]);
 
   useEffect(() => {
-    let pollingInterval;
+    let pollingInterval: NodeJS.Timeout | undefined;
     if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
       pollingInterval = setInterval(() => {
         refreshConnection();
@@ -194,6 +247,12 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       if (pollingInterval) clearInterval(pollingInterval);
     };
   }, [showWhatsAppModal, instanceInfo]);
+
+  useEffect(() => {
+    if (instanceInfo?.connectionStatus === "open") {
+      setShowWhatsAppWarning(false);
+    }
+  }, [instanceInfo]);
 
   const getClientesEstadoPendiente = () => {
     return clientes.filter(cliente => {
@@ -272,7 +331,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
               const ultimoReporte = reportesData
                 .filter(r => r.ID_CLIENTE === cliente.ID)
                 .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
-              if (ultimoReporte) return { ...cliente, ESTADO: ultimoReporte.ESTADO_NUEVO };
+              if (ultimoReporte) return { ...cliente, ESTADO: ultimoReporte.ESTADO_NUEVO as EstadoCliente };
             }
           }
           return cliente;
@@ -340,7 +399,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         });
       }
     } catch (error) {
-      console.error('Error al cargar datos:', error);
+      console.error('Error cargando datos:', error);
       showToast('Error al cargar los datos', 'error');
     }
   };
@@ -462,8 +521,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const handleFetchInstanceInfo = async () => {
     try {
       setIsLoadingWhatsApp(true);
-      const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${encodeURIComponent(asesor.NOMBRE)}`;
-      console.log("Fetching instance info from:", url);
+      const instanceName = encodeURIComponent(asesor.NOMBRE);
+      const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${instanceName}`;
+    
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -687,6 +747,15 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         onCreateInstance={handleCreateInstance}
         onRefreshInstance={refreshConnection}
         onDisconnect={handleDisconnectInstance}
+      />
+
+      <WhatsAppWarningModal
+        isOpen={showWhatsAppWarning && (!instanceInfo || instanceInfo.connectionStatus !== "open")}
+        onClose={() => setShowWhatsAppWarning(false)}
+        onConnect={() => {
+          setShowWhatsAppModal(true);
+          setShowWhatsAppWarning(false);
+        }}
       />
     </div>
   );

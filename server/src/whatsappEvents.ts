@@ -32,6 +32,10 @@ export interface WhatsAppMessage {
       url: string;
       mimetype: string;
     };
+    reactionMessage?: {
+      text: string;
+      key: any;
+    };
     [key: string]: any; // Para cualquier otro tipo de mensaje
   };
   messageTimestamp: number;
@@ -50,6 +54,12 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         status: data.data.status,
       } as WhatsAppMessage;
 
+      // IGNORAR reactionMessage
+      const tipo = getMessageType(message);
+      if (tipo === 'reactionMessage') {
+        return;
+      }
+
       const eventData = {
         from: message.key.remoteJid,
         text: message.message.conversation || message.message.caption || '',
@@ -57,7 +67,7 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         messageId: message.key.id,
         fromMe: message.key.fromMe,
         instance: data.instance || data.data.instanceId || 'desconocida',
-        tipo: getMessageType(message)
+        tipo
       };
 
       // FILTRO DE DUPLICADOS
@@ -91,6 +101,7 @@ function getMessageType(message: WhatsAppMessage): string {
   if (message.message.documentMessage) return 'document';
   if (message.message.audioMessage) return 'audio';
   if (message.message.stickerMessage) return 'sticker';
+  if (message.message.reactionMessage) return 'reactionMessage';
   // Si hay otro tipo de mensaje
   const keys = Object.keys(message.message).filter(k => k.endsWith('Message'));
   if (keys.length > 0) return keys.join(',');

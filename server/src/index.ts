@@ -25,6 +25,8 @@ const logger = winston.createLogger({
 const evolutionApiUrl = process.env.EVOLUTION_API_URL;
 const evolutionApiKey = process.env.EVOLUTION_API_KEY;
 
+console.log('ENV:', process.env.EVOLUTION_API_URL, process.env.EVOLUTION_API_KEY);
+
 if (!evolutionApiUrl || !evolutionApiKey) {
   logger.error('Faltan variables de entorno requeridas');
   process.exit(1);

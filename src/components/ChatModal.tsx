@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, X, MessageSquare, Phone } from 'lucide-react';
+import { Send, X, MessageSquare, Phone, FileText, Calendar, Activity } from 'lucide-react';
 import { apiClient } from '../lib/apiClient';
+import { Reporte, Registro } from '../types';
 
 function formatChatDate(ts: number) {
   const date = new Date(ts * 1000);
@@ -43,8 +44,19 @@ interface Mensaje {
   mensaje: string;
 }
 
+// Tipo unificado para los elementos del timeline
+type TimelineItem = {
+  id: string;
+  timestamp: number;
+  tipo: 'mensaje' | 'reporte' | 'registro';
+  contenido: Mensaje | Reporte | Registro;
+};
+
 export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModalProps) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [reportes, setReportes] = useState<Reporte[]>([]);
+  const [registros, setRegistros] = useState<Registro[]>([]);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -68,14 +80,48 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     }
   };
 
+  // Generar timeline unificado
+  useEffect(() => {
+    const items: TimelineItem[] = [
+      // Convertir mensajes a timeline items
+      ...mensajes.map((msg): TimelineItem => ({
+        id: `msg-${msg.id}`,
+        timestamp: msg.timestamp,
+        tipo: 'mensaje',
+        contenido: msg
+      })),
+      
+      // Convertir reportes a timeline items
+      ...reportes.map((rep): TimelineItem => ({
+        id: `rep-${rep.ID}`,
+        timestamp: rep.FECHA_REPORTE,
+        tipo: 'reporte',
+        contenido: rep
+      })),
+      
+      // Convertir registros a timeline items
+      ...registros.map((reg): TimelineItem => ({
+        id: `reg-${reg.ID}`,
+        timestamp: Number(reg.FECHA_EVENTO), // Asumiendo que es timestamp en segundos
+        tipo: 'registro',
+        contenido: reg
+      }))
+    ];
+    
+    // Ordenar por timestamp ascendente
+    items.sort((a, b) => a.timestamp - b.timestamp);
+    
+    setTimeline(items);
+  }, [mensajes, reportes, registros]);
+
   useEffect(() => {
     if (isOpen) {
-      cargarMensajes(false); // Carga inicial con spinner
+      cargarDatos(false); // Carga inicial con spinner
       
-      // Configurar polling para actualizar mensajes cada 5 segundos
+      // Configurar polling para actualizar mensajes cada 3 segundos
       const pollingInterval = setInterval(() => {
-        cargarMensajes(true); // Actualizaciones silenciosas
-      }, 3000); // 3 segundos
+        cargarDatos(true); // Actualizaciones silenciosas
+      }, 3000);
       
       // Limpiar intervalo al cerrar modal o desmontar componente
       return () => {
@@ -89,24 +135,40 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     if (isAtBottom) {
       scrollToBottom();
     }
-  }, [mensajes]);
+  }, [timeline]);
 
-  const cargarMensajes = async (silencioso = false) => {
+  const cargarDatos = async (silencioso = false) => {
     try {
       if (!silencioso) {
         setIsLoading(true);
       }
       
-      const response = await apiClient.request<Mensaje[]>(
-        `/conversaciones?select=*&or=(id_cliente.eq.${cliente.ID},wha_cliente.ilike.*${cliente.WHATSAPP.slice(-7)}*)&order=timestamp.asc`
-      );
+      // Cargar mensajes, reportes y registros en paralelo
+      const [mensajesData, reportesData, registrosData] = await Promise.all([
+        apiClient.request<Mensaje[]>(
+          `/conversaciones?select=*&or=(id_cliente.eq.${cliente.ID},wha_cliente.ilike.*${cliente.WHATSAPP.slice(-7)}*)&order=timestamp.asc`
+        ),
+        apiClient.request<Reporte[]>(
+          `/GERSSON_REPORTES?ID_CLIENTE=eq.${cliente.ID}&order=FECHA_REPORTE.asc`
+        ),
+        apiClient.request<Registro[]>(
+          `/GERSSON_REGISTROS?ID_CLIENTE=eq.${cliente.ID}&order=FECHA_EVENTO.asc`
+        )
+      ]);
       
-      // Solo actualizar si hay mensajes nuevos o es la carga inicial
-      if (!silencioso || (response && response.length > mensajes.length)) {
-        setMensajes(response || []);
+      // Solo actualizar si hay datos nuevos o es la carga inicial
+      const hayDatosNuevos = 
+        mensajesData.length > mensajes.length || 
+        reportesData.length > reportes.length || 
+        registrosData.length > registros.length;
+        
+      if (!silencioso || hayDatosNuevos) {
+        setMensajes(mensajesData || []);
+        setReportes(reportesData || []);
+        setRegistros(registrosData || []);
       }
     } catch (error) {
-      console.error('Error al cargar mensajes:', error);
+      console.error('Error al cargar datos:', error);
     } finally {
       if (!silencioso) {
         setIsLoading(false);
@@ -152,10 +214,83 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
       }
 
       setNuevoMensaje('');
-      await cargarMensajes();
+      await cargarDatos(true);
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
       // Aquí puedes mostrar un toast o alerta al usuario si quieres
+    }
+  };
+
+  // Renderizar elemento de timeline según su tipo
+  const renderTimelineItem = (item: TimelineItem) => {
+    switch (item.tipo) {
+      case 'mensaje': {
+        const mensaje = item.contenido as Mensaje;
+        return (
+          <div
+            key={item.id}
+            className={`flex ${mensaje.modo === 'saliente' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`relative max-w-[75%] px-4 py-2 rounded-2xl shadow-sm text-sm whitespace-pre-line break-words
+                ${mensaje.modo === 'saliente'
+                  ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-br-md'
+                  : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'}
+              `}
+            >
+              <span>{mensaje.mensaje}</span>
+              <span className={`block text-xs mt-1 text-right ${mensaje.modo === 'saliente' ? 'text-blue-100' : 'text-gray-400'}`}>
+                {formatChatDate(mensaje.timestamp)}
+              </span>
+            </div>
+          </div>
+        );
+      }
+      
+      case 'reporte': {
+        const reporte = item.contenido as Reporte;
+        return (
+          <div key={item.id} className="flex justify-center my-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 max-w-[85%] text-center text-sm">
+              <div className="flex items-center justify-center mb-1">
+                <FileText className="h-4 w-4 text-blue-500 mr-1" />
+                <span className="font-medium text-blue-700">
+                  {reporte.ESTADO_ANTERIOR} → {reporte.ESTADO_NUEVO}
+                </span>
+              </div>
+              <p className="text-gray-600 text-xs mb-1">{reporte.COMENTARIO}</p>
+              <div className="text-xs text-gray-500 flex items-center justify-center">
+                <Calendar className="h-3 w-3 mr-1" />
+                {formatChatDate(reporte.FECHA_REPORTE)}
+              </div>
+            </div>
+          </div>
+        );
+      }
+      
+      case 'registro': {
+        const registro = item.contenido as Registro;
+        return (
+          <div key={item.id} className="flex justify-center my-3">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 max-w-[85%] text-center text-sm">
+              <div className="flex items-center justify-center mb-1">
+                <Activity className="h-4 w-4 text-amber-500 mr-1" />
+                <span className="font-medium text-amber-700">
+                  {registro.TIPO_EVENTO || 'Actividad registrada'}
+                </span>
+              </div>
+              <p className="text-gray-600 text-xs mb-1">{registro.DESCRIPCION}</p>
+              <div className="text-xs text-gray-500 flex items-center justify-center">
+                <Calendar className="h-3 w-3 mr-1" />
+                {formatChatDate(Number(registro.FECHA_EVENTO))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+      
+      default:
+        return null;
     }
   };
 
@@ -192,7 +327,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
           </button>
         </div>
 
-        {/* Messages Container with onScroll handler */}
+        {/* Timeline Container with onScroll handler */}
         <div 
           ref={messageContainerRef}
           onScroll={handleScroll}
@@ -202,31 +337,13 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
             <div className="flex justify-center items-center h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
-          ) : mensajes.length === 0 ? (
+          ) : timeline.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <MessageSquare className="h-12 w-12 mb-2" />
-              <p>No hay historial de conversación</p>
+              <p>No hay historial de interacción</p>
             </div>
           ) : (
-            mensajes.map((mensaje, idx) => (
-              <div
-                key={mensaje.id + '-' + idx}
-                className={`flex ${mensaje.modo === 'saliente' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`relative max-w-[75%] px-4 py-2 rounded-2xl shadow-sm text-sm whitespace-pre-line break-words
-                    ${mensaje.modo === 'saliente'
-                      ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-br-md'
-                      : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'}
-                  `}
-                >
-                  <span>{mensaje.mensaje}</span>
-                  <span className={`block text-xs mt-1 text-right ${mensaje.modo === 'saliente' ? 'text-blue-100' : 'text-gray-400'}`}>
-                    {formatChatDate(mensaje.timestamp)}
-                  </span>
-                </div>
-              </div>
-            ))
+            timeline.map(item => renderTimelineItem(item))
           )}
           <div ref={messagesEndRef} />
         </div>

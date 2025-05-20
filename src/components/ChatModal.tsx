@@ -1,6 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, X, MessageSquare } from 'lucide-react';
+import { Send, X, MessageSquare, Phone } from 'lucide-react';
 import { apiClient } from '../lib/apiClient';
+
+function formatChatDate(ts: number) {
+  const date = new Date(ts * 1000);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+  
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+  } else if (isYesterday) {
+    return `ayer ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}`;
+  } else {
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}`;
+  }
+}
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -32,6 +49,9 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
   const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const evolutionApiUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
+  const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -59,9 +79,6 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
       setIsLoading(false);
     }
   };
-
-  const evolutionApiUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
-  const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
 
   const enviarMensaje = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,28 +127,39 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
 
   if (!isOpen) return null;
 
+  // Avatar: primera letra del nombre
+  const avatarColor = 'bg-gradient-to-br from-blue-400 to-indigo-600';
+  const avatar = (
+    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow ${avatarColor}`}>
+      {cliente.NOMBRE?.charAt(0).toUpperCase() || '?'}
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl h-[80vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col border border-gray-200 animate-slideUp">
         {/* Header */}
-        <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
-          <div className="flex items-center space-x-3">
-            <MessageSquare className="h-6 w-6 text-blue-500" />
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">{cliente.NOMBRE}</h2>
-              <p className="text-sm text-gray-500">{cliente.WHATSAPP}</p>
+        <div className="p-4 border-b flex items-center gap-4 bg-gradient-to-r from-blue-50 to-indigo-100 rounded-t-2xl">
+          {avatar}
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900">{cliente.NOMBRE}</h2>
+              <a href={`https://wa.me/${cliente.WHATSAPP.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" title="Abrir en WhatsApp">
+                <Phone className="h-5 w-5 text-green-500" />
+              </a>
             </div>
+            <div className="text-xs text-gray-500">{cliente.WHATSAPP}</div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2 hover:bg-gray-200 rounded-full transition-colors"
           >
             <X className="h-6 w-6 text-gray-500" />
           </button>
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
           {isLoading ? (
             <div className="flex justify-center items-center h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -142,22 +170,22 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
               <p>No hay historial de conversación</p>
             </div>
           ) : (
-            mensajes.map((mensaje) => (
+            mensajes.map((mensaje, idx) => (
               <div
-                key={mensaje.id}
+                key={mensaje.id + '-' + idx}
                 className={`flex ${mensaje.modo === 'saliente' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[70%] rounded-lg p-3 ${
-                    mensaje.modo === 'saliente'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-900'
-                  }`}
+                  className={`relative max-w-[75%] px-4 py-2 rounded-2xl shadow-sm text-sm whitespace-pre-line break-words
+                    ${mensaje.modo === 'saliente'
+                      ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-br-md'
+                      : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'}
+                  `}
                 >
-                  <p className="text-sm">{mensaje.mensaje}</p>
-                  <p className="text-xs mt-1 opacity-70">
-                    {new Date(mensaje.timestamp * 1000).toLocaleTimeString()}
-                  </p>
+                  <span>{mensaje.mensaje}</span>
+                  <span className={`block text-xs mt-1 text-right ${mensaje.modo === 'saliente' ? 'text-blue-100' : 'text-gray-400'}`}>
+                    {formatChatDate(mensaje.timestamp)}
+                  </span>
                 </div>
               </div>
             ))
@@ -166,25 +194,32 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         </div>
 
         {/* Input Form */}
-        <form onSubmit={enviarMensaje} className="p-4 border-t">
-          <div className="flex space-x-2">
+        <form onSubmit={enviarMensaje} className="p-4 border-t bg-white sticky bottom-0">
+          <div className="flex space-x-2 items-center">
             <input
               type="text"
               value={nuevoMensaje}
               onChange={(e) => setNuevoMensaje(e.target.value)}
               placeholder="Escribe un mensaje..."
-              className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 p-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm text-base"
+              autoFocus
             />
             <button
               type="submit"
               disabled={!nuevoMensaje.trim()}
-              className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
             >
               <Send className="h-5 w-5" />
             </button>
           </div>
         </form>
       </div>
+      <style>{`
+        .animate-fadeIn { animation: fadeIn 0.2s; }
+        .animate-slideUp { animation: slideUp 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      `}</style>
     </div>
   );
 } 

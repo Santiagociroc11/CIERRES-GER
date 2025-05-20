@@ -26,6 +26,7 @@ interface ListaGeneralClientesProps {
   reportes: Reporte[];
   onActualizarEstado: (cliente: Cliente) => void;
   onReportarVenta: (cliente: Cliente) => void;
+  onChat: (cliente: Cliente) => void;
   admin: boolean;
   readOnly?: boolean;
 }
@@ -35,6 +36,7 @@ export default function ListaGeneralClientes({
   reportes,
   onActualizarEstado,
   onReportarVenta,
+  onChat,
   admin,
   readOnly = false,
 }: ListaGeneralClientesProps) {
@@ -365,6 +367,13 @@ export default function ListaGeneralClientes({
               )}
               {clienteAcciones === cliente.ID && !readOnly && (
                 <div className="flex flex-col gap-2 mt-2">
+                  <button
+                    onClick={() => onChat(cliente)}
+                    className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Chat
+                  </button>
                   <button onClick={() => abrirWhatsApp(cliente.WHATSAPP)} className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                     <Phone className="h-4 w-4 mr-2" />
                     Contactar
@@ -525,35 +534,45 @@ export default function ListaGeneralClientes({
                     </button>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {!readOnly && !tieneReporteVenta(cliente.ID) && (
-                      <div className="flex justify-end space-x-2">
-                        <button onClick={() => onActualizarEstado(cliente)} className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700">
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Estado
-                        </button>
-                        <button onClick={() => onReportarVenta(cliente)} className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700">
-                          <DollarSign className="h-4 w-4 mr-1" />
-                          Venta
-                        </button>
-                      </div>
-                    )}
-                    {tieneReporteVenta(cliente.ID) && !estaConsolidado(cliente.ID) && (
+                    <div className="flex justify-end space-x-2">
                       <button
-                        onClick={() => handleConsolidarVenta(cliente)}
-                        className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-purple-600 hover:bg-purple-700"
+                        onClick={() => onChat(cliente)}
+                        className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-indigo-600 hover:bg-indigo-700"
+                        title="Chat"
                       >
-                        <FileVideo className="h-4 w-4 mr-1" />
-                        Consolidar
+                        <MessageSquare className="h-4 w-4 mr-1" />
+                        Chat
                       </button>
-                    )}
-                    {readOnly && (
-                      <div className="mr-2">
-                        <ReasignarCliente
-                          clienteId={cliente.ID}
-                          asesorActual={cliente.NOMBRE_ASESOR}
-                        />
-                      </div>
-                    )}
+                      {!readOnly && !tieneReporteVenta(cliente.ID) && (
+                        <>
+                          <button onClick={() => onActualizarEstado(cliente)} className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700">
+                            <MessageSquare className="h-4 w-4 mr-1" />
+                            Estado
+                          </button>
+                          <button onClick={() => onReportarVenta(cliente)} className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700">
+                            <DollarSign className="h-4 w-4 mr-1" />
+                            Venta
+                          </button>
+                        </>
+                      )}
+                      {tieneReporteVenta(cliente.ID) && !estaConsolidado(cliente.ID) && (
+                        <button
+                          onClick={() => handleConsolidarVenta(cliente)}
+                          className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-purple-600 hover:bg-purple-700"
+                        >
+                          <FileVideo className="h-4 w-4 mr-1" />
+                          Consolidar
+                        </button>
+                      )}
+                      {readOnly && (
+                        <div className="mr-2">
+                          <ReasignarCliente
+                            clienteId={cliente.ID}
+                            asesorActual={cliente.NOMBRE_ASESOR}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

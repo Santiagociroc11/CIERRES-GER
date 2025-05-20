@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Cliente, Asesor, Reporte, EstadisticasAsesor } from '../types';
-import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X } from 'lucide-react';
+import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
 import ClientesPendientes from './ClientesPendientes';
 import ActualizarEstadoCliente from './ActualizarEstadoCliente';
@@ -11,6 +11,7 @@ import SeguimientosClientes from './SeguimientosClientes';
 import EstadisticasAvanzadas from './EstadisticasAvanzadas';
 import { useToast } from '../hooks/useToast';
 import Toast from './Toast';
+import ChatModal from './ChatModal';
 
 type Vista = 'general' | 'seguimientos' | 'estadisticas' | 'pendientes' | 'sin-reporte';
 
@@ -137,6 +138,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [clienteParaEstado, setClienteParaEstado] = useState<Cliente | null>(null);
   const [clienteParaVenta, setClienteParaVenta] = useState<Cliente | null>(null);
+  const [clienteParaChat, setClienteParaChat] = useState<Cliente | null>(null);
   const [vistaActual, setVistaActual] = useState<Vista>('general');
   const [menuMobileAbierto, setMenuMobileAbierto] = useState(false);
   const [estadisticas, setEstadisticas] = useState<EstadisticasAsesor>({
@@ -602,6 +604,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             reportes={reportes}
             onActualizarEstado={setClienteParaEstado}
             onReportarVenta={setClienteParaVenta}
+            onChat={setClienteParaChat}
             admin={false}
           />
         )}
@@ -652,6 +655,14 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
               showToast('Venta reportada correctamente', 'success');
             }}
             onClose={() => setClienteParaVenta(null)}
+          />
+        )}
+        {clienteParaChat && (
+          <ChatModal
+            isOpen={!!clienteParaChat}
+            onClose={() => setClienteParaChat(null)}
+            cliente={clienteParaChat}
+            asesor={asesor}
           />
         )}
         {toast.visible && (

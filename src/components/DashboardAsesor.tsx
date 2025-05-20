@@ -156,7 +156,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [instanceInfo, setInstanceInfo] = useState<any>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
@@ -184,25 +183,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
   useEffect(() => {
     let pollingInterval;
-    let reconnectAttempts = 0;
-    const MAX_RECONNECT_ATTEMPTS = 5;
-
     if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
-      pollingInterval = setInterval(async () => {
-        try {
-          reconnectAttempts++;
-          await refreshConnection();
-          if (instanceInfo?.connectionStatus === "open") {
-            reconnectAttempts = 0;
-            setConnectionError(null);
-          } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            setConnectionError("No se pudo establecer la conexión después de varios intentos");
-            clearInterval(pollingInterval);
-          }
-        } catch (error) {
-          console.error("Error en el intento de reconexión:", error);
-          setConnectionError("Error al intentar reconectar");
-        }
+      pollingInterval = setInterval(() => {
+        refreshConnection();
       }, 30000);
     }
     return () => {
@@ -363,22 +346,18 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const handleCreateInstance = async () => {
     const payload = {
       instanceName: asesor.NOMBRE,
-      qrcode: true,
       integration: "WHATSAPP-BAILEYS",
-      groups_ignore: true,
-      always_online: true,
-      websocket_enabled: true,
-      websocket_events: ["MESSAGES_UPSERT", "SEND_MESSAGE"],
-      chatwoot_account_id: 1,
-      chatwoot_token: "wTVRJs9UfamwhTqcAqNpdqWE",
-      chatwoot_url: "https://n8n-chatwoot.wc2hpx.easypanel.host",
-      chatwoot_sign_msg: false,
-      chatwoot_reopen_conversation: true,
-      chatwoot_conversation_pending: false
+      qrcode: true,
+      rejectCall: false,
+      msgCall: "",
+      groupsIgnore: true,
+      alwaysOnline: true,
+      readMessages: false,
+      readStatus: false,
+      syncFullHistory: false,
     };
     try {
       setIsLoadingWhatsApp(true);
-      setConnectionError(null);
       setShowWhatsAppModal(true);
       const response = await fetch(`${evolutionServerUrl}/instance/create`, {
         method: "POST",
@@ -388,29 +367,62 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         },
         body: JSON.stringify(payload),
       });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || "No se pudo crear la instancia");
-      }
-      
+      if (!response.ok) throw new Error("No se pudo crear la instancia");
       await response.json();
+      await setChatwootIntegration(asesor.NOMBRE);
       await refreshConnection();
       setWhatsappStatus("Desconectado");
       showToast("Instancia creada, escanea el QR para conectar", "success");
     } catch (error) {
       console.error("Error creando instancia:", error);
-      setConnectionError(error instanceof Error ? error.message : "Error al crear la instancia de WhatsApp");
-      showToast(error instanceof Error ? error.message : "Error al crear la instancia de WhatsApp", "error");
+      showToast("Error al crear la instancia de WhatsApp", "error");
     } finally {
       setIsLoadingWhatsApp(false);
+    }
+  };
+
+  const setChatwootIntegration = async (instanceName) => {
+    try {
+      const url = `${evolutionServerUrl}/chatwoot/set/${encodeURIComponent(instanceName)}`;
+      const payload = {
+        enabled: true,
+        accountId: "2",
+        token: "A55c8HWKWZ9kJS9Tv5GVcXWu",
+        url: "https://n8n-chatwoot.wc2hpx.easypanel.host",
+        signMsg: false,
+        sign_delimiter: ":",
+        reopenConversation: true,
+        conversationPending: false,
+        nameInbox: instanceName,
+        importContacts: false,
+        importMessages: false,
+        daysLimitImportMessages: 1,
+        autoCreate: true
+      };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error al configurar Chatwoot: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      console.log("Chatwoot integration set:", data);
+      return data;
+    } catch (error) {
+      console.error("Error in setChatwootIntegration:", error);
+      showToast("Error al configurar Chatwoot", "error");
     }
   };
 
   const handleInstanceConnect = async () => {
     try {
       setIsLoadingWhatsApp(true);
-      setConnectionError(null);
       const url = `${evolutionServerUrl}/instance/connect/${encodeURIComponent(asesor.NOMBRE)}`;
       console.log("Fetching QR from:", url);
       const response = await fetch(url, {
@@ -420,27 +432,21 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           "apikey": evolutionApiKey,
         },
       });
-      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || `Error al obtener el QR de conexión: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Error al obtener el QR de conexión: ${response.status} - ${errorText}`);
       }
-      
       const data = await response.json();
       console.log("Instance Connect response:", data);
-      
       if (data.instance && data.instance.base64) {
         setQrCode(data.instance.base64);
       } else if (data.base64) {
         setQrCode(data.base64);
       } else {
         setQrCode(null);
-        throw new Error("No se pudo obtener el código QR");
       }
     } catch (error) {
       console.error("Error in handleInstanceConnect:", error);
-      setConnectionError(error instanceof Error ? error.message : "Error al conectar con WhatsApp");
-      showToast(error instanceof Error ? error.message : "Error al conectar con WhatsApp", "error");
     } finally {
       setIsLoadingWhatsApp(false);
     }
@@ -490,7 +496,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const handleDisconnectInstance = async () => {
     try {
       setIsLoadingWhatsApp(true);
-      setConnectionError(null);
       const url = `${evolutionServerUrl}/instance/logout/${encodeURIComponent(asesor.NOMBRE)}`;
       console.log("Disconnect URL:", url);
       const response = await fetch(url, {
@@ -500,21 +505,17 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           "apikey": evolutionApiKey,
         },
       });
-      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || `Error al desconectar la instancia: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Error al desconectar la instancia: ${response.status} - ${errorText}`);
       }
-      
       setWhatsappStatus("Desconectado");
       setInstanceInfo(null);
-      setQrCode(null);
-      showToast("WhatsApp desconectado correctamente", "success");
+      showToast("WhatsApp desconectado", "success");
       await refreshConnection();
     } catch (error) {
       console.error("Error desconectando instancia:", error);
-      setConnectionError(error instanceof Error ? error.message : "Error al desconectar WhatsApp");
-      showToast(error instanceof Error ? error.message : "Error al desconectar WhatsApp", "error");
+      showToast("Error al desconectar WhatsApp", "error");
     } finally {
       setIsLoadingWhatsApp(false);
     }

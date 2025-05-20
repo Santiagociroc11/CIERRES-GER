@@ -47,13 +47,25 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageContainerRef = useRef<HTMLDivElement>(null);
 
   const evolutionApiUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Detectar si el usuario está en la parte inferior
+  const handleScroll = () => {
+    if (messageContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messageContainerRef.current;
+      const bottomThreshold = 100; // px del fondo
+      const isScrolledToBottom = scrollHeight - scrollTop - clientHeight < bottomThreshold;
+      setIsAtBottom(isScrolledToBottom);
+    }
   };
 
   useEffect(() => {
@@ -63,7 +75,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
       // Configurar polling para actualizar mensajes cada 5 segundos
       const pollingInterval = setInterval(() => {
         cargarMensajes(true); // Actualizaciones silenciosas
-      }, 3000); // 5 segundos
+      }, 3000); // 3 segundos
       
       // Limpiar intervalo al cerrar modal o desmontar componente
       return () => {
@@ -73,7 +85,10 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
   }, [isOpen, cliente.ID]);
 
   useEffect(() => {
-    scrollToBottom();
+    // Solo hacer scroll automático si el usuario ya estaba en el fondo
+    if (isAtBottom) {
+      scrollToBottom();
+    }
   }, [mensajes]);
 
   const cargarMensajes = async (silencioso = false) => {
@@ -177,8 +192,12 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
           </button>
         </div>
 
-        {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
+        {/* Messages Container with onScroll handler */}
+        <div 
+          ref={messageContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50"
+        >
           {isLoading ? (
             <div className="flex justify-center items-center h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>

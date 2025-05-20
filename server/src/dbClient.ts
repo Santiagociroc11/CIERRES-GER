@@ -1,5 +1,3 @@
-import fetch from 'node-fetch';
-
 const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
 
 export async function insertConversacion(data: {

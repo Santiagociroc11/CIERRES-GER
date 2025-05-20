@@ -59,7 +59,14 @@ export function getEventStats() {
 
 export function setupWhatsAppEventHandlers(socket: Socket, logger: winston.Logger) {
   // Manejar nuevos mensajes
-  socket.on('messages.upsert', (data: { messages: WhatsAppMessage[] }) => {
+  socket.on('messages.upsert', (data: any) => {
+    logger.info('[RAW] Evento messages.upsert:', { raw: data });
+    console.log('[RAW] Evento messages.upsert:', JSON.stringify(data));
+    if (!data || !Array.isArray(data.messages)) {
+      logger.warn('Evento messages.upsert recibido sin messages:', { raw: data });
+      console.log('⚠️ Evento messages.upsert recibido sin messages:', JSON.stringify(data));
+      return;
+    }
     eventCounters.messagesReceived += data.messages.length;
     eventCounters.lastEventTimestamp = new Date();
 
@@ -90,7 +97,14 @@ export function setupWhatsAppEventHandlers(socket: Socket, logger: winston.Logge
   });
 
   // Manejar actualizaciones de mensajes
-  socket.on('messages.update', (data: { messages: WhatsAppMessage[] }) => {
+  socket.on('messages.update', (data: any) => {
+    logger.info('[RAW] Evento messages.update:', { raw: data });
+    console.log('[RAW] Evento messages.update:', JSON.stringify(data));
+    if (!data || !Array.isArray(data.messages)) {
+      logger.warn('Evento messages.update recibido sin messages:', { raw: data });
+      console.log('⚠️ Evento messages.update recibido sin messages:', JSON.stringify(data));
+      return;
+    }
     eventCounters.messagesUpdated += data.messages.length;
     eventCounters.lastEventTimestamp = new Date();
 

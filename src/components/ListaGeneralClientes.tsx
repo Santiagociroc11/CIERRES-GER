@@ -204,6 +204,8 @@ export default function ListaGeneralClientes({
         return 'bg-indigo-100 text-indigo-800 border-2 border-indigo-500';
       case 'NO CONTESTÓ':
         return 'bg-orange-100 text-orange-800';
+      case 'MASIVOS':
+        return 'bg-teal-100 text-teal-800 border-2 border-teal-500';
       default:
         return 'bg-gray-100 text-gray-800';
     }

@@ -98,7 +98,7 @@ export interface EstadisticasDetalladas extends EstadisticasAsesor {
 }
 
 export type EstadoCritico = 'CARRITOS' | 'RECHAZADOS' | 'TICKETS';
-export type EstadoNoCritico = 'LINK' | 'PAGADO' | 'VENTA CONSOLIDADA';
+export type EstadoNoCritico = 'LINK' | 'PAGADO' | 'VENTA CONSOLIDADA' | 'MASIVOS';
 export type EstadoAsesor = 'SEGUIMIENTO' | 'NO CONTACTAR' | 'NO CONTESTÓ' | 'NO INTERESADO';
 export type EstadoCliente = EstadoCritico | EstadoNoCritico | EstadoAsesor;
 
@@ -113,3 +113,14 @@ export interface ListaGeneralClientesProps {
   onReportarVenta: (cliente: Cliente) => void;
   readOnly?: boolean;
 }
+
+export type OrdenAsesor = 
+  | 'ventas' 
+  | 'tasa' 
+  | 'tiempo' 
+  | 'actividad'
+  | 'clientes'
+  | 'sin_reporte'
+  | 'criticos'
+  | 'tiempo_primer_mensaje'
+  | 'seguimientos';

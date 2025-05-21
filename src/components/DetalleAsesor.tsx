@@ -73,10 +73,12 @@ export default function DetalleAsesor({
     clientes.forEach(cliente => {
       totales[cliente.ESTADO] = (totales[cliente.ESTADO] || 0) + 1;
     });
-    return Object.keys(totales).map(estado => ({
-      name: estado,
-      value: totales[estado]
-    }));
+    return Object.keys(totales)
+      .map(estado => ({
+        name: estado,
+        value: totales[estado]
+      }))
+      .sort((a, b) => b.value - a.value); // Ordenar de mayor a menor
   }, [clientes]);
 
   // Gráfico de tendencia: reportes diarios en los últimos 7 días
@@ -231,26 +233,46 @@ export default function DetalleAsesor({
             </div>
             <div className="p-6">
               {distribucionEstados.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={distribucionEstados}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      label={({ name, value, percent }) =>
-                        `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
-                      }
-                    >
-                      {distribucionEstados.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="flex flex-col md:flex-row items-start gap-4">
+                  <div className="w-full md:w-2/3">
+                    <ResponsiveContainer width="100%" height={400}>
+                      <PieChart>
+                        <Pie
+                          data={distribucionEstados}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={150}
+                          innerRadius={60}
+                        >
+                          {distribucionEstados.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: any, name: any) => [`${value} clientes`, name]}
+                          contentStyle={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="w-full md:w-1/3 space-y-2">
+                    <h4 className="font-medium text-gray-700 mb-3">Leyenda</h4>
+                    {distribucionEstados.map((entry, index) => (
+                      <div key={entry.name} className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div 
+                            className="w-4 h-4 rounded mr-2" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-sm">{entry.name}</span>
+                        </div>
+                        <span className="text-sm font-medium">{entry.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ) : (
                 <p className="text-gray-500">No hay clientes registrados.</p>
               )}

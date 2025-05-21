@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
-import { Asesor, EstadisticasDetalladas } from '../types';
+import { Asesor, EstadisticasDetalladas, OrdenAsesor } from '../types';
 import {
   BarChart,
   LogOut,
@@ -55,7 +55,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [busqueda, setBusqueda] = useState('');
-  const [ordenarPor, setOrdenarPor] = useState<'ventas' | 'tasa' | 'tiempo' | 'actividad'>('ventas');
+  const [ordenarPor, setOrdenarPor] = useState<OrdenAsesor>('ventas');
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
@@ -471,9 +471,10 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const asesoresOrdenados = [...asesoresFiltrados].sort((a, b) => {
     const statsA = estadisticas[a.ID];
     const statsB = estadisticas[b.ID];
+
     switch (ordenarPor) {
       case 'ventas':
-        return (statsB?.ventasReportadas || 0) - (statsA?.ventasReportadas || 0);
+        return (statsB?.ventasRealizadas || 0) - (statsA?.ventasRealizadas || 0);
       case 'tasa':
         return (statsB?.porcentajeCierre || 0) - (statsA?.porcentajeCierre || 0);
       case 'tiempo':
@@ -483,6 +484,16 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         const fechaB = statsB?.ultimaActividad ? new Date(statsB.ultimaActividad * 1000) : new Date(0);
         return fechaB.getTime() - fechaA.getTime();
       }
+      case 'clientes':
+        return (statsB?.totalClientes || 0) - (statsA?.totalClientes || 0);
+      case 'sin_reporte':
+        return (statsB?.clientesSinReporte || 0) - (statsA?.clientesSinReporte || 0);
+      case 'criticos':
+        return (statsB?.clientesCriticos || 0) - (statsA?.clientesCriticos || 0);
+      case 'tiempo_primer_mensaje':
+        return (statsA?.tiempoHastaPrimerMensaje || 0) - (statsB?.tiempoHastaPrimerMensaje || 0);
+      case 'seguimientos':
+        return (statsB?.seguimientosPendientes || 0) - (statsA?.seguimientosPendientes || 0);
       default:
         return 0;
     }
@@ -547,12 +558,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       case 'TICKETS':
         return 'bg-indigo-100 text-indigo-800 border-2 border-indigo-500';
       case 'NO CONTESTÓ':
-      case 'NO CONTESTO':
         return 'bg-orange-100 text-orange-800';
-      case 'NO INTERESADO':
-        return 'bg-gray-100 text-gray-800';
       case 'MASIVOS':
-        return 'bg-gray-200 text-gray-800';
+        return 'bg-teal-100 text-teal-800 border-2 border-teal-500';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -631,42 +639,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     </p>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg shadow p-4 flex flex-col">
-                  <div className="flex items-center mb-2">
-                    <Clock className="h-8 w-8 text-yellow-500" />
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">T. Primer Mensaje</p>
-                      <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                        {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoHastaPrimerMensaje, 0) / Object.keys(estadisticas).length).toFixed(1)}m
-                      </p>
-                    </div>
-                  </div>
-                  {/* Asesor más rápido y más lento */}
-                  {Object.keys(estadisticas).length > 0 && (
-                    <div className="mt-2 text-xs">
-                      {(() => {
-                        const asesoresOrdenados = asesores
-                          .filter(a => estadisticas[a.ID]?.tiempoHastaPrimerMensaje !== undefined)
-                          .sort((a, b) =>
-                            (estadisticas[a.ID]?.tiempoHastaPrimerMensaje || 0) -
-                            (estadisticas[b.ID]?.tiempoHastaPrimerMensaje || 0)
-                          );
-                        const masRapido = asesoresOrdenados[0];
-                        const masLento = asesoresOrdenados[asesoresOrdenados.length - 1];
-                        return (
-                          <>
-                            <div className="text-green-600">
-                              Más rápido: {masRapido?.NOMBRE} ({estadisticas[masRapido?.ID]?.tiempoHastaPrimerMensaje.toFixed(1)}m)
-                            </div>
-                            <div className="text-red-600">
-                              Más lento: {masLento?.NOMBRE} ({estadisticas[masLento?.ID]?.tiempoHastaPrimerMensaje.toFixed(1)}m)
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
+                
                 <div className="bg-white rounded-lg shadow p-4 flex items-center">
                   <Target className="h-8 w-8 text-blue-500" />
                   <div className="ml-4">
@@ -736,13 +709,18 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                   </div>
                   <select
                     value={ordenarPor}
-                    onChange={(e) => setOrdenarPor(e.target.value as any)}
+                    onChange={(e) => setOrdenarPor(e.target.value as OrdenAsesor)}
                     className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="ventas">Ordenar por ventas</option>
+                    <option value="ventas">Ordenar por ventas totales</option>
                     <option value="tasa">Ordenar por tasa de cierre</option>
                     <option value="tiempo">Ordenar por tiempo de conversión</option>
                     <option value="actividad">Ordenar por última actividad</option>
+                    <option value="clientes">Ordenar por total de clientes</option>
+                    <option value="sin_reporte">Ordenar por clientes sin reporte</option>
+                    <option value="criticos">Ordenar por clientes críticos</option>
+                    <option value="tiempo_primer_mensaje">Ordenar por tiempo primer mensaje</option>
+                    <option value="seguimientos">Ordenar por seguimientos pendientes</option>
                   </select>
                   <button
                     onClick={() => setMostrarInactivos(!mostrarInactivos)}

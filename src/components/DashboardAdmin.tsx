@@ -66,7 +66,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [clienteParaChat, setClienteParaChat] = useState<any | null>(null);
 
   // Estado para alternar entre vista de Asesores y Clientes
-  const [vistaAdmin, setVistaAdmin] = useState<'asesores' | 'clientes'>('asesores');
+  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes'>('resumen');
   // Estado para el modal de historial de cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
 
@@ -566,6 +566,50 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     }
   };
 
+  // Función para obtener asesores inactivos (sin mensajes salientes en las últimas 2 horas)
+  const getAsesoresInactivos = () => {
+    return asesores.map(asesor => {
+      const stats = estadisticas[asesor.ID];
+      const horasSinActividad = stats?.ultimaActividad 
+        ? Math.floor((Date.now() - stats.ultimaActividad * 1000) / (1000 * 60 * 60))
+        : 24;
+      return {
+        asesor,
+        horasSinActividad,
+        stats
+      };
+    }).filter(({ horasSinActividad }) => horasSinActividad >= 2)
+      .sort((a, b) => b.horasSinActividad - a.horasSinActividad);
+  };
+
+  // Función para obtener asesores con clientes sin primer mensaje
+  const getAsesoresClientesSinMensaje = () => {
+    return asesores.map(asesor => {
+      const stats = estadisticas[asesor.ID];
+      return {
+        asesor,
+        clientesSinMensaje: stats?.clientesSinMensaje20Min || 0,
+        stats
+      };
+    }).filter(({ clientesSinMensaje }) => clientesSinMensaje > 0)
+      .sort((a, b) => b.clientesSinMensaje - a.clientesSinMensaje);
+  };
+
+  // Función para obtener asesores con baja tasa de cierre
+  const getAsesoresBajaCierre = () => {
+    const promedioEquipo = Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length;
+    return asesores.map(asesor => {
+      const stats = estadisticas[asesor.ID];
+      return {
+        asesor,
+        porcentajeCierre: stats?.porcentajeCierre || 0,
+        diferencia: (stats?.porcentajeCierre || 0) - promedioEquipo,
+        stats
+      };
+    }).filter(({ diferencia }) => diferencia < -5) // 5% por debajo del promedio
+      .sort((a, b) => a.porcentajeCierre - b.porcentajeCierre);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Encabezado y navegación principal */}
@@ -590,23 +634,35 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               </button>
             </div>
 
-            {/* Navegación entre pestañas: Asesores / Clientes */}
+            {/* Navegación entre pestañas: Resumen / Asesores / Clientes */}
             <div className="mt-4 flex space-x-4 border-b border-gray-200">
               <button
+                onClick={() => setVistaAdmin('resumen')}
+                className={`py-2 px-4 border-b-2 font-medium text-sm ${
+                  vistaAdmin === 'resumen'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Resumen
+              </button>
+              <button
                 onClick={() => setVistaAdmin('asesores')}
-                className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaAdmin === 'asesores'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                className={`py-2 px-4 border-b-2 font-medium text-sm ${
+                  vistaAdmin === 'asesores'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
               >
                 Asesores
               </button>
               <button
                 onClick={() => setVistaAdmin('clientes')}
-                className={`py-2 px-4 border-b-2 font-medium text-sm ${vistaAdmin === 'clientes'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                className={`py-2 px-4 border-b-2 font-medium text-sm ${
+                  vistaAdmin === 'clientes'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
               >
                 Clientes
               </button>
@@ -617,7 +673,157 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
       {/* Contenido principal */}
       <div className="max-w-8xl mx-auto px-4 py-6">
-        {vistaAdmin === 'asesores' ? (
+        {vistaAdmin === 'resumen' ? (
+          <div className="space-y-6">
+            {/* Alertas Críticas */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">Alertas Críticas</h2>
+              </div>
+              <div className="divide-y divide-gray-200">
+                {/* Asesores Inactivos */}
+                {getAsesoresInactivos().map(({ asesor, horasSinActividad, stats }) => (
+                  <div key={`inactivo-${asesor.ID}`} className="p-4 hover:bg-gray-50 transition-colors duration-150">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex-shrink-0">
+                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</h3>
+                          <p className="text-sm text-red-600">
+                            {horasSinActividad} horas sin actividad
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {stats?.clientesSinReporte || 0} clientes sin reporte
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Clientes sin Primer Mensaje */}
+                {getAsesoresClientesSinMensaje().map(({ asesor, clientesSinMensaje, stats }) => (
+                  <div key={`sin-mensaje-${asesor.ID}`} className="p-4 hover:bg-gray-50 transition-colors duration-150">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex-shrink-0">
+                          <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</h3>
+                          <p className="text-sm text-yellow-600">
+                            {clientesSinMensaje} clientes sin primer mensaje (+20min)
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Tiempo promedio: {stats?.tiempoHastaPrimerMensaje.toFixed(1)}m
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Baja Tasa de Cierre */}
+                {getAsesoresBajaCierre().map(({ asesor, porcentajeCierre, stats }) => (
+                  <div key={`baja-cierre-${asesor.ID}`} className="p-4 hover:bg-gray-50 transition-colors duration-150">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex-shrink-0">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</h3>
+                          <p className="text-sm text-orange-600">
+                            Tasa de cierre: {porcentajeCierre.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {stats?.ventasRealizadas || 0} ventas / {stats?.totalClientes || 0} clientes
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Métricas del Equipo */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Tasa de Reporte */}
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Tasa de Reporte</h3>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-blue-600">
+                      {(Object.values(estadisticas).reduce((acc, stats) => 
+                        acc + (stats.clientesReportados / stats.totalClientes * 100), 0) / 
+                        Object.keys(estadisticas).length).toFixed(1)}%
+                    </p>
+                    <p className="text-sm text-gray-500">Promedio del equipo</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">
+                      {Object.values(estadisticas).reduce((acc, stats) => acc + stats.clientesReportados, 0)} reportados
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.totalClientes - stats.clientesReportados), 0)} sin reporte
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tiempo de Respuesta */}
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Tiempo de Respuesta</h3>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-green-600">
+                      {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoHastaPrimerMensaje, 0) / Object.keys(estadisticas).length).toFixed(1)}m
+                    </p>
+                    <p className="text-sm text-gray-500">Promedio primer mensaje</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">
+                      {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoPromedioRespuesta, 0) / Object.keys(estadisticas).length).toFixed(1)}h
+                    </p>
+                    <p className="text-sm text-gray-500">Tiempo de completado</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tasa de Cierre */}
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Tasa de Cierre</h3>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-purple-600">
+                      {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length).toFixed(1)}%
+                    </p>
+                    <p className="text-sm text-gray-500">Promedio del equipo</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex flex-col items-end">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-green-600">Principal:</span>
+                        <span className="text-sm text-gray-900">
+                          {Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPrincipal, 0)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-blue-600">Downsell:</span>
+                        <span className="text-sm text-gray-900">
+                          {Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasDownsell, 0)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : vistaAdmin === 'asesores' ? (
           <>
             {/* Resumen y lista de asesores */}
             <div className="max-w-7xl mx-auto px-4 py-6">

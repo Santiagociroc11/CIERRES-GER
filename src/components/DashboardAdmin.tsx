@@ -102,7 +102,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     }
     return allData;
   };
-  
+
 
   // Cargar datos al cambiar filtros
   useEffect(() => {
@@ -121,7 +121,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       if (!asesoresData || asesoresData.length === 0) return;
       setAsesores(asesoresData);
       console.log("✅ Asesores obtenidos:", asesoresData.length);
-      
+
       // Paso 2: Obtener clientes, reportes y registros en paralelo usando paginación
       const [clientesData, reportesData, registrosData, conversacionesData] = await Promise.all([
         fetchAllPages('/GERSSON_CLIENTES', 'select=*'), // o agregar filtros si es necesario
@@ -133,12 +133,12 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       console.log("✅ Reportes obtenidos:", reportesData.length);
       console.log("✅ Registros obtenidos:", registrosData.length);
       console.log("✅ Conversaciones obtenidas:", conversacionesData.length);
-      
+
       // Paso 3: Actualizar el estado
       setClientes(clientesData);
       setReportes(reportesData);
       setRegistros(registrosData);
-      
+
       // Paso 4: Calcular estadísticas por asesor
       const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
       asesoresData.forEach((asesor: any) => {
@@ -159,7 +159,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       console.error("❌ Error al cargar datos:", error);
     }
   };
-  
+
 
   // Función para determinar la fuente del cliente (se puede adaptar según PRODUCTO)
   const getFuente = (clienteId: number, registros: any[]) => {
@@ -177,7 +177,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       const fuente = getFuente(cliente.ID, registros);
       if (!stats[fuente]) stats[fuente] = { total: 0, cerrados: 0 };
       stats[fuente].total += 1;
-      if (reportes.some(r => r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO' ))) {
+      if (reportes.some(r => r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO'))) {
         stats[fuente].cerrados += 1;
       }
     });
@@ -198,7 +198,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         const fuente = getFuente(cliente.ID, registros);
         if (!stats[fuente]) stats[fuente] = { total: 0, cerrados: 0 };
         stats[fuente].total += 1;
-        if (reportes.some(r => r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO' ))) {
+        if (reportes.some(r => r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO'))) {
           stats[fuente].cerrados += 1;
         }
       });
@@ -247,7 +247,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     // Agrupar ventas únicas por cliente según producto
     const uniqueVentasPrincipal = reportesFiltrados
       .filter((r: any) =>
-        (r.ESTADO_NUEVO === 'PAGADO' ) &&
+        (r.ESTADO_NUEVO === 'PAGADO') &&
         r.PRODUCTO === 'PRINCIPAL'
       )
       .reduce((acc: Record<number, boolean>, r: any) => {
@@ -258,7 +258,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
     const uniqueVentasDownsell = reportesFiltrados
       .filter((r: any) =>
-        (r.ESTADO_NUEVO === 'PAGADO' ) &&
+        (r.ESTADO_NUEVO === 'PAGADO') &&
         r.PRODUCTO === 'DOWNSELL'
       )
       .reduce((acc: Record<number, boolean>, r: any) => {
@@ -285,10 +285,10 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       ? Math.max(...reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO).map((r: any) => r.FECHA_SEGURO))
       : null;
     const ultimaVenta = reportesAsesor.filter((r: any) =>
-      r.ESTADO_NUEVO === 'PAGADO' 
+      r.ESTADO_NUEVO === 'PAGADO'
     ).length > 0
       ? Math.max(...reportesAsesor.filter((r: any) =>
-        r.ESTADO_NUEVO === 'PAGADO' 
+        r.ESTADO_NUEVO === 'PAGADO'
       ).map((r: any) => r.FECHA_REPORTE))
       : null;
 
@@ -308,7 +308,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       .filter((c: any) => c.ESTADO === 'PAGADO' || c.ESTADO === 'VENTA CONSOLIDADA')
       .map((cliente: any) => {
         const reporteVenta = reportesAsesor
-          .filter((r: any) => r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO' ))
+          .filter((r: any) => r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO'))
           .sort((a: any, b: any) => a.FECHA_REPORTE - b.FECHA_REPORTE)[0];
         return reporteVenta ? (reporteVenta.FECHA_REPORTE - cliente.FECHA_CREACION) / 3600 : null;
       })
@@ -413,7 +413,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     // Agrupar por fecha y luego por cliente, priorizando "PRINCIPAL" si existen ambos
     const ventasPorDia: Record<string, Record<number, 'PRINCIPAL' | 'DOWNSELL'>> = {};
     reportesFiltrados.forEach((r: any) => {
-      if (r.ESTADO_NUEVO === 'PAGADO' ) {
+      if (r.ESTADO_NUEVO === 'PAGADO') {
         const fecha = formatDateOnly(r.FECHA_REPORTE);
         if (!ventasPorDia[fecha]) {
           ventasPorDia[fecha] = {};
@@ -647,8 +647,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       {(() => {
                         const asesoresOrdenados = asesores
                           .filter(a => estadisticas[a.ID]?.tiempoHastaPrimerMensaje !== undefined)
-                          .sort((a, b) => 
-                            (estadisticas[a.ID]?.tiempoHastaPrimerMensaje || 0) - 
+                          .sort((a, b) =>
+                            (estadisticas[a.ID]?.tiempoHastaPrimerMensaje || 0) -
                             (estadisticas[b.ID]?.tiempoHastaPrimerMensaje || 0)
                           );
                         const masRapido = asesoresOrdenados[0];
@@ -795,12 +795,11 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm">Primer Mensaje:</span>
                                   <div className="text-right">
-                                    <span className={`font-semibold ${
-                                      stats?.tiempoHastaPrimerMensaje > 
-                                      Object.values(estadisticas).reduce((acc, s) => acc + s.tiempoHastaPrimerMensaje, 0) / Object.keys(estadisticas).length
-                                      ? 'text-red-500'
-                                      : 'text-green-500'
-                                    }`}>
+                                    <span className={`font-semibold ${stats?.tiempoHastaPrimerMensaje >
+                                        Object.values(estadisticas).reduce((acc, s) => acc + s.tiempoHastaPrimerMensaje, 0) / Object.keys(estadisticas).length
+                                        ? 'text-red-500'
+                                        : 'text-green-500'
+                                      }`}>
                                       {stats?.tiempoHastaPrimerMensaje.toFixed(1)}m
                                     </span>
                                     <span className="text-xs text-gray-500 block">
@@ -843,14 +842,14 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm text-amber-500 flex items-center">
                                     <AlertTriangle className="h-4 w-4 mr-1" />
-                                    Críticos:
+                                    Críticos (EVENTOS HOTMART):
                                   </span>
                                   <span className="font-semibold text-amber-500">{stats?.clientesCriticos}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm text-red-500 flex items-center">
                                     <Clock className="h-4 w-4 mr-1" />
-                                    Sin mensaje +20min:
+                                    Sin primer mensaje +20min:
                                   </span>
                                   <span className="font-semibold text-red-500">{stats?.clientesSinMensaje20Min}</span>
                                 </div>
@@ -1345,51 +1344,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         />
       )}
 
-      {/* Resumen de Alertas */}
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-        <h3 className="text-lg font-medium text-red-800 mb-2 flex items-center">
-          <AlertTriangle className="h-5 w-5 mr-2" />
-          Alertas Críticas
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <p className="text-sm text-red-600">Clientes sin primer mensaje (+20min):</p>
-            <p className="text-2xl font-bold text-red-700">
-              {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.clientesSinMensaje20Min || 0), 0)}
-            </p>
-            {Object.entries(estadisticas)
-              .filter(([_, stats]) => stats.clientesSinMensaje20Min > 0)
-              .sort(([_, a], [__, b]) => b.clientesSinMensaje20Min - a.clientesSinMensaje20Min)
-              .slice(0, 3)
-              .map(([asesorId, stats]) => {
-                const asesor = asesores.find(a => a.ID === parseInt(asesorId));
-                return (
-                  <div key={asesorId} className="text-sm text-red-600">
-                    {asesor?.NOMBRE}: {stats.clientesSinMensaje20Min}
-                  </div>
-                );
-              })}
-          </div>
-          <div>
-            <p className="text-sm text-red-600">Total Clientes Críticos:</p>
-            <p className="text-2xl font-bold text-red-700">
-              {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.clientesCriticos || 0), 0)}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-red-600">Clientes Sin Reporte:</p>
-            <p className="text-2xl font-bold text-red-700">
-              {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.clientesSinReporte || 0), 0)}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-red-600">Seguimientos Pendientes:</p>
-            <p className="text-2xl font-bold text-red-700">
-              {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.seguimientosPendientes || 0), 0)}
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

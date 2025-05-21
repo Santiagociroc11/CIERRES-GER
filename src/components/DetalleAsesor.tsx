@@ -182,7 +182,7 @@ export default function DetalleAsesor({
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Tiempo Respuesta</p>
+                  <p className="text-sm font-medium text-gray-500">Tiempo Reporte</p>
                   <p className="mt-1 text-3xl font-semibold text-gray-900">
                     {estadisticas.tiempoPromedioHastaReporte.toFixed(1)}h
                   </p>
@@ -194,7 +194,7 @@ export default function DetalleAsesor({
             </div>
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex flex-col">
-                <p className="text-sm font-medium text-gray-500">Ventas del Mes</p>
+                <p className="text-sm font-medium text-gray-500">Ventas</p>
                 <p className="mt-1 text-3xl font-semibold text-gray-900">{estadisticas.ventasPorMes}</p>
                 <div className="mt-2 text-sm">
                   <span className="font-medium text-green-600">Principal: {estadisticas.ventasPrincipal}</span>

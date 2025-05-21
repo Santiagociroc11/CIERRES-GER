@@ -123,14 +123,16 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       console.log("✅ Asesores obtenidos:", asesoresData.length);
       
       // Paso 2: Obtener clientes, reportes y registros en paralelo usando paginación
-      const [clientesData, reportesData, registrosData] = await Promise.all([
+      const [clientesData, reportesData, registrosData, conversacionesData] = await Promise.all([
         fetchAllPages('/GERSSON_CLIENTES', 'select=*'), // o agregar filtros si es necesario
         fetchAllPages('/GERSSON_REPORTES', 'select=*'),
         fetchAllPages('/GERSSON_REGISTROS', 'select=*'),
+        fetchAllPages('/conversaciones', 'select=*'),
       ]);
       console.log("✅ Clientes obtenidos:", clientesData.length);
       console.log("✅ Reportes obtenidos:", reportesData.length);
       console.log("✅ Registros obtenidos:", registrosData.length);
+      console.log("✅ Conversaciones obtenidas:", conversacionesData.length);
       
       // Paso 3: Actualizar el estado
       setClientes(clientesData);
@@ -142,9 +144,11 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       asesoresData.forEach((asesor: any) => {
         const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
         const reportesAsesor = reportesData.filter((r: any) => r.ID_ASESOR === asesor.ID);
+        const conversacionesAsesor = conversacionesData.filter((c: any) => c.id_asesor === asesor.ID);
         nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
           clientesAsesor,
           reportesAsesor,
+          conversacionesAsesor,
           periodoSeleccionado,
           fechaInicio,
           fechaFin
@@ -214,6 +218,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const calcularEstadisticasDetalladas = (
     clientesAsesor: any[],
     reportesAsesor: any[],
+    conversacionesAsesor: any[],
     periodo: 'mes' | 'semana' | 'personalizado',
     inicio?: string,
     fin?: string
@@ -264,18 +269,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
     const ventasRealizadas = ventasPrincipal + ventasDownsell;
 
-    const uniqueVentasReportadas = reportesAsesor
-      .filter((r: any) => r.ESTADO_NUEVO === 'PAGADO' )
-      .reduce((acc: Record<number, boolean>, r: any) => {
-        acc[r.ID_CLIENTE] = true;
-        return acc;
-      }, {});
-    const ventasReportadas = Object.keys(uniqueVentasReportadas).length;
-    const ventasBackend = clientesAsesor.filter(
-      (c: any) => c.ESTADO === 'PAGADO' || c.ESTADO === 'VENTA CONSOLIDADA'
-    ).length;
-    const ventasSinReportar = ventasBackend - ventasReportadas;
-
     const tiemposRespuesta = reportesAsesor
       .filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO)
       .map((r: any) => r.FECHA_SEGUIMIENTO - r.FECHA_REPORTE);
@@ -324,24 +317,43 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       ? tiemposHastaVenta.reduce((a, b) => a + b, 0) / tiemposHastaVenta.length
       : 0;
 
+    // Calcular tiempo hasta primer mensaje
+    const tiemposHastaPrimerMensaje = clientesAsesor
+      .map((cliente: any) => {
+        const primerMensajeSaliente = conversacionesAsesor
+          .filter((c: any) => c.wha_cliente === cliente.WHATSAPP && c.modo === 'saliente')
+          .sort((a: any, b: any) => a.timestamp - b.timestamp)[0];
+        return {
+          clienteId: cliente.ID,
+          tiempo: primerMensajeSaliente ? (primerMensajeSaliente.timestamp - parseInt(cliente.FECHA_CREACION)) / 60 : null,
+          fechaCreacion: parseInt(cliente.FECHA_CREACION)
+        };
+      });
+
+    const ahora = Math.floor(Date.now() / 1000);
+    const clientesSinMensaje20Min = tiemposHastaPrimerMensaje
+      .filter(({ tiempo, fechaCreacion }) => {
+        // Si ya tiene un mensaje (tiempo !== null), no lo contamos
+        if (tiempo !== null) return false;
+        // Si no tiene mensaje, verificar si fue creado hace más de 20 minutos
+        return (ahora - fechaCreacion) / 60 > 20;
+      })
+      .length;
+
+    const tiemposValidos = tiemposHastaPrimerMensaje
+      .filter(({ tiempo }) => tiempo !== null)
+      .map(({ tiempo }) => tiempo as number);
+
+    const tiempoHastaPrimerMensaje = tiemposValidos.length
+      ? tiemposValidos.reduce((a, b) => a + b, 0) / tiemposValidos.length
+      : 0;
+
     return {
-      ventasReportadas,
-      ventasSinReportar,
+      totalClientes: clientesAsesor.length,
+      clientesReportados,
       ventasRealizadas,
       ventasPrincipal,
       ventasDownsell,
-      totalClientes: clientesAsesor.length,
-      clientesReportados,
-      clientesSinReporte,
-      clientesConReporte: clientesReportados,
-      clientesEnSeguimiento: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'SEGUIMIENTO').length,
-      clientesRechazados: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'NO INTERESADO').length,
-      clientesCriticos: clientesAsesor.filter((c: any) =>
-        ['CARRITOS', 'RECHAZADOS', 'TICKETS'].includes(c.ESTADO)
-      ).length,
-      clientesNoContactados: clientesAsesor.filter(
-        (c: any) => !reportesAsesor.find((r: any) => r.ID_CLIENTE === c.ID)
-      ).length,
       seguimientosPendientes: reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && !r.COMPLETADO).length,
       seguimientosCompletados: reportesAsesor.filter((r: any) => r.COMPLETADO).length,
       porcentajeCierre: clientesAsesor.length ? (ventasRealizadas / clientesAsesor.length) * 100 : 0,
@@ -353,12 +365,27 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       tiempoPromedioRespuesta,
       tiempoPromedioHastaReporte,
       tiempoPromedioHastaVenta,
+      tiempoHastaPrimerMensaje,
+      clientesSinMensaje20Min,
       reportesPorCliente,
       reportesConSeguimiento,
+      clientesSinReporte,
+      clientesConReporte: clientesReportados,
+      clientesEnSeguimiento: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'SEGUIMIENTO').length,
+      clientesRechazados: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'NO INTERESADO').length,
+      clientesCriticos: clientesAsesor.filter((c: any) =>
+        ['CARRITOS', 'RECHAZADOS', 'TICKETS'].includes(c.ESTADO)
+      ).length,
+      clientesNoContactados: clientesAsesor.filter(
+        (c: any) => !reportesAsesor.find((r: any) => r.ID_CLIENTE === c.ID)
+      ).length,
+      montoPromedioVenta: 0,
       ultimaActividad: ultimoReporte,
       ultimoReporte,
       ultimoSeguimiento,
       ultimaVenta,
+      ventasReportadas: ventasRealizadas,
+      ventasSinReportar: 0
     };
   };
 
@@ -586,7 +613,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           <>
             {/* Resumen y lista de asesores */}
             <div className="max-w-7xl mx-auto px-4 py-6">
-              {/* Resumen General */}
+              {/* KPIs Principales */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <div className="bg-white rounded-lg shadow p-4 flex items-center">
                   <Users className="h-8 w-8 text-blue-500" />
@@ -604,21 +631,48 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     </p>
                   </div>
                 </div>
+                <div className="bg-white rounded-lg shadow p-4 flex flex-col">
+                  <div className="flex items-center mb-2">
+                    <Clock className="h-8 w-8 text-yellow-500" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-500">T. Primer Mensaje</p>
+                      <p className="text-xl md:text-2xl font-semibold text-gray-900">
+                        {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoHastaPrimerMensaje, 0) / Object.keys(estadisticas).length).toFixed(1)}m
+                      </p>
+                    </div>
+                  </div>
+                  {/* Asesor más rápido y más lento */}
+                  {Object.keys(estadisticas).length > 0 && (
+                    <div className="mt-2 text-xs">
+                      {(() => {
+                        const asesoresOrdenados = asesores
+                          .filter(a => estadisticas[a.ID]?.tiempoHastaPrimerMensaje !== undefined)
+                          .sort((a, b) => 
+                            (estadisticas[a.ID]?.tiempoHastaPrimerMensaje || 0) - 
+                            (estadisticas[b.ID]?.tiempoHastaPrimerMensaje || 0)
+                          );
+                        const masRapido = asesoresOrdenados[0];
+                        const masLento = asesoresOrdenados[asesoresOrdenados.length - 1];
+                        return (
+                          <>
+                            <div className="text-green-600">
+                              Más rápido: {masRapido?.NOMBRE} ({estadisticas[masRapido?.ID]?.tiempoHastaPrimerMensaje.toFixed(1)}m)
+                            </div>
+                            <div className="text-red-600">
+                              Más lento: {masLento?.NOMBRE} ({estadisticas[masLento?.ID]?.tiempoHastaPrimerMensaje.toFixed(1)}m)
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
                 <div className="bg-white rounded-lg shadow p-4 flex items-center">
                   <Target className="h-8 w-8 text-blue-500" />
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-500">Ventas Downsell</p>
                     <p className="text-xl md:text-2xl font-semibold text-gray-900">
                       {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasDownsell || 0), 0)}
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-white rounded-lg shadow p-4 flex items-center">
-                  <Calendar className="h-8 w-8 text-yellow-500" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Clientes Totales</p>
-                    <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                      {Object.values(estadisticas).reduce((acc, stats) => acc + stats.totalClientes, 0)}
                     </p>
                   </div>
                 </div>
@@ -734,6 +788,36 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                           </div>
                           {/* Estadísticas del asesor */}
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Métricas de Tiempo */}
+                            <div className="bg-white p-4 rounded-lg shadow">
+                              <h4 className="text-sm font-medium text-gray-500 mb-2">Tiempos de Respuesta</h4>
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm">Primer Mensaje:</span>
+                                  <div className="text-right">
+                                    <span className={`font-semibold ${
+                                      stats?.tiempoHastaPrimerMensaje > 
+                                      Object.values(estadisticas).reduce((acc, s) => acc + s.tiempoHastaPrimerMensaje, 0) / Object.keys(estadisticas).length
+                                      ? 'text-red-500'
+                                      : 'text-green-500'
+                                    }`}>
+                                      {stats?.tiempoHastaPrimerMensaje.toFixed(1)}m
+                                    </span>
+                                    <span className="text-xs text-gray-500 block">
+                                      vs {(Object.values(estadisticas).reduce((acc, s) => acc + s.tiempoHastaPrimerMensaje, 0) / Object.keys(estadisticas).length).toFixed(1)}m equipo
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm">Tiempo de Completado:</span>
+                                  <span className="font-semibold">{stats?.tiempoPromedioRespuesta.toFixed(1)}h</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm">Tiempo hasta Reporte:</span>
+                                  <span className="font-semibold">{stats?.tiempoPromedioHastaReporte.toFixed(1)}h</span>
+                                </div>
+                              </div>
+                            </div>
                             {/* Estado de Clientes */}
                             <div className="bg-white p-4 rounded-lg shadow">
                               <h4 className="text-sm font-medium text-gray-500 mb-2">Estado de Clientes</h4>
@@ -762,6 +846,13 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                     Críticos:
                                   </span>
                                   <span className="font-semibold text-amber-500">{stats?.clientesCriticos}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-red-500 flex items-center">
+                                    <Clock className="h-4 w-4 mr-1" />
+                                    Sin mensaje +20min:
+                                  </span>
+                                  <span className="font-semibold text-red-500">{stats?.clientesSinMensaje20Min}</span>
                                 </div>
                               </div>
                             </div>
@@ -1253,6 +1344,52 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           asesor={asesorSeleccionado}
         />
       )}
+
+      {/* Resumen de Alertas */}
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+        <h3 className="text-lg font-medium text-red-800 mb-2 flex items-center">
+          <AlertTriangle className="h-5 w-5 mr-2" />
+          Alertas Críticas
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <p className="text-sm text-red-600">Clientes sin primer mensaje (+20min):</p>
+            <p className="text-2xl font-bold text-red-700">
+              {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.clientesSinMensaje20Min || 0), 0)}
+            </p>
+            {Object.entries(estadisticas)
+              .filter(([_, stats]) => stats.clientesSinMensaje20Min > 0)
+              .sort(([_, a], [__, b]) => b.clientesSinMensaje20Min - a.clientesSinMensaje20Min)
+              .slice(0, 3)
+              .map(([asesorId, stats]) => {
+                const asesor = asesores.find(a => a.ID === parseInt(asesorId));
+                return (
+                  <div key={asesorId} className="text-sm text-red-600">
+                    {asesor?.NOMBRE}: {stats.clientesSinMensaje20Min}
+                  </div>
+                );
+              })}
+          </div>
+          <div>
+            <p className="text-sm text-red-600">Total Clientes Críticos:</p>
+            <p className="text-2xl font-bold text-red-700">
+              {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.clientesCriticos || 0), 0)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-red-600">Clientes Sin Reporte:</p>
+            <p className="text-2xl font-bold text-red-700">
+              {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.clientesSinReporte || 0), 0)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-red-600">Seguimientos Pendientes:</p>
+            <p className="text-2xl font-bold text-red-700">
+              {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.seguimientosPendientes || 0), 0)}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

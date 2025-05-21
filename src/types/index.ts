@@ -13,45 +13,44 @@ export interface Asesor {
 }
 
 export interface Cliente {
-  ID: number;
+  ID_CLIENTE: number;
   NOMBRE: string;
-  ESTADO: EstadoCliente;
-  WHATSAPP: string;
-  ID_ASESOR: number;
-  NOMBRE_ASESOR: string;
-  WHA_ASESOR: string;
+  TELEFONO: string;
   FECHA_CREACION: string;
-  FECHA_COMPRA: string;
-  MEDIO_COMPRA: string;
-  MONTO_COMPRA: number;
-  MONEDA_COMPRA: 'COP' | 'USD';
-  PAIS?: string;
+  FECHA_ASIGNACION: string | null;
+  ID_ASESOR: number | null;
+  ESTADO: string;
+  FUENTE: string;
+  FECHA_ULTIMO_REPORTE: string | null;
+  FECHA_ULTIMA_VENTA: string | null;
+  FECHA_ULTIMO_SEGUIMIENTO: string | null;
+  FECHA_ULTIMA_ACTIVIDAD: string | null;
+  MONTO_ULTIMA_VENTA: number | null;
+  TIPO_ULTIMA_VENTA: string | null;
+  REPORTES_COUNT: number;
+  VENTAS_COUNT: number;
+  SEGUIMIENTOS_COUNT: number;
+  DIAS_SIN_ACTIVIDAD: number | null;
+  DIAS_SIN_REPORTE: number | null;
+  DIAS_SIN_SEGUIMIENTO: number | null;
+  DIAS_SIN_VENTA: number | null;
 }
 
 export interface Reporte {
-  ID: number;
+  ID_REPORTE: number;
   ID_CLIENTE: number;
   ID_ASESOR: number;
-  ESTADO_ANTERIOR: string;
-  ESTADO_NUEVO: string;
-  COMENTARIO: string;
-  FECHA_REPORTE: number;
-  NOMBRE_ASESOR: string;
-  FECHA_SEGUIMIENTO?: number;
-  IMAGEN_PAGO_URL?: string;
-  COMPLETADO?: boolean;
-  cliente?: Cliente;
-  PAIS_CLIENTE?: string;
-  CORREO_INSCRIPCION?: string;
-  TELEFONO_CLIENTE?: string;
-  MEDIO_PAGO?: string;
-  CORREO_PAGO?: string;
-  consolidado?: boolean;
-  imagen_inicio_conversacion?: string;
-  imagen_fin_conversacion?: string;
-  video_conversacion?: string;
-  asesor?: Asesor;
-  PRODUCTO?: 'PRINCIPAL' | 'DOWNSELL';
+  FECHA_REPORTE: string;
+  ESTADO_CLIENTE: string;
+  DETALLE: string;
+  SEGUIMIENTO_REQUERIDO: boolean;
+  FECHA_SEGUIMIENTO: string | null;
+  SEGUIMIENTO_COMPLETADO: boolean;
+  VENTA_REALIZADA: boolean;
+  TIPO_VENTA: string | null;
+  MONTO_VENTA: number | null;
+  CREATED_AT: string;
+  UPDATED_AT: string;
 }
 
 export interface Registro {
@@ -67,6 +66,8 @@ export interface EstadisticasAsesor {
   ventasRealizadas: number;
   ventasPrincipal: number;
   ventasDownsell: number;
+  ventasReportadas: number;
+  ventasSinReportar: number;
   seguimientosPendientes: number;
   seguimientosCompletados: number;
   porcentajeCierre: number;
@@ -82,9 +83,11 @@ export interface EstadisticasDetalladas extends EstadisticasAsesor {
   clientesRechazados: number;
   clientesCriticos: number;
   clientesNoContactados: number;
+  clientesSinMensaje20Min: number;
   tiempoPromedioRespuesta: number;
   tiempoPromedioHastaReporte: number;
   tiempoPromedioHastaVenta: number;
+  tiempoHastaPrimerMensaje: number;
   reportesPorCliente: number;
   reportesConSeguimiento: number;
   montoPromedioVenta: number;

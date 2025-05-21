@@ -3,7 +3,7 @@ import { Cliente, Registro, Reporte } from '../types';
 
 interface FuentesAnalysisPorAsesorProps {
   clientes: Cliente[];
-  registros: Registro[] | null;
+  registros: Registro[];
   reportes: Reporte[];
   asesorId: number;
   teamStatsByFuente: Record<string, number>;

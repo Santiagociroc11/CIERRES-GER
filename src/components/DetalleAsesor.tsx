@@ -278,7 +278,13 @@ export default function DetalleAsesor({
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Métricas de Tiempo</h3>
             </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Tiempo Hasta Primer Mensaje</p>
+                <p className="mt-1 text-2xl font-semibold text-gray-900">
+                  {estadisticas.tiempoHastaPrimerMensaje.toFixed(1)}m
+                </p>
+              </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">Tiempo Hasta Primer Reporte</p>
                 <p className="mt-1 text-2xl font-semibold text-gray-900">

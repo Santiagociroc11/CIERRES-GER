@@ -259,7 +259,14 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       const ultimoReporte = reportes
         .filter(r => r.ID_CLIENTE === cliente.ID)
         .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
-      return ultimoReporte && cliente.ESTADO !== ultimoReporte.ESTADO_NUEVO;
+      
+      if (!ultimoReporte || ultimoReporte.ESTADO_NUEVO === 'PAGADO' || ultimoReporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
+        return false;
+      }
+      
+      return cliente.ESTADO !== ultimoReporte.ESTADO_NUEVO && 
+             cliente.ESTADO !== 'PAGADO' && 
+             cliente.ESTADO !== 'VENTA CONSOLIDADA';
     });
   };
 

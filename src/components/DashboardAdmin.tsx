@@ -1210,12 +1210,26 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     <option value="tiempo_primer_mensaje">Ordenar por tiempo primer mensaje</option>
                     <option value="seguimientos">Ordenar por seguimientos pendientes</option>
                   </select>
-                  <button
-                    onClick={() => setMostrarInactivos(!mostrarInactivos)}
-                    className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  >
-                    {mostrarInactivos ? 'Mostrar todos' : 'Mostrar solo inactivos'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700">
+                      {mostrarInactivos ? 'Mostrar inactivos' : 'Mostrar todos'}
+                    </span>
+                    <button
+                      onClick={() => setMostrarInactivos(!mostrarInactivos)}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        mostrarInactivos ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                      role="switch"
+                      aria-checked={mostrarInactivos}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          mostrarInactivos ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 

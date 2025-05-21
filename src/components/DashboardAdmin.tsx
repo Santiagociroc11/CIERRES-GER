@@ -51,7 +51,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [registros, setRegistros] = useState<any[]>([]);
   const itemsPerPage = 20;
   const [currentPage, setCurrentPage] = useState(1);
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<'mes' | 'semana' | 'personalizado'>('mes');
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<'año' | 'mes' | 'semana' | 'personalizado'>('personalizado');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -66,7 +66,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [clienteParaChat, setClienteParaChat] = useState<any | null>(null);
 
   // Estado para alternar entre vista de Asesores y Clientes
-  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes'>('resumen');
+  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes'>('asesores');
   // Estado para el modal de historial de cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
 
@@ -219,24 +219,36 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     clientesAsesor: any[],
     reportesAsesor: any[],
     conversacionesAsesor: any[],
-    periodo: 'mes' | 'semana' | 'personalizado',
+    periodo: 'año' | 'mes' | 'semana' | 'personalizado',
     inicio?: string,
     fin?: string
   ): EstadisticasDetalladas => {
     const hoy = new Date();
     let fechaInicioFiltro = new Date();
-    if (periodo === 'mes') {
-      fechaInicioFiltro.setMonth(hoy.getMonth() - 1);
-    } else if (periodo === 'semana') {
-      fechaInicioFiltro.setDate(hoy.getDate() - 7);
-    } else if (periodo === 'personalizado' && inicio) {
-      fechaInicioFiltro = new Date(inicio);
+    let fechaFinFiltro = new Date();
+
+    switch (periodo) {
+      case 'año':
+        fechaInicioFiltro = new Date(hoy.getFullYear(), 0, 1); // 1 de enero del año actual
+        break;
+      case 'mes':
+        fechaInicioFiltro.setMonth(hoy.getMonth() - 1);
+        break;
+      case 'semana':
+        fechaInicioFiltro.setDate(hoy.getDate() - 7);
+        break;
+      case 'personalizado':
+        if (inicio) fechaInicioFiltro = new Date(inicio);
+        if (fin) fechaFinFiltro = new Date(fin);
+        break;
     }
-    const fechaFinFiltro = (periodo === 'personalizado' && fin) ? new Date(fin) : hoy;
+
+    // Convertir fechas a timestamps para comparar con FECHA_REPORTE
+    const inicioTimestamp = Math.floor(fechaInicioFiltro.getTime() / 1000);
+    const finTimestamp = Math.floor(fechaFinFiltro.getTime() / 1000);
 
     const reportesFiltrados = reportesAsesor.filter((r: any) => {
-      const fechaReporte = new Date(r.FECHA_REPORTE * 1000);
-      return fechaReporte >= fechaInicioFiltro && fechaReporte <= fechaFinFiltro;
+      return r.FECHA_REPORTE >= inicioTimestamp && r.FECHA_REPORTE <= finTimestamp;
     });
 
     const clientesReportados = new Set(reportesAsesor.map((r: any) => r.ID_CLIENTE)).size;
@@ -395,19 +407,30 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     const now = new Date();
     let fechaInicioFiltro = new Date();
     let fechaFinFiltro = now;
-    if (periodoSeleccionado === 'mes') {
-      fechaInicioFiltro.setMonth(now.getMonth() - 1);
-    } else if (periodoSeleccionado === 'semana') {
-      fechaInicioFiltro.setDate(now.getDate() - 7);
-    } else if (periodoSeleccionado === 'personalizado' && fechaInicio) {
-      fechaInicioFiltro = new Date(fechaInicio);
-      if (fechaFin) fechaFinFiltro = new Date(fechaFin);
+
+    switch (periodoSeleccionado) {
+      case 'año':
+        fechaInicioFiltro = new Date(now.getFullYear(), 0, 1); // 1 de enero del año actual
+        break;
+      case 'mes':
+        fechaInicioFiltro.setMonth(now.getMonth() - 1);
+        break;
+      case 'semana':
+        fechaInicioFiltro.setDate(now.getDate() - 7);
+        break;
+      case 'personalizado':
+        if (fechaInicio) fechaInicioFiltro = new Date(fechaInicio);
+        if (fechaFin) fechaFinFiltro = new Date(fechaFin);
+        break;
     }
+
+    // Convertir fechas a timestamps para comparar con FECHA_REPORTE
+    const inicioTimestamp = Math.floor(fechaInicioFiltro.getTime() / 1000);
+    const finTimestamp = Math.floor(fechaFinFiltro.getTime() / 1000);
 
     // Filtrar reportes por el período
     const reportesFiltrados = reportes.filter((r: any) => {
-      const fechaReporte = new Date(r.FECHA_REPORTE * 1000);
-      return fechaReporte >= fechaInicioFiltro && fechaReporte <= fechaFinFiltro;
+      return r.FECHA_REPORTE >= inicioTimestamp && r.FECHA_REPORTE <= finTimestamp;
     });
 
     // Agrupar por fecha y luego por cliente, priorizando "PRINCIPAL" si existen ambos
@@ -610,6 +633,67 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       .sort((a, b) => a.porcentajeCierre - b.porcentajeCierre);
   };
 
+  // Función para calcular el período de 3 meses
+  const calcularPeriodoTresMeses = () => {
+    const hoy = new Date();
+    const mesYMedioAtras = new Date(hoy);
+    const mesYMedioAdelante = new Date(hoy);
+    
+    mesYMedioAtras.setDate(15); // Mitad del mes
+    mesYMedioAtras.setMonth(hoy.getMonth() - 1); // Un mes completo hacia atrás
+    mesYMedioAtras.setDate(1); // Inicio del mes
+
+    mesYMedioAdelante.setDate(15); // Mitad del mes
+    mesYMedioAdelante.setMonth(hoy.getMonth() + 2); // Un mes completo hacia adelante
+    mesYMedioAdelante.setDate(mesYMedioAdelante.getDate() + 14); // Fin del mes
+
+    return {
+      inicio: mesYMedioAtras.toISOString().split('T')[0],
+      fin: mesYMedioAdelante.toISOString().split('T')[0]
+    };
+  };
+
+  // Establecer fechas iniciales y manejar cambios de período
+  useEffect(() => {
+    let inicio: Date;
+    let fin: Date;
+
+    switch (periodoSeleccionado) {
+      case 'personalizado':
+        const { inicio: tresMesesInicio, fin: tresMesesFin } = calcularPeriodoTresMeses();
+        setFechaInicio(tresMesesInicio);
+        setFechaFin(tresMesesFin);
+        break;
+      case 'año':
+        inicio = new Date(new Date().getFullYear(), 0, 1); // 1 de enero del año actual
+        fin = new Date(); // Fecha actual
+        setFechaInicio(inicio.toISOString().split('T')[0]);
+        setFechaFin(fin.toISOString().split('T')[0]);
+        break;
+      case 'mes':
+        fin = new Date();
+        inicio = new Date();
+        inicio.setMonth(inicio.getMonth() - 1);
+        setFechaInicio(inicio.toISOString().split('T')[0]);
+        setFechaFin(fin.toISOString().split('T')[0]);
+        break;
+      case 'semana':
+        fin = new Date();
+        inicio = new Date();
+        inicio.setDate(inicio.getDate() - 7);
+        setFechaInicio(inicio.toISOString().split('T')[0]);
+        setFechaFin(fin.toISOString().split('T')[0]);
+        break;
+    }
+  }, [periodoSeleccionado]);
+
+  // Establecer fechas iniciales al cargar
+  useEffect(() => {
+    const { inicio, fin } = calcularPeriodoTresMeses();
+    setFechaInicio(inicio);
+    setFechaFin(fin);
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Encabezado y navegación principal */}
@@ -675,6 +759,256 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       <div className="max-w-8xl mx-auto px-4 py-6">
         {vistaAdmin === 'resumen' ? (
           <div className="space-y-6">
+
+             {/* Métricas del Equipo */}
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Tasa de Reporte */}
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Tasa de Reporte</h3>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-blue-600">
+                      {(Object.values(estadisticas).reduce((acc, stats) => 
+                        acc + (stats.clientesReportados / stats.totalClientes * 100), 0) / 
+                        Object.keys(estadisticas).length).toFixed(1)}%
+                    </p>
+                    <p className="text-sm text-gray-500">Promedio del equipo</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">
+                      {Object.values(estadisticas).reduce((acc, stats) => acc + stats.clientesReportados, 0)} reportados
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.totalClientes - stats.clientesReportados), 0)} sin reporte
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tiempo de Respuesta */}
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Tiempo de Respuesta</h3>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-green-600">
+                      {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoHastaPrimerMensaje, 0) / Object.keys(estadisticas).length).toFixed(1)}m
+                    </p>
+                    <p className="text-sm text-gray-500">Promedio primer mensaje</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">
+                      {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoPromedioRespuesta, 0) / Object.keys(estadisticas).length).toFixed(1)}h
+                    </p>
+                    <p className="text-sm text-gray-500">Tiempo de completado</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tasa de Cierre */}
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Tasa de Cierre</h3>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-purple-600">
+                      {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length).toFixed(1)}%
+                    </p>
+                    <p className="text-sm text-gray-500">Promedio del equipo</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex flex-col items-end">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-green-600">Principal:</span>
+                        <span className="text-sm text-gray-900">
+                          {Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPrincipal, 0)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-blue-600">Downsell:</span>
+                        <span className="text-sm text-gray-900">
+                          {Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasDownsell, 0)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Rankings */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">Rankings de Desempeño</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-200">
+
+{/* Ranking Tasa de Reporte */}
+<div className="p-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Tasa de Reporte</h3>
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-sm font-medium text-green-600 mb-2">Top 3 Mejores</h4>
+                      <div className="space-y-2">
+                        {asesores
+                          .map(asesor => ({
+                            asesor,
+                            stats: estadisticas[asesor.ID],
+                            tasaReporte: estadisticas[asesor.ID]?.clientesReportados / 
+                                       (estadisticas[asesor.ID]?.totalClientes || 1) * 100
+                          }))
+                          .sort((a, b) => b.tasaReporte - a.tasaReporte)
+                          .slice(0, 3)
+                          .map(({ asesor, tasaReporte }, index) => (
+                            <div key={`mejor-reporte-${asesor.ID}`} className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
+                                <span className="text-sm text-gray-900">{asesor.NOMBRE}</span>
+                              </div>
+                              <span className="text-sm font-medium text-green-600">
+                                {tasaReporte.toFixed(1)}%
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-red-600 mb-2">3 Más Bajos</h4>
+                      <div className="space-y-2">
+                        {asesores
+                          .map(asesor => ({
+                            asesor,
+                            stats: estadisticas[asesor.ID],
+                            tasaReporte: estadisticas[asesor.ID]?.clientesReportados / 
+                                       (estadisticas[asesor.ID]?.totalClientes || 1) * 100
+                          }))
+                          .sort((a, b) => a.tasaReporte - b.tasaReporte)
+                          .slice(0, 3)
+                          .map(({ asesor, tasaReporte }, index) => (
+                            <div key={`peor-reporte-${asesor.ID}`} className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-gray-500">#{asesores.length - index}</span>
+                                <span className="text-sm text-gray-900">{asesor.NOMBRE}</span>
+                              </div>
+                              <span className="text-sm font-medium text-red-600">
+                                {tasaReporte.toFixed(1)}%
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+{/* Ranking Tiempo Primer Mensaje */}
+<div className="p-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Tiempo Primer Mensaje</h3>
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-sm font-medium text-green-600 mb-2">Top 3 Más Rápidos</h4>
+                      <div className="space-y-2">
+                        {asesores
+                          .map(asesor => ({
+                            asesor,
+                            stats: estadisticas[asesor.ID]
+                          }))
+                          .sort((a, b) => (a.stats?.tiempoHastaPrimerMensaje || 0) - (b.stats?.tiempoHastaPrimerMensaje || 0))
+                          .slice(0, 3)
+                          .map(({ asesor, stats }, index) => (
+                            <div key={`mejor-tiempo-${asesor.ID}`} className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
+                                <span className="text-sm text-gray-900">{asesor.NOMBRE}</span>
+                              </div>
+                              <span className="text-sm font-medium text-green-600">
+                                {stats?.tiempoHastaPrimerMensaje.toFixed(1)}m
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-red-600 mb-2">3 Más Lentos</h4>
+                      <div className="space-y-2">
+                        {asesores
+                          .map(asesor => ({
+                            asesor,
+                            stats: estadisticas[asesor.ID]
+                          }))
+                          .sort((a, b) => (b.stats?.tiempoHastaPrimerMensaje || 0) - (a.stats?.tiempoHastaPrimerMensaje || 0))
+                          .slice(0, 3)
+                          .map(({ asesor, stats }, index) => (
+                            <div key={`peor-tiempo-${asesor.ID}`} className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-gray-500">#{asesores.length - index}</span>
+                                <span className="text-sm text-gray-900">{asesor.NOMBRE}</span>
+                              </div>
+                              <span className="text-sm font-medium text-red-600">
+                                {stats?.tiempoHastaPrimerMensaje.toFixed(1)}m
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ranking Tasa de Cierre */}
+                <div className="p-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Tasa de Cierre</h3>
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-sm font-medium text-green-600 mb-2">Top 3 Mejores</h4>
+                      <div className="space-y-2">
+                        {asesores
+                          .map(asesor => ({
+                            asesor,
+                            stats: estadisticas[asesor.ID]
+                          }))
+                          .sort((a, b) => (b.stats?.porcentajeCierre || 0) - (a.stats?.porcentajeCierre || 0))
+                          .slice(0, 3)
+                          .map(({ asesor, stats }, index) => (
+                            <div key={`mejor-cierre-${asesor.ID}`} className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
+                                <span className="text-sm text-gray-900">{asesor.NOMBRE}</span>
+                              </div>
+                              <span className="text-sm font-medium text-green-600">
+                                {stats?.porcentajeCierre.toFixed(1)}%
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-red-600 mb-2">3 Más Bajos</h4>
+                      <div className="space-y-2">
+                        {asesores
+                          .map(asesor => ({
+                            asesor,
+                            stats: estadisticas[asesor.ID]
+                          }))
+                          .sort((a, b) => (a.stats?.porcentajeCierre || 0) - (b.stats?.porcentajeCierre || 0))
+                          .slice(0, 3)
+                          .map(({ asesor, stats }, index) => (
+                            <div key={`peor-cierre-${asesor.ID}`} className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-gray-500">#{asesores.length - index}</span>
+                                <span className="text-sm text-gray-900">{asesor.NOMBRE}</span>
+                              </div>
+                              <span className="text-sm font-medium text-red-600">
+                                {stats?.porcentajeCierre.toFixed(1)}%
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                
+
+                
+              </div>
+            </div>
             {/* Alertas Críticas */}
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
@@ -749,79 +1083,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               </div>
             </div>
 
-            {/* Métricas del Equipo */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Tasa de Reporte */}
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Tasa de Reporte</h3>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-3xl font-bold text-blue-600">
-                      {(Object.values(estadisticas).reduce((acc, stats) => 
-                        acc + (stats.clientesReportados / stats.totalClientes * 100), 0) / 
-                        Object.keys(estadisticas).length).toFixed(1)}%
-                    </p>
-                    <p className="text-sm text-gray-500">Promedio del equipo</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-500">
-                      {Object.values(estadisticas).reduce((acc, stats) => acc + stats.clientesReportados, 0)} reportados
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.totalClientes - stats.clientesReportados), 0)} sin reporte
-                    </p>
-                  </div>
-                </div>
-              </div>
+           
 
-              {/* Tiempo de Respuesta */}
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Tiempo de Respuesta</h3>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-3xl font-bold text-green-600">
-                      {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoHastaPrimerMensaje, 0) / Object.keys(estadisticas).length).toFixed(1)}m
-                    </p>
-                    <p className="text-sm text-gray-500">Promedio primer mensaje</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-500">
-                      {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoPromedioRespuesta, 0) / Object.keys(estadisticas).length).toFixed(1)}h
-                    </p>
-                    <p className="text-sm text-gray-500">Tiempo de completado</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tasa de Cierre */}
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Tasa de Cierre</h3>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-3xl font-bold text-purple-600">
-                      {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length).toFixed(1)}%
-                    </p>
-                    <p className="text-sm text-gray-500">Promedio del equipo</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex flex-col items-end">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-green-600">Principal:</span>
-                        <span className="text-sm text-gray-900">
-                          {Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPrincipal, 0)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-blue-600">Downsell:</span>
-                        <span className="text-sm text-gray-900">
-                          {Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasDownsell, 0)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            
           </div>
         ) : vistaAdmin === 'asesores' ? (
           <>
@@ -889,29 +1153,47 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                   <div className="flex flex-col gap-4">
                     <select
                       value={periodoSeleccionado}
-                      onChange={(e) => setPeriodoSeleccionado(e.target.value as 'mes' | 'semana' | 'personalizado')}
+                      onChange={(e) => setPeriodoSeleccionado(e.target.value as 'año' | 'mes' | 'semana' | 'personalizado')}
                       className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
+                      <option value="personalizado">3 meses</option>
+                      <option value="año">Este año</option>
                       <option value="mes">Último mes</option>
                       <option value="semana">Última semana</option>
-                      <option value="personalizado">Personalizado</option>
                     </select>
-                    {periodoSeleccionado === 'personalizado' && (
-                      <div className="flex gap-4">
-                        <input
-                          type="date"
-                          value={fechaInicio}
-                          onChange={(e) => setFechaInicio(e.target.value)}
-                          className="border border-gray-300 rounded-md p-2"
-                        />
-                        <input
-                          type="date"
-                          value={fechaFin}
-                          onChange={(e) => setFechaFin(e.target.value)}
-                          className="border border-gray-300 rounded-md p-2"
-                        />
-                      </div>
-                    )}
+                    {/* Mostrar los selectores de fecha para todos los períodos */}
+                    <div className="flex gap-4">
+                      <input
+                        type="date"
+                        value={fechaInicio}
+                        onChange={(e) => {
+                          setFechaInicio(e.target.value);
+                          setPeriodoSeleccionado('personalizado');
+                        }}
+                        className="border border-gray-300 rounded-md p-2"
+                      />
+                      <input
+                        type="date"
+                        value={fechaFin}
+                        onChange={(e) => {
+                          setFechaFin(e.target.value);
+                          setPeriodoSeleccionado('personalizado');
+                        }}
+                        className="border border-gray-300 rounded-md p-2"
+                      />
+                      {periodoSeleccionado === 'personalizado' && (
+                        <button
+                          onClick={() => {
+                            const { inicio, fin } = calcularPeriodoTresMeses();
+                            setFechaInicio(inicio);
+                            setFechaFin(fin);
+                          }}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                        >
+                          Restablecer 3 meses
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <select
                     value={ordenarPor}

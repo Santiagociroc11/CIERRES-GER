@@ -18,7 +18,6 @@ export interface Asesor {
   PAUSADO?: boolean;
   FECHA_INICIO_REGLA?: string;
   FECHA_FIN_REGLA?: string;
-  MOTIVO_REGLA?: string;
   HISTORIAL?: string;
 }
 

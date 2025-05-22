@@ -20,8 +20,10 @@ type TipoReglaCompleto = ReglaTipo | TipoPrioridad;
 interface ReglaAsignacion {
   tipo: ReglaTipo;
   valor: number;
-  fechaInicio?: Date;
-  fechaFin?: Date;
+  fechaInicio?: Date; // Para UI
+  fechaFin?: Date; // Para UI
+  fechaInicioEpoch?: number; // Para BD (timestamp Unix en segundos)
+  fechaFinEpoch?: number; // Para BD (timestamp Unix en segundos)
   motivo?: string;
   duracion?: 'horas' | 'dias' | 'semanas' | 'personalizado';
   cantidadDuracion?: number;
@@ -37,17 +39,175 @@ interface ReglaDescripcion {
 }
 
 interface ReglaHistorial {
-  fecha: string;
+  fecha: number; // Timestamp en formato epoch (Unix timestamp)
   tipo: TipoReglaCompleto;
   configuracion: {
     valor?: number;
-    fechaInicio?: string;
-    fechaFin?: string;
+    fechaInicio?: number; // Timestamp en formato epoch (Unix timestamp)
+    fechaFin?: number; // Timestamp en formato epoch (Unix timestamp)
     motivo: string;
     prioridadAnterior?: number;
     prioridadNueva?: number;
   };
 }
+
+// Función utilitaria para calcular la fecha de fin basada en duración
+const calcularFechaFinDesdeDuracion = (cantidad: number, unidad: 'horas' | 'dias' | 'semanas' | 'personalizado'): Date => {
+  // Usar Date para cálculos, asegurando que se maneja en UTC para almacenamiento
+  const ahora = new Date();
+  const fechaFin = new Date(ahora);
+  
+  switch(unidad) {
+    case 'horas':
+      fechaFin.setHours(fechaFin.getHours() + cantidad);
+      break;
+    case 'dias':
+      fechaFin.setDate(fechaFin.getDate() + cantidad);
+      break;
+    case 'semanas':
+      fechaFin.setDate(fechaFin.getDate() + (cantidad * 7));
+      break;
+    default:
+      // No hacer nada para personalizado
+      break;
+  }
+  
+  return fechaFin;
+};
+
+// Función para convertir epoch UTC a fecha local (UTC-5)
+const epochToLocalDate = (epochTimestamp: number): Date => {
+  // Crear fecha UTC desde epoch
+  const utcDate = new Date(epochTimestamp * 1000);
+  // Ajustar a UTC-5
+  const offsetHours = -5;
+  utcDate.setHours(utcDate.getHours() + offsetHours);
+  return utcDate;
+};
+
+// Función para convertir fecha local a epoch UTC
+const localDateToEpoch = (localDate: Date): number => {
+  // Ajustar de UTC-5 a UTC
+  const utcDate = new Date(localDate);
+  const offsetHours = 5;
+  utcDate.setHours(utcDate.getHours() + offsetHours);
+  return Math.floor(utcDate.getTime() / 1000);
+};
+
+// Función para formatear fecha de manera más concisa (usando epoch)
+const formatearFechaConcisa = (epochTimestamp: number): string => {
+  if (!epochTimestamp) return 'Fecha no disponible';
+  
+  // Convertir epoch a fecha local (UTC-5)
+  const fechaLocal = epochToLocalDate(epochTimestamp);
+  
+  // Formatear solo la fecha (sin año si es el año actual)
+  const esAnioActual = fechaLocal.getFullYear() === new Date().getFullYear();
+  const formatoFecha = new Intl.DateTimeFormat('es-PE', {
+    day: 'numeric',
+    month: 'short',
+    year: esAnioActual ? undefined : 'numeric',
+    timeZone: 'America/Lima'
+  }).format(fechaLocal);
+  
+  // Formatear la hora
+  const formatoHora = new Intl.DateTimeFormat('es-PE', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'America/Lima'
+  }).format(fechaLocal);
+  
+  return `${formatoFecha}, ${formatoHora}`;
+};
+
+// Función para mostrar periodo de bloqueo de manera más limpia
+const mostrarPeriodoBloqueo = (fechaInicio: Date | null, fechaFin: Date | null): JSX.Element => {
+  if (!fechaInicio) return <></>;
+  
+  // Convertir las fechas Date a epoch UTC
+  const fechaInicioEpoch = fechaInicio ? localDateToEpoch(fechaInicio) : 0;
+  const fechaFinEpoch = fechaFin ? localDateToEpoch(fechaFin) : 0;
+  
+  if (!fechaFin) {
+    return (
+      <div className="flex flex-col">
+        <div className="font-medium">Desde: {formatearFechaConcisa(fechaInicioEpoch)}</div>
+        <div className="text-red-600 font-medium">Bloqueo indefinido</div>
+      </div>
+    );
+  }
+
+  // Si ambas fechas son del mismo día, simplificamos aún más
+  const fechaInicioLocal = epochToLocalDate(fechaInicioEpoch);
+  const fechaFinLocal = epochToLocalDate(fechaFinEpoch);
+  
+  const mismodia = fechaInicioLocal.getDate() === fechaFinLocal.getDate() && 
+                  fechaInicioLocal.getMonth() === fechaFinLocal.getMonth() && 
+                  fechaInicioLocal.getFullYear() === fechaFinLocal.getFullYear();
+
+  if (mismodia) {
+    const fecha = formatearFechaConcisa(fechaInicioEpoch).split(',')[0];
+    const horaInicio = new Intl.DateTimeFormat('es-PE', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/Lima'
+    }).format(fechaInicioLocal);
+    
+    const horaFin = new Intl.DateTimeFormat('es-PE', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/Lima'
+    }).format(fechaFinLocal);
+    
+    return (
+      <div className="flex flex-col">
+        <div className="font-medium">{fecha}</div>
+        <div className="text-gray-600">{horaInicio} → {horaFin}</div>
+      </div>
+    );
+  }
+  
+  // Si son días diferentes
+  return (
+    <div className="flex flex-col space-y-1">
+      <div className="font-medium">
+        <span className="text-gray-700">Desde:</span> {formatearFechaConcisa(fechaInicioEpoch)}
+      </div>
+      <div className="font-medium">
+        <span className="text-gray-700">Hasta:</span> {formatearFechaConcisa(fechaFinEpoch)}
+      </div>
+    </div>
+  );
+};
+
+// Función para calcular tiempo restante hasta que termine el bloqueo
+const calcularTiempoRestante = (fechaFin: Date): string => {
+  const ahoraLocal = new Date();
+  const fechaFinLocal = epochToLocalDate(localDateToEpoch(fechaFin));
+  
+  // Si la fecha fin ya pasó
+  if (fechaFinLocal <= ahoraLocal) {
+    return "Finalizado";
+  }
+  
+  const diferenciaSeg = Math.floor((fechaFinLocal.getTime() - ahoraLocal.getTime()) / 1000);
+  
+  // Convertir segundos a días, horas, minutos
+  const dias = Math.floor(diferenciaSeg / (60 * 60 * 24));
+  const horas = Math.floor((diferenciaSeg % (60 * 60 * 24)) / (60 * 60));
+  const minutos = Math.floor((diferenciaSeg % (60 * 60)) / 60);
+  
+  if (dias > 0) {
+    return `${dias}d ${horas}h restantes`;
+  } else if (horas > 0) {
+    return `${horas}h ${minutos}m restantes`;
+  } else {
+    return `${minutos} minutos restantes`;
+  }
+};
 
 export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsignacionesProps) {
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
@@ -56,12 +216,34 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
   const [mostrarModalHistorial, setMostrarModalHistorial] = useState(false);
   const [motivoPrioridad, setMotivoPrioridad] = useState('');
   const [tipoPrioridadSeleccionada, setTipoPrioridadSeleccionada] = useState<TipoPrioridad>('BONUS');
-  const [nuevaRegla, setNuevaRegla] = useState<ReglaAsignacion>({
-    tipo: 'LIMITE_DIARIO',
-    valor: 0,
-    motivo: '',
-    duracion: 'personalizado',
-    cantidadDuracion: 24
+  // Inicializar con valores por defecto incluidas fechas para reglas temporales
+  const [nuevaRegla, setNuevaRegla] = useState<ReglaAsignacion>(() => {
+    // Para bloqueos con duración predeterminada, establecer fechas 
+    const fechaInicio = new Date();
+    const fechaFin = calcularFechaFinDesdeDuracion(24, 'horas'); // 24 horas por defecto
+    
+    // Convertir a epoch para BD
+    const fechaInicioEpoch = Math.floor(fechaInicio.getTime() / 1000);
+    const fechaFinEpoch = Math.floor(fechaFin.getTime() / 1000);
+    
+    console.log("Inicializando estado de nueva regla con fechas:", {
+      fechaInicio,
+      fechaFin,
+      fechaInicioEpoch,
+      fechaFinEpoch
+    });
+    
+    return {
+      tipo: 'LIMITE_DIARIO',
+      valor: 0,
+      motivo: '',
+      duracion: 'personalizado',
+      cantidadDuracion: 24,
+      fechaInicio,
+      fechaFin,
+      fechaInicioEpoch,
+      fechaFinEpoch
+    };
   });
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
   const [ordenamiento, setOrdenamiento] = useState<'nombre' | 'prioridad'>('prioridad');
@@ -113,18 +295,20 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
       const historialActual: ReglaHistorial[] = asesorActual.HISTORIAL ? JSON.parse(asesorActual.HISTORIAL) : [];
       const prioridadActual = asesorActual.PRIORIDAD || 0;
 
-      // Convertir fechas a ISO strings para almacenar en los campos varchar
-      const fechaInicioISO = regla.fechaInicio ? regla.fechaInicio.toISOString() : undefined;
-      const fechaFinISO = regla.fechaFin ? regla.fechaFin.toISOString() : undefined;
+      // Convertir fechas locales a UTC epoch
+      const fechaInicioEpoch = regla.fechaInicioEpoch !== undefined ? regla.fechaInicioEpoch :
+                               regla.fechaInicio ? localDateToEpoch(regla.fechaInicio) : undefined;
+      const fechaFinEpoch = regla.fechaFinEpoch !== undefined ? regla.fechaFinEpoch :
+                            regla.fechaFin ? localDateToEpoch(regla.fechaFin) : undefined;
 
-      // Crear nueva entrada en el historial
+      // Crear nueva entrada en el historial con el motivo
       const nuevaEntrada: ReglaHistorial = {
-        fecha: new Date().toISOString(),
+        fecha: Math.floor(Date.now() / 1000), // Guardar la fecha como epoch
         tipo: regla.tipo,
         configuracion: {
           valor: regla.valor,
-          fechaInicio: fechaInicioISO,
-          fechaFin: fechaFinISO,
+          fechaInicio: fechaInicioEpoch,
+          fechaFin: fechaFinEpoch,
           motivo: regla.motivo || '',
           prioridadAnterior: prioridadActual,
           prioridadNueva: prioridadActual
@@ -133,9 +317,9 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
 
       const historialActualizado = [...historialActual, nuevaEntrada];
 
-      // Preparar el payload con tipado correcto
+      // Preparar el payload asegurando que los timestamps sean números
       const payload: Record<string, any> = {
-        MOTIVO_REGLA: regla.motivo
+        HISTORIAL: JSON.stringify(historialActualizado)
       };
       
       // Agregar campos opcionales solo si tienen valor
@@ -143,26 +327,32 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
         payload.LIMITE_DIARIO = regla.valor;
       }
       
-      if (fechaInicioISO) {
-        payload.FECHA_INICIO_REGLA = fechaInicioISO;
+      // Construir el endpoint con los parámetros de tipo correcto
+      let endpoint = `${import.meta.env.VITE_POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}`;
+      
+      // Agregar los campos de fecha como números (epoch UTC)
+      if (fechaInicioEpoch !== undefined) {
+        payload.FECHA_INICIO_REGLA = Number(fechaInicioEpoch);
       }
       
-      if (fechaFinISO) {
-        payload.FECHA_FIN_REGLA = fechaFinISO;
+      if (fechaFinEpoch !== undefined) {
+        payload.FECHA_FIN_REGLA = Number(fechaFinEpoch);
       }
       
-      // Actualizar el historial JSON
-      payload.HISTORIAL = JSON.stringify(historialActualizado);
-      
-      console.log('Enviando PATCH a PostgREST:', payload);
+      console.log('Enviando PATCH a PostgREST:', {
+        ...payload,
+        regla_original: regla,
+        fechas_epoch: { fechaInicioEpoch, fechaFinEpoch }
+      });
 
       // Intentar enviar la solicitud
       try {
-        const response = await fetch(`${import.meta.env.VITE_POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}`, {
+        const response = await fetch(endpoint, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
+            'Prefer': 'return=representation',
+            'Accept': 'application/json'
           },
           body: JSON.stringify(payload)
         });
@@ -199,9 +389,9 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
       // Calcular la nueva prioridad
       const nuevaPrioridad = tipo === 'BONUS' ? prioridadActual + 1 : prioridadActual - 1;
 
-      // Crear nueva entrada en el historial
+      // Crear nueva entrada en el historial con epoch
       const nuevaEntrada: ReglaHistorial = {
-        fecha: new Date().toISOString(),
+        fecha: Math.floor(Date.now() / 1000), // Guardar como epoch
         tipo: tipo,
         configuracion: {
           motivo: motivo,
@@ -252,135 +442,6 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
     }
   };
 
-  // Función para formatear fecha de manera más concisa
-  const formatearFechaConcisa = (fecha: string | number): string => {
-    if (!fecha) return 'Fecha no disponible';
-    
-    const fechaObj = typeof fecha === 'string' 
-      ? new Date(fecha)
-      : typeof fecha === 'number' 
-        ? new Date(fecha * 1000) 
-        : new Date();
-
-    // Formatear solo la fecha (sin año si es el año actual)
-    const esAnioActual = fechaObj.getFullYear() === new Date().getFullYear();
-    const formatoFecha = new Intl.DateTimeFormat('es-ES', {
-      day: 'numeric',
-      month: 'short',
-      year: esAnioActual ? undefined : 'numeric'
-    }).format(fechaObj);
-    
-    // Formatear la hora
-    const formatoHora = new Intl.DateTimeFormat('es-ES', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    }).format(fechaObj);
-    
-    return `${formatoFecha}, ${formatoHora}`;
-  };
-
-  // Función para mostrar periodo de bloqueo de manera más limpia
-  const mostrarPeriodoBloqueo = (fechaInicio: Date | null, fechaFin: Date | null): JSX.Element => {
-    if (!fechaInicio) return <></>;
-    
-    if (!fechaFin) {
-      return (
-        <div className="flex flex-col">
-          <div className="font-medium">Desde: {formatearFechaConcisa(fechaInicio.toISOString())}</div>
-          <div className="text-red-600 font-medium">Bloqueo indefinido</div>
-        </div>
-      );
-    }
-
-    // Si ambas fechas son del mismo día, simplificamos aún más
-    const mismodia = fechaInicio.getDate() === fechaFin.getDate() && 
-                    fechaInicio.getMonth() === fechaFin.getMonth() && 
-                    fechaInicio.getFullYear() === fechaFin.getFullYear();
-
-    if (mismodia) {
-      const fecha = formatearFechaConcisa(fechaInicio.toISOString()).split(',')[0];
-      const horaInicio = new Intl.DateTimeFormat('es-ES', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      }).format(fechaInicio);
-      
-      const horaFin = new Intl.DateTimeFormat('es-ES', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      }).format(fechaFin);
-      
-      return (
-        <div className="flex flex-col">
-          <div className="font-medium">{fecha}</div>
-          <div className="text-gray-600">{horaInicio} → {horaFin}</div>
-        </div>
-      );
-    }
-    
-    // Si son días diferentes
-    return (
-      <div className="flex flex-col space-y-1">
-        <div className="font-medium">
-          <span className="text-gray-700">Desde:</span> {formatearFechaConcisa(fechaInicio.toISOString())}
-        </div>
-        <div className="font-medium">
-          <span className="text-gray-700">Hasta:</span> {formatearFechaConcisa(fechaFin.toISOString())}
-        </div>
-      </div>
-    );
-  };
-
-  // Función para calcular tiempo restante hasta que termine el bloqueo
-  const calcularTiempoRestante = (fechaFin: Date): string => {
-    const ahora = new Date();
-    
-    // Si la fecha fin ya pasó
-    if (fechaFin <= ahora) {
-      return "Finalizado";
-    }
-    
-    const diferencia = fechaFin.getTime() - ahora.getTime();
-    
-    // Convertir milisegundos a días, horas, minutos
-    const dias = Math.floor(diferencia / (1000 * 60 * 60 * 24));
-    const horas = Math.floor((diferencia % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (dias > 0) {
-      return `${dias}d ${horas}h restantes`;
-    } else if (horas > 0) {
-      return `${horas}h ${minutos}m restantes`;
-    } else {
-      return `${minutos} minutos restantes`;
-    }
-  };
-
-  // Define the calcularFechaFinDesdeDuracion function
-  const calcularFechaFinDesdeDuracion = (cantidad: number, unidad: 'horas' | 'dias' | 'semanas' | 'personalizado'): Date => {
-    const ahora = new Date();
-    const fechaFin = new Date(ahora);
-    
-    switch(unidad) {
-      case 'horas':
-        fechaFin.setHours(fechaFin.getHours() + cantidad);
-        break;
-      case 'dias':
-        fechaFin.setDate(fechaFin.getDate() + cantidad);
-        break;
-      case 'semanas':
-        fechaFin.setDate(fechaFin.getDate() + (cantidad * 7));
-        break;
-      default:
-        // No hacer nada para personalizado
-        break;
-    }
-    
-    return fechaFin;
-  };
-
   const renderHistorialItem = (entrada: ReglaHistorial) => {
     let icono;
     let colorTexto;
@@ -422,13 +483,17 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
     const cambioTexto = entrada.configuracion.prioridadAnterior !== undefined && entrada.configuracion.prioridadNueva !== undefined ?
       `${entrada.configuracion.prioridadAnterior} → ${entrada.configuracion.prioridadNueva}` : '';
     
-    // Calcular si la regla está activa (solo para bloqueo y límite diario)
-    const ahora = new Date();
-    const fechaInicio = entrada.configuracion.fechaInicio ? new Date(entrada.configuracion.fechaInicio) : null;
-    const fechaFin = entrada.configuracion.fechaFin ? new Date(entrada.configuracion.fechaFin) : null;
-    const estaActiva = fechaInicio && (
-      !fechaFin || // bloqueo indefinido
-      (ahora >= fechaInicio && ahora <= fechaFin) // dentro del rango de fechas
+    // Calcular si la regla está activa usando timestamps epoch
+    const ahoraEpoch = Math.floor(Date.now() / 1000);
+    const fechaInicioEpoch = entrada.configuracion.fechaInicio || null;
+    const fechaFinEpoch = entrada.configuracion.fechaFin || null;
+    // Convertimos a Date para mostrar en la UI si es necesario
+    const fechaInicio = fechaInicioEpoch ? new Date(fechaInicioEpoch * 1000) : null;
+    const fechaFin = fechaFinEpoch ? new Date(fechaFinEpoch * 1000) : null;
+    
+    const estaActiva = fechaInicioEpoch && (
+      !fechaFinEpoch || // bloqueo indefinido
+      (ahoraEpoch >= fechaInicioEpoch && ahoraEpoch <= fechaFinEpoch) // dentro del rango de fechas
     );
 
     return (
@@ -496,7 +561,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
               )}
             </div>
             
-            {fechaFin && ahora <= fechaFin && (
+            {fechaFin && ahoraEpoch <= (fechaFin.getTime() / 1000) && (
               <div className="mt-1 text-right">
                 <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full">
                   {calcularTiempoRestante(fechaFin)}
@@ -611,27 +676,24 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    {(() => {
-                      const ahora = new Date();
-                      // Convertir las fechas ISO a objetos Date para compararlas
-                      const fechaInicio = asesor.FECHA_INICIO_REGLA ? new Date(asesor.FECHA_INICIO_REGLA) : null;
-                      const fechaFin = asesor.FECHA_FIN_REGLA ? new Date(asesor.FECHA_FIN_REGLA) : null;
+                                          {(() => {
+                      const ahoraEpoch = Math.floor(Date.now() / 1000); // Timestamp actual en segundos (epoch)
+                      // Las fechas en la BD ahora son epoch (timestamp unix en segundos)
+                      const fechaInicioEpoch = asesor.FECHA_INICIO_REGLA ? Number(asesor.FECHA_INICIO_REGLA) : null;
+                      const fechaFinEpoch = asesor.FECHA_FIN_REGLA ? Number(asesor.FECHA_FIN_REGLA) : null;
+                      
+                      // Para debug/display convertimos a Date (sólo para visualización)
+                      const fechaInicio = fechaInicioEpoch ? new Date(fechaInicioEpoch * 1000) : null;
+                      const fechaFin = fechaFinEpoch ? new Date(fechaFinEpoch * 1000) : null;
                       
                       // Está bloqueado si:
                       // 1. Existe fecha inicio y no hay fecha fin
                       // 2. Existe fecha inicio y fin, y ahora está entre ese rango
-                      const bloqueado = (fechaInicio && !fechaFin) || 
-                                        (fechaInicio && fechaFin && ahora >= fechaInicio && ahora <= fechaFin);
+                      const bloqueado = (fechaInicioEpoch && !fechaFinEpoch) || 
+                                        (fechaInicioEpoch && fechaFinEpoch && 
+                                         ahoraEpoch >= fechaInicioEpoch && ahoraEpoch <= fechaFinEpoch);
                       
-                      console.log('Asesor bloqueado (icono):', {
-                        id: asesor.ID,
-                        nombre: asesor.NOMBRE,
-                        fechaInicioStr: asesor.FECHA_INICIO_REGLA,
-                        fechaFinStr: asesor.FECHA_FIN_REGLA,
-                        fechaInicioParsed: fechaInicio,
-                        fechaFinParsed: fechaFin,
-                        ahora: ahora
-                      });
+                     
                       
                       if (bloqueado) {
                         return (
@@ -684,23 +746,29 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                     )}
                     
                     {/* Bloqueo */}
-                    {(() => {
-                      const ahora = new Date();
-                      const fechaInicio = asesor.FECHA_INICIO_REGLA ? new Date(asesor.FECHA_INICIO_REGLA) : null;
-                      const fechaFin = asesor.FECHA_FIN_REGLA ? new Date(asesor.FECHA_FIN_REGLA) : null;
+                                          {(() => {
+                      const ahoraEpoch = Math.floor(Date.now() / 1000); // Timestamp actual en segundos (epoch)
+                      // Las fechas en la BD ahora son epoch (timestamp unix en segundos)
+                      const fechaInicioEpoch = asesor.FECHA_INICIO_REGLA ? Number(asesor.FECHA_INICIO_REGLA) : null;
+                      const fechaFinEpoch = asesor.FECHA_FIN_REGLA ? Number(asesor.FECHA_FIN_REGLA) : null;
                       
-                      const bloqueado = (fechaInicio && !fechaFin) || 
-                                      (fechaInicio && fechaFin && ahora >= fechaInicio && ahora <= fechaFin);
+                      // Para debug/display convertimos a Date (sólo para visualización)
+                      const fechaInicio = fechaInicioEpoch ? new Date(fechaInicioEpoch * 1000) : null;
+                      const fechaFin = fechaFinEpoch ? new Date(fechaFinEpoch * 1000) : null;
+                      
+                      const bloqueado = (fechaInicioEpoch && !fechaFinEpoch) || 
+                                      (fechaInicioEpoch && fechaFinEpoch && 
+                                       ahoraEpoch >= fechaInicioEpoch && ahoraEpoch <= fechaFinEpoch);
                       
                       if (bloqueado) {
                         console.log('Asesor bloqueado (detalles):', {
                           id: asesor.ID,
                           nombre: asesor.NOMBRE,
-                          fechaInicioStr: asesor.FECHA_INICIO_REGLA,
-                          fechaFinStr: asesor.FECHA_FIN_REGLA,
+                          fechaInicioEpoch: fechaInicioEpoch,
+                          fechaFinEpoch: fechaFinEpoch,
                           fechaInicioParsed: fechaInicio,
                           fechaFinParsed: fechaFin,
-                          ahora: ahora
+                          ahoraEpoch: ahoraEpoch
                         });
                         return (
                           <div className="flex items-center gap-2 p-2 bg-red-50 rounded-md border border-red-200">
@@ -861,10 +929,43 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                     <select
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                       value={nuevaRegla.duracion || 'personalizado'}
-                      onChange={(e) => setNuevaRegla({ 
-                        ...nuevaRegla, 
-                        duracion: e.target.value as 'horas' | 'dias' | 'semanas' | 'personalizado' 
-                      })}
+                      onChange={(e) => {
+                        const duracion = e.target.value as 'horas' | 'dias' | 'semanas' | 'personalizado';
+                        
+                        // Si tiene una cantidad de duración y no es personalizado, recalcular las fechas
+                        if (duracion !== 'personalizado' && nuevaRegla.cantidadDuracion) {
+                          const fechaInicio = new Date();
+                          const fechaFin = calcularFechaFinDesdeDuracion(nuevaRegla.cantidadDuracion, duracion);
+                          
+                          // Convertimos a epoch para la BD
+                          const fechaInicioEpoch = Math.floor(fechaInicio.getTime() / 1000);
+                          const fechaFinEpoch = Math.floor(fechaFin.getTime() / 1000);
+                          
+                          console.log("Cambiando duración:", {
+                            duracion,
+                            cantidad: nuevaRegla.cantidadDuracion,
+                            fechaInicio, 
+                            fechaFin,
+                            fechaInicioEpoch,
+                            fechaFinEpoch
+                          });
+                          
+                          setNuevaRegla({ 
+                            ...nuevaRegla, 
+                            duracion,
+                            fechaInicio,
+                            fechaFin,
+                            fechaInicioEpoch,
+                            fechaFinEpoch
+                          });
+                        } else {
+                          // Si es personalizado, solo cambiar el tipo de duración
+                          setNuevaRegla({ 
+                            ...nuevaRegla,
+                            duracion
+                          });
+                        }
+                      }}
                     >
                       <option value="horas">Horas</option>
                       <option value="dias">Días</option>
@@ -885,11 +986,30 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                         value={nuevaRegla.cantidadDuracion || 1}
                         onChange={(e) => {
                           const cantidad = parseInt(e.target.value);
+                          const fechaInicio = new Date(); // La fecha de inicio siempre es ahora
+                          const fechaFin = calcularFechaFinDesdeDuracion(cantidad, nuevaRegla.duracion || 'horas');
+                          
+                          // Convertimos a epoch para la BD
+                          const fechaInicioEpoch = Math.floor(fechaInicio.getTime() / 1000);
+                          const fechaFinEpoch = Math.floor(fechaFin.getTime() / 1000);
+                          
+                          console.log("Calculando bloqueo:", {
+                            cantidad,
+                            duracion: nuevaRegla.duracion,
+                            fechaInicio,
+                            fechaFin,
+                            fechaInicioEpoch,
+                            fechaFinEpoch
+                          });
+                          
+                          // Establece explícitamente las fechas en el estado
                           setNuevaRegla({ 
                             ...nuevaRegla, 
                             cantidadDuracion: cantidad,
-                            fechaInicio: new Date(),
-                            fechaFin: calcularFechaFinDesdeDuracion(cantidad, nuevaRegla.duracion || 'horas')
+                            fechaInicio: fechaInicio,
+                            fechaFin: fechaFin,
+                            fechaInicioEpoch: fechaInicioEpoch,
+                            fechaFinEpoch: fechaFinEpoch
                           });
                         }}
                       />
@@ -934,7 +1054,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                   required
                 />
                 <p className="mt-1 text-sm text-gray-500">
-                  Es importante documentar el motivo para futuras referencias.
+                  Este motivo se guardará en el historial para futuras referencias.
                 </p>
               </div>
 
@@ -948,10 +1068,31 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                 <button
                   onClick={() => {
                     if (!nuevaRegla.motivo) {
-                      alert('Por favor, especifica un motivo para la regla.');
+                      alert('Por favor, especifica un motivo para la regla. Es necesario para el historial.');
                       return;
                     }
-                    aplicarRegla(asesorSeleccionado.ID, nuevaRegla);
+                    
+                    // Asegurarse de que las fechas estén en epoch para la BD
+                    const reglaConEpoch = {
+                      ...nuevaRegla,
+                      // Las fechas de bloqueo deben estar en epoch para la BD
+                      fechaInicioEpoch: nuevaRegla.fechaInicio ? Math.floor(nuevaRegla.fechaInicio.getTime() / 1000) : undefined,
+                      fechaFinEpoch: nuevaRegla.fechaFin ? Math.floor(nuevaRegla.fechaFin.getTime() / 1000) : undefined
+                    };
+                    
+                    console.log("Aplicando regla con valores:", reglaConEpoch);
+                    
+                                          // Aplicar la regla con las fechas de epoch en lugar de Date objects
+                      const reglaParaEnviar = {
+                        ...nuevaRegla,
+                        fechaInicio: undefined, // No enviamos los objetos Date
+                        fechaFin: undefined,
+                        // Asignamos explícitamente los valores de epoch
+                        fechaInicioEpoch: reglaConEpoch.fechaInicioEpoch,
+                        fechaFinEpoch: reglaConEpoch.fechaFinEpoch
+                      };
+                      
+                      aplicarRegla(asesorSeleccionado.ID, reglaParaEnviar);
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >

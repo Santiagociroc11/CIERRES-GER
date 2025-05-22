@@ -1806,6 +1806,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           <GestionAsignaciones 
             asesores={asesores} 
             onUpdate={cargarSoloAsesores}
+            estadisticas={estadisticas}
           />
         ) : (
           <div className="p-4 space-y-8">

@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 interface GestionAsignacionesProps {
   asesores: Asesor[];
   onUpdate: () => void;
+  estadisticas?: Record<number, any>; // Accept statistics as a prop
 }
 
 // Tipo separado para las reglas de prioridad
@@ -210,7 +211,7 @@ const calcularTiempoRestante = (fechaFin: Date): string => {
   }
 };
 
-export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsignacionesProps) {
+export default function GestionAsignaciones({ asesores, onUpdate, estadisticas = {} }: GestionAsignacionesProps) {
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [mostrarModalPrioridad, setMostrarModalPrioridad] = useState(false);
@@ -247,7 +248,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
     };
   });
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
-  const [ordenamiento, setOrdenamiento] = useState<'nombre' | 'prioridad'>('prioridad');
+  const [ordenamiento, setOrdenamiento] = useState<'nombre' | 'prioridad' | 'tasa_cierre'>('tasa_cierre');
 
   // Ordenar asesores según el criterio seleccionado
   const asesoresOrdenados = useMemo(() => {
@@ -257,10 +258,15 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
         const prioridadB = b.PRIORIDAD || 0;
         return prioridadB - prioridadA; // Orden descendente por prioridad
       }
+      if (ordenamiento === 'tasa_cierre') {
+        const tasaA = estadisticas[a.ID]?.porcentajeCierre || 0;
+        const tasaB = estadisticas[b.ID]?.porcentajeCierre || 0;
+        return tasaB - tasaA; // Orden descendente por tasa de cierre
+      }
       // Por defecto, ordenar por nombre
       return a.NOMBRE.localeCompare(b.NOMBRE);
     });
-  }, [asesores, ordenamiento]);
+  }, [asesores, ordenamiento, estadisticas]);
 
   const reglasDescripciones: Record<ReglaTipo, ReglaDescripcion> = {
    
@@ -635,11 +641,12 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
           <div className="flex items-center gap-4">
             <select
               value={ordenamiento}
-              onChange={(e) => setOrdenamiento(e.target.value as 'nombre' | 'prioridad')}
+              onChange={(e) => setOrdenamiento(e.target.value as 'nombre' | 'prioridad' | 'tasa_cierre')}
               className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="nombre">Ordenar por nombre</option>
               <option value="prioridad">Ordenar por prioridad</option>
+              <option value="tasa_cierre">Ordenar por tasa de cierre</option>
             </select>
             <button
               onClick={() => setMostrarAyuda(true)}
@@ -658,6 +665,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asesor</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasa de Cierre</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reglas Activas</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -713,6 +721,42 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                       </button>
                     </div>
                   </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {estadisticas[asesor.ID] ? (
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium text-blue-600">
+                        {estadisticas[asesor.ID].porcentajeCierre.toFixed(1)}%
+                      </div>
+                      {(() => {
+                        const tasa = estadisticas[asesor.ID].porcentajeCierre;
+                        if (tasa > 24) {
+                          return (
+                            <div className="flex items-center gap-1">
+                              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                              <span className="text-xs text-green-600 font-medium">Por encima</span>
+                            </div>
+                          );
+                        } else if (tasa >= 19 && tasa <= 24) {
+                          return (
+                            <div className="flex items-center gap-1">
+                              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                              <span className="text-xs text-blue-600 font-medium">Objetivo (19-24%)</span>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="flex items-center gap-1">
+                              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                              <span className="text-xs text-red-600 font-medium">Por debajo</span>
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">No disponible</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">

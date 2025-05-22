@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Asesor } from '../types';
 import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface GestionAsignacionesProps {
   asesores: Asesor[];
@@ -365,6 +366,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
         
         const data = await response.json();
         console.log('Respuesta exitosa:', data);
+        toast.success('Regla aplicada correctamente');
       } catch (fetchError: any) {
         console.error('Error detallado en fetch:', fetchError);
         throw fetchError;
@@ -374,7 +376,71 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
       setMostrarModal(false);
     } catch (error: any) {
       console.error('Error al aplicar regla:', error);
-      alert('Error al aplicar la regla: ' + (error.message || 'Error desconocido'));
+      toast.error('Error al aplicar la regla');
+    }
+  };
+
+  // Función para quitar el bloqueo de un asesor
+  const quitarBloqueo = async (asesorId: number) => {
+    try {
+      const asesorActual = asesores.find(a => a.ID === asesorId);
+      if (!asesorActual) throw new Error('Asesor no encontrado');
+      
+      const historialActual: ReglaHistorial[] = asesorActual.HISTORIAL ? JSON.parse(asesorActual.HISTORIAL) : [];
+      const prioridadActual = asesorActual.PRIORIDAD || 0;
+
+      // Crear nueva entrada en el historial para registrar la eliminación del bloqueo
+      const nuevaEntrada: ReglaHistorial = {
+        fecha: Math.floor(Date.now() / 1000),
+        tipo: 'BLOQUEO',
+        configuracion: {
+          motivo: `Bloqueo eliminado por administrador`,
+          prioridadAnterior: prioridadActual,
+          prioridadNueva: prioridadActual
+        }
+      };
+
+      const historialActualizado = [...historialActual, nuevaEntrada];
+
+      // Preparar el payload para quitar el bloqueo
+      const payload: Record<string, any> = {
+        FECHA_INICIO_REGLA: null, // Eliminar fecha de inicio
+        FECHA_FIN_REGLA: null,    // Eliminar fecha de fin
+        HISTORIAL: JSON.stringify(historialActualizado)
+      };
+      
+      console.log('Enviando PATCH para quitar bloqueo:', payload);
+
+      // Enviar la solicitud
+      try {
+        const response = await fetch(`${import.meta.env.VITE_POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error ${response.status}: ${errorText}`);
+          throw new Error(`Error ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Bloqueo eliminado con éxito:', data);
+        toast.success('Bloqueo eliminado correctamente');
+        
+        onUpdate();
+      } catch (fetchError: any) {
+        console.error('Error al quitar bloqueo:', fetchError);
+        throw fetchError;
+      }
+    } catch (error: any) {
+      console.error('Error al quitar bloqueo:', error);
+      toast.error('Error al quitar el bloqueo');
     }
   };
 
@@ -429,6 +495,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
         
         const data = await response.json();
         console.log('Respuesta exitosa:', data);
+        toast.success(tipo === 'BONUS' ? 'Bonificación aplicada correctamente' : 'Penalización aplicada correctamente');
       } catch (fetchError: any) {
         console.error('Error detallado en fetch:', fetchError);
         throw fetchError;
@@ -438,7 +505,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
       setMostrarModalPrioridad(false);
     } catch (error: any) {
       console.error('Error al aplicar prioridad:', error);
-      alert('Error al modificar la prioridad: ' + (error.message || 'Error desconocido'));
+      toast.error('Error al modificar la prioridad');
     }
   };
 
@@ -676,7 +743,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                                          {(() => {
+                    {(() => {
                       const ahoraEpoch = Math.floor(Date.now() / 1000); // Timestamp actual en segundos (epoch)
                       // Las fechas en la BD ahora son epoch (timestamp unix en segundos)
                       const fechaInicioEpoch = asesor.FECHA_INICIO_REGLA ? Number(asesor.FECHA_INICIO_REGLA) : null;
@@ -692,8 +759,6 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                       const bloqueado = (fechaInicioEpoch && !fechaFinEpoch) || 
                                         (fechaInicioEpoch && fechaFinEpoch && 
                                          ahoraEpoch >= fechaInicioEpoch && ahoraEpoch <= fechaFinEpoch);
-                      
-                     
                       
                       if (bloqueado) {
                         return (
@@ -746,7 +811,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                     )}
                     
                     {/* Bloqueo */}
-                                          {(() => {
+                    {(() => {
                       const ahoraEpoch = Math.floor(Date.now() / 1000); // Timestamp actual en segundos (epoch)
                       // Las fechas en la BD ahora son epoch (timestamp unix en segundos)
                       const fechaInicioEpoch = asesor.FECHA_INICIO_REGLA ? Number(asesor.FECHA_INICIO_REGLA) : null;
@@ -783,6 +848,20 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                                 )}
                               </div>
                               {mostrarPeriodoBloqueo(fechaInicio, fechaFin)}
+                              
+                              {/* Botón para quitar bloqueo */}
+                              <button
+                                onClick={() => {
+                                  if (confirm('¿Estás seguro de quitar el bloqueo?')) {
+                                    quitarBloqueo(asesor.ID);
+                                  }
+                                }}
+                                className="mt-2 px-2 py-1 bg-white border border-red-300 text-red-700 rounded-md 
+                                          text-xs font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-1"
+                              >
+                                <X className="h-3 w-3" />
+                                <span>Quitar bloqueo</span>
+                              </button>
                             </div>
                           </div>
                         );
@@ -1068,7 +1147,6 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                 <button
                   onClick={() => {
                     if (!nuevaRegla.motivo) {
-                      alert('Por favor, especifica un motivo para la regla. Es necesario para el historial.');
                       return;
                     }
                     
@@ -1082,17 +1160,17 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                     
                     console.log("Aplicando regla con valores:", reglaConEpoch);
                     
-                                          // Aplicar la regla con las fechas de epoch en lugar de Date objects
-                      const reglaParaEnviar = {
-                        ...nuevaRegla,
-                        fechaInicio: undefined, // No enviamos los objetos Date
-                        fechaFin: undefined,
-                        // Asignamos explícitamente los valores de epoch
-                        fechaInicioEpoch: reglaConEpoch.fechaInicioEpoch,
-                        fechaFinEpoch: reglaConEpoch.fechaFinEpoch
-                      };
-                      
-                      aplicarRegla(asesorSeleccionado.ID, reglaParaEnviar);
+                    // Aplicar la regla con las fechas de epoch en lugar de Date objects
+                    const reglaParaEnviar = {
+                      ...nuevaRegla,
+                      fechaInicio: undefined, // No enviamos los objetos Date
+                      fechaFin: undefined,
+                      // Asignamos explícitamente los valores de epoch
+                      fechaInicioEpoch: reglaConEpoch.fechaInicioEpoch,
+                      fechaFinEpoch: reglaConEpoch.fechaFinEpoch
+                    };
+                    
+                    aplicarRegla(asesorSeleccionado.ID, reglaParaEnviar);
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
@@ -1153,7 +1231,6 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                 <button
                   onClick={() => {
                     if (!motivoPrioridad.trim()) {
-                      alert('Por favor, especifica un motivo para la prioridad.');
                       return;
                     }
                     aplicarPrioridad(asesorSeleccionado.ID, tipoPrioridadSeleccionada, motivoPrioridad);

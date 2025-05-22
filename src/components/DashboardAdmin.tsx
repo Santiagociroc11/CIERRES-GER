@@ -1425,12 +1425,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                   </span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                  <span className="text-sm">
-                                    Tiempo promedio:
-                                    <span className="font-semibold">
-                                      {stats?.tiempoPromedioConversion.toFixed(1)} días
-                                    </span>
-                                  </span>
+                                  <span className="text-sm">Tiempo promedio:</span>
+                                  <span className="font-semibold">{stats?.tiempoPromedioConversion.toFixed(1)} días</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm">Tasa de cierre:</span>
@@ -2145,7 +2141,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           isOpen={!!clienteParaChat}
           onClose={() => setClienteParaChat(null)}
           cliente={clienteParaChat}
-          asesor={asesorSeleccionado}
+          asesor={asesorSeleccionado || undefined}
         />
       )}
 

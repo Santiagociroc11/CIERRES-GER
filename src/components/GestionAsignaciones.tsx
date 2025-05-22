@@ -13,7 +13,7 @@ interface GestionAsignacionesProps {
 type TipoPrioridad = 'BONUS' | 'PENALIZACION';
 
 // Tipo para las reglas normales
-type ReglaTipo = 'LIMITE_DIARIO' | 'BLOQUEO';
+type ReglaTipo = 'BLOQUEO';
 
 // Tipo combinado para todas las reglas
 type TipoReglaCompleto = ReglaTipo | TipoPrioridad;
@@ -235,7 +235,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
     });
     
     return {
-      tipo: 'LIMITE_DIARIO',
+      tipo: 'BLOQUEO',
       valor: 0,
       motivo: '',
       duracion: 'personalizado',
@@ -263,17 +263,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
   }, [asesores, ordenamiento]);
 
   const reglasDescripciones: Record<ReglaTipo, ReglaDescripcion> = {
-    LIMITE_DIARIO: {
-      titulo: 'Límite Diario',
-      descripcion: 'Establece un límite máximo de clientes que el asesor puede atender por día.',
-      consecuencias: 'El asesor no recibirá más clientes una vez alcanzado el límite diario.',
-      ejemplos: [
-        'Límite de 10 clientes por día para asesores nuevos',
-        'Reducción temporal a 5 clientes por día durante capacitación'
-      ],
-      icono: <Clock className="h-6 w-6" />,
-      color: 'text-blue-600'
-    },
+   
     BLOQUEO: {
       titulo: 'Bloqueo',
       descripcion: 'Detiene temporalmente o indefinidamente la asignación de nuevos clientes.',
@@ -323,11 +313,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
         HISTORIAL: JSON.stringify(historialActualizado)
       };
       
-      // Agregar campos opcionales solo si tienen valor
-      if (regla.tipo === 'LIMITE_DIARIO') {
-        payload.LIMITE_DIARIO = regla.valor;
-      }
-      
+  
       // Construir el endpoint con los parámetros de tipo correcto
       let endpoint = `${import.meta.env.VITE_POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}`;
       
@@ -517,13 +503,6 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
     let etiqueta;
     
     switch (entrada.tipo) {
-      case 'LIMITE_DIARIO':
-        icono = <Clock className="h-5 w-5" />;
-        colorTexto = 'text-blue-700';
-        colorFondo = 'bg-blue-50';
-        colorBorde = 'border-blue-200';
-        etiqueta = 'Límite Diario';
-        break;
       case 'BLOQUEO':
         icono = <Ban className="h-5 w-5" />;
         colorTexto = 'text-red-700';
@@ -596,13 +575,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
             </div>
           </div>
           
-          {entrada.tipo === 'LIMITE_DIARIO' && entrada.configuracion.valor && (
-            <div className="px-2 py-1 bg-blue-100 rounded-md">
-              <span className="text-sm font-medium text-blue-800">
-                {entrada.configuracion.valor} clientes/día
-              </span>
-            </div>
-          )}
+         
         </div>
         
         {/* Fechas de bloqueo si existen */}
@@ -799,16 +772,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                 </td>
                 <td className="px-6 py-4">
                   <div className="text-sm text-gray-900 space-y-2">
-                    {/* Límite diario */}
-                    {asesor.LIMITE_DIARIO && (
-                      <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-md border border-blue-200">
-                        <Clock className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                        <div className="flex flex-col">
-                          <span className="font-medium text-blue-700">Límite diario</span>
-                          <span className="text-xs text-blue-600">{asesor.LIMITE_DIARIO} clientes/día</span>
-                        </div>
-                      </div>
-                    )}
+                   
                     
                     {/* Bloqueo */}
                     {(() => {
@@ -977,7 +941,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                     setNuevaRegla({ ...nuevaRegla, tipo });
                   }}
                 >
-                  <option value="LIMITE_DIARIO">Límite Diario</option>
+                 
                   <option value="BLOQUEO">Bloqueo</option>
                 </select>
                 <p className="mt-1 text-sm text-gray-500">
@@ -985,21 +949,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                 </p>
               </div>
 
-              {nuevaRegla.tipo === 'LIMITE_DIARIO' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Cantidad de Clientes por Día</label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    value={nuevaRegla.valor}
-                    onChange={(e) => setNuevaRegla({ ...nuevaRegla, valor: parseInt(e.target.value) })}
-                  />
-                  <p className="mt-1 text-sm text-gray-500">
-                    El asesor no recibirá más clientes una vez alcanzado este límite diario.
-                  </p>
-                </div>
-              )}
+             
 
               {nuevaRegla.tipo === 'BLOQUEO' && (
                 <>
@@ -1282,9 +1232,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                       Mostrando todas las reglas aplicadas ordenadas por fecha
                     </p>
                     <div className="flex gap-1">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
-                        LÍMITE: {JSON.parse(asesorSeleccionado.HISTORIAL).filter((r: ReglaHistorial) => r.tipo === 'LIMITE_DIARIO').length}
-                      </span>
+                      
                       <span className="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-medium">
                         BLOQUEO: {JSON.parse(asesorSeleccionado.HISTORIAL).filter((r: ReglaHistorial) => r.tipo === 'BLOQUEO').length}
                       </span>

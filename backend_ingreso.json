@@ -1,0 +1,3681 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "98d33b2f-213d-47f2-a371-eea6200da8ea",
+                "name": "numero",
+                "value": "={{ $json.body.data.buyer.checkout_phone?$json.body.data.buyer.checkout_phone:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "793c14fc-8fad-40ff-b61d-74b8303d8345",
+                "name": "nombre",
+                "value": "={{ $json.body.data.buyer.name?$json.body.data.buyer.name:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "91dd8687-0c5f-4500-be93-273d95b33fad",
+                "name": "correo",
+                "value": "={{ $json.body.data.buyer.email?$json.body.data.buyer.email:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "7ee4aa65-ac76-4c9b-bd0c-464aa8b1f419",
+                "name": "flujo",
+                "value": "COMPRAS",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "ae13d1a5-4be3-4134-afc7-d21caeb952f7",
+        "name": "asignar datos COMPRA",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -60,
+          -120
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "98d33b2f-213d-47f2-a371-eea6200da8ea",
+                "name": "numero",
+                "value": "={{ $json.body.data.buyer.phone?$json.body.data.buyer.phone:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "793c14fc-8fad-40ff-b61d-74b8303d8345",
+                "name": "nombre",
+                "value": "={{ $json.body.data.buyer.name?$json.body.data.buyer.name:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "91dd8687-0c5f-4500-be93-273d95b33fad",
+                "name": "correo",
+                "value": "={{ $json.body.data.buyer.email?$json.body.data.buyer.email:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "bc97ae8d-0182-4e22-967c-23a116480230",
+                "name": "flujo",
+                "value": "CARRITOS",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "5f2bb164-3eb4-477e-b0b0-0a44c37056b7",
+        "name": "Asignar datos CARRITO",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -60,
+          -280
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "98d33b2f-213d-47f2-a371-eea6200da8ea",
+                "name": "numero",
+                "value": "={{ $json.body.data.buyer.checkout_phone?$json.body.data.buyer.checkout_phone:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "793c14fc-8fad-40ff-b61d-74b8303d8345",
+                "name": "nombre",
+                "value": "={{ $json.body.data.buyer.name?$json.body.data.buyer.name:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "91dd8687-0c5f-4500-be93-273d95b33fad",
+                "name": "correo",
+                "value": "={{ $json.body.data.buyer.email?$json.body.data.buyer.email:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "fa1bd1b6-b606-4de1-a5cc-291bfa8ad403",
+                "name": "flujo",
+                "value": "RECHAZADOS",
+                "type": "string"
+              },
+              {
+                "id": "63570007-794a-4d17-9009-c47ba0a15e82",
+                "name": "motivo",
+                "value": "={{ $json.body.data.purchase.payment.refusal_reason?$json.body.data.purchase.payment.refusal_reason:null  }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "7241f9f1-c097-46df-a937-fd73ba13f748",
+        "name": "Asignar datos RECHAZADOS",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -60,
+          40
+        ]
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.body.event }}",
+                      "rightValue": "CART",
+                      "operator": {
+                        "type": "string",
+                        "operation": "contains"
+                      },
+                      "id": "fd884392-f94b-4362-9bee-034d61d4d808"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "CARRITO"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "58cbfd42-520c-4408-b64c-bfcc89f08d2a",
+                      "leftValue": "={{ $json.body.event }}",
+                      "rightValue": "PURCHASE_APPROVED",
+                      "operator": {
+                        "type": "string",
+                        "operation": "contains"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "APROBADA"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "8fad3231-c87a-41f9-850b-9b2db22b39a4",
+                      "leftValue": "={{ $json.body.event }}",
+                      "rightValue": "PURCHASE_CANCELED",
+                      "operator": {
+                        "type": "string",
+                        "operation": "contains"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "RECHAZADOS"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "0bd0ff8a-3e8e-4d40-90a6-b439356e4503",
+                      "leftValue": "={{ $json.body.event }}",
+                      "rightValue": "PURCHASE_BILLET_PRINTED",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "TICKET"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "8ad282d6-a9cc-49db-8366-34dd776bd9b3",
+        "name": "Switch",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [
+          -340,
+          -20
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "98d33b2f-213d-47f2-a371-eea6200da8ea",
+                "name": "numero",
+                "value": "={{ $json.body.data.buyer.checkout_phone?$json.body.data.buyer.checkout_phone:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "793c14fc-8fad-40ff-b61d-74b8303d8345",
+                "name": "nombre",
+                "value": "={{ $json.body.data.buyer.name?$json.body.data.buyer.name:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "91dd8687-0c5f-4500-be93-273d95b33fad",
+                "name": "correo",
+                "value": "={{ $json.body.data.buyer.email?$json.body.data.buyer.email:null  }}",
+                "type": "string"
+              },
+              {
+                "id": "fa1bd1b6-b606-4de1-a5cc-291bfa8ad403",
+                "name": "flujo",
+                "value": "TICKETS",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "0114aaf7-11e0-4b0a-9d1c-70ba4e8861c5",
+        "name": "Asignar datos TICKET",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -60,
+          220
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "gersson-lanza-hotmart",
+          "options": {}
+        },
+        "id": "b8817ee2-9663-4afc-9d69-6acaedecfe28",
+        "name": "HOTMART",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -560,
+          0
+        ],
+        "webhookId": "6192ad52-6901-4c16-87aa-64bf7dcfddf0"
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "const valores = {\n  numericos: {\n    CARRITOS: \"content20250222080111_909145\",\n    RECHAZADOS: \"content20250222082908_074257\",\n    COMPRAS: \"content20250222083048_931507\",\n    TICKETS: \"content20250222083004_157122\"\n  },\n  mailer: {\n    CARRITOS: \"112554445482493399\",\n    RECHAZADOS: \"112554438393071296\",\n    COMPRAS: \"112554427903116632\",\n    TICKETS: \"147071027455723326\"\n  },\n  tablas: {\n    CARRITOS: \"FECHA_ABANDONADO\",\n    RECHAZADOS: \"FECHA_RECHAZADO\",\n    COMPRAS: \"FECHA_COMPRA\",\n    TICKETS: \"FECHA_TICKET\"\n  },\n};\n\nreturn {\n  json: {\n    numero: $json.numero,\n    nombre: $json.nombre,\n    correo: $json.correo,\n    flujo: $json.flujo,\n    flujomany: valores.numericos[$json.flujo] || 0,\n    grupomailer: valores.mailer[$json.flujo] || 0,\n    tabla: valores.tablas[$json.flujo] || 0,\n    motivo: $json.motivo || null\n  }\n};\n"
+        },
+        "id": "41070488-d638-4392-933f-0b2d6ea47df0",
+        "name": "ASIGNACION",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          420,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "a3c0f0d9-2a6c-432c-a73e-9ee7b51ebf14",
+                "leftValue": "={{ $json.numero }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "42a7668b-d53c-4800-a48c-f3c6a0c818a6",
+        "name": "NUMERO?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          100,
+          -280
+        ]
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.isEmpty() }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "boolean",
+                        "operation": "true",
+                        "singleValue": true
+                      },
+                      "id": "16e2bc07-c05c-4e36-bd5d-d313d0d81cac"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "NUEVO"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "36834769-c9f1-4fc7-ac70-73892aeba8e3",
+                      "leftValue": "={{ $json.isEmpty() }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "boolean",
+                        "operation": "false",
+                        "singleValue": true
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "VIEJO"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [
+          1760,
+          560
+        ],
+        "id": "71ab8fb0-b666-460d-9d76-13543b7bd6ea",
+        "name": "ESTADO"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "7b498286-03a2-4a7b-8fc1-1caff5d6ff6d",
+                "leftValue": "={{$('ASIGNACION').item.json.flujo}}",
+                "rightValue": "COMPRAS",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals",
+                  "name": "filter.operator.equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1540,
+          240
+        ],
+        "id": "d6ba56df-16a1-44dc-82ad-282c77a47af1",
+        "name": "COMPRAS?"
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.isEmpty() }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "boolean",
+                        "operation": "false",
+                        "singleValue": true
+                      },
+                      "id": "16e2bc07-c05c-4e36-bd5d-d313d0d81cac"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "ASIGNADA"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "36834769-c9f1-4fc7-ac70-73892aeba8e3",
+                      "leftValue": "={{ $json.isEmpty() }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "boolean",
+                        "operation": "true",
+                        "singleValue": true
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "SIN ASIGNAR"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [
+          1780,
+          60
+        ],
+        "id": "2a01a731-ac59-403f-96b1-b00d5f2e7885",
+        "name": "ASIGNADA?"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "bdbedabd-650a-4c77-aafe-61f48231f405",
+                "leftValue": "={{ $json.data[0].id }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "exists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          2120,
+          -400
+        ],
+        "id": "921be498-52fa-4be8-a443-3c557bce68c0",
+        "name": "existe en manychat?"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.manychat.com/fb/sending/sendFlow",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer 288702267651723:f96a1f26344892df99c98292741de8c9"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"subscriber_id\": {{ $json.id_manychat }},\n  \"flow_ns\": \"{{ $('ASIGNACION').item.json.flujomany }}\"\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2740,
+          -480
+        ],
+        "id": "851b7de7-6470-4367-afe7-b99561ed92f5",
+        "name": "ENVIAR FLUJO BV",
+        "retryOnFail": true,
+        "waitBetweenTries": 5000,
+        "maxTries": 5,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "17104ede-50c0-4ff6-b16b-5ec89d177da7",
+                "name": "id_manychat",
+                "value": "={{ $json.data.id }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          2540,
+          -340
+        ],
+        "id": "33731b04-de1a-4bdc-a925-aa0268a06776",
+        "name": "id"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "17104ede-50c0-4ff6-b16b-5ec89d177da7",
+                "name": "id_manychat",
+                "value": "={{ $json.data[0].id }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          2360,
+          -480
+        ],
+        "id": "14d1fcc2-8c80-406c-9683-9342b8fafc08",
+        "name": "id1"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.telegram.org/bot8117750846:AAExGxB3Mbwv2YBb6b7rMAvP6vsIPeH8EIM/sendMessage",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "d144b1e5-c5c5-4d61-9108-a152c36681d9",
+        "name": "CLIENTE EXISTENTE - CERRADOR",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3240,
+          720
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.telegram.org/bot8117750846:AAExGxB3Mbwv2YBb6b7rMAvP6vsIPeH8EIM/sendMessage",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.toJsonString() }}\n",
+          "options": {}
+        },
+        "id": "9fc07acf-3b57-493a-83f4-bdd8771429a7",
+        "name": "CLIENTE NUEVO - CERRADOR",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3980,
+          380
+        ]
+      },
+      {
+        "parameters": {
+          "content": "## API Y CORREO\n",
+          "height": 460,
+          "width": 1120
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [
+          1840,
+          -620
+        ],
+        "typeVersion": 1,
+        "id": "ed193b43-b767-425e-abfa-2980136a4c80",
+        "name": "Sticky Note"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://connect.mailerlite.com/api/subscribers",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiI0IiwianRpIjoiNjJkOWNjNDIwNmY2MjU3NmNlODlkZjI0ZjI2YTY3Y2I2YzBlMDU1ZTUyNjI3Mzk3ZDI5YzY4YzQ1ZDQ5ODA1MGIwN2U3YmI2MzRjMTdlMWIiLCJpYXQiOjE3MDczNDE5NzMuMTk4MDI2LCJuYmYiOjE3MDczNDE5NzMuMTk4MDI4LCJleHAiOjQ4NjMwMTU1NzMuMTk0NjIzLCJzdWIiOiI3ODg1NjciLCJzY29wZXMiOltdfQ.szhVxEi-fFJkTPNuE5xraeYUUhH_mh4c0fsqQCUoZD7lWk4FEmiKtO6KzqETU9wOjGPYw0hf0i08UzHAXJShiktN-Jd-X6EodonxdgqIYFae4Mfc11BNx8kunRotBESUN7gxeA0yvVSjXv-AuCZ-jjNuRjWFtXrAK237WqIZQoMmGdyrkt6-BLU0FcnksVxLHdliocY1LDisSAjJ3kUKEAVF2OLjI3Ks3SFxsuDcb4zeUgjqACBiYCreoKQKwPlyr1srybwnrbXZL302QtiV-t4jYogole8SwDtQP4El0kVbqkgEiadFcBLF-wNg5K5RNrvTdk-YucFbbKwTVlXH_NdwzgRqNjw9LUl4u7i6FGeiECYVI6ufZ39QTLbwEMaQ4Q2lC6CDt7baSVnT4ahthxN3tlAm49L_5bjAz9UYP3dNHhNX5jh3SeR-qp86TAP3sSyiCQnrHx9HKeyGzmwkXpSdEAl8wCg4jEpX9a3ajJuqfTbcoANyMxJQgqjedep8tAYwOPpnkOmfo45qf4txzIDVE1eeqKrB5_Y1hexB2VZObRMYmGVDyKXnyqJgdWjzOlbkcnoegkXQEkp2t3EyzD2H6S41G9c_0nNjlqgu1elCMFFrMgRXLi9_Op87Y5tCEi52cTUNQ2WSHWMHibEySLzNa873Vop9Gc_tugl9M9g"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "email",
+                "value": "={{ $('ASIGNACION').first().json.correo }}"
+              },
+              {
+                "name": "groups",
+                "value": "={{ [$('ASIGNACION').first().json.grupomailer] }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "c53a822d-4d7a-4d8d-8fcf-924406b5d48b",
+        "name": "MAILERLITE1",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1900,
+          -540
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "let jsonventa = $('HOTMART').first().json.body.data;\nlet cerrador = $input.first().json.NOMBRE_ASESOR\n\n// Extraer datos relevantes\nconst transaction = jsonventa.purchase?.transaction || \"N/A\";\nconst buyerName = jsonventa.buyer?.name || \"N/A\";\nconst pais = jsonventa.buyer?.address?.country || \"N/A\";\nconst buyerEmail = jsonventa.buyer?.email || \"N/A\";\nconst productName = jsonventa.product?.name || \"N/A\";\nconst purchaseDate = new Date(jsonventa.purchase?.order_date).toLocaleString();\n\n// Construir el mensaje\nconst text = `<b>Notificación de VENTA</b>\\n\\n` +\n  `<b>Producto:</b> ${productName}\\n` +\n  `<b>Pais:</b> ${pais}\\n` +\n  `<b>Comprador:</b> ${buyerName}\\n` +\n  `<b>Correo:</b> ${buyerEmail}\\n` +\n  `<b>Transacción:</b> ${transaction}\\n` +\n  `<b>CERRADOR:</b> ${cerrador}\\n` +\n  `<b>Fecha de compra:</b> ${purchaseDate}\\n`;\n\n\nreturn {\n  json: {\n    text,\n  },\n};\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2820,
+          -80
+        ],
+        "id": "6632db46-0264-4502-932e-272c15ba3458",
+        "name": "mensaje"
+      },
+      {
+        "parameters": {
+          "jsCode": "let jsonventa = $('HOTMART').first().json.body.data;\nlet cerrador = \"SIN CERRADOR\"\n\n// Extraer datos relevantes\nconst transaction = jsonventa.purchase?.transaction || \"N/A\";\nconst buyerName = jsonventa.buyer?.name || \"N/A\";\nconst pais = jsonventa.buyer?.address?.country || \"N/A\";\nconst buyerEmail = jsonventa.buyer?.email || \"N/A\";\nconst productName = jsonventa.product?.name || \"N/A\";\nconst purchaseDate = new Date(jsonventa.purchase?.order_date).toLocaleString();\n\nconst text = `<b>Notificación de VENTA</b>\\n\\n` +\n  `<b>Producto:</b> ${productName}\\n` +\n  `<b>Pais:</b> ${pais}\\n` +\n  `<b>Comprador:</b> ${buyerName}\\n` +\n  `<b>Correo:</b> ${buyerEmail}\\n` +\n  `<b>Transacción:</b> ${transaction}\\n` +\n  `<b>CERRADOR:</b> ${cerrador}\\n` +\n  `<b>Fecha de compra:</b> ${purchaseDate}\\n`;\n\nreturn {\n  json: {\n    text,\n  },\n};\n\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2340,
+          140
+        ],
+        "id": "92a72319-6b56-4838-9c1a-39c2ac92d0fa",
+        "name": "mensaje1"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.manychat.com/fb/subscriber/createSubscriber",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer 288702267651723:f96a1f26344892df99c98292741de8c9"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"first_name\": \"{{ $('ASIGNACION').item.json.nombre }}\",\n  \"whatsapp_phone\": \"{{ $('ASIGNACION').item.json.numero }}\"\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2320,
+          -320
+        ],
+        "id": "65f15e76-32bb-4dbf-9c2c-a18696bbe1bc",
+        "name": "CREAR",
+        "retryOnFail": true,
+        "waitBetweenTries": 5000,
+        "maxTries": 5,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "url": "https://api.manychat.com/fb/subscriber/findByName",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "name",
+                "value": "=+{{ $('ASIGNACION').item.json.numero }}"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer 288702267651723:f96a1f26344892df99c98292741de8c9"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1900,
+          -380
+        ],
+        "id": "76c20459-d98a-4080-88e3-3f90dd78db56",
+        "name": "BUSQUEDA",
+        "retryOnFail": true,
+        "waitBetweenTries": 5000,
+        "maxTries": 5,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.telegram.org/bot8117750846:AAExGxB3Mbwv2YBb6b7rMAvP6vsIPeH8EIM/sendMessage",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"chat_id\": \"-1002176532359\",\n  \"message_thread_id\": 807,\n  {{ $json.toJsonString().replace(/^\\{|\\}$/g, \"\") }},\n  \"parse_mode\": \"HTML\"\n}\n",
+          "options": {}
+        },
+        "id": "8308853f-4ae7-4418-8982-c153b2ce7a5a",
+        "name": "TG COMPRA SIN ASIGNAR",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2500,
+          140
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.telegram.org/bot8117750846:AAExGxB3Mbwv2YBb6b7rMAvP6vsIPeH8EIM/sendMessage",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"chat_id\": \"-1002176532359\",\n  \"message_thread_id\": 807,\n   {{ $json.toJsonString().replace(/^\\{|\\}$/g, \"\") }},\n  \"parse_mode\": \"HTML\"\n}\n",
+          "options": {}
+        },
+        "id": "3fc46e5d-ef86-4b0a-8c86-c99cf9652a69",
+        "name": "TG COMPRA ASIGNADA",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2980,
+          -80
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "b0ba3677-8ec4-4669-b41b-5fff6516d2bf",
+                "leftValue": "={{ $json.isNotEmpty() }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          780,
+          0
+        ],
+        "id": "10714732-3ea7-469f-ad21-3f5342d9e688",
+        "name": "EXISTE?"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          1140,
+          20
+        ],
+        "id": "64f91caf-b2cb-4e78-a206-9ee6fb26db1a",
+        "name": "No Operation, do nothing"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "b0ba3677-8ec4-4669-b41b-5fff6516d2bf",
+                "leftValue": "={{ $json.ESTADO }}",
+                "rightValue": "PAGADO",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          960,
+          -80
+        ],
+        "id": "387659b8-acc8-4678-90ef-68bb4a53a78b",
+        "name": "PAGADO?"
+      },
+      {
+        "parameters": {
+          "jsCode": "const evento = $('EVENTO +1').first().json.TIPO_EVENTO;\nconst nombre_cliente = $('CLIENTE +1').first().json.NOMBRE;\nconst numero_cliente = $('CLIENTE +1').first().json.WHATSAPP;\nconst chat_asesor = $input.first().json.ID_TG;\nconst motivo_rechazo = $('ASIGNACION').first().json.motivo || \"Motivo no especificado\";\n\nconst mensajes = {\n    \"CARRITOS\": `🚨 *CARRITOS ABANDONADOS* 🚨\\n\\n👤 *Cliente:* ${nombre_cliente}\\n📲 *WhatsApp:* ${numero_cliente}\\n🛒 *Estado:* Abandonó el carrito.`,\n    \"TICKETS\": `🎟️ *SEGUIMIENTO A TICKET* 🎟️\\n\\n👤 *Cliente:* ${nombre_cliente}\\n📲 *WhatsApp:* ${numero_cliente}\\n💳 *Estado:* Generó un ticket de pago.`,\n    \"RECHAZADOS\": `❌ *COMPRA RECHAZADA* ❌\\n\\n👤 *Cliente:* ${nombre_cliente}\\n📲 *WhatsApp:* ${numero_cliente}\\n⚠️ *Motivo:* ${motivo_rechazo}`\n};\n\nconst botones = {\n    \"reply_markup\": {\n        \"inline_keyboard\": [\n            [\n                {\n                    \"text\": \"IR A ATENDER\",\n                    \"url\": `https://wa.me/${numero_cliente}`\n                }\n            ],\n            [\n                {\n                    \"text\": \"REPORTAR ESTADO\",\n                    \"url\": \"https://sistema-cierres-ger.automscc.com/\"\n                }\n            ]\n        ]\n    }\n};\n\nconst mensaje = mensajes[evento] || null;\n\nreturn mensaje ? [{ chat_id: chat_asesor, text: mensaje, parse_mode: \"Markdown\", ...botones }] : [];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2960,
+          360
+        ],
+        "id": "b14d1ef7-317d-439a-ae54-285f23c860ad",
+        "name": "Code"
+      },
+      {
+        "parameters": {
+          "jsCode": "const evento = $('EVENTO +').first().json.TIPO_EVENTO;\nconst nombre_cliente = $('UPD. ESTADO').first().json.NOMBRE\nconst numero_cliente = $('UPD. ESTADO').first().json.WHATSAPP;\nconst chat_asesor = $input.first().json.ID_TG;\nconst motivo_rechazo = $('ASIGNACION').first().json.motivo || \"Motivo no especificado\";\n\nconst mensajes = {\n    \"CARRITOS\": `🚨 *TU CLIENTE HIZO CARRITO ABANDONADO* 🚨\\n\\n👤 *Cliente:* ${nombre_cliente}\\n📲 *WhatsApp:* ${numero_cliente}\\n🛒 *Estado:* Abandonó el carrito.`,\n    \"TICKETS\": `🎟️ *TU CLIENTE HIZO UN TICKET* 🎟️\\n\\n👤 *Cliente:* ${nombre_cliente}\\n📲 *WhatsApp:* ${numero_cliente}\\n💳 *Estado:* Generó un ticket de pago.`,\n    \"RECHAZADOS\": `❌ *TU CLIENTE HIZO COMPRA RECHAZADA* ❌\\n\\n👤 *Cliente:* ${nombre_cliente}\\n📲 *WhatsApp:* ${numero_cliente}\\n⚠️ *Motivo:* ${motivo_rechazo}`\n};\n\nconst botones = {\n    \"reply_markup\": {\n        \"inline_keyboard\": [\n            [\n                {\n                    \"text\": \"IR A ATENDER\",\n                    \"url\": `https://wa.me/${numero_cliente}`\n                }\n            ],\n            [\n                {\n                    \"text\": \"REPORTAR ESTADO\",\n                    \"url\": \"https://sistema-cierres-ger.automscc.com/\"\n                }\n            ]\n        ]\n    }\n};\n\nconst mensaje = mensajes[evento] || null;\n\nreturn mensaje ? [{ chat_id: chat_asesor, text: mensaje, parse_mode: \"Markdown\", ...botones }] : [];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3100,
+          720
+        ],
+        "id": "86341da3-0bf7-4d0c-95af-ab87680c718a",
+        "name": "Code1"
+      },
+      {
+        "parameters": {
+          "resource": "messages-api",
+          "instanceName": "={{ $('BUSCA ASESOR3').item.json.NOMBRE }}",
+          "remoteJid": "={{ $('CLIENTE +1').item.json.WHATSAPP }}",
+          "messageText": "={{ $json.output }}",
+          "options_message": {}
+        },
+        "type": "n8n-nodes-evolution-api.evolutionApi",
+        "typeVersion": 1,
+        "position": [
+          3580,
+          440
+        ],
+        "id": "7cb6b5a0-977d-4bc4-900f-95eac51330cf",
+        "name": "Evolution API",
+        "retryOnFail": false,
+        "credentials": {
+          "evolutionApi": {
+            "id": "Png3VbsnUeyqI5UL",
+            "name": "VPS-EASYPANEL"
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "agent": "conversationalAgent",
+          "promptType": "define",
+          "text": "=Actua como un asesor de ventas llamado: \"{{ $('CLIENTE +1').first().json.NOMBRE_ASESOR }}\"\" el cual impulsa "La Terapia del Dolor" de Gerson López (Terapias Magnéticas Academy). Tu misión es crear mensajes irresistibles para WhatsApp que abran conversaciones y motiven al cliente a responder.\n\nDatos clave para personalizar el mensaje:\n\nNombre del cliente: {{ $('ASIGNACION').first().json.nombre }}\nTipo de evento Hotmart del cliente: {{ $('ASIGNACION').first().json.flujo }}\nMotivo de rechazo del cliente: {{ $('ASIGNACION').first().json.motivo ? $('ASIGNACION').first().json.motivo : \"no disponible\" }}\nTipos de eventos Hotmart:\n\nCarrito 🛒: El cliente abandonó el proceso de pago con los datos ya ingresados.\nRechazado ❌: Intentó pagar, pero su tarjeta fue rechazada (motivo disponible).\nTicket 💵: Generó un ticket de pago en efectivo y requiere seguimiento.\n🎯 Objetivo\nDiseñar mensajes cortos y poderosos que despierten curiosidad, urgencia y cercanía, logrando que el cliente responda rápido. Queremos entender qué pasó en su proceso de compra y guiarlo para cerrar la venta.\n\n⚡ Estilo del mensaje:\n✅ Corto, directo y con gancho (WhatsApp no es un blog).\n✅ Conversacional y fresco, con un tono que combina amistad y profesionalismo.\n✅ Urgencia real, sin sonar desesperado.\n✅ Personalizado y relevante según su caso (Carrito, Rechazado o Ticket).\n✅ Sutilmente persuasivo, enfocándose en el valor de la terapia.\n\n📜 Instrucciones:\nSaluda por su nombre y menciona su situación específica en Hotmart.\nSi su pago fue rechazado, incluye (sutilmente) el motivo.\nPara los que abandonaron el carrito, pregunta qué los detuvo.\nSi hicieron un ticket de pago, recuérdales que el tiempo es clave.\nCierra con una pregunta o llamada a la acción que los motive a responder.\n\nhazle saltos de linea para que sea mas facil de leer y que no suene generico, que sea humano y con dialecto de colombia sin ser coloquial ni vulgar ni atrevido, totalmente formal y amigable y por nada del mundo digas nada alarmante, como algo de fraude o cosas asi.\n\npor nada del mundo pongas variables a rellenar estilo [tu nombre], manda mensajes como el asesor que estas encarnando.",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "position": [
+          3260,
+          440
+        ],
+        "id": "5f9714e9-5e77-4379-a2f2-42214efc0e4d",
+        "name": "AI Agent"
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "value": "gpt-4o-mini",
+            "mode": "list",
+            "cachedResultName": "gpt-4o-mini"
+          },
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.2,
+        "position": [
+          3280,
+          600
+        ],
+        "id": "667834cd-ca3a-4a52-bbb6-42a3b44f26c0",
+        "name": "OpenAI Chat Model",
+        "credentials": {
+          "openAiApi": {
+            "id": "nZ98FVO8dD6bJnEc",
+            "name": "GPT SANTIAGO"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch"
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          3820,
+          380
+        ],
+        "id": "77e55a00-fcd6-4557-9a3b-99cdb80285c5",
+        "name": "Merge1"
+      },
+      {
+        "parameters": {
+          "resource": "chat-api",
+          "instanceName": "={{ $('BUSCA').item.json.NOMBRE_ASESOR }}",
+          "numbers": "={{ $json.WHATSAPP }}"
+        },
+        "type": "n8n-nodes-evolution-api.evolutionApi",
+        "typeVersion": 1,
+        "position": [
+          2300,
+          700
+        ],
+        "id": "1948ba80-e2c2-4e3f-84d8-34c37d226ca7",
+        "name": "Evolution API1",
+        "credentials": {
+          "evolutionApi": {
+            "id": "Png3VbsnUeyqI5UL",
+            "name": "VPS-EASYPANEL"
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.data[0].exists }}",
+                      "rightValue": "true",
+                      "operator": {
+                        "type": "boolean",
+                        "operation": "true",
+                        "singleValue": true
+                      },
+                      "id": "523eb970-b474-43de-b07a-f7b49dc5ed29"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "EXISTE"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "f3d12bb0-313d-4311-b333-566f0be176f9",
+                      "leftValue": "={{ $json.data[0].exists }}",
+                      "rightValue": "false",
+                      "operator": {
+                        "type": "boolean",
+                        "operation": "false",
+                        "singleValue": true
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "NO EXISTE"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [
+          2520,
+          640
+        ],
+        "id": "f6885e80-12ff-42a3-9276-02915803e786",
+        "name": "Switch1"
+      },
+      {
+        "parameters": {
+          "operation": "select",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_CLIENTES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_CLIENTES"
+          },
+          "limit": 1,
+          "where": {
+            "values": [
+              {
+                "column": "WHATSAPP",
+                "condition": "LIKE",
+                "value": "=%{{$('ASIGNACION').item.json.numero.toString().slice(-7)}}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          600,
+          0
+        ],
+        "id": "47debf56-105d-4608-899e-cffed4b73cea",
+        "name": "BUSCA1",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "select",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_CLIENTES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_CLIENTES"
+          },
+          "limit": 1,
+          "where": {
+            "values": [
+              {
+                "column": "WHATSAPP",
+                "condition": "LIKE",
+                "value": "=%{{$('ASIGNACION').item.json.numero.toString().slice(-7)}}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          1360,
+          240
+        ],
+        "id": "190a2d31-8eb7-46e8-8e30-53994c982e72",
+        "name": "BUSCA",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "select",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_ASESORES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_ASESORES"
+          },
+          "limit": 1,
+          "where": {
+            "values": [
+              {
+                "column": "ID",
+                "value": "={{ $json.ID_ASESOR }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2020,
+          -80
+        ],
+        "id": "7fc636d1-37da-4464-8914-e07631bb8d1a",
+        "name": "REVISAR",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_ASESORES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_ASESORES"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "ID": "={{ $json.ID }}",
+              "COMPRAS": "={{ $json.COMPRAS + 1 }}"
+            },
+            "matchingColumns": [
+              "ID"
+            ],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "NOMBRE",
+                "displayName": "NOMBRE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "WHATSAPP",
+                "displayName": "WHATSAPP",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "LINK",
+                "displayName": "LINK",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "RECHAZADOS",
+                "displayName": "RECHAZADOS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "CARRITOS",
+                "displayName": "CARRITOS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "TICKETS",
+                "displayName": "TICKETS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "COMPRAS",
+                "displayName": "COMPRAS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ES_ADMIN",
+                "displayName": "ES_ADMIN",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "boolean",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "ID_TG",
+                "displayName": "ID_TG",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MASIVOS",
+                "displayName": "MASIVOS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2180,
+          -80
+        ],
+        "id": "80633c94-4145-4013-8ca3-8b210bc0c951",
+        "name": "CONT + 1",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_CLIENTES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_CLIENTES"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "ID": "={{$('BUSCA').item.json.ID}}",
+              "FECHA_COMPRA": "={{ $now.toSeconds().floor() }}",
+              "MEDIO_COMPRA": "HOTMART",
+              "ESTADO": "PAGADO",
+              "NOMBRE": "={{ $('ASIGNACION').item.json.nombre }}",
+              "WHATSAPP": "={{ $('ASIGNACION').item.json.numero }}"
+            },
+            "matchingColumns": [
+              "ID"
+            ],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "NOMBRE",
+                "displayName": "NOMBRE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ESTADO",
+                "displayName": "ESTADO",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "WHATSAPP",
+                "displayName": "WHATSAPP",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ID_ASESOR",
+                "displayName": "ID_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "NOMBRE_ASESOR",
+                "displayName": "NOMBRE_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "WHA_ASESOR",
+                "displayName": "WHA_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "FECHA_CREACION",
+                "displayName": "FECHA_CREACION",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "FECHA_COMPRA",
+                "displayName": "FECHA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "MEDIO_COMPRA",
+                "displayName": "MEDIO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "MONTO_COMPRA",
+                "displayName": "MONTO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONEDA_COMPRA",
+                "displayName": "MONEDA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "PAIS",
+                "displayName": "PAIS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2340,
+          -80
+        ],
+        "id": "6b229688-f1ba-4fe9-a1f5-d775749c27d0",
+        "name": "UPDATE CLIENTE",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_REGISTROS",
+            "mode": "list",
+            "cachedResultName": "GERSSON_REGISTROS"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "FECHA_EVENTO": "={{ $now.toSeconds().floor() }}",
+              "TIPO_EVENTO": "COMPRA",
+              "ID_CLIENTE": "={{$('BUSCA').item.json.ID}}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "ID_CLIENTE",
+                "displayName": "ID_CLIENTE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "TIPO_EVENTO",
+                "displayName": "TIPO_EVENTO",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "FECHA_EVENTO",
+                "displayName": "FECHA_EVENTO",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2500,
+          -80
+        ],
+        "id": "63a7d746-8878-4d7f-ab0e-84958f8e3402",
+        "name": "EVENTO COMPRA +1",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "select",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_CLIENTES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_CLIENTES"
+          },
+          "limit": 1,
+          "where": {
+            "values": [
+              {
+                "column": "WHATSAPP",
+                "condition": "LIKE",
+                "value": "=%{{$('ASIGNACION').item.json.numero.toString().slice(-4)}}%"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2660,
+          -80
+        ],
+        "id": "077268da-686d-45cf-a866-c09eca068c29",
+        "name": "BUSCA ASESOR1",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_CLIENTES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_CLIENTES"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "WHATSAPP": "={{$('ASIGNACION').item.json.numero}}",
+              "ESTADO": "PAGADO",
+              "FECHA_CREACION": "={{ $now.toSeconds().floor() }}",
+              "FECHA_COMPRA": "={{ $now.toSeconds().floor() }}",
+              "MEDIO_COMPRA": "HOTMART",
+              "NOMBRE": "={{$('ASIGNACION').item.json.nombre}}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "NOMBRE",
+                "displayName": "NOMBRE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ESTADO",
+                "displayName": "ESTADO",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "WHATSAPP",
+                "displayName": "WHATSAPP",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ID_ASESOR",
+                "displayName": "ID_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "NOMBRE_ASESOR",
+                "displayName": "NOMBRE_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "WHA_ASESOR",
+                "displayName": "WHA_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "FECHA_CREACION",
+                "displayName": "FECHA_CREACION",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "FECHA_COMPRA",
+                "displayName": "FECHA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "MEDIO_COMPRA",
+                "displayName": "MEDIO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "MONTO_COMPRA",
+                "displayName": "MONTO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONEDA_COMPRA",
+                "displayName": "MONEDA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "PAIS",
+                "displayName": "PAIS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2020,
+          140
+        ],
+        "id": "6b0a8fb4-7313-4364-8e79-1f84767406ad",
+        "name": "REGISTRO1",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_REGISTROS",
+            "mode": "list",
+            "cachedResultName": "GERSSON_REGISTROS"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "ID_CLIENTE": "={{ $json.ID }}",
+              "TIPO_EVENTO": "COMPRA",
+              "FECHA_EVENTO": "={{ $now.toSeconds().floor() }}"
+            },
+            "matchingColumns": [
+              "ID"
+            ],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "ID_CLIENTE",
+                "displayName": "ID_CLIENTE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "TIPO_EVENTO",
+                "displayName": "TIPO_EVENTO",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "FECHA_EVENTO",
+                "displayName": "FECHA_EVENTO",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2180,
+          140
+        ],
+        "id": "c40c4174-5da9-4f97-99f2-c1e66d130f78",
+        "name": "REGISTRO COMPRA +",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "select",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_ASESORES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_ASESORES"
+          },
+          "limit": 1,
+          "sort": {
+            "values": [
+              {
+                "column": "PRIORIDAD",
+                "direction": "DESC"
+              },
+              {
+                "column": "={{$('ASIGNACION').item.json.flujo}}"
+              },
+              {
+                "column": "ID"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "name": "Limit",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          1980,
+          360
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Obtener el nombre del campo a actualizar desde el nodo \"ASIGNACION\"\nconst flujoKey = $('ASIGNACION').first().json.flujo; // Esto puede traer \"LINK\", \"TAREA\", etc.\n\nconst input = $input.first().json;\nconst actual = input[flujoKey] || 0; // Acceder dinámicamente a la propiedad del flujo\nconst idValue = $('Limit').first().json.ID; // Obtener el ID para el WHERE\n\n// Construir la consulta SQL como un string directo\nconst query = `\n  UPDATE \"public\".\"GERSSON_ASESORES\"\n  SET \"${flujoKey}\" = ${actual + 1}\n  WHERE \"ID\" = ${idValue};\n`;\n\n// Devolver el JSON con la consulta lista para ejecutarse\nreturn [\n  {\n    json: {\n      query: query\n    }\n  }\n];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2140,
+          360
+        ],
+        "id": "d2f2512e-0b23-4777-9dc6-833f1124b3c0",
+        "name": "conteo + 1"
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "{{ $json.query }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2300,
+          360
+        ],
+        "id": "975db236-6614-45f2-b337-d62bac99c3f7",
+        "name": "CONT + ",
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_CLIENTES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_CLIENTES"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "ID_ASESOR": "={{ $('Limit').item.json.ID }}",
+              "ESTADO": "={{$('ASIGNACION').item.json.flujo}}",
+              "WHATSAPP": "={{$('ASIGNACION').item.json.numero}}",
+              "FECHA_CREACION": "={{ $now.toSeconds().floor() }}",
+              "NOMBRE": "={{$('ASIGNACION').item.json.nombre}}",
+              "NOMBRE_ASESOR": "={{ $('Limit').item.json.NOMBRE }}",
+              "WHA_ASESOR": "={{ $('Limit').item.json.WHATSAPP }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "NOMBRE",
+                "displayName": "NOMBRE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ESTADO",
+                "displayName": "ESTADO",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "WHATSAPP",
+                "displayName": "WHATSAPP",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ID_ASESOR",
+                "displayName": "ID_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "NOMBRE_ASESOR",
+                "displayName": "NOMBRE_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "WHA_ASESOR",
+                "displayName": "WHA_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "FECHA_CREACION",
+                "displayName": "FECHA_CREACION",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "FECHA_COMPRA",
+                "displayName": "FECHA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MEDIO_COMPRA",
+                "displayName": "MEDIO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONTO_COMPRA",
+                "displayName": "MONTO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONEDA_COMPRA",
+                "displayName": "MONEDA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "PAIS",
+                "displayName": "PAIS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2460,
+          360
+        ],
+        "id": "62b61c09-9598-4b43-9b18-d06750cc2432",
+        "name": "CLIENTE +1",
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_REGISTROS",
+            "mode": "list",
+            "cachedResultName": "GERSSON_REGISTROS"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "ID_CLIENTE": "={{ $json.ID }}",
+              "TIPO_EVENTO": "={{$('ASIGNACION').item.json.flujo}}",
+              "FECHA_EVENTO": "={{ $now.toSeconds().floor() }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "ID_CLIENTE",
+                "displayName": "ID_CLIENTE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "TIPO_EVENTO",
+                "displayName": "TIPO_EVENTO",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "FECHA_EVENTO",
+                "displayName": "FECHA_EVENTO",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2620,
+          360
+        ],
+        "id": "66d2a19d-d0bf-4556-ba80-d0c4e263e3f7",
+        "name": "EVENTO +1",
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "select",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_ASESORES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_ASESORES"
+          },
+          "limit": 1,
+          "where": {
+            "values": [
+              {
+                "column": "ID",
+                "value": "={{ $('Limit').item.json.ID }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2780,
+          360
+        ],
+        "id": "e3ef06a7-dc7c-406f-a7cc-c0c7ffd96fbd",
+        "name": "BUSCA ASESOR3",
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_REGISTROS",
+            "mode": "list",
+            "cachedResultName": "GERSSON_REGISTROS"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "ID_CLIENTE": "={{$('BUSCA').item.json.ID}}",
+              "TIPO_EVENTO": "={{$('ASIGNACION').item.json.flujo}}",
+              "FECHA_EVENTO": "={{ $now.toSeconds().floor() }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "ID_CLIENTE",
+                "displayName": "ID_CLIENTE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "TIPO_EVENTO",
+                "displayName": "TIPO_EVENTO",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "FECHA_EVENTO",
+                "displayName": "FECHA_EVENTO",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          1980,
+          700
+        ],
+        "id": "417d8790-9970-4ef6-a10a-2fa8c013b764",
+        "name": "EVENTO +",
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_CLIENTES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_CLIENTES"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "ID": "={{$('BUSCA').item.json.ID}}",
+              "ESTADO": "={{$('ASIGNACION').item.json.flujo}}"
+            },
+            "matchingColumns": [
+              "ID"
+            ],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "NOMBRE",
+                "displayName": "NOMBRE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "ESTADO",
+                "displayName": "ESTADO",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "WHATSAPP",
+                "displayName": "WHATSAPP",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "ID_ASESOR",
+                "displayName": "ID_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "NOMBRE_ASESOR",
+                "displayName": "NOMBRE_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "WHA_ASESOR",
+                "displayName": "WHA_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "FECHA_CREACION",
+                "displayName": "FECHA_CREACION",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "FECHA_COMPRA",
+                "displayName": "FECHA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MEDIO_COMPRA",
+                "displayName": "MEDIO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONTO_COMPRA",
+                "displayName": "MONTO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONEDA_COMPRA",
+                "displayName": "MONEDA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "PAIS",
+                "displayName": "PAIS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2140,
+          700
+        ],
+        "id": "f9d80a4f-3e66-411d-8e38-5ad235f08c90",
+        "name": "UPD. ESTADO",
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_CLIENTES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_CLIENTES"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "ID": "={{$('BUSCA').item.json.ID}}",
+              "NOMBRE": "={{ $('ASIGNACION').item.json.nombre }}",
+              "WHATSAPP": "={{ $('ASIGNACION').item.json.numero }}"
+            },
+            "matchingColumns": [
+              "ID"
+            ],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "NOMBRE",
+                "displayName": "NOMBRE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "ESTADO",
+                "displayName": "ESTADO",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "WHATSAPP",
+                "displayName": "WHATSAPP",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "ID_ASESOR",
+                "displayName": "ID_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "NOMBRE_ASESOR",
+                "displayName": "NOMBRE_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "WHA_ASESOR",
+                "displayName": "WHA_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "FECHA_CREACION",
+                "displayName": "FECHA_CREACION",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "FECHA_COMPRA",
+                "displayName": "FECHA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MEDIO_COMPRA",
+                "displayName": "MEDIO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONTO_COMPRA",
+                "displayName": "MONTO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONEDA_COMPRA",
+                "displayName": "MONEDA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "PAIS",
+                "displayName": "PAIS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2740,
+          620
+        ],
+        "id": "a40fb77b-9b1a-4819-bcbc-352b581da667",
+        "name": "nombre + wha",
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_CLIENTES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_CLIENTES"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "ID": "={{$('BUSCA').item.json.ID}}",
+              "NOMBRE": "={{ $('ASIGNACION').item.json.nombre }}"
+            },
+            "matchingColumns": [
+              "ID"
+            ],
+            "schema": [
+              {
+                "id": "ID",
+                "displayName": "ID",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "NOMBRE",
+                "displayName": "NOMBRE",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "ESTADO",
+                "displayName": "ESTADO",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "WHATSAPP",
+                "displayName": "WHATSAPP",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "ID_ASESOR",
+                "displayName": "ID_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "NOMBRE_ASESOR",
+                "displayName": "NOMBRE_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "WHA_ASESOR",
+                "displayName": "WHA_ASESOR",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "FECHA_CREACION",
+                "displayName": "FECHA_CREACION",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "FECHA_COMPRA",
+                "displayName": "FECHA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MEDIO_COMPRA",
+                "displayName": "MEDIO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONTO_COMPRA",
+                "displayName": "MONTO_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "MONEDA_COMPRA",
+                "displayName": "MONEDA_COMPRA",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "PAIS",
+                "displayName": "PAIS",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2740,
+          780
+        ],
+        "id": "672fe2ea-65c6-4e8a-9ba5-b5b9cc388319",
+        "name": "actualiza nombre",
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "select",
+          "schema": {
+            "__rl": true,
+            "mode": "list",
+            "value": "public"
+          },
+          "table": {
+            "__rl": true,
+            "value": "GERSSON_ASESORES",
+            "mode": "list",
+            "cachedResultName": "GERSSON_ASESORES"
+          },
+          "limit": 1,
+          "where": {
+            "values": [
+              {
+                "column": "ID",
+                "value": "={{ $('BUSCA').item.json.ID_ASESOR }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [
+          2940,
+          720
+        ],
+        "id": "7aefa8f7-2c24-4ac0-b167-f9f31af30334",
+        "name": "BUSCA ASESOR",
+        "credentials": {
+          "postgres": {
+            "id": "Y9DYFWSCuPRQbP2H",
+            "name": "POSTGRESS GERSSON"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "asignar datos COMPRA": {
+        "main": [
+          [
+            {
+              "node": "ASIGNACION",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Asignar datos CARRITO": {
+        "main": [
+          [
+            {
+              "node": "NUMERO?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Asignar datos RECHAZADOS": {
+        "main": [
+          [
+            {
+              "node": "ASIGNACION",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Switch": {
+        "main": [
+          [
+            {
+              "node": "Asignar datos CARRITO",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "asignar datos COMPRA",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Asignar datos RECHAZADOS",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Asignar datos TICKET",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Asignar datos TICKET": {
+        "main": [
+          [
+            {
+              "node": "ASIGNACION",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HOTMART": {
+        "main": [
+          [
+            {
+              "node": "Switch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ASIGNACION": {
+        "main": [
+          [
+            {
+              "node": "BUSCA1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "NUMERO?": {
+        "main": [
+          [
+            {
+              "node": "ASIGNACION",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ESTADO": {
+        "main": [
+          [
+            {
+              "node": "Limit",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "EVENTO +",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "COMPRAS?": {
+        "main": [
+          [
+            {
+              "node": "ASIGNADA?",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "ESTADO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ASIGNADA?": {
+        "main": [
+          [
+            {
+              "node": "REVISAR",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "REGISTRO1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "existe en manychat?": {
+        "main": [
+          [
+            {
+              "node": "id1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "CREAR",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "id": {
+        "main": [
+          [
+            {
+              "node": "ENVIAR FLUJO BV",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "id1": {
+        "main": [
+          [
+            {
+              "node": "ENVIAR FLUJO BV",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "mensaje": {
+        "main": [
+          [
+            {
+              "node": "TG COMPRA ASIGNADA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "mensaje1": {
+        "main": [
+          [
+            {
+              "node": "TG COMPRA SIN ASIGNAR",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CREAR": {
+        "main": [
+          [
+            {
+              "node": "id",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BUSQUEDA": {
+        "main": [
+          [
+            {
+              "node": "existe en manychat?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "EXISTE?": {
+        "main": [
+          [
+            {
+              "node": "PAGADO?",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "No Operation, do nothing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "No Operation, do nothing": {
+        "main": [
+          [
+            {
+              "node": "BUSQUEDA",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "MAILERLITE1",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "BUSCA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PAGADO?": {
+        "main": [
+          [],
+          [
+            {
+              "node": "No Operation, do nothing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code": {
+        "main": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code1": {
+        "main": [
+          [
+            {
+              "node": "CLIENTE EXISTENTE - CERRADOR",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Evolution API": {
+        "main": [
+          [],
+          [
+            {
+              "node": "Merge1",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "AI Agent": {
+        "main": [
+          [
+            {
+              "node": "Evolution API",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenAI Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge1": {
+        "main": [
+          [
+            {
+              "node": "CLIENTE NUEVO - CERRADOR",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Evolution API1": {
+        "main": [
+          [
+            {
+              "node": "Switch1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "actualiza nombre",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Switch1": {
+        "main": [
+          [
+            {
+              "node": "nombre + wha",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "actualiza nombre",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BUSCA1": {
+        "main": [
+          [
+            {
+              "node": "EXISTE?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BUSCA": {
+        "main": [
+          [
+            {
+              "node": "COMPRAS?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "REVISAR": {
+        "main": [
+          [
+            {
+              "node": "CONT + 1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CONT + 1": {
+        "main": [
+          [
+            {
+              "node": "UPDATE CLIENTE",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "UPDATE CLIENTE": {
+        "main": [
+          [
+            {
+              "node": "EVENTO COMPRA +1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "EVENTO COMPRA +1": {
+        "main": [
+          [
+            {
+              "node": "BUSCA ASESOR1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BUSCA ASESOR1": {
+        "main": [
+          [
+            {
+              "node": "mensaje",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "REGISTRO1": {
+        "main": [
+          [
+            {
+              "node": "REGISTRO COMPRA +",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "REGISTRO COMPRA +": {
+        "main": [
+          [
+            {
+              "node": "mensaje1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Limit": {
+        "main": [
+          [
+            {
+              "node": "conteo + 1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "conteo + 1": {
+        "main": [
+          [
+            {
+              "node": "CONT + ",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CONT + ": {
+        "main": [
+          [
+            {
+              "node": "CLIENTE +1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CLIENTE +1": {
+        "main": [
+          [
+            {
+              "node": "EVENTO +1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "EVENTO +1": {
+        "main": [
+          [
+            {
+              "node": "BUSCA ASESOR3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BUSCA ASESOR3": {
+        "main": [
+          [
+            {
+              "node": "Code",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "EVENTO +": {
+        "main": [
+          [
+            {
+              "node": "UPD. ESTADO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "UPD. ESTADO": {
+        "main": [
+          [
+            {
+              "node": "Evolution API1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "nombre + wha": {
+        "main": [
+          [
+            {
+              "node": "BUSCA ASESOR",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "actualiza nombre": {
+        "main": [
+          [
+            {
+              "node": "BUSCA ASESOR",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BUSCA ASESOR": {
+        "main": [
+          [
+            {
+              "node": "Code1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "pinData": {
+      "HOTMART": [
+        {
+          "headers": {
+            "host": "n8n.automscc.com",
+            "user-agent": "Jodd HTTP",
+            "content-length": "403",
+            "content-type": "application/json",
+            "x-forwarded-for": "54.165.118.48",
+            "x-forwarded-host": "n8n.automscc.com",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "810e17e1473f",
+            "x-hotmart-hottok": "6SJkhfjuD6Bm4cha7tF8loEMs92JzG11852721",
+            "x-real-ip": "54.165.118.48",
+            "accept-encoding": "gzip"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "data": {
+              "offer": {
+                "code": "h4vy1tzz"
+              },
+              "product": {
+                "name": "Terapia del Dolor",
+                "id": 1707154
+              },
+              "checkout_country": {
+                "iso": "PE",
+                "name": "Perú - Piruw"
+              },
+              "buyer_ip": "179.6.0.8",
+              "affiliate": true,
+              "buyer": {
+                "phone": "51999131819",
+                "name": "Roger MARTINEZ",
+                "email": "regor3051@yahoo.com"
+              }
+            },
+            "id": "25526944-24a5-4479-b152-fcdddb38d38e",
+            "creation_date": 1740863441485,
+            "event": "PURCHASE_OUT_OF_SHOPPING_CART",
+            "version": "2.0.0"
+          },
+          "webhookUrl": "https://n8n.automscc.com/webhook/gersson-lanza-hotmart",
+          "executionMode": "production"
+        }
+      ]
+    },
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "7f2729b6912993883b7a01075663f0bebc4d1327170894f4cb4d1836ba9a5acd"
+    }
+  }

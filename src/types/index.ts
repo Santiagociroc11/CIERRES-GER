@@ -4,12 +4,28 @@ export interface Asesor {
   ID: number;
   NOMBRE: string;
   WHATSAPP: string;
-  LINK: number;
-  RECHAZADOS: number;
-  CARRITOS: number;
-  TICKETS: number;
+  LINK?: number;
+  RECHAZADOS?: number;
+  CARRITOS?: number;
+  TICKETS?: number;
+  COMPRAS?: number;
   ES_ADMIN?: boolean;
-  ES_REVISOR?: boolean;
+  ID_TG: string;
+  MASIVOS?: number;
+  PRIORIDAD?: number;
+  LIMITE_DIARIO?: number;
+  BLOQUEADO?: boolean;
+  PAUSADO?: boolean;
+  FECHA_INICIO_REGLA?: string;
+  FECHA_FIN_REGLA?: string;
+  MOTIVO_REGLA?: string;
+  HISTORIAL?: string;
+}
+
+export interface AsesorStats {
+  total_clientes: number;
+  tasa_conversion: number;
+  alerta?: string;
 }
 
 export interface Cliente {

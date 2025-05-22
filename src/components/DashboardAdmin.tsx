@@ -38,6 +38,7 @@ import { es } from 'date-fns/locale';
 import { parse } from 'date-fns';
 import CrearClienteModal from './CrearClienteModal';
 import ChatModal from './ChatModal';
+import GestionAsignaciones from './GestionAsignaciones';
 
 interface DashboardAdminProps {
   onLogout: () => void;
@@ -66,7 +67,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [clienteParaChat, setClienteParaChat] = useState<any | null>(null);
 
   // Estado para alternar entre vista de Asesores y Clientes
-  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes'>('asesores');
+  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion'>('asesores');
   // Estado para el modal de historial de cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
 
@@ -694,6 +695,35 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     setFechaFin(fin);
   }, []);
 
+  const cargarSoloAsesores = async () => {
+    try {
+      console.log("🚀 Actualizando datos de asesores...");
+      const asesoresData = await apiClient.request<Asesor[]>('/GERSSON_ASESORES?select=*&order=NOMBRE');
+      if (!asesoresData || asesoresData.length === 0) return;
+      setAsesores(asesoresData);
+      console.log("✅ Asesores actualizados:", asesoresData.length);
+
+      // Recalcular estadísticas solo para los asesores con los datos existentes
+      const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
+      asesoresData.forEach((asesor: Asesor) => {
+        const clientesAsesor = clientes.filter((c: any) => c.ID_ASESOR === asesor.ID);
+        const reportesAsesor = reportes.filter((r: any) => r.ID_ASESOR === asesor.ID);
+        const conversacionesAsesor: any[] = []; // No necesitamos recargar las conversaciones para las reglas
+        nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
+          clientesAsesor,
+          reportesAsesor,
+          conversacionesAsesor,
+          periodoSeleccionado,
+          fechaInicio,
+          fechaFin
+        );
+      });
+      setEstadisticas(nuevasEstadisticas);
+    } catch (error) {
+      console.error("❌ Error al actualizar asesores:", error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Encabezado y navegación principal */}
@@ -718,7 +748,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               </button>
             </div>
 
-            {/* Navegación entre pestañas: Resumen / Asesores / Clientes */}
+            {/* Navegación entre pestañas: Resumen / Asesores / Clientes / Gestión */}
             <div className="mt-4 flex space-x-4 border-b border-gray-200">
               <button
                 onClick={() => setVistaAdmin('resumen')}
@@ -749,6 +779,16 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 }`}
               >
                 Clientes
+              </button>
+              <button
+                onClick={() => setVistaAdmin('gestion')}
+                className={`py-2 px-4 border-b-2 font-medium text-sm ${
+                  vistaAdmin === 'gestion'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Gestión
               </button>
             </div>
           </div>
@@ -1503,6 +1543,270 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               </div>
             )}
           </>
+        ) : vistaAdmin === 'clientes' ? (
+          <div className="p-4 space-y-8">
+            {/* Botón para crear cliente */}
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => setMostrarModalCrearCliente(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Crear Cliente
+              </button>
+            </div>
+            {/* Filtros */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              {/* Buscador */}
+              <div className="relative w-full md:w-1/3">
+                <input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={busqueda}
+                  onChange={(e) => {
+                    setBusqueda(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              </div>
+              {/* Filtro por estado */}
+              <div className="w-full md:w-1/4">
+                <select
+                  value={filtroEstado}
+                  onChange={(e) => {
+                    setFiltroEstado(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="PAGADO">Pagado</option>
+                  <option value="SEGUIMIENTO">Seguimiento</option>
+                  <option value="NO CONTESTÓ">No Contestó</option>
+                  <option value="NO CONTACTAR">No Contactar</option>
+                </select>
+              </div>
+              {/* Botón de refrescar y último update */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRefresh}
+                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <RefreshCcw className="h-5 w-5 mr-2" />
+                  Refrescar
+                </button>
+                <span className="text-xs text-gray-500">
+                  Actualizado: {lastUpdated.toLocaleTimeString()}
+                </span>
+              </div>
+            </div>
+            {/* Tabla de Clientes */}
+            <div className="overflow-x-auto">
+              {(() => {
+                const filteredClients = clientes
+                  .filter(
+                    (c) =>
+                      (c.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
+                        c.WHATSAPP.includes(busqueda)) &&
+                      (filtroEstado ? c.ESTADO === filtroEstado : true)
+                  )
+                  .filter((cliente) =>
+                    asesores.some((a) => a.ID === cliente.ID_ASESOR)
+                  )
+                  .sort((a, b) => b.FECHA_CREACION - a.FECHA_CREACION);
+
+                const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
+                const paginatedClients = filteredClients.slice(
+                  (currentPage - 1) * itemsPerPage,
+                  currentPage * itemsPerPage
+                );
+
+                return (
+                  <>
+                    <table className="min-w-full bg-white shadow rounded-lg">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Nombre
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            WhatsApp
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            <div className="flex flex-col">
+                              <span>Fecha de</span>
+                              <span>Creación</span>
+                            </div>
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Estado
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Producto
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            <div className="flex flex-col">
+                              <span>Último</span>
+                              <span>Reporte</span>
+                            </div>
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            <div className="flex flex-col">
+                              <span>Asesor</span>
+                              <span>Asignado</span>
+                            </div>
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Acciones
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {paginatedClients.map((cliente) => {
+                          const asesorAsignado = asesores.find(
+                            (a) => a.ID === cliente.ID_ASESOR
+                          );
+                          const ultimoReporte = reportes
+                            .filter((r) => r.ID_CLIENTE === cliente.ID)
+                            .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
+
+                          const borderClass = ultimoReporte
+                            ? "border-l-4 border-green-500"
+                            : "border-l-4 border-red-500";
+
+                          const tiempoReporte = ultimoReporte
+                            ? (() => {
+                              const diff = ultimoReporte.FECHA_REPORTE - cliente.FECHA_CREACION;
+                              const hours = Math.floor(diff / 3600);
+                              if (hours < 24) return `(${hours}h)`;
+                              const days = Math.floor(hours / 24);
+                              const remainingHours = hours % 24;
+                              return `(${days}d ${remainingHours}h)`;
+                            })()
+                            : null;
+
+                          const tiempoSinReporte = !ultimoReporte
+                            ? formatDistanceToNow(new Date(cliente.FECHA_CREACION * 1000), {
+                              addSuffix: true,
+                              locale: es,
+                            })
+                            : null;
+
+                          return (
+                            <tr key={cliente.ID} className="hover:bg-gray-50">
+                              <td className={`px-4 py-3 text-sm text-gray-800 ${borderClass}`}>
+                                <div className="truncate max-w-[150px]">
+                                  {cliente.NOMBRE}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                <div className="truncate max-w-[120px]">
+                                  {cliente.WHATSAPP}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                <div className="flex flex-col">
+                                  <span>{formatDate(cliente.FECHA_CREACION).split(' ')[0]}</span>
+                                  <span className="text-xs text-gray-500">{formatDate(cliente.FECHA_CREACION).split(' ')[1]}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full w-fit inline-block ${getClienteEstadoColor(cliente.ESTADO)}`}>
+                                  {cliente.ESTADO || "Sin definir"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                <div className="truncate max-w-[100px]">
+                                  {ultimoReporte ? ultimoReporte.PRODUCTO : 'Sin definir'}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm">
+                                {ultimoReporte ? (
+                                  <div className="flex flex-col">
+                                    <span className="text-gray-700 truncate">
+                                      {formatDate(ultimoReporte.FECHA_REPORTE)}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {tiempoReporte}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="inline-block text-xs bg-red-50 text-red-600 px-2 py-1 rounded-full font-semibold">
+                                    Sin reporte – {tiempoSinReporte}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-sm">
+                                {asesorAsignado ? (
+                                  <span className={`truncate max-w-[120px] inline-block ${!ultimoReporte ? "text-red-700 font-bold" : "text-gray-800"}`}>
+                                    {asesorAsignado.NOMBRE}
+                                  </span>
+                                ) : (
+                                  "Sin asignar"
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center space-x-1">
+                                  {asesorAsignado && (
+                                    <div>
+                                      <ReasignarCliente
+                                        clienteId={cliente.ID}
+                                        asesorActual={asesorAsignado.NOMBRE}
+                                      />
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={() => setClienteSeleccionado(cliente)}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"
+                                  >
+                                    Ver Historial
+                                  </button>
+                                  <button
+                                    onClick={() => setClienteParaChat(cliente)}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded"
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                                    Chat
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {totalPages > 1 && (
+                      <div className="flex justify-end items-center space-x-2 mt-4">
+                        <button
+                          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                        >
+                          Anterior
+                        </button>
+                        <span className="text-sm text-gray-600">
+                          Página {currentPage} de {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                          className="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                        >
+                          Siguiente
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        ) : vistaAdmin === 'gestion' ? (
+          <GestionAsignaciones 
+            asesores={asesores} 
+            onUpdate={cargarSoloAsesores}
+          />
         ) : (
           <div className="p-4 space-y-8">
             {/* Botón para crear cliente */}

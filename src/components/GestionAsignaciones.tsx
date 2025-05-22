@@ -1,0 +1,1106 @@
+import React, { useState, useMemo } from 'react';
+import { apiClient } from '../lib/apiClient';
+import { Asesor } from '../types';
+import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History } from 'lucide-react';
+
+interface GestionAsignacionesProps {
+  asesores: Asesor[];
+  onUpdate: () => void;
+}
+
+// Tipo separado para las reglas de prioridad
+type TipoPrioridad = 'BONUS' | 'PENALIZACION';
+
+// Tipo para las reglas normales
+type ReglaTipo = 'LIMITE_DIARIO' | 'BLOQUEO';
+
+// Tipo combinado para todas las reglas
+type TipoReglaCompleto = ReglaTipo | TipoPrioridad;
+
+interface ReglaAsignacion {
+  tipo: ReglaTipo;
+  valor: number;
+  fechaInicio?: Date;
+  fechaFin?: Date;
+  motivo?: string;
+  duracion?: 'horas' | 'dias' | 'semanas' | 'personalizado';
+  cantidadDuracion?: number;
+}
+
+interface ReglaDescripcion {
+  titulo: string;
+  descripcion: string;
+  consecuencias: string;
+  ejemplos: string[];
+  icono: JSX.Element;
+  color: string;
+}
+
+interface ReglaHistorial {
+  fecha: string;
+  tipo: TipoReglaCompleto;
+  configuracion: {
+    valor?: number;
+    fechaInicio?: string;
+    fechaFin?: string;
+    motivo: string;
+    prioridadAnterior?: number;
+    prioridadNueva?: number;
+  };
+}
+
+export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsignacionesProps) {
+  const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
+  const [mostrarModal, setMostrarModal] = useState(false);
+  const [mostrarModalPrioridad, setMostrarModalPrioridad] = useState(false);
+  const [mostrarModalHistorial, setMostrarModalHistorial] = useState(false);
+  const [motivoPrioridad, setMotivoPrioridad] = useState('');
+  const [tipoPrioridadSeleccionada, setTipoPrioridadSeleccionada] = useState<TipoPrioridad>('BONUS');
+  const [nuevaRegla, setNuevaRegla] = useState<ReglaAsignacion>({
+    tipo: 'LIMITE_DIARIO',
+    valor: 0,
+    motivo: '',
+    duracion: 'personalizado',
+    cantidadDuracion: 24
+  });
+  const [mostrarAyuda, setMostrarAyuda] = useState(false);
+  const [ordenamiento, setOrdenamiento] = useState<'nombre' | 'prioridad'>('prioridad');
+
+  // Ordenar asesores según el criterio seleccionado
+  const asesoresOrdenados = useMemo(() => {
+    return [...asesores].sort((a, b) => {
+      if (ordenamiento === 'prioridad') {
+        const prioridadA = a.PRIORIDAD || 0;
+        const prioridadB = b.PRIORIDAD || 0;
+        return prioridadB - prioridadA; // Orden descendente por prioridad
+      }
+      // Por defecto, ordenar por nombre
+      return a.NOMBRE.localeCompare(b.NOMBRE);
+    });
+  }, [asesores, ordenamiento]);
+
+  const reglasDescripciones: Record<ReglaTipo, ReglaDescripcion> = {
+    LIMITE_DIARIO: {
+      titulo: 'Límite Diario',
+      descripcion: 'Establece un límite máximo de clientes que el asesor puede atender por día.',
+      consecuencias: 'El asesor no recibirá más clientes una vez alcanzado el límite diario.',
+      ejemplos: [
+        'Límite de 10 clientes por día para asesores nuevos',
+        'Reducción temporal a 5 clientes por día durante capacitación'
+      ],
+      icono: <Clock className="h-6 w-6" />,
+      color: 'text-blue-600'
+    },
+    BLOQUEO: {
+      titulo: 'Bloqueo',
+      descripcion: 'Detiene temporalmente o indefinidamente la asignación de nuevos clientes.',
+      consecuencias: 'El asesor no recibirá nuevos clientes hasta que se levante el bloqueo.',
+      ejemplos: [
+        'Bloqueo por vacaciones programadas',
+        'Bloqueo temporal por sobrecarga de trabajo',
+        'Bloqueo por ausencia'
+      ],
+      icono: <Ban className="h-6 w-6" />,
+      color: 'text-red-600'
+    }
+  };
+
+  const aplicarRegla = async (asesorId: number, regla: ReglaAsignacion) => {
+    try {
+      const asesorActual = asesores.find(a => a.ID === asesorId);
+      if (!asesorActual) throw new Error('Asesor no encontrado');
+      
+      const historialActual: ReglaHistorial[] = asesorActual.HISTORIAL ? JSON.parse(asesorActual.HISTORIAL) : [];
+      const prioridadActual = asesorActual.PRIORIDAD || 0;
+
+      // Convertir fechas a ISO strings para almacenar en los campos varchar
+      const fechaInicioISO = regla.fechaInicio ? regla.fechaInicio.toISOString() : undefined;
+      const fechaFinISO = regla.fechaFin ? regla.fechaFin.toISOString() : undefined;
+
+      // Crear nueva entrada en el historial
+      const nuevaEntrada: ReglaHistorial = {
+        fecha: new Date().toISOString(),
+        tipo: regla.tipo,
+        configuracion: {
+          valor: regla.valor,
+          fechaInicio: fechaInicioISO,
+          fechaFin: fechaFinISO,
+          motivo: regla.motivo || '',
+          prioridadAnterior: prioridadActual,
+          prioridadNueva: prioridadActual
+        }
+      };
+
+      const historialActualizado = [...historialActual, nuevaEntrada];
+
+      // Preparar el payload con tipado correcto
+      const payload: Record<string, any> = {
+        MOTIVO_REGLA: regla.motivo
+      };
+      
+      // Agregar campos opcionales solo si tienen valor
+      if (regla.tipo === 'LIMITE_DIARIO') {
+        payload.LIMITE_DIARIO = regla.valor;
+      }
+      
+      if (fechaInicioISO) {
+        payload.FECHA_INICIO_REGLA = fechaInicioISO;
+      }
+      
+      if (fechaFinISO) {
+        payload.FECHA_FIN_REGLA = fechaFinISO;
+      }
+      
+      // Actualizar el historial JSON
+      payload.HISTORIAL = JSON.stringify(historialActualizado);
+      
+      console.log('Enviando PATCH a PostgREST:', payload);
+
+      // Intentar enviar la solicitud
+      try {
+        const response = await fetch(`${import.meta.env.VITE_POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error ${response.status}: ${errorText}`);
+          throw new Error(`Error ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Respuesta exitosa:', data);
+      } catch (fetchError: any) {
+        console.error('Error detallado en fetch:', fetchError);
+        throw fetchError;
+      }
+
+      onUpdate();
+      setMostrarModal(false);
+    } catch (error: any) {
+      console.error('Error al aplicar regla:', error);
+      alert('Error al aplicar la regla: ' + (error.message || 'Error desconocido'));
+    }
+  };
+
+  const aplicarPrioridad = async (asesorId: number, tipo: TipoPrioridad, motivo: string) => {
+    try {
+      const asesorActual = asesores.find(a => a.ID === asesorId);
+      if (!asesorActual) throw new Error('Asesor no encontrado');
+      
+      const historialActual: ReglaHistorial[] = asesorActual.HISTORIAL ? JSON.parse(asesorActual.HISTORIAL) : [];
+      const prioridadActual = asesorActual.PRIORIDAD || 0;
+      
+      // Calcular la nueva prioridad
+      const nuevaPrioridad = tipo === 'BONUS' ? prioridadActual + 1 : prioridadActual - 1;
+
+      // Crear nueva entrada en el historial
+      const nuevaEntrada: ReglaHistorial = {
+        fecha: new Date().toISOString(),
+        tipo: tipo,
+        configuracion: {
+          motivo: motivo,
+          prioridadAnterior: prioridadActual,
+          prioridadNueva: nuevaPrioridad
+        }
+      };
+
+      const historialActualizado = [...historialActual, nuevaEntrada];
+      
+      // Preparar el payload con tipado correcto
+      const payload: Record<string, any> = {
+        PRIORIDAD: nuevaPrioridad,
+        HISTORIAL: JSON.stringify(historialActualizado)
+      };
+      
+      console.log('Enviando PATCH de prioridad a PostgREST:', payload);
+
+      // Intentar enviar la solicitud
+      try {
+        const response = await fetch(`${import.meta.env.VITE_POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error ${response.status}: ${errorText}`);
+          throw new Error(`Error ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Respuesta exitosa:', data);
+      } catch (fetchError: any) {
+        console.error('Error detallado en fetch:', fetchError);
+        throw fetchError;
+      }
+
+      onUpdate();
+      setMostrarModalPrioridad(false);
+    } catch (error: any) {
+      console.error('Error al aplicar prioridad:', error);
+      alert('Error al modificar la prioridad: ' + (error.message || 'Error desconocido'));
+    }
+  };
+
+  // Función para formatear fecha de manera más concisa
+  const formatearFechaConcisa = (fecha: string | number): string => {
+    if (!fecha) return 'Fecha no disponible';
+    
+    const fechaObj = typeof fecha === 'string' 
+      ? new Date(fecha)
+      : typeof fecha === 'number' 
+        ? new Date(fecha * 1000) 
+        : new Date();
+
+    // Formatear solo la fecha (sin año si es el año actual)
+    const esAnioActual = fechaObj.getFullYear() === new Date().getFullYear();
+    const formatoFecha = new Intl.DateTimeFormat('es-ES', {
+      day: 'numeric',
+      month: 'short',
+      year: esAnioActual ? undefined : 'numeric'
+    }).format(fechaObj);
+    
+    // Formatear la hora
+    const formatoHora = new Intl.DateTimeFormat('es-ES', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).format(fechaObj);
+    
+    return `${formatoFecha}, ${formatoHora}`;
+  };
+
+  // Función para mostrar periodo de bloqueo de manera más limpia
+  const mostrarPeriodoBloqueo = (fechaInicio: Date | null, fechaFin: Date | null): JSX.Element => {
+    if (!fechaInicio) return <></>;
+    
+    if (!fechaFin) {
+      return (
+        <div className="flex flex-col">
+          <div className="font-medium">Desde: {formatearFechaConcisa(fechaInicio.toISOString())}</div>
+          <div className="text-red-600 font-medium">Bloqueo indefinido</div>
+        </div>
+      );
+    }
+
+    // Si ambas fechas son del mismo día, simplificamos aún más
+    const mismodia = fechaInicio.getDate() === fechaFin.getDate() && 
+                    fechaInicio.getMonth() === fechaFin.getMonth() && 
+                    fechaInicio.getFullYear() === fechaFin.getFullYear();
+
+    if (mismodia) {
+      const fecha = formatearFechaConcisa(fechaInicio.toISOString()).split(',')[0];
+      const horaInicio = new Intl.DateTimeFormat('es-ES', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      }).format(fechaInicio);
+      
+      const horaFin = new Intl.DateTimeFormat('es-ES', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      }).format(fechaFin);
+      
+      return (
+        <div className="flex flex-col">
+          <div className="font-medium">{fecha}</div>
+          <div className="text-gray-600">{horaInicio} → {horaFin}</div>
+        </div>
+      );
+    }
+    
+    // Si son días diferentes
+    return (
+      <div className="flex flex-col space-y-1">
+        <div className="font-medium">
+          <span className="text-gray-700">Desde:</span> {formatearFechaConcisa(fechaInicio.toISOString())}
+        </div>
+        <div className="font-medium">
+          <span className="text-gray-700">Hasta:</span> {formatearFechaConcisa(fechaFin.toISOString())}
+        </div>
+      </div>
+    );
+  };
+
+  // Función para calcular tiempo restante hasta que termine el bloqueo
+  const calcularTiempoRestante = (fechaFin: Date): string => {
+    const ahora = new Date();
+    
+    // Si la fecha fin ya pasó
+    if (fechaFin <= ahora) {
+      return "Finalizado";
+    }
+    
+    const diferencia = fechaFin.getTime() - ahora.getTime();
+    
+    // Convertir milisegundos a días, horas, minutos
+    const dias = Math.floor(diferencia / (1000 * 60 * 60 * 24));
+    const horas = Math.floor((diferencia % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutos = Math.floor((diferencia % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (dias > 0) {
+      return `${dias}d ${horas}h restantes`;
+    } else if (horas > 0) {
+      return `${horas}h ${minutos}m restantes`;
+    } else {
+      return `${minutos} minutos restantes`;
+    }
+  };
+
+  // Define the calcularFechaFinDesdeDuracion function
+  const calcularFechaFinDesdeDuracion = (cantidad: number, unidad: 'horas' | 'dias' | 'semanas' | 'personalizado'): Date => {
+    const ahora = new Date();
+    const fechaFin = new Date(ahora);
+    
+    switch(unidad) {
+      case 'horas':
+        fechaFin.setHours(fechaFin.getHours() + cantidad);
+        break;
+      case 'dias':
+        fechaFin.setDate(fechaFin.getDate() + cantidad);
+        break;
+      case 'semanas':
+        fechaFin.setDate(fechaFin.getDate() + (cantidad * 7));
+        break;
+      default:
+        // No hacer nada para personalizado
+        break;
+    }
+    
+    return fechaFin;
+  };
+
+  const renderHistorialItem = (entrada: ReglaHistorial) => {
+    let icono;
+    let colorTexto;
+    let colorFondo;
+    let colorBorde;
+    let etiqueta;
+    
+    switch (entrada.tipo) {
+      case 'LIMITE_DIARIO':
+        icono = <Clock className="h-5 w-5" />;
+        colorTexto = 'text-blue-700';
+        colorFondo = 'bg-blue-50';
+        colorBorde = 'border-blue-200';
+        etiqueta = 'Límite Diario';
+        break;
+      case 'BLOQUEO':
+        icono = <Ban className="h-5 w-5" />;
+        colorTexto = 'text-red-700';
+        colorFondo = 'bg-red-50';
+        colorBorde = 'border-red-200';
+        etiqueta = 'Bloqueo';
+        break;
+      case 'BONUS':
+        icono = <ArrowUpCircle className="h-5 w-5" />;
+        colorTexto = 'text-green-700';
+        colorFondo = 'bg-green-50';
+        colorBorde = 'border-green-200';
+        etiqueta = 'Bonificación';
+        break;
+      case 'PENALIZACION':
+        icono = <ArrowDownCircle className="h-5 w-5" />;
+        colorTexto = 'text-orange-700';
+        colorFondo = 'bg-orange-50';
+        colorBorde = 'border-orange-200';
+        etiqueta = 'Penalización';
+        break;
+    }
+
+    const cambioTexto = entrada.configuracion.prioridadAnterior !== undefined && entrada.configuracion.prioridadNueva !== undefined ?
+      `${entrada.configuracion.prioridadAnterior} → ${entrada.configuracion.prioridadNueva}` : '';
+    
+    // Calcular si la regla está activa (solo para bloqueo y límite diario)
+    const ahora = new Date();
+    const fechaInicio = entrada.configuracion.fechaInicio ? new Date(entrada.configuracion.fechaInicio) : null;
+    const fechaFin = entrada.configuracion.fechaFin ? new Date(entrada.configuracion.fechaFin) : null;
+    const estaActiva = fechaInicio && (
+      !fechaFin || // bloqueo indefinido
+      (ahora >= fechaInicio && ahora <= fechaFin) // dentro del rango de fechas
+    );
+
+    return (
+      <div className={`p-4 bg-white rounded-lg shadow border ${colorBorde} mb-3 relative overflow-hidden`}>
+        {/* Indicador visual del tipo de regla */}
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${colorFondo}`}></div>
+        
+        {/* Cabecera con tipo y fecha */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className={`h-8 w-8 rounded-full ${colorFondo} flex items-center justify-center ${colorTexto}`}>
+              {icono}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`font-semibold ${colorTexto}`}>
+                  {etiqueta}
+                </span>
+                {estaActiva && (
+                  <span className="px-1.5 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                    Activa
+                  </span>
+                )}
+                {cambioTexto && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-800 rounded-md text-xs font-medium">
+                    Prioridad: {cambioTexto}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-gray-500">
+                {formatearFechaConcisa(entrada.fecha)}
+              </span>
+            </div>
+          </div>
+          
+          {entrada.tipo === 'LIMITE_DIARIO' && entrada.configuracion.valor && (
+            <div className="px-2 py-1 bg-blue-100 rounded-md">
+              <span className="text-sm font-medium text-blue-800">
+                {entrada.configuracion.valor} clientes/día
+              </span>
+            </div>
+          )}
+        </div>
+        
+        {/* Fechas de bloqueo si existen */}
+        {(entrada.tipo === 'BLOQUEO' && (entrada.configuracion.fechaInicio || entrada.configuracion.fechaFin)) && (
+          <div className="mb-2 p-2 bg-gray-50 rounded-md border border-gray-200">
+            <div className="grid grid-cols-2 gap-2">
+              {entrada.configuracion.fechaInicio && (
+                <div>
+                  <span className="text-xs text-gray-500 block">Inicio</span>
+                  <span className="text-sm font-medium">{formatearFechaConcisa(entrada.configuracion.fechaInicio)}</span>
+                </div>
+              )}
+              {entrada.configuracion.fechaFin ? (
+                <div>
+                  <span className="text-xs text-gray-500 block">Fin</span>
+                  <span className="text-sm font-medium">{formatearFechaConcisa(entrada.configuracion.fechaFin)}</span>
+                </div>
+              ) : (
+                <div>
+                  <span className="text-xs text-gray-500 block">Duración</span>
+                  <span className="text-sm font-medium text-red-600">Indefinido</span>
+                </div>
+              )}
+            </div>
+            
+            {fechaFin && ahora <= fechaFin && (
+              <div className="mt-1 text-right">
+                <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full">
+                  {calcularTiempoRestante(fechaFin)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Motivo de la regla */}
+        <div className="mt-1">
+          <span className="text-xs text-gray-500 block">Motivo</span>
+          <p className="text-sm text-gray-700">
+            {entrada.configuracion.motivo}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="p-4">
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Gestión de Asignaciones</h2>
+            <p className="text-gray-600 mt-2">
+              Administra las reglas de asignación para cada asesor.
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <select
+              value={ordenamiento}
+              onChange={(e) => setOrdenamiento(e.target.value as 'nombre' | 'prioridad')}
+              className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="nombre">Ordenar por nombre</option>
+              <option value="prioridad">Ordenar por prioridad</option>
+            </select>
+            <button
+              onClick={() => setMostrarAyuda(true)}
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded-full"
+              title="Ver guía de reglas"
+            >
+              <Info className="h-6 w-6" />
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white rounded-lg overflow-hidden">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asesor</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reglas Activas</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {asesoresOrdenados.map((asesor) => (
+              <tr key={asesor.ID} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-1">
+                      {(asesor.PRIORIDAD ?? 0) > 0 ? (
+                        <div className="flex items-center text-green-600">
+                          <ArrowUpCircle className="h-5 w-5" />
+                          <span className="ml-1 font-medium">Premiado (+{asesor.PRIORIDAD})</span>
+                        </div>
+                      ) : (asesor.PRIORIDAD ?? 0) < 0 ? (
+                        <div className="flex items-center text-red-600">
+                          <ArrowDownCircle className="h-5 w-5" />
+                          <span className="ml-1 font-medium">Penalizado ({asesor.PRIORIDAD})</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-gray-500">
+                          <span className="font-medium">Normal (0)</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex space-x-1">
+                      <button
+                        onClick={() => {
+                          setAsesorSeleccionado(asesor);
+                          setTipoPrioridadSeleccionada('BONUS');
+                          setMostrarModalPrioridad(true);
+                        }}
+                        className="p-1 text-green-600 hover:bg-green-50 rounded-full"
+                        title="Premiar asesor"
+                      >
+                        <ArrowUpCircle className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAsesorSeleccionado(asesor);
+                          setTipoPrioridadSeleccionada('PENALIZACION');
+                          setMostrarModalPrioridad(true);
+                        }}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded-full"
+                        title="Penalizar asesor"
+                      >
+                        <ArrowDownCircle className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    {(() => {
+                      const ahora = new Date();
+                      // Convertir las fechas ISO a objetos Date para compararlas
+                      const fechaInicio = asesor.FECHA_INICIO_REGLA ? new Date(asesor.FECHA_INICIO_REGLA) : null;
+                      const fechaFin = asesor.FECHA_FIN_REGLA ? new Date(asesor.FECHA_FIN_REGLA) : null;
+                      
+                      // Está bloqueado si:
+                      // 1. Existe fecha inicio y no hay fecha fin
+                      // 2. Existe fecha inicio y fin, y ahora está entre ese rango
+                      const bloqueado = (fechaInicio && !fechaFin) || 
+                                        (fechaInicio && fechaFin && ahora >= fechaInicio && ahora <= fechaFin);
+                      
+                      console.log('Asesor bloqueado (icono):', {
+                        id: asesor.ID,
+                        nombre: asesor.NOMBRE,
+                        fechaInicioStr: asesor.FECHA_INICIO_REGLA,
+                        fechaFinStr: asesor.FECHA_FIN_REGLA,
+                        fechaInicioParsed: fechaInicio,
+                        fechaFinParsed: fechaFin,
+                        ahora: ahora
+                      });
+                      
+                      if (bloqueado) {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center">
+                              <Ban className="h-5 w-5 text-red-600" />
+                            </div>
+                            <span className="px-2 py-1 text-sm font-medium bg-red-100 text-red-700 rounded-lg">
+                              Bloqueado
+                            </span>
+                          </div>
+                        );
+                      } else if (asesor.PAUSADO) {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-full bg-yellow-100 flex items-center justify-center">
+                              <Clock className="h-5 w-5 text-yellow-600" />
+                            </div>
+                            <span className="px-2 py-1 text-sm font-medium bg-yellow-100 text-yellow-700 rounded-lg">
+                              En pausa
+                            </span>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                              <CheckCircle2 className="h-5 w-5 text-green-600" />
+                            </div>
+                            <span className="px-2 py-1 text-sm font-medium bg-green-100 text-green-700 rounded-lg">
+                              Activo
+                            </span>
+                          </div>
+                        );
+                      }
+                    })()}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="text-sm text-gray-900 space-y-2">
+                    {/* Límite diario */}
+                    {asesor.LIMITE_DIARIO && (
+                      <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-md border border-blue-200">
+                        <Clock className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        <div className="flex flex-col">
+                          <span className="font-medium text-blue-700">Límite diario</span>
+                          <span className="text-xs text-blue-600">{asesor.LIMITE_DIARIO} clientes/día</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Bloqueo */}
+                    {(() => {
+                      const ahora = new Date();
+                      const fechaInicio = asesor.FECHA_INICIO_REGLA ? new Date(asesor.FECHA_INICIO_REGLA) : null;
+                      const fechaFin = asesor.FECHA_FIN_REGLA ? new Date(asesor.FECHA_FIN_REGLA) : null;
+                      
+                      const bloqueado = (fechaInicio && !fechaFin) || 
+                                      (fechaInicio && fechaFin && ahora >= fechaInicio && ahora <= fechaFin);
+                      
+                      if (bloqueado) {
+                        console.log('Asesor bloqueado (detalles):', {
+                          id: asesor.ID,
+                          nombre: asesor.NOMBRE,
+                          fechaInicioStr: asesor.FECHA_INICIO_REGLA,
+                          fechaFinStr: asesor.FECHA_FIN_REGLA,
+                          fechaInicioParsed: fechaInicio,
+                          fechaFinParsed: fechaFin,
+                          ahora: ahora
+                        });
+                        return (
+                          <div className="flex items-center gap-2 p-2 bg-red-50 rounded-md border border-red-200">
+                            <Ban className="h-4 w-4 text-red-600 flex-shrink-0" />
+                            <div className="flex flex-col w-full">
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium text-red-700">Bloqueo activo</span>
+                                {fechaFin && (
+                                  <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full font-medium text-xs">
+                                    {calcularTiempoRestante(fechaFin)}
+                                  </span>
+                                )}
+                              </div>
+                              {mostrarPeriodoBloqueo(fechaInicio, fechaFin)}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                    
+                    {/* Historial button */}
+                    <button
+                      onClick={() => {
+                        setAsesorSeleccionado(asesor);
+                        setMostrarModalHistorial(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-1 mt-1
+                        bg-gradient-to-b from-white to-blue-50 
+                        text-blue-700 text-sm
+                        rounded 
+                        border border-blue-200 
+                        shadow-sm hover:shadow 
+                        transform hover:-translate-y-0.5 
+                        transition-all duration-150
+                        group"
+                    >
+                      <History className="h-3.5 w-3.5 group-hover:text-blue-800" />
+                      <span className="font-medium group-hover:text-blue-800">Historial</span>
+                      {asesor.HISTORIAL ? (
+                        <span className="ml-0.5 px-1 py-0 bg-blue-600 text-white rounded-full text-xs font-medium shadow-inner">
+                          {JSON.parse(asesor.HISTORIAL).length}
+                        </span>
+                      ) : null}
+                    </button>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right">
+                  <button
+                    onClick={() => {
+                      setAsesorSeleccionado(asesor);
+                      setMostrarModal(true);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Otras Reglas
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal de Ayuda */}
+      {mostrarAyuda && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Guía de Reglas de Asignación</h3>
+              <button
+                onClick={() => setMostrarAyuda(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              {Object.entries(reglasDescripciones).map(([tipo, regla]) => (
+                <div key={tipo} className="border-b pb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={`${regla.color}`}>
+                      {regla.icono}
+                    </div>
+                    <h4 className="text-lg font-semibold">{regla.titulo}</h4>
+                  </div>
+                  <p className="text-gray-700 mb-2">{regla.descripcion}</p>
+                  <p className="text-gray-600 mb-2">{regla.consecuencias}</p>
+                  <div className="bg-gray-50 p-3 rounded-md">
+                    <p className="text-sm font-medium text-gray-700 mb-1">Ejemplos de uso:</p>
+                    <ul className="list-disc list-inside text-sm text-gray-600">
+                      {regla.ejemplos.map((ejemplo, index) => (
+                        <li key={index}>{ejemplo}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Reglas */}
+      {mostrarModal && asesorSeleccionado && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold">Gestionar Reglas - {asesorSeleccionado.NOMBRE}</h3>
+              <button
+                onClick={() => setMostrarModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Tipo de Regla</label>
+                <select
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  value={nuevaRegla.tipo}
+                  onChange={(e) => {
+                    const tipo = e.target.value as ReglaTipo;
+                    setNuevaRegla({ ...nuevaRegla, tipo });
+                  }}
+                >
+                  <option value="LIMITE_DIARIO">Límite Diario</option>
+                  <option value="BLOQUEO">Bloqueo</option>
+                </select>
+                <p className="mt-1 text-sm text-gray-500">
+                  {reglasDescripciones[nuevaRegla.tipo].descripcion}
+                </p>
+              </div>
+
+              {nuevaRegla.tipo === 'LIMITE_DIARIO' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Cantidad de Clientes por Día</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    value={nuevaRegla.valor}
+                    onChange={(e) => setNuevaRegla({ ...nuevaRegla, valor: parseInt(e.target.value) })}
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    El asesor no recibirá más clientes una vez alcanzado este límite diario.
+                  </p>
+                </div>
+              )}
+
+              {nuevaRegla.tipo === 'BLOQUEO' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Duración del Bloqueo</label>
+                    <select
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      value={nuevaRegla.duracion || 'personalizado'}
+                      onChange={(e) => setNuevaRegla({ 
+                        ...nuevaRegla, 
+                        duracion: e.target.value as 'horas' | 'dias' | 'semanas' | 'personalizado' 
+                      })}
+                    >
+                      <option value="horas">Horas</option>
+                      <option value="dias">Días</option>
+                      <option value="semanas">Semanas</option>
+                      <option value="personalizado">Personalizado</option>
+                    </select>
+                  </div>
+                  
+                  {nuevaRegla.duracion !== 'personalizado' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Cantidad ({nuevaRegla.duracion})
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        value={nuevaRegla.cantidadDuracion || 1}
+                        onChange={(e) => {
+                          const cantidad = parseInt(e.target.value);
+                          setNuevaRegla({ 
+                            ...nuevaRegla, 
+                            cantidadDuracion: cantidad,
+                            fechaInicio: new Date(),
+                            fechaFin: calcularFechaFinDesdeDuracion(cantidad, nuevaRegla.duracion || 'horas')
+                          });
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Fecha y Hora de Inicio</label>
+                        <input
+                          type="datetime-local"
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                          onChange={(e) => setNuevaRegla({ ...nuevaRegla, fechaInicio: new Date(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Fecha y Hora de Fin</label>
+                        <input
+                          type="datetime-local"
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                          onChange={(e) => setNuevaRegla({ ...nuevaRegla, fechaFin: new Date(e.target.value) })}
+                        />
+                        <p className="mt-1 text-sm text-gray-500">
+                          Dejar en blanco para un bloqueo indefinido.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Motivo
+                  <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  rows={3}
+                  value={nuevaRegla.motivo || ''}
+                  onChange={(e) => setNuevaRegla({ ...nuevaRegla, motivo: e.target.value })}
+                  placeholder="Explica detalladamente el motivo de esta regla..."
+                  required
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  Es importante documentar el motivo para futuras referencias.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-6">
+                <button
+                  onClick={() => setMostrarModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (!nuevaRegla.motivo) {
+                      alert('Por favor, especifica un motivo para la regla.');
+                      return;
+                    }
+                    aplicarRegla(asesorSeleccionado.ID, nuevaRegla);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Aplicar Regla
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Prioridad */}
+      {mostrarModalPrioridad && asesorSeleccionado && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold">
+                {tipoPrioridadSeleccionada === 'BONUS' ? 'Premiar' : 'Penalizar'} - {asesorSeleccionado.NOMBRE}
+              </h3>
+              <button
+                onClick={() => {
+                  setMostrarModalPrioridad(false);
+                  setMotivoPrioridad('');
+                  setAsesorSeleccionado(null);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Motivo
+                  <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  value={motivoPrioridad}
+                  onChange={(e) => setMotivoPrioridad(e.target.value)}
+                  placeholder={`Explica el motivo ${tipoPrioridadSeleccionada === 'BONUS' ? 'del premio' : 'de la penalización'}...`}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setMostrarModalPrioridad(false);
+                    setMotivoPrioridad('');
+                    setAsesorSeleccionado(null);
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (!motivoPrioridad.trim()) {
+                      alert('Por favor, especifica un motivo para la prioridad.');
+                      return;
+                    }
+                    aplicarPrioridad(asesorSeleccionado.ID, tipoPrioridadSeleccionada, motivoPrioridad);
+                  }}
+                  className={`px-4 py-2 text-white rounded-md ${
+                    tipoPrioridadSeleccionada === 'BONUS'
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'bg-red-600 hover:bg-red-700'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {tipoPrioridadSeleccionada === 'BONUS' ? 'Premiar' : 'Penalizar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Historial */}
+      {mostrarModalHistorial && asesorSeleccionado && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-blue-50">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <History className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    Historial de Reglas
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {asesorSeleccionado.NOMBRE} - {asesorSeleccionado.HISTORIAL ? JSON.parse(asesorSeleccionado.HISTORIAL).length : 0} registros
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setMostrarModalHistorial(false)}
+                className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 p-2 rounded-full"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto max-h-[calc(80vh-8rem)] bg-gray-50">
+              {asesorSeleccionado.HISTORIAL ? (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center mb-3">
+                    <p className="text-sm text-gray-500">
+                      Mostrando todas las reglas aplicadas ordenadas por fecha
+                    </p>
+                    <div className="flex gap-1">
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                        LÍMITE: {JSON.parse(asesorSeleccionado.HISTORIAL).filter((r: ReglaHistorial) => r.tipo === 'LIMITE_DIARIO').length}
+                      </span>
+                      <span className="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-medium">
+                        BLOQUEO: {JSON.parse(asesorSeleccionado.HISTORIAL).filter((r: ReglaHistorial) => r.tipo === 'BLOQUEO').length}
+                      </span>
+                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
+                        BONUS: {JSON.parse(asesorSeleccionado.HISTORIAL).filter((r: ReglaHistorial) => r.tipo === 'BONUS').length}
+                      </span>
+                      <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-md text-xs font-medium">
+                        PENALIZACIÓN: {JSON.parse(asesorSeleccionado.HISTORIAL).filter((r: ReglaHistorial) => r.tipo === 'PENALIZACION').length}
+                      </span>
+                    </div>
+                  </div>
+                  {JSON.parse(asesorSeleccionado.HISTORIAL)
+                    .sort((a: ReglaHistorial, b: ReglaHistorial) => 
+                      new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+                    )
+                    .map((entrada: ReglaHistorial, index: number) => 
+                      <div key={entrada.fecha + '-' + index}>
+                        {renderHistorialItem(entrada)}
+                      </div>
+                    )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10">
+                  <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center mb-3">
+                    <AlertTriangle className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 text-center font-medium">No hay historial de reglas disponible</p>
+                  <p className="text-gray-400 text-center text-sm mt-1">Las reglas aplicadas aparecerán aquí</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+} 

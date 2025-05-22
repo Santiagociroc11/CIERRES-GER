@@ -1130,7 +1130,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         ) : vistaAdmin === 'asesores' ? (
           <>
             {/* Resumen y lista de asesores */}
-            <div className="max-w-7xl mx-auto px-4 py-6">
+            <div className="max-w-8xl mx-auto px-4 py-6">
               {/* KPIs Principales */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <div className="bg-white rounded-lg shadow p-4 flex items-center">
@@ -1307,7 +1307,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                             </div>
                           </div>
                           {/* Estadísticas del asesor */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {/* Métricas de Tiempo */}
                             <div className="bg-white p-4 rounded-lg shadow">
                               <h4 className="text-sm font-medium text-gray-500 mb-2">Tiempos de Respuesta</h4>

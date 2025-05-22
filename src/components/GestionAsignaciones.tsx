@@ -699,7 +699,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-1">
-                      {(asesor.PRIORIDAD ?? 0) > 0 ? (
+                      {(asesor.PRIORIDAD ?? 1) > 1 ? (
                         <div className="flex items-center text-green-600">
                           <ArrowUpCircle className="h-5 w-5" />
                           <span className="ml-1 font-medium">Premiado (+{asesor.PRIORIDAD})</span>
@@ -711,7 +711,7 @@ export default function GestionAsignaciones({ asesores, onUpdate }: GestionAsign
                         </div>
                       ) : (
                         <div className="flex items-center text-gray-500">
-                          <span className="font-medium">Normal (0)</span>
+                          <span className="font-medium">Normal (1)</span>
                         </div>
                       )}
                     </div>

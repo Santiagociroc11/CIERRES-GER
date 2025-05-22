@@ -213,7 +213,14 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         }
       }
     });
-    return bestRates;
+    
+    // Convert to simple rate record for type compatibility
+    const bestRatesSimple: Record<string, number> = {};
+    for (const fuente in bestRates) {
+      bestRatesSimple[fuente] = bestRates[fuente].rate;
+    }
+    
+    return bestRatesSimple;
   };
 
   const calcularEstadisticasDetalladas = (
@@ -1159,6 +1166,15 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     </p>
                   </div>
                 </div>
+                <div className="bg-white rounded-lg shadow p-4 flex items-center">
+                  <Users className="h-8 w-8 text-green-500" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500">Total Clientes</p>
+                    <p className="text-xl md:text-2xl font-semibold text-gray-900">
+                      {clientes.length}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Gráfico de ventas */}
@@ -1517,28 +1533,30 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
             {asesorSeleccionado && (
               <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
                 <div className="relative top-20 mx-auto p-5 border w-full max-w-7xl bg-white shadow-xl rounded-lg">
-                  <DetalleAsesor
-                    asesor={asesorSeleccionado}
-                    estadisticas={estadisticas[asesorSeleccionado.ID]}
-                    clientes={clientes.filter((c) => c.ID_ASESOR === asesorSeleccionado.ID)}
-                    reportes={reportes.filter((r) => r.ID_ASESOR === asesorSeleccionado.ID)}
-                    registros={registros}
-                    promedioEquipo={{
-                      tasaCierre:
-                        Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) /
-                        Object.keys(estadisticas).length,
-                      tiempoRespuesta:
-                        Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoPromedioRespuesta, 0) /
-                        Object.keys(estadisticas).length,
-                      ventasPorMes:
-                        Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPorMes, 0) /
-                        Object.keys(estadisticas).length,
-                    }}
-                    teamStatsByFuente={calculateTeamStatsByFuente(clientes, reportes, registros)}
-                    bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
-                    onBack={() => setAsesorSeleccionado(null)}
-                    onChat={setClienteParaChat}
-                  />
+                  {asesorSeleccionado && asesorSeleccionado.ID && asesorSeleccionado.NOMBRE && (
+                    <DetalleAsesor
+                      asesor={asesorSeleccionado as Asesor}
+                      estadisticas={estadisticas[asesorSeleccionado.ID]}
+                      clientes={clientes.filter((c) => c.ID_ASESOR === asesorSeleccionado.ID)}
+                      reportes={reportes.filter((r) => r.ID_ASESOR === asesorSeleccionado.ID)}
+                      registros={registros}
+                      promedioEquipo={{
+                        tasaCierre:
+                          Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) /
+                          Object.keys(estadisticas).length,
+                        tiempoRespuesta:
+                          Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoPromedioRespuesta, 0) /
+                          Object.keys(estadisticas).length,
+                        ventasPorMes:
+                          Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPorMes, 0) /
+                          Object.keys(estadisticas).length,
+                      }}
+                      teamStatsByFuente={calculateTeamStatsByFuente(clientes, reportes, registros)}
+                      bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
+                      onBack={() => setAsesorSeleccionado(null)}
+                      onChat={setClienteParaChat}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -2093,28 +2111,30 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       {asesorSeleccionado && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-full max-w-7xl bg-white shadow-xl rounded-lg">
-            <DetalleAsesor
-              asesor={asesorSeleccionado}
-              estadisticas={estadisticas[asesorSeleccionado.ID]}
-              clientes={clientes.filter((c) => c.ID_ASESOR === asesorSeleccionado.ID)}
-              reportes={reportes.filter((r) => r.ID_ASESOR === asesorSeleccionado.ID)}
-              registros={registros}
-              promedioEquipo={{
-                tasaCierre:
-                  Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) /
-                  Object.keys(estadisticas).length,
-                tiempoRespuesta:
-                  Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoPromedioRespuesta, 0) /
-                  Object.keys(estadisticas).length,
-                ventasPorMes:
-                  Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPorMes, 0) /
-                  Object.keys(estadisticas).length,
-              }}
-              teamStatsByFuente={calculateTeamStatsByFuente(clientes, reportes, registros)}
-              bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
-              onBack={() => setAsesorSeleccionado(null)}
-              onChat={setClienteParaChat}
-            />
+            {asesorSeleccionado && (
+              <DetalleAsesor
+                asesor={asesorSeleccionado!}
+                estadisticas={estadisticas[asesorSeleccionado.ID]}
+                clientes={clientes.filter((c) => c.ID_ASESOR === asesorSeleccionado.ID)}
+                reportes={reportes.filter((r) => r.ID_ASESOR === asesorSeleccionado.ID)}
+                registros={registros}
+                promedioEquipo={{
+                  tasaCierre:
+                    Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) /
+                    Object.keys(estadisticas).length,
+                  tiempoRespuesta:
+                    Object.values(estadisticas).reduce((acc, stats) => acc + stats.tiempoPromedioRespuesta, 0) /
+                    Object.keys(estadisticas).length,
+                  ventasPorMes:
+                    Object.values(estadisticas).reduce((acc, stats) => acc + stats.ventasPorMes, 0) /
+                    Object.keys(estadisticas).length,
+                }}
+                teamStatsByFuente={calculateTeamStatsByFuente(clientes, reportes, registros)}
+                bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
+                onBack={() => setAsesorSeleccionado(null)}
+                onChat={setClienteParaChat}
+              />
+            )}
           </div>
         </div>
       )}

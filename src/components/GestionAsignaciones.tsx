@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Asesor } from '../types';
-import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History, RefreshCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface GestionAsignacionesProps {
@@ -211,6 +211,20 @@ const calcularTiempoRestante = (fechaFin: Date): string => {
   }
 };
 
+// Add these constants at the top of the component, after the useState declarations
+// Define the objective performance range
+const OBJETIVO_TASA_CIERRE = {
+  MIN: 19,  // Límite inferior del rango objetivo
+  MAX: 22,  // Límite superior del rango objetivo
+};
+
+// Performance status helper function
+const getPerformanceStatus = (tasaCierre: number): 'superior' | 'objetivo' | 'inferior' => {
+  if (tasaCierre > OBJETIVO_TASA_CIERRE.MAX) return 'superior';
+  if (tasaCierre >= OBJETIVO_TASA_CIERRE.MIN && tasaCierre <= OBJETIVO_TASA_CIERRE.MAX) return 'objetivo';
+  return 'inferior';
+};
+
 export default function GestionAsignaciones({ asesores, onUpdate, estadisticas = {} }: GestionAsignacionesProps) {
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
   const [mostrarModal, setMostrarModal] = useState(false);
@@ -249,6 +263,21 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
   });
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
   const [ordenamiento, setOrdenamiento] = useState<'nombre' | 'prioridad' | 'tasa_cierre'>('tasa_cierre');
+  const [mostrarModalAsignacionPuntos, setMostrarModalAsignacionPuntos] = useState(false);
+  const [detallesAsignacionPuntos, setDetallesAsignacionPuntos] = useState<{
+    actualizaciones: Array<{
+      nombre: string;
+      cambio: number;
+      tasaCierre: number;
+      prioridadActual: number;
+      motivo: string;
+    }>;
+    promedioTasaCierre: number;
+  }>({
+    actualizaciones: [],
+    promedioTasaCierre: 0
+  });
+  const [mostrarModalRestablecerPrioridades, setMostrarModalRestablecerPrioridades] = useState(false);
 
   // Ordenar asesores según el criterio seleccionado
   const asesoresOrdenados = useMemo(() => {
@@ -442,10 +471,12 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       if (!asesorActual) throw new Error('Asesor no encontrado');
       
       const historialActual: ReglaHistorial[] = asesorActual.HISTORIAL ? JSON.parse(asesorActual.HISTORIAL) : [];
-      const prioridadActual = asesorActual.PRIORIDAD || 0;
+      const prioridadActual = asesorActual.PRIORIDAD || 1;
       
-      // Calcular la nueva prioridad
-      const nuevaPrioridad = tipo === 'BONUS' ? prioridadActual + 1 : prioridadActual - 1;
+      // Calcular la nueva prioridad con límites
+      const nuevaPrioridad = tipo === 'BONUS' 
+        ? Math.min(prioridadActual + 1, 4)  // Máximo 4
+        : Math.max(prioridadActual - 1, 1);  // Mínimo 1
 
       // Crear nueva entrada en el historial con epoch
       const nuevaEntrada: ReglaHistorial = {
@@ -628,6 +659,199 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
     );
   };
 
+  const prepararAsignacionPuntos = () => {
+    // Validar que hay estadísticas disponibles
+    if (Object.keys(estadisticas).length === 0) {
+      toast.error('No hay estadísticas disponibles para asignar puntos');
+      return;
+    }
+
+    // Calcular el promedio de tasa de cierre
+    const promedioTasaCierre = Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length;
+
+    // Preparar un arreglo de actualizaciones
+    const actualizaciones: Array<{
+      nombre: string;
+      cambio: number;
+      tasaCierre: number;
+      prioridadActual: number;
+      motivo: string;
+    }> = [];
+
+    // Iterar sobre cada asesor
+    asesores.forEach(asesor => {
+      const stats = estadisticas[asesor.ID];
+      const prioridadActual = asesor.PRIORIDAD || 1;  // Asegurar que la prioridad mínima sea 1
+      
+      if (!stats) {
+        console.warn(`Sin estadísticas para asesor ${asesor.NOMBRE}`);
+        return;
+      }
+
+      const tasaCierre = stats.porcentajeCierre;
+      let cambio = 0;
+      let motivo = '';
+
+      if (tasaCierre > OBJETIVO_TASA_CIERRE.MAX) {
+        // Solo aumentar si la prioridad actual es menor que 4
+        cambio = prioridadActual < 4 ? 1 : 0;
+        motivo = prioridadActual < 4
+          ? `Rendimiento superior al rango objetivo (${tasaCierre.toFixed(1)}% > ${OBJETIVO_TASA_CIERRE.MAX}%)`
+          : `Rendimiento superior al rango objetivo, pero prioridad máxima alcanzada`;
+      } else if (tasaCierre < OBJETIVO_TASA_CIERRE.MIN) {
+        // Solo restar si la prioridad actual es mayor que 1
+        cambio = prioridadActual > 1 ? -1 : 0;
+        motivo = prioridadActual > 1 
+          ? `Rendimiento inferior al rango objetivo (${tasaCierre.toFixed(1)}% < ${OBJETIVO_TASA_CIERRE.MIN}%)` 
+          : `Rendimiento inferior al rango objetivo, pero prioridad mínima alcanzada`;
+      } else {
+        motivo = `Rendimiento dentro del rango objetivo (${tasaCierre.toFixed(1)}%)`;
+      }
+
+      if (cambio !== 0) {
+        actualizaciones.push({
+          nombre: asesor.NOMBRE,
+          cambio,
+          tasaCierre,
+          prioridadActual,
+          motivo
+        });
+      }
+    });
+
+    // Ordenar actualizaciones para tener un orden consistente
+    actualizaciones.sort((a, b) => b.tasaCierre - a.tasaCierre);
+
+    // Mostrar modal de confirmación
+    setDetallesAsignacionPuntos({
+      actualizaciones,
+      promedioTasaCierre
+    });
+    setMostrarModalAsignacionPuntos(true);
+  };
+
+  const restablecerPrioridadesATodos = async () => {
+    try {
+      // Preparar actualizaciones para todos los asesores
+      const actualizaciones: Array<{
+        asesorId: number;
+        nombre: string;
+        prioridadActual: number;
+      }> = [];
+
+      // Iterar sobre cada asesor
+      asesores.forEach(asesor => {
+        const prioridadActual = asesor.PRIORIDAD || 1;
+        
+        // Solo incluir si la prioridad no es ya 1
+        if (prioridadActual !== 1) {
+          actualizaciones.push({
+            asesorId: asesor.ID,
+            nombre: asesor.NOMBRE,
+            prioridadActual
+          });
+        }
+      });
+
+      // Si no hay cambios, mostrar mensaje
+      if (actualizaciones.length === 0) {
+        toast('Todas las prioridades ya están en 1', {
+          icon: '📊',
+          duration: 3000
+        });
+        setMostrarModalRestablecerPrioridades(false);
+        return;
+      }
+
+      // Realizar las actualizaciones en lote
+      const resultados: Array<{nombre: string, exito: boolean, error?: string}> = [];
+      for (const actualizacion of actualizaciones) {
+        try {
+          // Find the current advisor
+          const asesorActual = asesores.find(a => a.ID === actualizacion.asesorId);
+          
+          // Parse existing history or start with an empty array
+          const historialActual: ReglaHistorial[] = asesorActual?.HISTORIAL 
+            ? JSON.parse(asesorActual.HISTORIAL) 
+            : [];
+          
+          // Create a new entry for the priority reset
+          const nuevaEntrada: ReglaHistorial = {
+            fecha: Math.floor(Date.now() / 1000),
+            tipo: 'PENALIZACION',
+            configuracion: {
+              motivo: 'Restablecimiento global de prioridades',
+              prioridadAnterior: actualizacion.prioridadActual,
+              prioridadNueva: 1
+            }
+          };
+
+          // Append the new entry to the existing history
+          const historialActualizado = [...historialActual, nuevaEntrada];
+
+          // Preparar payload
+          const payload: Record<string, any> = {
+            PRIORIDAD: 1,
+            HISTORIAL: JSON.stringify(historialActualizado)
+          };
+
+          // Enviar solicitud
+          const response = await fetch(`${import.meta.env.VITE_POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${actualizacion.asesorId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(payload)
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Error ${response.status}: ${errorText}`);
+          }
+
+          resultados.push({ 
+            nombre: actualizacion.nombre, 
+            exito: true 
+          });
+        } catch (error) {
+          console.error(`Error al restablecer ${actualizacion.nombre}:`, error);
+          resultados.push({ 
+            nombre: actualizacion.nombre, 
+            exito: false, 
+            error: error instanceof Error ? error.message : 'Error desconocido'
+          });
+        }
+      }
+
+      // Generar mensaje detallado
+      const exitosos = resultados.filter(r => r.exito);
+      const fallidos = resultados.filter(r => !r.exito);
+
+      if (exitosos.length > 0) {
+        toast.success(`Prioridades restablecidas: ${exitosos.length} asesores actualizados`, {
+          duration: 4000,
+          position: 'top-center'
+        });
+      }
+
+      if (fallidos.length > 0) {
+        toast.error(`Errores al restablecer prioridades: ${fallidos.length} asesores no actualizados`, {
+          duration: 4000,
+          position: 'top-center'
+        });
+        console.error('Detalles de errores:', fallidos);
+      }
+
+      // Forzar actualización de la vista
+      onUpdate();
+      setMostrarModalRestablecerPrioridades(false);
+    } catch (error) {
+      console.error('Error crítico al restablecer prioridades:', error);
+      toast.error('Error crítico al restablecer prioridades');
+    }
+  };
+
   return (
     <div className="p-4">
       <div className="mb-6">
@@ -648,6 +872,14 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
               <option value="prioridad">Ordenar por prioridad</option>
               <option value="tasa_cierre">Ordenar por tasa de cierre</option>
             </select>
+            <button
+              onClick={prepararAsignacionPuntos}
+              className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center gap-2"
+              title="Realizar asignación periódica de prioridades basada en rendimiento"
+            >
+              <Star className="h-4 w-4" />
+              Asignación Periódica de Prioridades
+            </button>
             <button
               onClick={() => setMostrarAyuda(true)}
               className="p-2 text-blue-600 hover:bg-blue-50 rounded-full"
@@ -688,7 +920,9 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                       ) : (asesor.PRIORIDAD ?? 0) < 0 ? (
                         <div className="flex items-center text-red-600">
                           <ArrowDownCircle className="h-5 w-5" />
-                          <span className="ml-1 font-medium">Penalizado ({asesor.PRIORIDAD})</span>
+                          <span className="ml-1 font-medium">
+                            Penalizado ({asesor.PRIORIDAD})
+                          </span>
                         </div>
                       ) : (
                         <div className="flex items-center text-gray-500">
@@ -730,18 +964,18 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                       </div>
                       {(() => {
                         const tasa = estadisticas[asesor.ID].porcentajeCierre;
-                        if (tasa > 24) {
+                        if (tasa > OBJETIVO_TASA_CIERRE.MAX) {
                           return (
                             <div className="flex items-center gap-1">
                               <div className="w-3 h-3 rounded-full bg-green-500"></div>
                               <span className="text-xs text-green-600 font-medium">Por encima</span>
                             </div>
                           );
-                        } else if (tasa >= 19 && tasa <= 24) {
+                        } else if (tasa >= OBJETIVO_TASA_CIERRE.MIN && tasa <= OBJETIVO_TASA_CIERRE.MAX) {
                           return (
                             <div className="flex items-center gap-1">
                               <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                              <span className="text-xs text-blue-600 font-medium">Objetivo (19-24%)</span>
+                              <span className="text-xs text-blue-600 font-medium">Ok</span>
                             </div>
                           );
                         } else {
@@ -1307,6 +1541,220 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                   <p className="text-gray-400 text-center text-sm mt-1">Las reglas aplicadas aparecerán aquí</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Asignación Automática de Puntos */}
+      {mostrarModalAsignacionPuntos && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">Asignación Automática de Puntos</h2>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center mb-3">
+                  <Info className="h-6 w-6 text-blue-600 mr-2" />
+                  <h3 className="text-lg font-semibold text-blue-800">Información Importante</h3>
+                </div>
+                <p className="text-blue-700 text-sm">
+                  Esta asignación de puntos se realiza cada 6 horas y afecta directamente la asignación de clientes. 
+                  Los cambios en la prioridad pueden impactar significativamente el rendimiento del equipo.
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-md font-semibold mb-3">Resumen de Cambios</h4>
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">Promedio de Tasa de Cierre del Equipo:</span>{' '}
+                    <span className="text-blue-600">{detallesAsignacionPuntos.promedioTasaCierre.toFixed(1)}%</span>
+                  </p>
+                  <p>
+                    <span className="font-medium">Rango Objetivo:</span>{' '}
+                    <span className="text-green-600">{OBJETIVO_TASA_CIERRE.MIN}% - {OBJETIVO_TASA_CIERRE.MAX}%</span>
+                  </p>
+                </div>
+              </div>
+
+              {detallesAsignacionPuntos.actualizaciones.length > 0 ? (
+                <div>
+                  <h4 className="text-md font-semibold mb-3">Asesores Afectados</h4>
+                  <div className="divide-y divide-gray-200">
+                    {detallesAsignacionPuntos.actualizaciones.map((actualizacion, index) => (
+                      <div key={index} className="py-2 flex justify-between items-center">
+                        <div>
+                          <span className="font-medium">{actualizacion.nombre}</span>
+                          <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                            actualizacion.cambio > 0 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {actualizacion.cambio > 0 ? '+1' : '-1'}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          <span>Tasa Cierre: {actualizacion.tasaCierre.toFixed(1)}%</span>
+                          <span className="ml-2">Prioridad: {actualizacion.prioridadActual} → {actualizacion.prioridadActual + actualizacion.cambio}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                  <AlertTriangle className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
+                  <p className="text-yellow-800 font-medium">
+                    No hay cambios que realizar. Todos los asesores están dentro del rango objetivo o en los límites de prioridad.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setMostrarModalAsignacionPuntos(false);
+                    setMostrarModalRestablecerPrioridades(true);
+                  }}
+                  className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors flex items-center gap-2"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  Restablecer Prioridades
+                </button>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setMostrarModalAsignacionPuntos(false)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      // Existing confirmation logic remains the same
+                      if (detallesAsignacionPuntos.actualizaciones.length === 0) {
+                        toast('No hay cambios que realizar', {
+                          icon: '📊',
+                          duration: 3000
+                        });
+                        setMostrarModalAsignacionPuntos(false);
+                        return;
+                      }
+
+                      try {
+                        // Existing batch update logic remains the same
+                        const resultados: Array<{nombre: string, exito: boolean, error?: string}> = [];
+                        for (const actualizacion of detallesAsignacionPuntos.actualizaciones) {
+                          try {
+                            const asesor = asesores.find(a => a.NOMBRE === actualizacion.nombre);
+                            if (!asesor) continue;
+
+                            await aplicarPrioridad(
+                              asesor.ID, 
+                              actualizacion.cambio > 0 ? 'BONUS' : 'PENALIZACION', 
+                              actualizacion.motivo
+                            );
+                            
+                            resultados.push({ 
+                              nombre: actualizacion.nombre, 
+                              exito: true 
+                            });
+                          } catch (error) {
+                            console.error(`Error al actualizar ${actualizacion.nombre}:`, error);
+                            resultados.push({ 
+                              nombre: actualizacion.nombre, 
+                              exito: false, 
+                              error: error instanceof Error ? error.message : 'Error desconocido'
+                            });
+                          }
+                        }
+
+                        // Existing result handling logic remains the same
+                        const exitosos = resultados.filter(r => r.exito);
+                        const fallidos = resultados.filter(r => !r.exito);
+
+                        if (exitosos.length > 0) {
+                          toast.success(`Puntos asignados: ${exitosos.length} asesores actualizados`, {
+                            duration: 4000,
+                            position: 'top-center'
+                          });
+                        }
+
+                        if (fallidos.length > 0) {
+                          toast.error(`Errores al asignar puntos: ${fallidos.length} asesores no actualizados`, {
+                            duration: 4000,
+                            position: 'top-center'
+                          });
+                          console.error('Detalles de errores:', fallidos);
+                        }
+
+                        // Forzar actualización de la vista
+                        onUpdate();
+                        setMostrarModalAsignacionPuntos(false);
+                      } catch (error) {
+                        console.error('Error crítico al asignar puntos:', error);
+                        toast.error('Error crítico al asignar puntos');
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Confirmar Asignación
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Restablecimiento de Prioridades */}
+      {mostrarModalRestablecerPrioridades && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">Restablecer Prioridades</h2>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center mb-3">
+                  <AlertTriangle className="h-6 w-6 text-yellow-600 mr-2" />
+                  <h3 className="text-lg font-semibold text-yellow-800">Confirmación Requerida</h3>
+                </div>
+                <p className="text-yellow-700 text-sm">
+                  Esta acción restablecerá la prioridad de TODOS los asesores a 1. 
+                  Esto puede afectar significativamente la asignación de clientes.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-md font-semibold mb-2">Resumen de Cambio</h4>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-sm">
+                    <span className="font-medium">Asesores Afectados:</span>{' '}
+                    <span className="text-blue-600">
+                      {asesores.filter(a => (a.PRIORIDAD || 1) !== 1).length}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={() => setMostrarModalRestablecerPrioridades(false)}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={restablecerPrioridadesATodos}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  Restablecer Prioridades
+                </button>
+              </div>
             </div>
           </div>
         </div>

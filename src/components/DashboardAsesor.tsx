@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Cliente, Asesor, Reporte, EstadisticasAsesor, EstadoCliente } from '../types';
-import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send } from 'lucide-react';
+import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send, User, Smartphone, LogOut } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
 import ClientesPendientes from './ClientesPendientes';
 import ActualizarEstadoCliente from './ActualizarEstadoCliente';
@@ -21,17 +21,30 @@ interface NavItem {
   icon: typeof List;
   badge?: number;
   color?: 'red' | 'yellow' | 'blue';
+  description?: string;
 }
 
 const getActiveClasses = (color?: 'red' | 'yellow' | 'blue') => {
   switch (color) {
     case 'red':
-      return 'border-red-500 text-red-600';
+      return 'border-red-500 text-red-600 bg-red-50';
     case 'yellow':
-      return 'border-yellow-500 text-yellow-600';
+      return 'border-yellow-500 text-yellow-600 bg-yellow-50';
     case 'blue':
     default:
-      return 'border-blue-500 text-blue-600';
+      return 'border-blue-500 text-blue-600 bg-blue-50';
+  }
+};
+
+const getHoverClasses = (color?: 'red' | 'yellow' | 'blue') => {
+  switch (color) {
+    case 'red':
+      return 'hover:border-red-300 hover:text-red-500 hover:bg-red-25';
+    case 'yellow':
+      return 'hover:border-yellow-300 hover:text-yellow-500 hover:bg-yellow-25';
+    case 'blue':
+    default:
+      return 'hover:border-blue-300 hover:text-blue-500 hover:bg-blue-25';
   }
 };
 
@@ -271,23 +284,40 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   };
 
   const navItems: NavItem[] = [
-    { id: 'general', label: 'Vista General', icon: List },
+    { 
+      id: 'general', 
+      label: 'Vista General', 
+      icon: List,
+      description: 'Resumen completo de todos los clientes'
+    },
     { 
       id: 'pendientes', 
       label: 'Cambios de Estados', 
       icon: AlertCircle,
       badge: getClientesEstadoPendiente().length,
-      color: 'red'
+      color: 'red',
+      description: 'Clientes con actualizaciones pendientes'
     },
     { 
       id: 'sin-reporte', 
       label: 'Sin Reporte', 
       icon: MessageSquare,
       badge: clientesSinReporte.length,
-      color: 'yellow'
+      color: 'yellow',
+      description: 'Clientes que necesitan primer contacto'
     },
-    { id: 'seguimientos', label: 'Seguimientos', icon: Clock },
-    { id: 'estadisticas', label: 'Estadísticas', icon: TrendingUp }
+    { 
+      id: 'seguimientos', 
+      label: 'Seguimientos', 
+      icon: Clock,
+      description: 'Gestión de citas y seguimientos'
+    },
+    { 
+      id: 'estadisticas', 
+      label: 'Estadísticas', 
+      icon: TrendingUp,
+      description: 'Análisis de rendimiento y métricas'
+    }
   ];
 
   const NavButton = ({ item }: { item: NavItem }) => {
@@ -301,20 +331,30 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           setMenuMobileAbierto(false);
         }}
         className={`
-          flex items-center py-2 px-4 text-sm font-medium w-full
-          ${isActive ? getActiveClasses(item.color) : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}
+          flex items-center py-3 px-4 text-sm font-medium w-full rounded-lg transition-all duration-200 relative group
+          ${isActive 
+            ? getActiveClasses(item.color) + ' shadow-sm'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+          }
         `}
       >
-        <Icon className="h-5 w-5 mr-2" />
-        <span>{item.label}</span>
+        <Icon className="h-5 w-5 mr-3 flex-shrink-0" />
+        <div className="flex-1 text-left">
+          <div className="font-medium">{item.label}</div>
+          {item.description && (
+            <div className="text-xs opacity-75 mt-0.5 hidden sm:block">{item.description}</div>
+          )}
+        </div>
         {item.badge !== undefined && item.badge > 0 && (
-          <span className={
-            item.color === 'red'
-              ? 'ml-2 bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
+          <span className={`
+            flex items-center justify-center min-w-[20px] h-5 text-xs font-bold rounded-full
+            ${item.color === 'red'
+              ? 'bg-red-500 text-white'
               : item.color === 'yellow'
-              ? 'ml-2 bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
-              : 'ml-2 bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
-          }>
+              ? 'bg-yellow-500 text-white'
+              : 'bg-blue-500 text-white'
+            }
+          `}>
             {item.badge}
           </span>
         )}
@@ -591,122 +631,188 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-white shadow">
-        <div className="max-w-6xl mx-auto px-4 py-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard de {asesor.NOMBRE}</h1>
-          <div className="flex space-x-4">
-            <button
-              onClick={() => setShowWhatsAppModal(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition duration-300"
-            >
-              WhatsApp {whatsappStatus ? `(${whatsappStatus})` : ''}
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition duration-300"
-            >
-              Cerrar Sesión
-            </button>
-          </div>
-        </div>
-
-        {/* Navegación móvil */}
-        <div className="md:hidden px-4 py-2 border-b border-gray-200">
-          <button
-            onClick={() => setMenuMobileAbierto(!menuMobileAbierto)}
-            className="flex items-center justify-between w-full py-2 px-4 bg-gray-100 rounded-lg shadow hover:bg-gray-200 transition duration-300"
-          >
-            <span className="font-medium">Menú</span>
-            {menuMobileAbierto ? (
-              <X className="h-6 w-6 transition-transform duration-300 transform rotate-90" />
-            ) : (
-              <MenuIcon className="h-6 w-6 transition-transform duration-300" />
-            )}
-          </button>
-          
-          {menuMobileAbierto && (
-            <div className="mt-2 space-y-1">
-              {navItems.map(item => (
-                <NavButton key={item.id} item={item} />
-              ))}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header Moderno */}
+      <div className="bg-white shadow-lg border-b border-gray-200">
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header Principal */}
+          <div className="flex items-center justify-between h-16 lg:h-20">
+            {/* Logo y Título */}
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 lg:w-12 lg:h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <User className="h-6 w-6 lg:h-7 lg:w-7 text-white" />
+                </div>
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-xl lg:text-2xl font-bold text-gray-900">
+                  Dashboard de <span className="text-blue-600">{asesor.NOMBRE}</span>
+                </h1>
+                <p className="text-sm text-gray-500 mt-0.5">Panel de control y gestión de clientes</p>
+              </div>
+              <div className="sm:hidden">
+                <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
+                <p className="text-xs text-gray-500">{asesor.NOMBRE}</p>
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Navegación desktop */}
-        <div className="hidden md:flex space-x-4 border-b border-gray-200 px-4">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setVistaActual(item.id)}
-              className={`
-                py-2 px-4 border-b-2 font-medium text-sm
-                ${vistaActual === item.id ? getActiveClasses(item.color) : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-              `}
-            >
-              <item.icon className="inline-block h-5 w-5 mr-2" />
-              {item.label}
-              {item.badge !== undefined && item.badge > 0 && (
-                <span className={
-                  item.color === 'red'
-                    ? 'ml-2 bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
-                    : item.color === 'yellow'
-                    ? 'ml-2 bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
-                    : 'ml-2 bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full'
-                }>
-                  {item.badge}
+            {/* Botones de Acción */}
+            <div className="flex items-center space-x-2 lg:space-x-4">
+              {/* Estado WhatsApp */}
+              <div className="hidden sm:flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
+                <div className={`w-2 h-2 rounded-full ${
+                  whatsappStatus === 'Conectado' ? 'bg-green-500' : 'bg-red-500'
+                }`}></div>
+                <span className="text-xs font-medium text-gray-600">
+                  {whatsappStatus || 'Desconectado'}
                 </span>
-              )}
+              </div>
+
+              {/* Botón WhatsApp */}
+              <button
+                onClick={() => setShowWhatsAppModal(true)}
+                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+              >
+                <Smartphone className="h-4 w-4" />
+                <span className="hidden lg:inline font-medium">WhatsApp</span>
+              </button>
+
+              {/* Botón Cerrar Sesión */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden lg:inline font-medium">Salir</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Navegación Móvil */}
+          <div className="lg:hidden pb-4">
+            <button
+              onClick={() => setMenuMobileAbierto(!menuMobileAbierto)}
+              className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 rounded-xl transition-all duration-200 shadow-sm"
+            >
+              <div className="flex items-center space-x-3">
+                <MenuIcon className="h-5 w-5 text-gray-600" />
+                <span className="font-medium text-gray-900">Menú de Navegación</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                {navItems.reduce((total, item) => total + (item.badge || 0), 0) > 0 && (
+                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {navItems.reduce((total, item) => total + (item.badge || 0), 0)}
+                  </span>
+                )}
+                <X className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
+                  menuMobileAbierto ? 'rotate-180' : 'rotate-0'
+                }`} />
+              </div>
             </button>
-          ))}
+            
+            {menuMobileAbierto && (
+              <div className="mt-4 space-y-2 bg-white rounded-xl shadow-lg p-4 border border-gray-100">
+                {navItems.map(item => (
+                  <NavButton key={item.id} item={item} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Navegación Desktop */}
+          <div className="hidden lg:block">
+            <div className="flex space-x-1 py-4">
+              {navItems.map(item => {
+                const isActive = vistaActual === item.id;
+                const Icon = item.icon;
+                
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setVistaActual(item.id)}
+                    className={`
+                      flex items-center space-x-3 px-6 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                      ${isActive 
+                        ? getActiveClasses(item.color) + ' shadow-md border-2'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-sm border-2 border-transparent'
+                      }
+                    `}
+                  >
+                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="font-semibold">{item.label}</div>
+                      {item.description && (
+                        <div className="text-xs opacity-75 mt-0.5">{item.description}</div>
+                      )}
+                    </div>
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <span className={`
+                        flex items-center justify-center min-w-[24px] h-6 text-xs font-bold rounded-full shadow-sm
+                        ${item.color === 'red'
+                          ? 'bg-red-500 text-white'
+                          : item.color === 'yellow'
+                          ? 'bg-yellow-500 text-white'
+                          : 'bg-blue-500 text-white'
+                        }
+                      `}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-[1800px] mx-auto px-4 py-6">
-        {vistaActual === 'general' && (
-          <ListaGeneralClientes
-            clientes={clientes}
-            reportes={reportes}
-            onActualizarEstado={setClienteParaEstado}
-            onReportarVenta={setClienteParaVenta}
-            onChat={setClienteParaChat}
-            admin={false}
-          />
-        )}
-        {vistaActual === 'seguimientos' && (
-          <SeguimientosClientes 
-            reportes={reportes} 
-            onRefrescar={cargarDatos}
-            onChat={setClienteParaChat}
-          />
-        )}
-        {vistaActual === 'estadisticas' && (
-          <EstadisticasAvanzadas
-            estadisticas={estadisticas}
-            reportes={reportes}
-            clientes={clientes}
-          />
-        )}
-        {vistaActual === 'pendientes' && (
-          <ClientesPendientes
-            clientes={clientes}
-            reportes={reportes}
-            onActualizarEstado={setClienteParaEstado}
-            onReportarVenta={setClienteParaVenta}
-            onChat={setClienteParaChat}
-          />
-        )}
-        {vistaActual === 'sin-reporte' && (
-          <ClientesSinReporte
-            clientes={clientesSinReporte}
-            onActualizarEstado={setClienteParaEstado}
-            onReportarVenta={setClienteParaVenta}
-            onChat={setClienteParaChat}
-          />
-        )}
+      {/* Contenido Principal */}
+      <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          {vistaActual === 'general' && (
+            <ListaGeneralClientes
+              clientes={clientes}
+              reportes={reportes}
+              onActualizarEstado={setClienteParaEstado}
+              onReportarVenta={setClienteParaVenta}
+              onChat={setClienteParaChat}
+              admin={false}
+            />
+          )}
+          {vistaActual === 'seguimientos' && (
+            <SeguimientosClientes 
+              reportes={reportes} 
+              onRefrescar={cargarDatos}
+              onChat={setClienteParaChat}
+            />
+          )}
+          {vistaActual === 'estadisticas' && (
+            <EstadisticasAvanzadas
+              estadisticas={estadisticas}
+              reportes={reportes}
+              clientes={clientes}
+            />
+          )}
+          {vistaActual === 'pendientes' && (
+            <ClientesPendientes
+              clientes={clientes}
+              reportes={reportes}
+              onActualizarEstado={setClienteParaEstado}
+              onReportarVenta={setClienteParaVenta}
+              onChat={setClienteParaChat}
+            />
+          )}
+          {vistaActual === 'sin-reporte' && (
+            <ClientesSinReporte
+              clientes={clientesSinReporte}
+              onActualizarEstado={setClienteParaEstado}
+              onReportarVenta={setClienteParaVenta}
+              onChat={setClienteParaChat}
+            />
+          )}
+        </div>
 
+        {/* Modales */}
         {clienteParaEstado && (
           <ActualizarEstadoCliente
             cliente={clienteParaEstado}

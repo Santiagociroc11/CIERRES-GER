@@ -16,6 +16,11 @@ import {
   Filter,
   RefreshCcw,
   MessageSquare,
+  Shield,
+  TrendingUp,
+  Settings,
+  PieChart,
+  UserCheck,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -732,71 +737,158 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Encabezado y navegación principal */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Panel de Administración</h1>
-            <div className="flex flex-wrap gap-2">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header Moderno */}
+      <div className="bg-white shadow-xl border-b border-gray-200">
+        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header Principal */}
+          <div className="flex items-center justify-between h-16 lg:h-20">
+            {/* Logo y Título */}
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Shield className="h-7 w-7 lg:h-8 lg:w-8 text-white" />
+                </div>
+              </div>
+              <div>
+                <h1 className="text-xl lg:text-3xl font-bold text-gray-900">
+                  Panel de <span className="text-purple-600">Administración</span>
+                </h1>
+                <p className="text-sm lg:text-base text-gray-500 mt-0.5">Control total del sistema de ventas</p>
+              </div>
+            </div>
+
+            {/* Indicadores de Estado */}
+            <div className="hidden md:flex items-center space-x-4">
+              {/* Contador de Alertas */}
+              <div className="flex items-center space-x-2 px-3 py-2 bg-red-50 rounded-lg border border-red-200">
+                <Bell className="h-4 w-4 text-red-500" />
+                <span className="text-sm font-medium text-red-700">
+                  {getAsesoresInactivos().length + getAsesoresClientesSinMensaje().length + getAsesoresBajaCierre().length} alertas
+                </span>
+              </div>
+
+              {/* Estado del Sistema */}
+              <div className="flex items-center space-x-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
+                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <span className="text-sm font-medium text-green-700">Sistema Activo</span>
+              </div>
+            </div>
+
+            {/* Botones de Acción */}
+            <div className="flex items-center space-x-2 lg:space-x-3">
               <button
                 onClick={exportarDatos}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                <Download className="h-5 w-5 mr-2" />
-                Exportar Datos
+                <Download className="h-4 w-4" />
+                <span className="hidden lg:inline font-medium">Exportar</span>
               </button>
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                <LogOut className="h-5 w-5 mr-2" />
-                Cerrar Sesión
+                <LogOut className="h-4 w-4" />
+                <span className="hidden lg:inline font-medium">Salir</span>
               </button>
             </div>
+          </div>
 
-            {/* Navegación entre pestañas: Resumen / Asesores / Clientes / Gestión */}
-            <div className="mt-4 flex space-x-4 border-b border-gray-200">
-              <button
-                onClick={() => setVistaAdmin('resumen')}
-                className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                  vistaAdmin === 'resumen'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Resumen
-              </button>
-              <button
-                onClick={() => setVistaAdmin('asesores')}
-                className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                  vistaAdmin === 'asesores'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Asesores
-              </button>
-              <button
-                onClick={() => setVistaAdmin('clientes')}
-                className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                  vistaAdmin === 'clientes'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Clientes
-              </button>
-              <button
-                onClick={() => setVistaAdmin('gestion')}
-                className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                  vistaAdmin === 'gestion'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Gestión
-              </button>
+          {/* Navegación Principal */}
+          <div className="border-t border-gray-100 pt-4 pb-6">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              {/* Pestañas de Navegación */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setVistaAdmin('resumen')}
+                  className={`
+                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                    ${vistaAdmin === 'resumen'
+                      ? 'bg-blue-600 text-white shadow-lg border-2 border-blue-600'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
+                    }
+                  `}
+                >
+                  <PieChart className="h-5 w-5" />
+                  <span className="font-semibold">Resumen</span>
+                  <div className="text-xs opacity-75 hidden sm:block">Dashboard principal</div>
+                </button>
+                
+                <button
+                  onClick={() => setVistaAdmin('asesores')}
+                  className={`
+                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                    ${vistaAdmin === 'asesores'
+                      ? 'bg-green-600 text-white shadow-lg border-2 border-green-600'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
+                    }
+                  `}
+                >
+                  <UserCheck className="h-5 w-5" />
+                  <span className="font-semibold">Asesores</span>
+                  <div className="text-xs opacity-75 hidden sm:block">Gestión del equipo</div>
+                  <span className="ml-2 bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {asesores.length}
+                  </span>
+                </button>
+                
+                <button
+                  onClick={() => setVistaAdmin('clientes')}
+                  className={`
+                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                    ${vistaAdmin === 'clientes'
+                      ? 'bg-purple-600 text-white shadow-lg border-2 border-purple-600'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
+                    }
+                  `}
+                >
+                  <Users className="h-5 w-5" />
+                  <span className="font-semibold">Clientes</span>
+                  <div className="text-xs opacity-75 hidden sm:block">Base de datos</div>
+                  <span className="ml-2 bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {clientes.length}
+                  </span>
+                </button>
+                
+                <button
+                  onClick={() => setVistaAdmin('gestion')}
+                  className={`
+                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                    ${vistaAdmin === 'gestion'
+                      ? 'bg-orange-600 text-white shadow-lg border-2 border-orange-600'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
+                    }
+                  `}
+                >
+                  <Settings className="h-5 w-5" />
+                  <span className="font-semibold">Gestión</span>
+                  <div className="text-xs opacity-75 hidden sm:block">Asignaciones</div>
+                </button>
+              </div>
+
+              {/* Métricas Rápidas */}
+              <div className="hidden xl:flex items-center space-x-4 bg-gray-50 rounded-xl p-3">
+                <div className="flex items-center space-x-2">
+                  <Target className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium text-gray-700">
+                    {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasPrincipal || 0), 0)} Principal
+                  </span>
+                </div>
+                <div className="w-px h-4 bg-gray-300"></div>
+                <div className="flex items-center space-x-2">
+                  <Target className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-gray-700">
+                    {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasDownsell || 0), 0)} Downsell
+                  </span>
+                </div>
+                <div className="w-px h-4 bg-gray-300"></div>
+                <div className="flex items-center space-x-2">
+                  <TrendingUp className="h-4 w-4 text-purple-500" />
+                  <span className="text-sm font-medium text-gray-700">
+                    {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length).toFixed(1)}% Cierre
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1138,154 +1230,298 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           <>
             {/* Resumen y lista de asesores */}
             <div className="max-w-8xl mx-auto px-4 py-6">
-              {/* KPIs Principales */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <div className="bg-white rounded-lg shadow p-4 flex items-center">
-                  <Users className="h-8 w-8 text-blue-500" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Asesores</p>
-                    <p className="text-xl md:text-2xl font-semibold text-gray-900">{asesores.length}</p>
+              {/* KPIs Principales Modernos */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {/* Total Asesores */}
+                <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-blue-100 rounded-xl">
+                      <Users className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Asesores</div>
+                      <div className="text-3xl font-bold text-gray-900 mt-1">{asesores.length}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm text-gray-600">Activos</span>
+                    </div>
+                    <span className="text-sm font-medium text-green-600">
+                      {asesores.filter(a => {
+                        const stats = estadisticas[a.ID];
+                        const ultimaActividad = stats?.ultimaActividad;
+                        if (!ultimaActividad) return false;
+                        const horasSinActividad = Math.floor((Date.now() - ultimaActividad * 1000) / (1000 * 60 * 60));
+                        return horasSinActividad < 10;
+                      }).length}
+                    </span>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg shadow p-4 flex items-center">
-                  <Target className="h-8 w-8 text-green-500" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Ventas Principal</p>
-                    <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                      {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasPrincipal || 0), 0)}
-                    </p>
+
+                {/* Ventas Principal */}
+                <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-green-100 rounded-xl">
+                      <Target className="h-8 w-8 text-green-600" />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Ventas Principal</div>
+                      <div className="text-3xl font-bold text-gray-900 mt-1">
+                        {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasPrincipal || 0), 0)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Producto premium</span>
+                    <div className="flex items-center space-x-1">
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <span className="text-sm font-medium text-green-600">Principal</span>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="bg-white rounded-lg shadow p-4 flex items-center">
-                  <Target className="h-8 w-8 text-blue-500" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Ventas Downsell</p>
-                    <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                      {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasDownsell || 0), 0)}
-                    </p>
+
+                {/* Ventas Downsell */}
+                <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-blue-100 rounded-xl">
+                      <Target className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Ventas Downsell</div>
+                      <div className="text-3xl font-bold text-gray-900 mt-1">
+                        {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasDownsell || 0), 0)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Producto secundario</span>
+                    <div className="flex items-center space-x-1">
+                      <TrendingUp className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm font-medium text-blue-600">Downsell</span>
+                    </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg shadow p-4 flex items-center">
-                  <Users className="h-8 w-8 text-green-500" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Clientes</p>
-                    <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                      {clientes.length}
-                    </p>
+
+                {/* Total Clientes */}
+                <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-purple-100 rounded-xl">
+                      <Users className="h-8 w-8 text-purple-600" />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Clientes</div>
+                      <div className="text-3xl font-bold text-gray-900 mt-1">{clientes.length}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Base de datos</span>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-purple-600">
+                        {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length).toFixed(1)}% conversión
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Gráfico de ventas */}
+              {/* Gráfico de ventas mejorado */}
               {getSalesData.length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Tendencia de Ventas</h2>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={getSalesData}>
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="principal" stroke="#4ade80" strokeWidth={2} />
-                      <Line type="monotone" dataKey="downsell" stroke="#60a5fa" strokeWidth={2} />
-                    </LineChart>
-                  </ResponsiveContainer>
+                <div className="mb-8">
+                  <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <BarChart className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-bold text-gray-900">Tendencia de Ventas</h2>
+                            <p className="text-sm text-gray-500">Evolución de conversiones por día</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                            <span className="text-sm font-medium text-gray-600">Principal</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                            <span className="text-sm font-medium text-gray-600">Downsell</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-6">
+                      <ResponsiveContainer width="100%" height={350}>
+                        <LineChart data={getSalesData}>
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            axisLine={{ stroke: '#e5e7eb' }}
+                            tickLine={{ stroke: '#e5e7eb' }}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }}
+                            axisLine={{ stroke: '#e5e7eb' }}
+                            tickLine={{ stroke: '#e5e7eb' }}
+                          />
+                          <Tooltip 
+                            contentStyle={{
+                              backgroundColor: 'white',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px',
+                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                            }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="principal" 
+                            stroke="#10b981" 
+                            strokeWidth={3}
+                            dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2 }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="downsell" 
+                            stroke="#3b82f6" 
+                            strokeWidth={3}
+                            dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Filtros */}
-              <div className="mb-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      placeholder="Buscar asesor..."
-                      value={busqueda}
-                      onChange={(e) => setBusqueda(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                  </div>
-                  <div className="flex flex-col gap-4">
-                    <select
-                      value={periodoSeleccionado}
-                      onChange={(e) => setPeriodoSeleccionado(e.target.value as 'año' | 'mes' | 'semana' | 'personalizado')}
-                      className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="personalizado">3 meses</option>
-                      <option value="año">Este año</option>
-                      <option value="mes">Último mes</option>
-                      <option value="semana">Última semana</option>
-                    </select>
-                    {/* Mostrar los selectores de fecha para todos los períodos */}
-                    <div className="flex gap-4">
+              {/* Filtros mejorados */}
+              <div className="mb-8">
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                  <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                    {/* Buscador */}
+                    <div className="flex-1 relative max-w-md">
                       <input
-                        type="date"
-                        value={fechaInicio}
-                        onChange={(e) => {
-                          setFechaInicio(e.target.value);
-                          setPeriodoSeleccionado('personalizado');
-                        }}
-                        className="border border-gray-300 rounded-md p-2"
+                        type="text"
+                        placeholder="Buscar asesor por nombre o WhatsApp..."
+                        value={busqueda}
+                        onChange={(e) => setBusqueda(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                       />
-                      <input
-                        type="date"
-                        value={fechaFin}
-                        onChange={(e) => {
-                          setFechaFin(e.target.value);
-                          setPeriodoSeleccionado('personalizado');
-                        }}
-                        className="border border-gray-300 rounded-md p-2"
-                      />
-                      {periodoSeleccionado === 'personalizado' && (
-                        <button
-                          onClick={() => {
-                            const { inicio, fin } = calcularPeriodoTresMeses();
-                            setFechaInicio(inicio);
-                            setFechaFin(fin);
-                          }}
-                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                      <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
+                    </div>
+                    
+                    {/* Controles de Filtro */}
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      {/* Período */}
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium text-gray-700 mb-2">Período de análisis</label>
+                        <select
+                          value={periodoSeleccionado}
+                          onChange={(e) => setPeriodoSeleccionado(e.target.value as 'año' | 'mes' | 'semana' | 'personalizado')}
+                          className="w-full sm:w-48 px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
-                          Restablecer 3 meses
-                        </button>
-                      )}
+                          <option value="personalizado">3 meses (recomendado)</option>
+                          <option value="año">Este año</option>
+                          <option value="mes">Último mes</option>
+                          <option value="semana">Última semana</option>
+                        </select>
+                      </div>
+
+                      {/* Fechas personalizadas */}
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="flex flex-col">
+                          <label className="text-sm font-medium text-gray-700 mb-2">Desde</label>
+                          <input
+                            type="date"
+                            value={fechaInicio}
+                            onChange={(e) => {
+                              setFechaInicio(e.target.value);
+                              setPeriodoSeleccionado('personalizado');
+                            }}
+                            className="px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div className="flex flex-col">
+                          <label className="text-sm font-medium text-gray-700 mb-2">Hasta</label>
+                          <input
+                            type="date"
+                            value={fechaFin}
+                            onChange={(e) => {
+                              setFechaFin(e.target.value);
+                              setPeriodoSeleccionado('personalizado');
+                            }}
+                            className="px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Ordenar por */}
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium text-gray-700 mb-2">Ordenar por</label>
+                        <select
+                          value={ordenarPor}
+                          onChange={(e) => setOrdenarPor(e.target.value as OrdenAsesor)}
+                          className="w-full sm:w-56 px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="ventas">Ventas totales</option>
+                          <option value="tasa">Tasa de cierre</option>
+                          <option value="tiempo">Tiempo de conversión</option>
+                          <option value="actividad">Última actividad</option>
+                          <option value="clientes">Total de clientes</option>
+                          <option value="sin_reporte">Clientes sin reporte</option>
+                          <option value="criticos">Clientes críticos</option>
+                          <option value="tiempo_primer_mensaje">Tiempo primer mensaje</option>
+                          <option value="seguimientos">Seguimientos pendientes</option>
+                        </select>
+                      </div>
+
+                      {/* Toggle inactivos */}
+                      <div className="flex flex-col justify-end">
+                        <div className="flex items-center space-x-3 bg-gray-50 rounded-xl p-3">
+                          <span className="text-sm font-medium text-gray-700">
+                            {mostrarInactivos ? 'Solo inactivos' : 'Todos'}
+                          </span>
+                          <button
+                            onClick={() => setMostrarInactivos(!mostrarInactivos)}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              mostrarInactivos ? 'bg-blue-600' : 'bg-gray-200'
+                            }`}
+                            role="switch"
+                            aria-checked={mostrarInactivos}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                mostrarInactivos ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <select
-                    value={ordenarPor}
-                    onChange={(e) => setOrdenarPor(e.target.value as OrdenAsesor)}
-                    className="w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="ventas">Ordenar por ventas totales</option>
-                    <option value="tasa">Ordenar por tasa de cierre</option>
-                    <option value="tiempo">Ordenar por tiempo de conversión</option>
-                    <option value="actividad">Ordenar por última actividad</option>
-                    <option value="clientes">Ordenar por total de clientes</option>
-                    <option value="sin_reporte">Ordenar por clientes sin reporte</option>
-                    <option value="criticos">Ordenar por clientes críticos</option>
-                    <option value="tiempo_primer_mensaje">Ordenar por tiempo primer mensaje</option>
-                    <option value="seguimientos">Ordenar por seguimientos pendientes</option>
-                  </select>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700">
-                      {mostrarInactivos ? 'Mostrar inactivos' : 'Mostrar todos'}
-                    </span>
-                    <button
-                      onClick={() => setMostrarInactivos(!mostrarInactivos)}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                        mostrarInactivos ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                      role="switch"
-                      aria-checked={mostrarInactivos}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          mostrarInactivos ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
+
+                  {/* Botón restablecer solo para período personalizado */}
+                  {periodoSeleccionado === 'personalizado' && (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <button
+                        onClick={() => {
+                          const { inicio, fin } = calcularPeriodoTresMeses();
+                          setFechaInicio(inicio);
+                          setFechaFin(fin);
+                        }}
+                        className="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200"
+                      >
+                        <RefreshCcw className="h-4 w-4 mr-2" />
+                        Restablecer a 3 meses
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2141,7 +2377,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           isOpen={!!clienteParaChat}
           onClose={() => setClienteParaChat(null)}
           cliente={clienteParaChat}
-          asesor={asesorSeleccionado || undefined}
+          asesor={asesorSeleccionado ? { ID: asesorSeleccionado.ID, NOMBRE: asesorSeleccionado.NOMBRE } : { ID: 0, NOMBRE: 'Admin' }}
         />
       )}
 

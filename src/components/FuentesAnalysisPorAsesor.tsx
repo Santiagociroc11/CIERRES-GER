@@ -148,8 +148,8 @@ export default function FuentesAnalysisPorAsesor({
                 const tasaAsesor = total > 0 ? (cerrados / total) * 100 : 0;
                 const tasaEquipo = teamStatsByFuente[fuente] || 0;
                 const bestData = bestRateByFuente[fuente];
-                const tasaMejor = bestData ? bestData.rate : 0;
-                const mejorNombre = bestData ? bestData.advisorName : '-';
+                const tasaMejor = bestData?.rate ?? 0;
+                const mejorNombre = bestData?.advisorName ?? '-';
                 return (
                   <tr key={fuente} className="border-b">
                     <td className="px-6 py-4">{fuente}</td>
@@ -191,8 +191,8 @@ export default function FuentesAnalysisPorAsesor({
           const tasaAsesor = total > 0 ? (cerrados / total) * 100 : 0;
           const tasaEquipo = teamStatsByFuente[fuente] || 0;
           const bestData = bestRateByFuente[fuente];
-          const tasaMejor = bestData ? bestData.rate : 0;
-          const mejorNombre = bestData ? bestData.advisorName : '-';
+          const tasaMejor = bestData?.rate ?? 0;
+          const mejorNombre = bestData?.advisorName ?? '-';
           return (
             <div key={fuente} className="bg-white shadow-md rounded-lg p-4">
               <h3 className="text-lg font-semibold text-gray-800">{fuente}</h3>

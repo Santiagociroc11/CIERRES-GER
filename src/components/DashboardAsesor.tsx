@@ -58,6 +58,7 @@ interface WhatsAppModalProps {
   onCreateInstance: () => Promise<void>;
   onDisconnect: () => Promise<void>;
   onRefreshInstance: () => Promise<void>;
+  onDeleteInstance: () => Promise<void>;
 }
 
 function WhatsAppModal({
@@ -70,6 +71,7 @@ function WhatsAppModal({
   onCreateInstance,
   onDisconnect,
   onRefreshInstance,
+  onDeleteInstance,
 }: WhatsAppModalProps) {
   if (!isOpen) return null;
 
@@ -101,13 +103,25 @@ function WhatsAppModal({
             ) : (
               <p className="mb-4 text-sm text-gray-600">QR no disponible. Intenta refrescar.</p>
             )}
-            <button
-              onClick={onRefreshInstance}
-              disabled={isLoadingWhatsApp}
-              className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition duration-300"
-            >
-              Refrescar Conexión
-            </button>
+            <div className="flex flex-col space-y-2">
+              <button
+                onClick={onRefreshInstance}
+                disabled={isLoadingWhatsApp}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition duration-300"
+              >
+                Refrescar Conexión
+              </button>
+              <button
+                onClick={onDeleteInstance}
+                disabled={isLoadingWhatsApp}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition duration-300"
+              >
+                Eliminar Instancia
+              </button>
+              <p className="text-xs text-gray-500 mt-2">
+                Si el QR no funciona, puedes eliminar la instancia y crear una nueva
+              </p>
+            </div>
           </div>
         )}
         {instanceInfo && instanceInfo.connectionStatus === "open" && !isLoadingWhatsApp && (
@@ -224,6 +238,10 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [instanceInfo, setInstanceInfo] = useState<any>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showWhatsAppWarning, setShowWhatsAppWarning] = useState(true);
+  const [showTelegramModal, setShowTelegramModal] = useState(false);
+  const [telegramId, setTelegramId] = useState('');
+  const [currentTelegramId, setCurrentTelegramId] = useState<string | null>(null);
+  const [isLoadingTelegram, setIsLoadingTelegram] = useState(false);
 
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
@@ -236,12 +254,13 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   };
 
   useEffect(() => {
-    refreshConnection();
-  }, []);
-
-  useEffect(() => {
+    loadCurrentTelegramId();
     cargarDatos();
   }, [asesor.ID]);
+
+  useEffect(() => {
+    refreshConnection();
+  }, []);
 
   useEffect(() => {
     if (showWhatsAppModal) {
@@ -630,6 +649,79 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
+  const handleDeleteInstance = async () => {
+    try {
+      setIsLoadingWhatsApp(true);
+      const url = `${evolutionServerUrl}/instance/delete/${encodeURIComponent(asesor.NOMBRE)}`;
+      console.log("Delete URL:", url);
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error al eliminar la instancia: ${response.status} - ${errorText}`);
+      }
+      setWhatsappStatus("Desconectado");
+      setInstanceInfo(null);
+      setQrCode(null);
+      showToast("Instancia eliminada correctamente", "success");
+      await refreshConnection();
+    } catch (error) {
+      console.error("Error eliminando instancia:", error);
+      showToast("Error al eliminar la instancia", "error");
+    } finally {
+      setIsLoadingWhatsApp(false);
+    }
+  };
+
+  const handleSaveTelegramId = async () => {
+    if (!telegramId.trim()) {
+      showToast("Por favor ingresa tu ID de Telegram", "error");
+      return;
+    }
+
+    try {
+      setIsLoadingTelegram(true);
+      
+      const response = await apiClient.request(`/GERSSON_ASESORES?ID=eq.${asesor.ID}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ID_TG: telegramId.trim()
+        })
+      });
+
+      showToast("ID de Telegram guardado correctamente", "success");
+      setShowTelegramModal(false);
+      setTelegramId('');
+      await loadCurrentTelegramId();
+    } catch (error) {
+      console.error("Error guardando ID de Telegram:", error);
+      showToast("Error al guardar el ID de Telegram", "error");
+    } finally {
+      setIsLoadingTelegram(false);
+    }
+  };
+
+  const loadCurrentTelegramId = async () => {
+    try {
+      const response = await apiClient.request<any[]>(`/GERSSON_ASESORES?ID=eq.${asesor.ID}&select=ID_TG`);
+      if (response && response.length > 0) {
+        const idTg = response[0].ID_TG;
+        setCurrentTelegramId(idTg || null);
+        setTelegramId(idTg || '');
+      }
+    } catch (error) {
+      console.error('Error cargando ID de Telegram:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header Moderno */}
@@ -677,6 +769,20 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                 <span className="hidden lg:inline font-medium">WhatsApp</span>
               </button>
 
+              {/* Botón Telegram */}
+              <button
+                onClick={() => setShowTelegramModal(true)}
+                className={`flex items-center space-x-2 px-3 lg:px-4 py-2 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md relative ${
+                  currentTelegramId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-500 hover:bg-gray-600'
+                }`}
+              >
+                <Send className="h-4 w-4" />
+                <span className="hidden lg:inline font-medium">Telegram</span>
+                {currentTelegramId && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                )}
+              </button>
+
               {/* Botón Cerrar Sesión */}
               <button
                 onClick={handleLogout}
@@ -690,10 +796,10 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
           {/* Navegación Móvil */}
           <div className="lg:hidden pb-4">
-            <button
-              onClick={() => setMenuMobileAbierto(!menuMobileAbierto)}
+          <button
+            onClick={() => setMenuMobileAbierto(!menuMobileAbierto)}
               className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 rounded-xl transition-all duration-200 shadow-sm"
-            >
+          >
               <div className="flex items-center space-x-3">
                 <MenuIcon className="h-5 w-5 text-gray-600" />
                 <span className="font-medium text-gray-900">Menú de Navegación</span>
@@ -708,16 +814,16 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                   menuMobileAbierto ? 'rotate-180' : 'rotate-0'
                 }`} />
               </div>
-            </button>
-            
-            {menuMobileAbierto && (
+          </button>
+          
+          {menuMobileAbierto && (
               <div className="mt-4 space-y-2 bg-white rounded-xl shadow-lg p-4 border border-gray-100">
-                {navItems.map(item => (
-                  <NavButton key={item.id} item={item} />
-                ))}
-              </div>
-            )}
-          </div>
+              {navItems.map(item => (
+                <NavButton key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+        </div>
 
           {/* Navegación Desktop */}
           <div className="hidden lg:block">
@@ -727,17 +833,17 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                 const Icon = item.icon;
                 
                 return (
-                  <button
-                    key={item.id}
-                    onClick={() => setVistaActual(item.id)}
-                    className={`
+            <button
+              key={item.id}
+              onClick={() => setVistaActual(item.id)}
+              className={`
                       flex items-center space-x-3 px-6 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
                       ${isActive 
                         ? getActiveClasses(item.color) + ' shadow-md border-2'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-sm border-2 border-transparent'
                       }
-                    `}
-                  >
+              `}
+            >
                     <Icon className="h-5 w-5 flex-shrink-0" />
                     <div className="flex-1">
                       <div className="font-semibold">{item.label}</div>
@@ -745,20 +851,20 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                         <div className="text-xs opacity-75 mt-0.5">{item.description}</div>
                       )}
                     </div>
-                    {item.badge !== undefined && item.badge > 0 && (
+              {item.badge !== undefined && item.badge > 0 && (
                       <span className={`
                         flex items-center justify-center min-w-[24px] h-6 text-xs font-bold rounded-full shadow-sm
                         ${item.color === 'red'
                           ? 'bg-red-500 text-white'
-                          : item.color === 'yellow'
+                    : item.color === 'yellow'
                           ? 'bg-yellow-500 text-white'
                           : 'bg-blue-500 text-white'
                         }
                       `}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
+                  {item.badge}
+                </span>
+              )}
+            </button>
                 );
               })}
             </div>
@@ -769,47 +875,47 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       {/* Contenido Principal */}
       <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-          {vistaActual === 'general' && (
-            <ListaGeneralClientes
-              clientes={clientes}
-              reportes={reportes}
-              onActualizarEstado={setClienteParaEstado}
-              onReportarVenta={setClienteParaVenta}
-              onChat={setClienteParaChat}
-              admin={false}
-            />
-          )}
-          {vistaActual === 'seguimientos' && (
-            <SeguimientosClientes 
-              reportes={reportes} 
-              onRefrescar={cargarDatos}
-              onChat={setClienteParaChat}
-            />
-          )}
-          {vistaActual === 'estadisticas' && (
-            <EstadisticasAvanzadas
-              estadisticas={estadisticas}
-              reportes={reportes}
-              clientes={clientes}
-            />
-          )}
-          {vistaActual === 'pendientes' && (
-            <ClientesPendientes
-              clientes={clientes}
-              reportes={reportes}
-              onActualizarEstado={setClienteParaEstado}
-              onReportarVenta={setClienteParaVenta}
-              onChat={setClienteParaChat}
-            />
-          )}
-          {vistaActual === 'sin-reporte' && (
-            <ClientesSinReporte
-              clientes={clientesSinReporte}
-              onActualizarEstado={setClienteParaEstado}
-              onReportarVenta={setClienteParaVenta}
-              onChat={setClienteParaChat}
-            />
-          )}
+        {vistaActual === 'general' && (
+          <ListaGeneralClientes
+            clientes={clientes}
+            reportes={reportes}
+            onActualizarEstado={setClienteParaEstado}
+            onReportarVenta={setClienteParaVenta}
+            onChat={setClienteParaChat}
+            admin={false}
+          />
+        )}
+        {vistaActual === 'seguimientos' && (
+          <SeguimientosClientes 
+            reportes={reportes} 
+            onRefrescar={cargarDatos}
+            onChat={setClienteParaChat}
+          />
+        )}
+        {vistaActual === 'estadisticas' && (
+          <EstadisticasAvanzadas
+            estadisticas={estadisticas}
+            reportes={reportes}
+            clientes={clientes}
+          />
+        )}
+        {vistaActual === 'pendientes' && (
+          <ClientesPendientes
+            clientes={clientes}
+            reportes={reportes}
+            onActualizarEstado={setClienteParaEstado}
+            onReportarVenta={setClienteParaVenta}
+            onChat={setClienteParaChat}
+          />
+        )}
+        {vistaActual === 'sin-reporte' && (
+          <ClientesSinReporte
+            clientes={clientesSinReporte}
+            onActualizarEstado={setClienteParaEstado}
+            onReportarVenta={setClienteParaVenta}
+            onChat={setClienteParaChat}
+          />
+        )}
         </div>
 
         {/* Modales */}
@@ -860,6 +966,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         onCreateInstance={handleCreateInstance}
         onRefreshInstance={refreshConnection}
         onDisconnect={handleDisconnectInstance}
+        onDeleteInstance={handleDeleteInstance}
       />
 
       <WhatsAppWarningModal
@@ -870,6 +977,101 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           setShowWhatsAppWarning(false);
         }}
       />
+
+      {/* Modal de Telegram */}
+      {showTelegramModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="flex flex-col">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Configurar ID de Telegram</h2>
+              
+              {/* Estado actual */}
+              <div className="mb-4">
+                {currentTelegramId ? (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-green-800">
+                          Ya tienes configurado tu ID de Telegram
+                        </p>
+                        <p className="text-sm text-green-700">
+                          ID actual: <span className="font-mono font-bold">{currentTelegramId}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-yellow-800">
+                          No tienes configurado tu ID de Telegram
+                        </p>
+                        <p className="text-sm text-yellow-700">
+                          Sigue las instrucciones para configurarlo
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold text-blue-900 mb-2">Instrucciones:</h3>
+                  <ol className="text-sm text-blue-800 space-y-1">
+                    <li>1. Ve a Telegram y busca: <a 
+                      href="https://t.me/Repartidor_td_bot" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="font-bold text-blue-600 hover:text-blue-800 underline hover:no-underline transition-colors duration-200"
+                    >@Repartidor_td_bot</a></li>
+                    <li>2. Presiona el botón <strong>"Iniciar"</strong> o escribe el comando <strong>/start</strong></li>
+                    <li>3. Presiona el botón <strong>"Obtener ID"</strong> o escribe <strong>"AutoID"</strong></li>
+                    <li>4. El bot te enviará un número, cópialo y pégalo aquí:</li>
+                  </ol>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder={currentTelegramId ? `ID actual: ${currentTelegramId}` : "Ingresa tu ID de Telegram"}
+                  value={telegramId}
+                  onChange={(e) => setTelegramId(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={isLoadingTelegram}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowTelegramModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200"
+                  disabled={isLoadingTelegram}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveTelegramId}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 disabled:opacity-50"
+                  disabled={isLoadingTelegram || !telegramId.trim()}
+                >
+                  {isLoadingTelegram ? 'Guardando...' : (currentTelegramId ? 'Actualizar ID' : 'Guardar ID')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

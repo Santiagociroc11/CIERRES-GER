@@ -44,6 +44,7 @@ import { parse } from 'date-fns';
 import CrearClienteModal from './CrearClienteModal';
 import ChatModal from './ChatModal';
 import GestionAsignaciones from './GestionAsignaciones';
+import CrearAsesorModal from './CrearAsesorModal';
 
 interface DashboardAdminProps {
   onLogout: () => void;
@@ -70,6 +71,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [mostrarModalCrearCliente, setMostrarModalCrearCliente] = useState(false);
   const [clienteParaChat, setClienteParaChat] = useState<any | null>(null);
+  const [mostrarModalCrearAsesor, setMostrarModalCrearAsesor] = useState(false);
 
   // Estado para alternar entre vista de Asesores y Clientes
   const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion'>('asesores');
@@ -777,6 +779,13 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
             {/* Botones de Acción */}
             <div className="flex items-center space-x-2 lg:space-x-3">
+              <button
+                onClick={() => setMostrarModalCrearAsesor(true)}
+                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+              >
+                <UserCheck className="h-4 w-4" />
+                <span className="hidden lg:inline font-medium">Crear Asesor</span>
+              </button>
               <button
                 onClick={exportarDatos}
                 className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
@@ -2336,6 +2345,13 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
           asesores={asesores}
           onClose={() => setMostrarModalCrearCliente(false)}
           onClienteCreado={refrescarClientes}
+        />
+      )}
+
+      {mostrarModalCrearAsesor && (
+        <CrearAsesorModal
+          onClose={() => setMostrarModalCrearAsesor(false)}
+          onAsesorCreado={cargarDatos}
         />
       )}
 

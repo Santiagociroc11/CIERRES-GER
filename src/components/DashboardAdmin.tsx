@@ -21,6 +21,8 @@ import {
   Settings,
   PieChart,
   UserCheck,
+  Smartphone,
+  Send,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -56,6 +58,10 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [clientes, setClientes] = useState<any[]>([]);
   const [reportes, setReportes] = useState<any[]>([]);
   const [registros, setRegistros] = useState<any[]>([]);
+  const [conexionesEstado, setConexionesEstado] = useState<Record<number, {
+    whatsapp: 'conectado' | 'desconectado' | 'verificando';
+    telegram: boolean;
+  }>>({});
   const itemsPerPage = 20;
   const [currentPage, setCurrentPage] = useState(1);
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<'año' | 'mes' | 'semana' | 'personalizado'>('personalizado');
@@ -63,6 +69,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [fechaFin, setFechaFin] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [ordenarPor, setOrdenarPor] = useState<OrdenAsesor>('ventas');
+  const [ordenDireccion, setOrdenDireccion] = useState<'asc' | 'desc'>('desc');
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
@@ -78,6 +85,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   // Estado para el modal de historial de cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
 
+  const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
+  const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
+
   const handleLogout = async () => {
     localStorage.removeItem('userSession');
     onLogout();
@@ -88,6 +98,74 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     setTick(t => t + 1);
     setLastUpdated(new Date());
     await cargarDatos();
+  };
+
+  // Función para verificar estado de WhatsApp de un asesor
+  const verificarEstadoWhatsApp = async (nombreAsesor: string): Promise<'conectado' | 'desconectado'> => {
+    try {
+      if (!evolutionServerUrl || !evolutionApiKey) {
+        return 'desconectado';
+      }
+
+      const instanceName = encodeURIComponent(nombreAsesor);
+      const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${instanceName}`;
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+      });
+
+      if (!response.ok) {
+        return 'desconectado';
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const instance = data[0];
+        return instance.connectionStatus === "open" ? 'conectado' : 'desconectado';
+      }
+      
+      return 'desconectado';
+    } catch (error) {
+      console.error(`Error verificando WhatsApp para ${nombreAsesor}:`, error);
+      return 'desconectado';
+    }
+  };
+
+  // Función para verificar estados de conexión de todos los asesores
+  const verificarEstadosConexion = async (asesoresData: Asesor[]) => {
+    const nuevosEstados: Record<number, {
+      whatsapp: 'conectado' | 'desconectado' | 'verificando';
+      telegram: boolean;
+    }> = {};
+
+    // Inicializar con estado "verificando" para WhatsApp
+    asesoresData.forEach(asesor => {
+      nuevosEstados[asesor.ID] = {
+        whatsapp: 'verificando',
+        telegram: Boolean(asesor.ID_TG && asesor.ID_TG.trim())
+      };
+    });
+    
+    setConexionesEstado(nuevosEstados);
+
+    // Verificar WhatsApp de cada asesor de forma asíncrona
+    const verificaciones = asesoresData.map(async (asesor) => {
+      const estadoWhatsApp = await verificarEstadoWhatsApp(asesor.NOMBRE);
+      setConexionesEstado(prev => ({
+        ...prev,
+        [asesor.ID]: {
+          ...prev[asesor.ID],
+          whatsapp: estadoWhatsApp
+        }
+      }));
+    });
+
+    // Esperar a que todas las verificaciones terminen
+    await Promise.allSettled(verificaciones);
   };
 
   const fetchAllPages = async (
@@ -129,6 +207,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       if (!asesoresData || asesoresData.length === 0) return;
       setAsesores(asesoresData);
       console.log("✅ Asesores obtenidos:", asesoresData.length);
+
+      // Verificar estados de conexión de WhatsApp y Telegram
+      await verificarEstadosConexion(asesoresData);
 
       // Paso 2: Obtener clientes, reportes y registros en paralelo usando paginación
       const [clientesData, reportesData, registrosData, conversacionesData] = await Promise.all([
@@ -491,6 +572,17 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     });
   }, [reportes, periodoSeleccionado, fechaInicio, fechaFin]);
 
+  // Efecto para ajustar dirección por defecto según el criterio de ordenamiento
+  useEffect(() => {
+    // Para ciertos criterios, el orden ascendente es más útil por defecto
+    if (['tiempo', 'tiempo_primer_mensaje'].includes(ordenarPor)) {
+      setOrdenDireccion('asc');
+    } else {
+      // Para la mayoría de métricas, descendente es más útil (más ventas, más clientes, etc.)
+      setOrdenDireccion('desc');
+    }
+  }, [ordenarPor]);
+
   const asesoresFiltrados = asesores.filter((asesor) => {
     const coincideBusqueda =
       asesor.NOMBRE.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -510,31 +602,69 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     const statsA = estadisticas[a.ID];
     const statsB = estadisticas[b.ID];
 
+    let resultado = 0;
+
     switch (ordenarPor) {
       case 'ventas':
-        return (statsB?.ventasRealizadas || 0) - (statsA?.ventasRealizadas || 0);
+        resultado = (statsB?.ventasRealizadas || 0) - (statsA?.ventasRealizadas || 0);
+        break;
       case 'tasa':
-        return (statsB?.porcentajeCierre || 0) - (statsA?.porcentajeCierre || 0);
+        resultado = (statsB?.porcentajeCierre || 0) - (statsA?.porcentajeCierre || 0);
+        break;
       case 'tiempo':
-        return (statsA?.tiempoPromedioConversion || 0) - (statsB?.tiempoPromedioConversion || 0);
+        resultado = (statsA?.tiempoPromedioConversion || 0) - (statsB?.tiempoPromedioConversion || 0);
+        break;
       case 'actividad': {
         const fechaA = statsA?.ultimaActividad ? new Date(statsA.ultimaActividad * 1000) : new Date(0);
         const fechaB = statsB?.ultimaActividad ? new Date(statsB.ultimaActividad * 1000) : new Date(0);
-        return fechaB.getTime() - fechaA.getTime();
+        resultado = fechaB.getTime() - fechaA.getTime();
+        break;
       }
       case 'clientes':
-        return (statsB?.totalClientes || 0) - (statsA?.totalClientes || 0);
+        resultado = (statsB?.totalClientes || 0) - (statsA?.totalClientes || 0);
+        break;
       case 'sin_reporte':
-        return (statsB?.clientesSinReporte || 0) - (statsA?.clientesSinReporte || 0);
+        resultado = (statsB?.clientesSinReporte || 0) - (statsA?.clientesSinReporte || 0);
+        break;
       case 'criticos':
-        return (statsB?.clientesCriticos || 0) - (statsA?.clientesCriticos || 0);
+        resultado = (statsB?.clientesCriticos || 0) - (statsA?.clientesCriticos || 0);
+        break;
       case 'tiempo_primer_mensaje':
-        return (statsA?.tiempoHastaPrimerMensaje || 0) - (statsB?.tiempoHastaPrimerMensaje || 0);
+        resultado = (statsA?.tiempoHastaPrimerMensaje || 0) - (statsB?.tiempoHastaPrimerMensaje || 0);
+        break;
       case 'seguimientos':
-        return (statsB?.seguimientosPendientes || 0) - (statsA?.seguimientosPendientes || 0);
+        resultado = (statsB?.seguimientosPendientes || 0) - (statsA?.seguimientosPendientes || 0);
+        break;
+      case 'conexiones_desconectadas': {
+        const estadoA = conexionesEstado[a.ID];
+        const estadoB = conexionesEstado[b.ID];
+        const desconectadosA = (estadoA?.whatsapp !== 'conectado' ? 1 : 0) + (estadoA?.telegram ? 0 : 1);
+        const desconectadosB = (estadoB?.whatsapp !== 'conectado' ? 1 : 0) + (estadoB?.telegram ? 0 : 1);
+        resultado = desconectadosB - desconectadosA;
+        break;
+      }
+      case 'whatsapp_desconectado': {
+        const estadoA = conexionesEstado[a.ID];
+        const estadoB = conexionesEstado[b.ID];
+        const desconectadoA = estadoA?.whatsapp !== 'conectado' ? 1 : 0;
+        const desconectadoB = estadoB?.whatsapp !== 'conectado' ? 1 : 0;
+        resultado = desconectadoB - desconectadoA;
+        break;
+      }
+      case 'telegram_sin_configurar': {
+        const estadoA = conexionesEstado[a.ID];
+        const estadoB = conexionesEstado[b.ID];
+        const sinConfigurarA = estadoA?.telegram ? 0 : 1;
+        const sinConfigurarB = estadoB?.telegram ? 0 : 1;
+        resultado = sinConfigurarB - sinConfigurarA;
+        break;
+      }
       default:
-        return 0;
+        resultado = 0;
     }
+
+    // Aplicar dirección de ordenamiento
+    return ordenDireccion === 'asc' ? -resultado : resultado;
   });
 
   // Exportar datos a CSV (incluyendo ventas separadas)
@@ -717,6 +847,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       setAsesores(asesoresData);
       console.log("✅ Asesores actualizados:", asesoresData.length);
 
+      // Actualizar estados de conexión
+      await verificarEstadosConexion(asesoresData);
+
       // Recalcular estadísticas solo para los asesores con los datos existentes
       const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
       asesoresData.forEach((asesor: Asesor) => {
@@ -766,7 +899,13 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               <div className="flex items-center space-x-2 px-3 py-2 bg-red-50 rounded-lg border border-red-200">
                 <Bell className="h-4 w-4 text-red-500" />
                 <span className="text-sm font-medium text-red-700">
-                  {getAsesoresInactivos().length + getAsesoresClientesSinMensaje().length + getAsesoresBajaCierre().length} alertas
+                  {getAsesoresInactivos().length + 
+                   getAsesoresClientesSinMensaje().length + 
+                   getAsesoresBajaCierre().length +
+                   asesores.filter(asesor => {
+                     const estado = conexionesEstado[asesor.ID];
+                     return estado?.whatsapp !== 'conectado' || !estado?.telegram;
+                   }).length} alertas
                 </span>
               </div>
 
@@ -788,10 +927,17 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               </button>
               <button
                 onClick={exportarDatos}
-                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
               >
                 <Download className="h-4 w-4" />
                 <span className="hidden lg:inline font-medium">Exportar</span>
+              </button>
+              <button
+                onClick={() => verificarEstadosConexion(asesores)}
+                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+              >
+                <RefreshCcw className="h-4 w-4" />
+                <span className="hidden lg:inline font-medium">Verificar Conexiones</span>
               </button>
               <button
                 onClick={handleLogout}
@@ -1163,6 +1309,48 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 <h2 className="text-xl font-semibold text-gray-900">Alertas Críticas</h2>
               </div>
               <div className="divide-y divide-gray-200">
+                {/* Conexiones Desconectadas */}
+                {asesores.filter(asesor => {
+                  const estado = conexionesEstado[asesor.ID];
+                  return estado?.whatsapp !== 'conectado' || !estado?.telegram;
+                }).map((asesor) => {
+                  const estado = conexionesEstado[asesor.ID];
+                  const whatsappDesconectado = estado?.whatsapp !== 'conectado';
+                  const telegramSinConfigurar = !estado?.telegram;
+                  
+                  return (
+                    <div key={`conexion-${asesor.ID}`} className="p-4 hover:bg-gray-50 transition-colors duration-150">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</h3>
+                            <div className="flex flex-col space-y-1">
+                              {whatsappDesconectado && (
+                                <p className="text-sm text-orange-600 flex items-center">
+                                  <Smartphone className="h-3 w-3 mr-1" />
+                                  WhatsApp desconectado
+                                </p>
+                              )}
+                              {telegramSinConfigurar && (
+                                <p className="text-sm text-orange-600 flex items-center">
+                                  <Send className="h-3 w-3 mr-1" />
+                                  Telegram sin configurar
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Conexiones pendientes
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
                 {/* Asesores Inactivos */}
                 {getAsesoresInactivos().map(({ asesor, horasSinActividad, stats }) => (
                   <div key={`inactivo-${asesor.ID}`} className="p-4 hover:bg-gray-50 transition-colors duration-150">
@@ -1240,7 +1428,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
             {/* Resumen y lista de asesores */}
             <div className="max-w-8xl mx-auto px-4 py-6">
               {/* KPIs Principales Modernos */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
                 {/* Total Asesores */}
                 <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
                   <div className="flex items-center justify-between mb-4">
@@ -1329,6 +1517,54 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       <span className="text-sm font-medium text-purple-600">
                         {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length).toFixed(1)}% conversión
                       </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Estado de Conexiones */}
+                <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-indigo-100 rounded-xl">
+                      <Settings className="h-8 w-8 text-indigo-600" />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Conexiones</div>
+                      <div className="text-lg font-bold text-gray-900 mt-1">
+                        {Object.values(conexionesEstado).filter(c => c.whatsapp === 'conectado' && c.telegram).length}/
+                        {asesores.length}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Smartphone className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-gray-600">WhatsApp</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium text-green-600">
+                          {Object.values(conexionesEstado).filter(c => c.whatsapp === 'conectado').length}
+                        </span>
+                        <span className="text-xs text-gray-500">/</span>
+                        <span className="text-sm font-medium text-red-600">
+                          {Object.values(conexionesEstado).filter(c => c.whatsapp !== 'conectado').length}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Send className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm text-gray-600">Telegram</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium text-green-600">
+                          {Object.values(conexionesEstado).filter(c => c.telegram).length}
+                        </span>
+                        <span className="text-xs text-gray-500">/</span>
+                        <span className="text-sm font-medium text-red-600">
+                          {Object.values(conexionesEstado).filter(c => !c.telegram).length}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1470,21 +1706,49 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       {/* Ordenar por */}
                       <div className="flex flex-col">
                         <label className="text-sm font-medium text-gray-700 mb-2">Ordenar por</label>
-                        <select
-                          value={ordenarPor}
-                          onChange={(e) => setOrdenarPor(e.target.value as OrdenAsesor)}
-                          className="w-full sm:w-56 px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="ventas">Ventas totales</option>
-                          <option value="tasa">Tasa de cierre</option>
-                          <option value="tiempo">Tiempo de conversión</option>
-                          <option value="actividad">Última actividad</option>
-                          <option value="clientes">Total de clientes</option>
-                          <option value="sin_reporte">Clientes sin reporte</option>
-                          <option value="criticos">Clientes críticos</option>
-                          <option value="tiempo_primer_mensaje">Tiempo primer mensaje</option>
-                          <option value="seguimientos">Seguimientos pendientes</option>
-                        </select>
+                        <div className="flex items-center space-x-2">
+                          <select
+                            value={ordenarPor}
+                            onChange={(e) => setOrdenarPor(e.target.value as OrdenAsesor)}
+                            className="flex-1 px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="ventas">Ventas totales</option>
+                            <option value="tasa">Tasa de cierre</option>
+                            <option value="tiempo">Tiempo de conversión</option>
+                            <option value="actividad">Última actividad</option>
+                            <option value="clientes">Total de clientes</option>
+                            <option value="sin_reporte">Clientes sin reporte</option>
+                            <option value="criticos">Clientes críticos</option>
+                            <option value="tiempo_primer_mensaje">Tiempo primer mensaje</option>
+                            <option value="seguimientos">Seguimientos pendientes</option>
+                            <option value="conexiones_desconectadas">🔴 Conexiones desconectadas</option>
+                            <option value="whatsapp_desconectado">📱 WhatsApp desconectado</option>
+                            <option value="telegram_sin_configurar">📨 Telegram sin configurar</option>
+                          </select>
+                          <button
+                            onClick={() => setOrdenDireccion(ordenDireccion === 'desc' ? 'asc' : 'desc')}
+                            className={`px-3 py-3 border border-gray-200 rounded-xl transition-all duration-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                              ordenDireccion === 'desc' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50'
+                            }`}
+                            title={
+                              ordenDireccion === 'desc' 
+                                ? 'Mayor a menor (click para cambiar a menor a mayor)'
+                                : 'Menor a mayor (click para cambiar a mayor a menor)'
+                            }
+                          >
+                            {ordenDireccion === 'desc' ? (
+                              <div className="flex flex-col items-center">
+                                <span className="text-xs font-bold text-blue-600">↓</span>
+                                <span className="text-xs text-blue-600 font-medium">DESC</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center">
+                                <span className="text-xs font-bold text-gray-600">↑</span>
+                                <span className="text-xs text-gray-600 font-medium">ASC</span>
+                              </div>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Toggle inactivos */}
@@ -1545,6 +1809,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       const horasSinActividad = ultimaActividadDate
                         ? Math.floor((Date.now() - ultimaActividadDate.getTime()) / (1000 * 60 * 60))
                         : null;
+                      
+                      const estadoConexion = conexionesEstado[asesor.ID];
+                      
                       return (
                         <div key={asesor.ID} className="bg-gray-50 rounded-lg p-4">
                           {/* Encabezado del asesor */}
@@ -1558,6 +1825,52 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                     {formatInactivityTime(stats?.ultimaActividad)}
                                   </p>
                                 )}
+                                {/* Indicadores de Conexión */}
+                                <div className="flex items-center space-x-3 mt-2">
+                                  {/* Estado WhatsApp */}
+                                  <div className="flex items-center space-x-1">
+                                    <Smartphone className="h-4 w-4 text-gray-500" />
+                                    <span className="text-xs font-medium">WhatsApp:</span>
+                                    {estadoConexion?.whatsapp === 'verificando' ? (
+                                      <span className="text-xs text-gray-500 animate-pulse">Verificando...</span>
+                                    ) : (
+                                      <div className="flex items-center space-x-1">
+                                        <div className={`w-2 h-2 rounded-full ${
+                                          estadoConexion?.whatsapp === 'conectado' 
+                                            ? 'bg-green-500' 
+                                            : 'bg-red-500'
+                                        }`}></div>
+                                        <span className={`text-xs font-medium ${
+                                          estadoConexion?.whatsapp === 'conectado' 
+                                            ? 'text-green-600' 
+                                            : 'text-red-600'
+                                        }`}>
+                                          {estadoConexion?.whatsapp === 'conectado' ? 'Conectado' : 'Desconectado'}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Estado Telegram */}
+                                  <div className="flex items-center space-x-1">
+                                    <Send className="h-4 w-4 text-gray-500" />
+                                    <span className="text-xs font-medium">Telegram:</span>
+                                    <div className="flex items-center space-x-1">
+                                      <div className={`w-2 h-2 rounded-full ${
+                                        estadoConexion?.telegram 
+                                          ? 'bg-green-500' 
+                                          : 'bg-red-500'
+                                      }`}></div>
+                                      <span className={`text-xs font-medium ${
+                                        estadoConexion?.telegram 
+                                          ? 'text-green-600' 
+                                          : 'text-red-600'
+                                      }`}>
+                                        {estadoConexion?.telegram ? 'Configurado' : 'Sin configurar'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                             <div className="flex items-center space-x-4">

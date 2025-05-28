@@ -138,4 +138,7 @@ export type OrdenAsesor =
   | 'sin_reporte'
   | 'criticos'
   | 'tiempo_primer_mensaje'
-  | 'seguimientos';
+  | 'seguimientos'
+  | 'conexiones_desconectadas'
+  | 'whatsapp_desconectado'
+  | 'telegram_sin_configurar';

@@ -1037,7 +1037,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                       className="font-bold text-blue-600 hover:text-blue-800 underline hover:no-underline transition-colors duration-200"
                     >@Repartidor_td_bot</a></li>
                     <li>2. Presiona el botón <strong>"Iniciar"</strong> o escribe el comando <strong>/start</strong></li>
-                    <li>3. Presiona el botón <strong>"Obtener ID"</strong> o escribe <strong>"AutoID"</strong></li>
+                    <li>3. Presiona el MENÚ y selecciona<strong>"/autoid"</strong></li>
                     <li>4. El bot te enviará un número, cópialo y pégalo aquí:</li>
                   </ol>
                 </div>

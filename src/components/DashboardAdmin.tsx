@@ -1283,7 +1283,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Producto premium</span>
                     <div className="flex items-center space-x-1">
                       <TrendingUp className="h-4 w-4 text-green-500" />
                       <span className="text-sm font-medium text-green-600">Principal</span>
@@ -1305,7 +1304,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Producto secundario</span>
                     <div className="flex items-center space-x-1">
                       <TrendingUp className="h-4 w-4 text-blue-500" />
                       <span className="text-sm font-medium text-blue-600">Downsell</span>

@@ -1528,7 +1528,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       <Settings className="h-8 w-8 text-indigo-600" />
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Conexiones</div>
+                      <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Conexiones COMPLETAS</div>
                       <div className="text-lg font-bold text-gray-900 mt-1">
                         {Object.values(conexionesEstado).filter(c => c.whatsapp === 'conectado' && c.telegram).length}/
                         {asesores.length}

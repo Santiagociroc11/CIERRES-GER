@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Asesor } from '../types';
-import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History, RefreshCcw } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History, RefreshCcw, TrendingUp, TrendingDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface GestionAsignacionesProps {
@@ -891,6 +891,63 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
         </div>
       </div>
       
+      {/* Leyenda de Tasa de Conversión */}
+      <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <Info className="h-4 w-4 text-blue-600" />
+            Referencia de Tasa de Conversión
+          </h3>
+          <div className="text-xs text-gray-500">
+            Objetivo: {OBJETIVO_TASA_CIERRE.MIN}% - {OBJETIVO_TASA_CIERRE.MAX}%
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-3">
+          {/* Rendimiento Superior */}
+          <div className="bg-white rounded-md p-3 border-l-2 border-green-500 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span className="text-xs font-semibold text-green-700">Superior</span>
+            </div>
+            <div className="text-sm font-bold text-green-600 mb-1">
+              &gt; {OBJETIVO_TASA_CIERRE.MAX}%
+            </div>
+            <div className="text-xs text-gray-600">
+              ↗ Candidato a bonificación
+            </div>
+          </div>
+
+          {/* Rendimiento Objetivo */}
+          <div className="bg-white rounded-md p-3 border-l-2 border-blue-500 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              <span className="text-xs font-semibold text-blue-700">Objetivo</span>
+            </div>
+            <div className="text-sm font-bold text-blue-600 mb-1">
+              {OBJETIVO_TASA_CIERRE.MIN}% - {OBJETIVO_TASA_CIERRE.MAX}%
+            </div>
+            <div className="text-xs text-gray-600">
+              ✓ Mantener el trabajo
+            </div>
+          </div>
+
+          {/* Rendimiento Inferior */}
+          <div className="bg-white rounded-md p-3 border-l-2 border-red-500 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+              <span className="text-xs font-semibold text-red-700">Inferior</span>
+            </div>
+            <div className="text-sm font-bold text-red-600 mb-1">
+              &lt; {OBJETIVO_TASA_CIERRE.MIN}%
+            </div>
+            <div className="text-xs text-gray-600">
+              ⚠ Requiere seguimiento
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white rounded-lg overflow-hidden">
           <thead className="bg-gray-50">
@@ -958,38 +1015,101 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {estadisticas[asesor.ID] ? (
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium text-blue-600">
-                        {estadisticas[asesor.ID].porcentajeCierre.toFixed(1)}%
+                    <div className="flex flex-col space-y-2">
+                      {/* Tasa principal */}
+                      <div className="flex items-center gap-3">
+                        <div className="font-bold text-lg text-blue-600">
+                          {estadisticas[asesor.ID].porcentajeCierre.toFixed(1)}%
+                        </div>
+                        {(() => {
+                          const tasa = estadisticas[asesor.ID].porcentajeCierre;
+                          if (tasa > OBJETIVO_TASA_CIERRE.MAX) {
+                            return (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-green-50 rounded-full">
+                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                <TrendingUp className="h-3 w-3 text-green-600" />
+                                <span className="text-xs text-green-700 font-semibold">Superior</span>
+                              </div>
+                            );
+                          } else if (tasa >= OBJETIVO_TASA_CIERRE.MIN && tasa <= OBJETIVO_TASA_CIERRE.MAX) {
+                            return (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-full">
+                                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                <span className="text-xs text-blue-700 font-semibold">Objetivo</span>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-red-50 rounded-full">
+                                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                <TrendingDown className="h-3 w-3 text-red-600" />
+                                <span className="text-xs text-red-700 font-semibold">Inferior</span>
+                              </div>
+                            );
+                          }
+                        })()}
                       </div>
-                      {(() => {
-                        const tasa = estadisticas[asesor.ID].porcentajeCierre;
-                        if (tasa > OBJETIVO_TASA_CIERRE.MAX) {
-                          return (
-                            <div className="flex items-center gap-1">
-                              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                              <span className="text-xs text-green-600 font-medium">Por encima</span>
-                            </div>
-                          );
-                        } else if (tasa >= OBJETIVO_TASA_CIERRE.MIN && tasa <= OBJETIVO_TASA_CIERRE.MAX) {
-                          return (
-                            <div className="flex items-center gap-1">
-                              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                              <span className="text-xs text-blue-600 font-medium">Ok</span>
-                            </div>
-                          );
-                        } else {
-                          return (
-                            <div className="flex items-center gap-1">
-                              <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                              <span className="text-xs text-red-600 font-medium">Por debajo</span>
-                            </div>
-                          );
-                        }
-                      })()}
+                      
+                      {/* Métricas adicionales */}
+                      <div className="text-xs text-gray-600 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Ventas:</span>
+                          <span className="font-medium">
+                            {estadisticas[asesor.ID].ventasRealizadas} / {estadisticas[asesor.ID].totalClientes}
+                          </span>
+                        </div>
+                        
+                        {/* Diferencia con el objetivo */}
+                        <div className="flex justify-between">
+                          <span>Vs. objetivo:</span>
+                          {(() => {
+                            const tasa = estadisticas[asesor.ID].porcentajeCierre;
+                            const objetivo = (OBJETIVO_TASA_CIERRE.MIN + OBJETIVO_TASA_CIERRE.MAX) / 2;
+                            const diferencia = tasa - objetivo;
+                            return (
+                              <span className={`font-medium ${diferencia >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {diferencia >= 0 ? '+' : ''}{diferencia.toFixed(1)}%
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        
+                        {/* Recomendación basada en rendimiento */}
+                        {(() => {
+                          const tasa = estadisticas[asesor.ID].porcentajeCierre;
+                          const prioridadActual = asesor.PRIORIDAD || 1;
+                          
+                          if (tasa > OBJETIVO_TASA_CIERRE.MAX && prioridadActual <= 1) {
+                            return (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <ArrowUpCircle className="h-3 w-3" />
+                                <span className="font-medium">Merece bonificación</span>
+                              </div>
+                            );
+                          } else if (tasa < OBJETIVO_TASA_CIERRE.MIN && prioridadActual >= 1) {
+                            return (
+                              <div className="flex items-center gap-1 text-red-600">
+                                <AlertTriangle className="h-3 w-3" />
+                                <span className="font-medium">Requiere seguimiento</span>
+                              </div>
+                            );
+                          } else if (tasa >= OBJETIVO_TASA_CIERRE.MIN && tasa <= OBJETIVO_TASA_CIERRE.MAX) {
+                            return (
+                              <div className="flex items-center gap-1 text-blue-600">
+                                <CheckCircle2 className="h-3 w-3" />
+                                <span className="font-medium">Rendimiento óptimo</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     </div>
                   ) : (
-                    <span className="text-gray-400">No disponible</span>
+                    <div className="flex flex-col items-center justify-center py-4">
+                      <span className="text-gray-400 text-sm">No disponible</span>
+                      <span className="text-xs text-gray-300">Sin datos suficientes</span>
+                    </div>
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">

@@ -551,7 +551,10 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     try {
       setIsLoadingWhatsApp(true);
       const url = `${evolutionServerUrl}/instance/connect/${encodeURIComponent(asesor.NOMBRE)}`;
-      console.log("Fetching QR from:", url);
+      console.log("🔗 Fetching QR from:", url);
+      console.log("🔑 API Key:", evolutionApiKey ? "✅ Present" : "❌ Missing");
+      console.log("🏠 Server URL:", evolutionServerUrl);
+      
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -559,21 +562,62 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           "apikey": evolutionApiKey,
         },
       });
+      
+      console.log("📡 Response status:", response.status);
+      console.log("📡 Response ok:", response.ok);
+      
       if (!response.ok) {
         const errorText = await response.text();
+        console.error("❌ Response error text:", errorText);
         throw new Error(`Error al obtener el QR de conexión: ${response.status} - ${errorText}`);
       }
+      
       const data = await response.json();
-      console.log("Instance Connect response:", data);
-      if (data.instance && data.instance.base64) {
-        setQrCode(data.instance.base64);
-      } else if (data.base64) {
+      console.log("📦 Full response data:", data);
+      console.log("📦 Data keys:", Object.keys(data));
+      
+      // Verificar todas las posibles ubicaciones del QR
+      if (data.instance) {
+        console.log("🔍 data.instance exists:", data.instance);
+        console.log("🔍 data.instance keys:", Object.keys(data.instance));
+        if (data.instance.base64) {
+          console.log("✅ QR found in data.instance.base64");
+          console.log("📸 QR preview:", data.instance.base64.substring(0, 50) + "...");
+          setQrCode(data.instance.base64);
+        } else {
+          console.log("❌ No base64 in data.instance");
+        }
+      } else {
+        console.log("❌ data.instance does not exist");
+      }
+      
+      if (data.base64) {
+        console.log("✅ QR found in data.base64");
+        console.log("📸 QR preview:", data.base64.substring(0, 50) + "...");
         setQrCode(data.base64);
       } else {
+        console.log("❌ No data.base64 found");
+      }
+      
+      // Verificar otras posibles ubicaciones
+      if (data.qr) {
+        console.log("✅ QR found in data.qr:", data.qr);
+        setQrCode(data.qr);
+      }
+      
+      if (data.qrcode) {
+        console.log("✅ QR found in data.qrcode:", data.qrcode);
+        setQrCode(data.qrcode);
+      }
+      
+      // Si no se encontró en ningún lugar
+      if (!data.instance?.base64 && !data.base64 && !data.qr && !data.qrcode) {
+        console.log("❌ No QR found anywhere in response");
         setQrCode(null);
       }
+      
     } catch (error) {
-      console.error("Error in handleInstanceConnect:", error);
+      console.error("💥 Error in handleInstanceConnect:", error);
     } finally {
       setIsLoadingWhatsApp(false);
     }
@@ -687,14 +731,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     try {
       setIsLoadingTelegram(true);
       
-      const response = await apiClient.request(`/GERSSON_ASESORES?ID=eq.${asesor.ID}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ID_TG: telegramId.trim()
-        })
+      const response = await apiClient.request(`/GERSSON_ASESORES?ID=eq.${asesor.ID}`, 'PATCH', {
+        ID_TG: telegramId.trim()
       });
 
       showToast("ID de Telegram guardado correctamente", "success");

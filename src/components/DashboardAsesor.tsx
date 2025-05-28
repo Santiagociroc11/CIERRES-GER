@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Cliente, Asesor, Reporte, EstadisticasAsesor, EstadoCliente } from '../types';
-import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send, User, Smartphone, LogOut } from 'lucide-react';
+import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send, User, Smartphone, LogOut, Plus, Search, MessageCircle, Phone, Edit, CheckCircle, ShoppingCart } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
 import ClientesPendientes from './ClientesPendientes';
 import ActualizarEstadoCliente from './ActualizarEstadoCliente';
@@ -73,92 +73,222 @@ function WhatsAppModal({
   onRefreshInstance,
   onDeleteInstance,
 }: WhatsAppModalProps) {
+  const [qrLoading, setQrLoading] = useState(false);
+  const [connectionStep, setConnectionStep] = useState<'initial' | 'generating' | 'scanning' | 'connected'>('initial');
+
+  // Update connection step based on state
+  useEffect(() => {
+    if (!instanceInfo && !qrCode && !isLoadingWhatsApp) {
+      setConnectionStep('initial');
+    } else if (isLoadingWhatsApp || qrLoading) {
+      setConnectionStep('generating');
+    } else if (instanceInfo && instanceInfo.connectionStatus !== "open" && qrCode) {
+      setConnectionStep('scanning');
+    } else if (instanceInfo && instanceInfo.connectionStatus === "open") {
+      setConnectionStep('connected');
+    }
+  }, [instanceInfo, qrCode, isLoadingWhatsApp, qrLoading]);
+
+  const handleRefreshWithAnimation = async () => {
+    setQrLoading(true);
+    try {
+      await onRefreshInstance();
+    } finally {
+      setTimeout(() => setQrLoading(false), 1000); // Slight delay for smooth UX
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white p-6 rounded shadow-lg max-w-md w-full relative">
-        {isLoadingWhatsApp && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-10">
-            <div className="text-lg font-semibold">Cargando...</div>
-          </div>
-        )}
-        <h2 className="text-xl font-bold mb-4">Sesión de WhatsApp</h2>
-        {!instanceInfo && !qrCode && !isLoadingWhatsApp && (
-          <div className="text-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 relative overflow-hidden">
+        
+        {/* Header */}
+        <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4 text-white relative">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                <Smartphone className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">WhatsApp Business</h2>
+                <p className="text-green-100 text-sm">
+                  {connectionStep === 'connected' ? 'Conectado y listo' :
+                   connectionStep === 'scanning' ? 'Escanea el código QR' :
+                   connectionStep === 'generating' ? 'Generando código...' :
+                   'Conecta tu cuenta'}
+                </p>
+              </div>
+            </div>
             <button
-              onClick={onCreateInstance}
-              disabled={isLoadingWhatsApp}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition duration-300"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors flex items-center justify-center"
             >
-              Conectar
+              <X className="h-4 w-4 text-white" />
             </button>
           </div>
-        )}
-        {instanceInfo && instanceInfo.connectionStatus !== "open" && !isLoadingWhatsApp && (
-          <div className="text-center">
-            <p className="mb-2 font-medium">Escanea el QR para conectar:</p>
-            {qrCode ? (
-              <img src={qrCode} alt="QR Code" className="mx-auto mb-4" />
-            ) : (
-              <p className="mb-4 text-sm text-gray-600">QR no disponible. Intenta refrescar.</p>
-            )}
-            <div className="flex flex-col space-y-2">
+        </div>
+
+        <div className="p-6">
+          {/* Step 1: Initial Connection */}
+          {connectionStep === 'initial' && (
+            <div className="text-center py-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Smartphone className="h-10 w-10 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Conectar WhatsApp</h3>
+              <p className="text-gray-600 mb-6">
+                Conecta tu WhatsApp Business para gestionar clientes.
+              </p>
               <button
-                onClick={onRefreshInstance}
+                onClick={onCreateInstance}
                 disabled={isLoadingWhatsApp}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition duration-300"
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold py-3 px-6 rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-lg hover:shadow-xl"
               >
-                Refrescar Conexión
+                Iniciar Conexión
               </button>
-              <button
-                onClick={onDeleteInstance}
-                disabled={isLoadingWhatsApp}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition duration-300"
-              >
-                Eliminar Instancia
-              </button>
-              <p className="text-xs text-gray-500 mt-2">
-                Si el QR no funciona, puedes eliminar la instancia y crear una nueva
+            </div>
+          )}
+
+          {/* Step 2: Generating QR */}
+          {connectionStep === 'generating' && (
+            <div className="text-center py-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Generando código QR</h3>
+              <p className="text-gray-600">
+                Preparando tu código de conexión...
               </p>
             </div>
-          </div>
-        )}
-        {instanceInfo && instanceInfo.connectionStatus === "open" && !isLoadingWhatsApp && (
-          <div>
-            <p className="mb-2">
-              <span className="font-medium">Estado:</span> {whatsappStatus}
-            </p>
-            <p className="mb-2">
-              <span className="font-medium">Instancia:</span> {instanceInfo.name}
-            </p>
-            <p className="mb-2">
-              <span className="font-medium">Perfil:</span> {instanceInfo.profileName || "N/A"}
-            </p>
-            <p className="mb-2">
-              <span className="font-medium">Número:</span> {instanceInfo.ownerJid || "N/A"}
-            </p>
-            {instanceInfo.profileStatus && (
-              <p className="mb-2">
-                <span className="font-medium">Status:</span> {instanceInfo.profileStatus}
-              </p>
-            )}
-            <button
-              onClick={onDisconnect}
-              disabled={isLoadingWhatsApp}
-              className="mt-4 w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition duration-300"
-            >
-              Desconectar
-            </button>
-          </div>
-        )}
-        <div className="mt-6 text-right">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition duration-300"
-          >
-            Cerrar
-          </button>
+          )}
+
+          {/* Step 3: Scanning QR */}
+          {connectionStep === 'scanning' && (
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Escanea con WhatsApp</h3>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 text-left">
+                <p className="text-sm text-blue-800 font-medium mb-2">Pasos rápidos:</p>
+                <ol className="text-sm text-blue-700 space-y-1">
+                  <li><strong>1.</strong> Abre WhatsApp → <strong>Configuración</strong></li>
+                  <li><strong>2.</strong> <strong>Dispositivos vinculados</strong> → <strong>Vincular dispositivo</strong></li>
+                  <li><strong>3.</strong> Escanea el código de abajo</li>
+                </ol>
+              </div>
+
+              {qrCode ? (
+                <div className="relative mb-6">
+                  {qrLoading && (
+                    <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10 rounded-xl">
+                      <div className="text-center">
+                        <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                        <p className="text-sm text-gray-600 font-medium">Actualizando...</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="bg-white border-2 border-gray-200 rounded-xl p-6 shadow-lg">
+                    <img 
+                      src={qrCode} 
+                      alt="Código QR de WhatsApp" 
+                      className={`w-64 h-64 mx-auto transition-all duration-300 ${qrLoading ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}`}
+                      style={{
+                        imageRendering: 'pixelated',
+                        filter: 'contrast(1.1)',
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Se actualiza automáticamente cada 25 segundos
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl p-8 mb-6">
+                  <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-600 font-medium">Código QR no disponible</p>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4">
+                    <p className="text-sm text-yellow-800 font-medium">💡 ¿Tienes problemas?</p>
+                    <p className="text-sm text-yellow-700 mt-1">
+                      <strong>Solución:</strong> Elimina la instancia y vuelve a iniciar la conexión.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleRefreshWithAnimation}
+                  disabled={qrLoading}
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50"
+                >
+                  {qrLoading ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Actualizando...</span>
+                    </div>
+                  ) : (
+                    'Generar Nuevo QR'
+                  )}
+                </button>
+                
+                <button
+                  onClick={onDeleteInstance}
+                  disabled={isLoadingWhatsApp || qrLoading}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
+                >
+                  Eliminar Instancia
+                </button>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                  <p className="text-xs text-blue-700">
+                    <strong>Tip:</strong> Si el QR no funciona o hay errores, elimina la instancia y vuelve a iniciar la conexión.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Connected */}
+          {connectionStep === 'connected' && (
+            <div className="text-center py-4">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mx-auto mb-6 relative">
+                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              
+              <h3 className="text-xl font-semibold text-green-800 mb-3">¡WhatsApp Conectado!</h3>
+              <p className="text-gray-600 mb-6">Tu cuenta está lista</p>
+              
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3 text-left mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Estado:</span>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    {whatsappStatus}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Perfil:</span>
+                  <span className="text-sm text-gray-600">{instanceInfo.profileName || "Cargando..."}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Número:</span>
+                  <span className="text-sm text-gray-600 font-mono">{instanceInfo.ownerJid?.split('@')[0] || "Configurando..."}</span>
+                </div>
+              </div>
+              
+              <button
+                onClick={onDisconnect}
+                disabled={isLoadingWhatsApp}
+                className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50"
+              >
+                Desconectar WhatsApp
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,8 +1,15 @@
 import { useState, useEffect } from "react";
 import { apiClient } from "../lib/apiClient";
+import { Asesor } from "../types";
 
-const ReasignarCliente = ({ clienteId, asesorActual, onReasignSuccess }) => {
-  const [asesores, setAsesores] = useState([]);
+interface ReasignarClienteProps {
+  clienteId: number;
+  asesorActual: string;
+  onReasignSuccess?: (clienteId: number, nuevoAsesorId: number) => void;
+}
+
+const ReasignarCliente = ({ clienteId, asesorActual, onReasignSuccess }: ReasignarClienteProps) => {
+  const [asesores, setAsesores] = useState<Asesor[]>([]);
   const [nuevoAsesor, setNuevoAsesor] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -80,9 +87,9 @@ const ReasignarCliente = ({ clienteId, asesorActual, onReasignSuccess }) => {
       alert("Cliente reasignado correctamente");
       setModalOpen(false);
       
-      // Ejecutar callback para actualizar la lista en el componente padre
+      // Notificar al componente padre sobre el éxito de la reasignación
       if (onReasignSuccess) {
-        onReasignSuccess();
+        onReasignSuccess(clienteId, parseInt(nuevoAsesor));
       }
     } catch (error: any) {
       console.error("Error reasignando cliente:", error);

@@ -965,33 +965,58 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
   const cargarSoloAsesores = async () => {
     try {
-      console.log("🚀 Actualizando datos de asesores...");
-      const asesoresData = await apiClient.request<Asesor[]>('/GERSSON_ASESORES?select=*&order=NOMBRE');
-      if (!asesoresData || asesoresData.length === 0) return;
+      const asesoresData = await apiClient.request<any[]>('/GERSSON_ASESORES?select=*&order=NOMBRE');
       setAsesores(asesoresData);
-      console.log("✅ Asesores actualizados:", asesoresData.length);
-
-      // Actualizar estados de conexión
-      await verificarEstadosConexion(asesoresData);
-
-      // Recalcular estadísticas solo para los asesores con los datos existentes
-      const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
-      asesoresData.forEach((asesor: Asesor) => {
-        const clientesAsesor = clientes.filter((c: any) => c.ID_ASESOR === asesor.ID);
-        const reportesAsesor = reportes.filter((r: any) => r.ID_ASESOR === asesor.ID);
-        const conversacionesAsesor: any[] = []; // No necesitamos recargar las conversaciones para las reglas
-        nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
-          clientesAsesor,
-          reportesAsesor,
-          conversacionesAsesor,
-          periodoSeleccionado,
-          fechaInicio,
-          fechaFin
-        );
-      });
-      setEstadisticas(nuevasEstadisticas);
     } catch (error) {
-      console.error("❌ Error al actualizar asesores:", error);
+      console.error("Error al cargar asesores:", error);
+    }
+  };
+
+  // Función para manejar la reasignación exitosa de clientes
+  const handleClienteReasignado = (clienteId: number, nuevoAsesorId: number) => {
+    console.log(`🔄 Cliente ${clienteId} reasignado al asesor ${nuevoAsesorId}`);
+    
+    // Obtener información del nuevo asesor
+    const nuevoAsesor = asesores.find(a => a.ID === nuevoAsesorId);
+    
+    // Actualizar el estado local de clientes
+    setClientes(prevClientes => 
+      prevClientes.map(cliente => 
+        cliente.ID === clienteId 
+          ? { 
+              ...cliente, 
+              ID_ASESOR: nuevoAsesorId,
+              NOMBRE_ASESOR: nuevoAsesor?.NOMBRE || 'Desconocido',
+              WHA_ASESOR: nuevoAsesor?.WHATSAPP || null
+            }
+          : cliente
+      )
+    );
+
+    // Si estamos viendo el detalle de un asesor específico, actualizar las estadísticas
+    if (asesorSeleccionado) {
+      // Recalcular estadísticas para el asesor actual (sin el cliente reasignado)
+      const clientesAsesorActualizados = clientes.filter((c: any) => 
+        c.ID_ASESOR === asesorSeleccionado.ID && c.ID !== clienteId
+      );
+      const reportesAsesor = reportes.filter((r: any) => r.ID_ASESOR === asesorSeleccionado.ID);
+      const conversacionesAsesor: any[] = []; // Se puede agregar si es necesario
+      
+      const nuevasEstadisticas = calcularEstadisticasDetalladas(
+        clientesAsesorActualizados,
+        reportesAsesor,
+        conversacionesAsesor,
+        periodoSeleccionado,
+        fechaInicio,
+        fechaFin
+      );
+      
+      setEstadisticas(prevEstadisticas => ({
+        ...prevEstadisticas,
+        [asesorSeleccionado.ID]: nuevasEstadisticas
+      }));
+      
+      console.log(`✅ Estadísticas actualizadas para asesor ${asesorSeleccionado.NOMBRE}: ${clientesAsesorActualizados.length} clientes restantes`);
     }
   };
 
@@ -2235,7 +2260,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
                       onBack={() => setAsesorSeleccionado(null)}
                       onChat={setClienteParaChat}
-                      onDataUpdate={cargarDatos}
                     />
                   )}
                 </div>
@@ -2452,7 +2476,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                       <ReasignarCliente
                                         clienteId={cliente.ID}
                                         asesorActual={asesorAsignado.NOMBRE}
-                                        onReasignSuccess={cargarDatos}
+                                        onReasignSuccess={handleClienteReasignado}
                                       />
                                     </div>
                                   )}
@@ -2718,7 +2742,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                       <ReasignarCliente
                                         clienteId={cliente.ID}
                                         asesorActual={asesorAsignado.NOMBRE}
-                                        onReasignSuccess={cargarDatos}
+                                        onReasignSuccess={handleClienteReasignado}
                                       />
                                     </div>
                                   )}
@@ -2823,7 +2847,6 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
                 onBack={() => setAsesorSeleccionado(null)}
                 onChat={setClienteParaChat}
-                onDataUpdate={cargarDatos}
               />
             )}
           </div>

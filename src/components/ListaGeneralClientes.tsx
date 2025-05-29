@@ -29,7 +29,6 @@ interface ListaGeneralClientesProps {
   onChat: (cliente: Cliente) => void;
   admin: boolean;
   readOnly?: boolean;
-  onClienteReasignado?: () => void;
 }
 
 export default function ListaGeneralClientes({
@@ -40,7 +39,6 @@ export default function ListaGeneralClientes({
   onChat,
   admin,
   readOnly = false,
-  onClienteReasignado,
 }: ListaGeneralClientesProps) {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<EstadoCliente | 'TODOS'>('TODOS');
@@ -424,7 +422,6 @@ export default function ListaGeneralClientes({
                       <ReasignarCliente
                         clienteId={cliente.ID}
                         asesorActual={cliente.NOMBRE_ASESOR}
-                        onReasignSuccess={onClienteReasignado}
                       />
                     </div>
                   )}
@@ -592,7 +589,6 @@ export default function ListaGeneralClientes({
                           <ReasignarCliente
                             clienteId={cliente.ID}
                             asesorActual={cliente.NOMBRE_ASESOR}
-                            onReasignSuccess={onClienteReasignado}
                           />
                         </div>
                       )}

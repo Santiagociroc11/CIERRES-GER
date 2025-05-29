@@ -99,7 +99,14 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         processedMessages.clear();
       }
 
-      // LOG BONITO
+      // ⚡ OPTIMIZACIÓN: Verificar asesor PRIMERO antes de procesar el mensaje
+      const asesor = asesores.find(a => a.NOMBRE.trim().toLowerCase() === (eventData.instance || '').trim().toLowerCase());
+      if (!asesor) {
+        console.log(`[SKIP] ❌ No se encontró asesor para la instancia: "${eventData.instance}" - Mensaje no procesado para optimizar rendimiento`);
+        return; // Salir temprano - NO procesar mensajes de instancias sin asesor
+      }
+
+      // LOG BONITO (solo para mensajes que SÍ tienen asesor)
       const header = message.key.fromMe
         ? `\x1b[32m✅ [${eventData.instance}] Mensaje ENVIADO POR MÍ\x1b[0m`
         : `\x1b[36m📥 [${eventData.instance}] Mensaje RECIBIDO\x1b[0m`;
@@ -107,13 +114,7 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       console.log(`${header}\n${body}\n${'-'.repeat(40)}`);
       console.log(`\x1b[90m[RAW data.data]:\n${JSON.stringify(data.data, null, 2)}\x1b[0m\n${'='.repeat(40)}`);
 
-      // Buscar asesor por nombre de instancia
-      const asesor = asesores.find(a => a.NOMBRE.trim().toLowerCase() === (eventData.instance || '').trim().toLowerCase());
-      if (!asesor) {
-        console.warn('[NO BD] No se encontró asesor para la instancia:', eventData.instance);
-        return;
-      }
-      console.log('[BD] Asesor encontrado:', asesor);
+      console.log('[BD] ✅ Asesor encontrado:', asesor);
 
       // Determinar modo
       const modo = message.key.fromMe ? 'saliente' : 'entrante';

@@ -23,6 +23,8 @@ import {
   UserCheck,
   Smartphone,
   Send,
+  FileText,
+  DollarSign,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -58,6 +60,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [clientes, setClientes] = useState<any[]>([]);
   const [reportes, setReportes] = useState<any[]>([]);
   const [registros, setRegistros] = useState<any[]>([]);
+  const [conversaciones, setConversaciones] = useState<any[]>([]);
   const [conexionesEstado, setConexionesEstado] = useState<Record<number, {
     whatsapp: 'conectado' | 'desconectado' | 'verificando';
     telegram: boolean;
@@ -465,6 +468,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       setClientes(clientesData);
       setReportes(reportesData);
       setRegistros(registrosData);
+      setConversaciones(conversacionesData);
 
       // Paso 4: Calcular estadísticas
       const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
@@ -1224,6 +1228,77 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       
       console.log(`✅ Estadísticas actualizadas para asesor ${asesorSeleccionado.NOMBRE}: ${clientesAsesorActualizados.length} clientes restantes`);
     }
+  };
+
+  // Función para calcular último reporte, mensaje y venta de un asesor
+  const getUltimasActividades = (asesorId: number) => {
+    const ahora = Math.floor(Date.now() / 1000);
+    
+    // Último reporte del asesor
+    const reportesAsesor = reportes.filter((r: any) => r.ID_ASESOR === asesorId);
+    const ultimoReporte = reportesAsesor.length > 0 
+      ? Math.max(...reportesAsesor.map((r: any) => r.FECHA_REPORTE))
+      : null;
+    
+    // Última venta del asesor (reporte con ESTADO_NUEVO = 'PAGADO')
+    const reportesVenta = reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO');
+    const ultimaVenta = reportesVenta.length > 0
+      ? Math.max(...reportesVenta.map((r: any) => r.FECHA_REPORTE))
+      : null;
+    
+    // Último mensaje saliente del asesor
+    const conversacionesAsesor = conversaciones.filter((c: any) => c.id_asesor === asesorId && c.modo === 'saliente');
+    const ultimoMensaje = conversacionesAsesor.length > 0
+      ? Math.max(...conversacionesAsesor.map((c: any) => c.timestamp))
+      : null;
+    
+    // Calcular minutos transcurridos
+    const minutosDesdeReporte = ultimoReporte ? Math.floor((ahora - ultimoReporte) / 60) : null;
+    const minutosDesdeVenta = ultimaVenta ? Math.floor((ahora - ultimaVenta) / 60) : null;
+    const minutosDesdeMensaje = ultimoMensaje ? Math.floor((ahora - ultimoMensaje) / 60) : null;
+    
+    return {
+      ultimoReporte: {
+        timestamp: ultimoReporte,
+        minutosTranscurridos: minutosDesdeReporte,
+        fecha: ultimoReporte ? new Date(ultimoReporte * 1000) : null
+      },
+      ultimaVenta: {
+        timestamp: ultimaVenta,
+        minutosTranscurridos: minutosDesdeVenta,
+        fecha: ultimaVenta ? new Date(ultimaVenta * 1000) : null
+      },
+      ultimoMensaje: {
+        timestamp: ultimoMensaje, 
+        minutosTranscurridos: minutosDesdeMensaje,
+        fecha: ultimoMensaje ? new Date(ultimoMensaje * 1000) : null
+      }
+    };
+  };
+
+  // Función para formatear tiempo en minutos de forma legible
+  const formatearTiempoMinutos = (minutos: number | null) => {
+    if (minutos === null) return 'Nunca';
+    
+    if (minutos < 60) {
+      return `${minutos}m`;
+    } else if (minutos < 1440) { // menos de 24h
+      const horas = Math.floor(minutos / 60);
+      const minutosRestantes = minutos % 60;
+      return minutosRestantes > 0 ? `${horas}h ${minutosRestantes}m` : `${horas}h`;
+    } else { // más de 24h
+      const dias = Math.floor(minutos / 1440);
+      const horasRestantes = Math.floor((minutos % 1440) / 60);
+      return horasRestantes > 0 ? `${dias}d ${horasRestantes}h` : `${dias}d`;
+    }
+  };
+
+  // Función para obtener color según el tiempo transcurrido
+  const getColorTiempo = (minutos: number | null, limite: number = 60) => {
+    if (minutos === null) return 'text-gray-400';
+    if (minutos <= limite) return 'text-green-600';
+    if (minutos <= limite * 2) return 'text-yellow-600';
+    return 'text-red-600';
   };
 
   return (
@@ -2170,6 +2245,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                         : null;
                       
                       const estadoConexion = conexionesEstado[asesor.ID];
+                      const actividades = getUltimasActividades(asesor.ID);
                       
                       return (
                         <div key={asesor.ID} className="bg-gray-50 rounded-lg p-4">
@@ -2352,25 +2428,120 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                           </div>
                           {/* Últimas Actividades */}
                           <div className="mt-4 bg-white p-4 rounded-lg shadow">
-                            <h4 className="text-sm font-medium text-gray-500 mb-2">Últimas Actividades</h4>
+                            <h4 className="text-sm font-medium text-gray-500 mb-3 flex items-center">
+                              <Clock className="h-4 w-4 mr-2" />
+                              Últimas Actividades
+                            </h4>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm">Último reporte:</span>
-                                <span className="font-semibold">
-                                  {stats?.ultimoReporte ? formatDate(stats.ultimoReporte) : 'Sin reportes'}
-                                </span>
+                              {/* Último Reporte */}
+                              <div className="bg-gray-50 p-3 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm font-medium text-gray-600 flex items-center">
+                                    <FileText className="h-4 w-4 mr-1" />
+                                    Último Reporte
+                                  </span>
+                                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                    actividades.ultimoReporte.minutosTranscurridos === null 
+                                      ? 'bg-gray-200 text-gray-600'
+                                      : actividades.ultimoReporte.minutosTranscurridos <= 60
+                                      ? 'bg-green-100 text-green-700'
+                                      : actividades.ultimoReporte.minutosTranscurridos <= 180
+                                      ? 'bg-yellow-100 text-yellow-700'
+                                      : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {formatearTiempoMinutos(actividades.ultimoReporte.minutosTranscurridos)}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {actividades.ultimoReporte.fecha 
+                                    ? actividades.ultimoReporte.fecha.toLocaleDateString() + ' ' + 
+                                      actividades.ultimoReporte.fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                                    : 'Sin reportes aún'
+                                  }
+                                </div>
                               </div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm">Último seguimiento:</span>
-                                <span className="font-semibold">
-                                  {stats?.ultimoSeguimiento ? formatDate(stats.ultimoSeguimiento) : 'Sin seguimientos'}
-                                </span>
+
+                              {/* Última Venta */}
+                              <div className="bg-gray-50 p-3 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm font-medium text-gray-600 flex items-center">
+                                    <DollarSign className="h-4 w-4 mr-1" />
+                                    Última Venta
+                                  </span>
+                                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                    actividades.ultimaVenta.minutosTranscurridos === null 
+                                      ? 'bg-gray-200 text-gray-600'
+                                      : actividades.ultimaVenta.minutosTranscurridos <= 1440 // 24 horas
+                                      ? 'bg-green-100 text-green-700'
+                                      : actividades.ultimaVenta.minutosTranscurridos <= 4320 // 3 días
+                                      ? 'bg-yellow-100 text-yellow-700'
+                                      : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {formatearTiempoMinutos(actividades.ultimaVenta.minutosTranscurridos)}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {actividades.ultimaVenta.fecha 
+                                    ? actividades.ultimaVenta.fecha.toLocaleDateString() + ' ' + 
+                                      actividades.ultimaVenta.fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                                    : 'Sin ventas registradas'
+                                  }
+                                </div>
                               </div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm">Última venta:</span>
-                                <span className="font-semibold">
-                                  {stats?.ultimaVenta ? formatDate(stats.ultimaVenta) : 'Sin ventas'}
-                                </span>
+
+                              {/* Último Mensaje Saliente */}
+                              <div className="bg-gray-50 p-3 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm font-medium text-gray-600 flex items-center">
+                                    <MessageSquare className="h-4 w-4 mr-1" />
+                                    Último Mensaje saliente
+                                  </span>
+                                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                    actividades.ultimoMensaje.minutosTranscurridos === null 
+                                      ? 'bg-gray-200 text-gray-600'
+                                      : actividades.ultimoMensaje.minutosTranscurridos <= 30
+                                      ? 'bg-green-100 text-green-700'
+                                      : actividades.ultimoMensaje.minutosTranscurridos <= 120
+                                      ? 'bg-yellow-100 text-yellow-700'
+                                      : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {formatearTiempoMinutos(actividades.ultimoMensaje.minutosTranscurridos)}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {actividades.ultimoMensaje.fecha 
+                                    ? actividades.ultimoMensaje.fecha.toLocaleDateString() + ' ' + 
+                                      actividades.ultimoMensaje.fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                                    : 'Sin mensajes enviados'
+                                  }
+                                </div>
+                              </div>
+
+                              {/* Indicador de Estado General */}
+                              <div className="md:col-span-3 mt-2">
+                                <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
+                                  <span className="text-sm font-medium text-blue-800">Estado de Actividad:</span>
+                                  <div className="flex items-center">
+                                    {actividades.ultimoMensaje.minutosTranscurridos !== null && 
+                                     actividades.ultimoMensaje.minutosTranscurridos <= 30 ? (
+                                      <div className="flex items-center text-green-600">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                                        <span className="text-sm font-medium">Activo</span>
+                                      </div>
+                                    ) : actividades.ultimoMensaje.minutosTranscurridos !== null && 
+                                           actividades.ultimoMensaje.minutosTranscurridos <= 120 ? (
+                                      <div className="flex items-center text-yellow-600">
+                                        <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+                                        <span className="text-sm font-medium">Moderadamente Activo</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center text-red-600">
+                                        <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
+                                        <span className="text-sm font-medium">Inactivo</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>

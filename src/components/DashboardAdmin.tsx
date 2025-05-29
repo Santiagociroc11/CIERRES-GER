@@ -133,7 +133,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       
       // ⚡ OPTIMIZACIÓN: Agregar timeout de 5 segundos para evitar que una verificación lenta bloquee las demás
       const timeoutController = new AbortController();
-      const timeoutId = setTimeout(() => timeoutController.abort(), 10000);
+      const timeoutId = setTimeout(() => timeoutController.abort(), 20000);
       
       const response = await fetch(url, {
         method: "GET",
@@ -187,7 +187,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     setConexionesEstado(nuevosEstados);
 
     // ⚡ OPTIMIZACIÓN: Procesar verificaciones en lotes de 3 para no sobrecargar la API
-    const BATCH_SIZE = 8;
+    const BATCH_SIZE = 3;
     const batches = [];
     for (let i = 0; i < asesoresData.length; i += BATCH_SIZE) {
       batches.push(asesoresData.slice(i, i + BATCH_SIZE));
@@ -222,7 +222,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       
       // Pequeña pausa entre lotes para no sobrecargar la API
       if (batches.indexOf(batch) < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 4000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
     

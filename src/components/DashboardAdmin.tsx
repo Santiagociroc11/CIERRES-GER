@@ -469,18 +469,59 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
     const reportesPorCliente = clientesAsesor.length ? reportesAsesor.length / clientesAsesor.length : 0;
     const reportesConSeguimiento = reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO).length;
+    
+    // 🔄 NUEVA LÓGICA: Calcular última actividad real considerando TODAS las actividades
+    const actividades: number[] = [];
+    
+    // 1. Último reporte creado
+    if (reportesAsesor.length > 0) {
+      actividades.push(Math.max(...reportesAsesor.map((r: any) => r.FECHA_REPORTE)));
+    }
+    
+    // 2. Último seguimiento completado
+    const seguimientosCompletados = reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO);
+    if (seguimientosCompletados.length > 0) {
+      actividades.push(Math.max(...seguimientosCompletados.map((r: any) => r.FECHA_SEGUIMIENTO)));
+    }
+    
+    // 3. Último mensaje enviado por el asesor
+    const mensajesAsesor = conversacionesAsesor.filter((c: any) => c.modo === 'saliente');
+    if (mensajesAsesor.length > 0) {
+      actividades.push(Math.max(...mensajesAsesor.map((m: any) => m.timestamp)));
+    }
+    
+    // 4. Último cliente creado/asignado
+    if (clientesAsesor.length > 0) {
+      actividades.push(Math.max(...clientesAsesor.map((c: any) => parseInt(c.FECHA_CREACION))));
+    }
+    
+    // Tomar la actividad más reciente de todas
+    const ultimaActividad = actividades.length > 0 ? Math.max(...actividades) : null;
+    
+    // 🔍 Debug: Log para verificar cálculo de última actividad
+    if (clientesAsesor.length > 0) {
+      const nombreAsesor = clientesAsesor[0]?.NOMBRE_ASESOR || 'Sin nombre';
+      console.log(`⏰ [${nombreAsesor}] Última actividad calculada:`, {
+        ultimaActividad: ultimaActividad ? new Date(ultimaActividad * 1000).toLocaleString() : 'Nunca',
+        horasDesdeActividad: ultimaActividad ? Math.floor((Date.now() - ultimaActividad * 1000) / (1000 * 60 * 60)) : 'N/A',
+        actividades: {
+          ultimoReporte: reportesAsesor.length > 0 ? new Date(Math.max(...reportesAsesor.map((r: any) => r.FECHA_REPORTE)) * 1000).toLocaleString() : 'Nunca',
+          ultimoSeguimiento: seguimientosCompletados.length > 0 ? new Date(Math.max(...seguimientosCompletados.map((r: any) => r.FECHA_SEGUIMIENTO)) * 1000).toLocaleString() : 'Nunca',
+          ultimoMensaje: mensajesAsesor.length > 0 ? new Date(Math.max(...mensajesAsesor.map((m: any) => m.timestamp)) * 1000).toLocaleString() : 'Nunca',
+          ultimoCliente: clientesAsesor.length > 0 ? new Date(Math.max(...clientesAsesor.map((c: any) => parseInt(c.FECHA_CREACION))) * 1000).toLocaleString() : 'Nunca'
+        },
+        contadores: {
+          totalReportes: reportesAsesor.length,
+          seguimientosCompletados: seguimientosCompletados.length,
+          mensajesEnviados: mensajesAsesor.length,
+          clientesAsignados: clientesAsesor.length
+        }
+      });
+    }
+    
+    // Para backward compatibility, el ultimoReporte ya está incluido en las actividades
     const ultimoReporte = reportesAsesor.length > 0
       ? Math.max(...reportesAsesor.map((r: any) => r.FECHA_REPORTE))
-      : null;
-    const ultimoSeguimiento = reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO).length > 0
-      ? Math.max(...reportesAsesor.filter((r: any) => r.FECHA_SEGUIMIENTO && r.COMPLETADO).map((r: any) => r.FECHA_SEGURO))
-      : null;
-    const ultimaVenta = reportesAsesor.filter((r: any) =>
-      r.ESTADO_NUEVO === 'PAGADO'
-    ).length > 0
-      ? Math.max(...reportesAsesor.filter((r: any) =>
-        r.ESTADO_NUEVO === 'PAGADO'
-      ).map((r: any) => r.FECHA_REPORTE))
       : null;
 
     const tiemposHastaReporte = clientesAsesor
@@ -612,10 +653,10 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         (c: any) => !reportesAsesor.find((r: any) => r.ID_CLIENTE === c.ID)
       ).length,
       montoPromedioVenta: 0,
-      ultimaActividad: ultimoReporte,
+      ultimaActividad,
       ultimoReporte,
-      ultimoSeguimiento,
-      ultimaVenta,
+      ultimoSeguimiento: null,
+      ultimaVenta: null,
       ventasReportadas: ventasRealizadas,
       ventasSinReportar: 0
     };

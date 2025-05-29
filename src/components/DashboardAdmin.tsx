@@ -62,6 +62,12 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     whatsapp: 'conectado' | 'desconectado' | 'verificando';
     telegram: boolean;
   }>>({});
+  
+  // 🆕 Estados de carga y rendimiento
+  const [cargandoDatos, setCargandoDatos] = useState(false);
+  const [cargandoConexiones, setCargandoConexiones] = useState(false);
+  const [tiempoCarga, setTiempoCarga] = useState<number | null>(null);
+  
   const itemsPerPage = 20;
   const [currentPage, setCurrentPage] = useState(1);
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<'año' | 'mes' | 'semana' | 'personalizado'>('personalizado');
@@ -95,9 +101,20 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
 
   // Función para refrescar manualmente
   const handleRefresh = async () => {
-    setTick(t => t + 1);
-    setLastUpdated(new Date());
     await cargarDatos();
+  };
+
+  // 🆕 Nueva función para refrescar solo las conexiones (más rápida)
+  const refrescarSoloConexiones = async () => {
+    if (asesores.length > 0) {
+      setCargandoConexiones(true);
+      console.log("🔄 Refrescando solo estados de conexión...");
+      try {
+        await verificarEstadosConexion(asesores);
+      } finally {
+        setCargandoConexiones(false);
+      }
+    }
   };
 
   // Función para verificar estado de WhatsApp de un asesor
@@ -110,13 +127,20 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       const instanceName = encodeURIComponent(nombreAsesor);
       const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${instanceName}`;
       
+      // ⚡ OPTIMIZACIÓN: Agregar timeout de 5 segundos para evitar que una verificación lenta bloquee las demás
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => timeoutController.abort(), 5000);
+      
       const response = await fetch(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           "apikey": evolutionApiKey,
         },
+        signal: timeoutController.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         return 'desconectado';
@@ -130,19 +154,25 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       
       return 'desconectado';
     } catch (error) {
-      console.error(`Error verificando WhatsApp para ${nombreAsesor}:`, error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn(`⏱️ Timeout verificando WhatsApp para ${nombreAsesor} (5s)`);
+      } else {
+        console.warn(`⚠️ Error verificando WhatsApp para ${nombreAsesor}:`, error);
+      }
       return 'desconectado';
     }
   };
 
-  // Función para verificar estados de conexión de todos los asesores
+  // 🚀 OPTIMIZACIÓN: Función para verificar estados de conexión de forma más eficiente
   const verificarEstadosConexion = async (asesoresData: Asesor[]) => {
+    console.log(`🔍 Iniciando verificaciones de conexión para ${asesoresData.length} asesores (en background)...`);
+    
     const nuevosEstados: Record<number, {
       whatsapp: 'conectado' | 'desconectado' | 'verificando';
       telegram: boolean;
     }> = {};
 
-    // Inicializar con estado "verificando" para WhatsApp
+    // Inicializar estados
     asesoresData.forEach(asesor => {
       nuevosEstados[asesor.ID] = {
         whatsapp: 'verificando',
@@ -152,20 +182,47 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     
     setConexionesEstado(nuevosEstados);
 
-    // Verificar WhatsApp de cada asesor de forma asíncrona
-    const verificaciones = asesoresData.map(async (asesor) => {
-      const estadoWhatsApp = await verificarEstadoWhatsApp(asesor.NOMBRE);
-      setConexionesEstado(prev => ({
-        ...prev,
-        [asesor.ID]: {
-          ...prev[asesor.ID],
-          whatsapp: estadoWhatsApp
-        }
-      }));
-    });
+    // ⚡ OPTIMIZACIÓN: Procesar verificaciones en lotes de 3 para no sobrecargar la API
+    const BATCH_SIZE = 1;
+    const batches = [];
+    for (let i = 0; i < asesoresData.length; i += BATCH_SIZE) {
+      batches.push(asesoresData.slice(i, i + BATCH_SIZE));
+    }
 
-    // Esperar a que todas las verificaciones terminen
-    await Promise.allSettled(verificaciones);
+    for (const batch of batches) {
+      const verificacionesBatch = batch.map(async (asesor) => {
+        try {
+          const estadoWhatsApp = await verificarEstadoWhatsApp(asesor.NOMBRE);
+          setConexionesEstado(prev => ({
+            ...prev,
+            [asesor.ID]: {
+              ...prev[asesor.ID],
+              whatsapp: estadoWhatsApp
+            }
+          }));
+          console.log(`✅ WhatsApp ${asesor.NOMBRE}: ${estadoWhatsApp}`);
+        } catch (error) {
+          console.warn(`❌ Error verificando ${asesor.NOMBRE}:`, error);
+          setConexionesEstado(prev => ({
+            ...prev,
+            [asesor.ID]: {
+              ...prev[asesor.ID],
+              whatsapp: 'desconectado'
+            }
+          }));
+        }
+      });
+
+      // Esperar que termine el lote antes de continuar con el siguiente
+      await Promise.allSettled(verificacionesBatch);
+      
+      // Pequeña pausa entre lotes para no sobrecargar la API
+      if (batches.indexOf(batch) < batches.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    console.log("✅ Verificaciones de conexión completadas");
   };
 
   const fetchAllPages = async (
@@ -200,35 +257,51 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   };
 
   const cargarDatos = async () => {
+    const inicioTiempo = performance.now();
+    setCargandoDatos(true);
+    
     try {
       console.log("🚀 Cargando datos desde PostgREST...");
-      // Paso 1: Obtener asesores ordenados por nombre (suponiendo que el dataset de asesores es pequeño)
+      
+      // Paso 1: Obtener asesores ordenados por nombre
       const asesoresData = await apiClient.request<any[]>('/GERSSON_ASESORES?select=*&order=NOMBRE');
       if (!asesoresData || asesoresData.length === 0) return;
       setAsesores(asesoresData);
       console.log("✅ Asesores obtenidos:", asesoresData.length);
 
-      // Verificar estados de conexión de WhatsApp y Telegram
-      await verificarEstadosConexion(asesoresData);
+      // 🚀 OPTIMIZACIÓN: Ejecutar verificaciones de conexión EN PARALELO, no en serie
+      // Las verificaciones de conexión se ejecutan en background sin bloquear la carga principal
+      setCargandoConexiones(true);
+      verificarEstadosConexion(asesoresData)
+        .catch(error => {
+          console.warn("⚠️ Error en verificaciones de conexión (no crítico):", error);
+        })
+        .finally(() => {
+          setCargandoConexiones(false);
+        });
 
-      // Paso 2: Obtener clientes, reportes y registros en paralelo usando paginación
+      // Paso 2: Cargar datos principales INMEDIATAMENTE (sin esperar verificaciones)
+      console.log("🔄 Cargando datos principales...");
       const [clientesData, reportesData, registrosData, conversacionesData] = await Promise.all([
-        fetchAllPages('/GERSSON_CLIENTES', 'select=*'), // o agregar filtros si es necesario
+        fetchAllPages('/GERSSON_CLIENTES', 'select=*'),
         fetchAllPages('/GERSSON_REPORTES', 'select=*'),
         fetchAllPages('/GERSSON_REGISTROS', 'select=*'),
         fetchAllPages('/conversaciones', 'select=*'),
       ]);
-      console.log("✅ Clientes obtenidos:", clientesData.length);
-      console.log("✅ Reportes obtenidos:", reportesData.length);
-      console.log("✅ Registros obtenidos:", registrosData.length);
-      console.log("✅ Conversaciones obtenidas:", conversacionesData.length);
+      
+      console.log("✅ Datos principales cargados:", {
+        clientes: clientesData.length,
+        reportes: reportesData.length,
+        registros: registrosData.length,
+        conversaciones: conversacionesData.length
+      });
 
-      // Paso 3: Actualizar el estado
+      // Paso 3: Actualizar estado inmediatamente
       setClientes(clientesData);
       setReportes(reportesData);
       setRegistros(registrosData);
 
-      // Paso 4: Calcular estadísticas por asesor
+      // Paso 4: Calcular estadísticas
       const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
       asesoresData.forEach((asesor: any) => {
         const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
@@ -244,8 +317,18 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         );
       });
       setEstadisticas(nuevasEstadisticas);
+      
+      // 📊 Calcular tiempo de carga
+      const tiempoTotal = Math.round(performance.now() - inicioTiempo);
+      setTiempoCarga(tiempoTotal);
+      setLastUpdated(new Date());
+      
+      console.log(`✅ Dashboard listo en ${tiempoTotal}ms! Las verificaciones de conexión continúan en background.`);
+      
     } catch (error) {
       console.error("❌ Error al cargar datos:", error);
+    } finally {
+      setCargandoDatos(false);
     }
   };
 
@@ -425,16 +508,32 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       ? tiemposHastaVenta.reduce((a, b) => a + b, 0) / tiemposHastaVenta.length
       : 0;
 
-    // Calcular tiempo hasta primer mensaje
+    // Calcular tiempo hasta primer mensaje MANUAL (excluyendo automáticos < 1 minuto)
     const tiemposHastaPrimerMensaje = clientesAsesor
       .map((cliente: any) => {
-        const primerMensajeSaliente = conversacionesAsesor
-          .filter((c: any) => c.wha_cliente === cliente.WHATSAPP && c.modo === 'saliente')
-          .sort((a: any, b: any) => a.timestamp - b.timestamp)[0];
+        // 🔄 CORRECCIÓN: Buscar primer mensaje MANUAL (no automático)
+        const fechaCreacionCliente = parseInt(cliente.FECHA_CREACION);
+        const mensajesSalientes = conversacionesAsesor
+          .filter((c: any) => c.id_cliente === cliente.ID && c.modo === 'saliente')
+          .sort((a: any, b: any) => a.timestamp - b.timestamp);
+        
+        // Filtrar mensajes automáticos (enviados en menos de 1 minuto tras creación)
+        const mensajesManuales = mensajesSalientes.filter((mensaje: any) => {
+          const tiempoDesdeCreacion = (mensaje.timestamp - fechaCreacionCliente) / 60; // en minutos
+          return tiempoDesdeCreacion >= 1; // Solo mensajes enviados después de 1 minuto
+        });
+        
+        // Tomar el primer mensaje manual
+        const primerMensajeManual = mensajesManuales.length > 0 ? mensajesManuales[0] : null;
+        
         return {
           clienteId: cliente.ID,
-          tiempo: primerMensajeSaliente ? (primerMensajeSaliente.timestamp - parseInt(cliente.FECHA_CREACION)) / 60 : null,
-          fechaCreacion: parseInt(cliente.FECHA_CREACION)
+          tiempo: primerMensajeManual ? (primerMensajeManual.timestamp - fechaCreacionCliente) / 60 : null,
+          fechaCreacion: fechaCreacionCliente,
+          tieneMensajeManual: primerMensajeManual !== null,
+          totalMensajes: mensajesSalientes.length,
+          totalMensajesManuales: mensajesManuales.length,
+          mensajesAutomaticos: mensajesSalientes.length - mensajesManuales.length
         };
       });
 
@@ -455,6 +554,31 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     const tiempoHastaPrimerMensaje = tiemposValidos.length
       ? tiemposValidos.reduce((a, b) => a + b, 0) / tiemposValidos.length
       : 0;
+
+    // 📊 Métricas adicionales sobre el primer mensaje manual
+    const clientesConMensajeManual = tiemposHastaPrimerMensaje.filter(({ tieneMensajeManual }) => tieneMensajeManual).length;
+    const promedioMensajesPorCliente = tiemposHastaPrimerMensaje.length > 0 
+      ? tiemposHastaPrimerMensaje.reduce((acc, { totalMensajes }) => acc + totalMensajes, 0) / tiemposHastaPrimerMensaje.length 
+      : 0;
+    const promedioMensajesManuales = tiemposHastaPrimerMensaje.length > 0 
+      ? tiemposHastaPrimerMensaje.reduce((acc, { totalMensajesManuales }) => acc + totalMensajesManuales, 0) / tiemposHastaPrimerMensaje.length 
+      : 0;
+
+    console.log(`📈 [${clientesAsesor[0]?.NOMBRE_ASESOR || 'Sin nombre'}] Análisis de mensajes MANUALES:`, {
+      totalClientes: clientesAsesor.length,
+      clientesConMensajeManual,
+      porcentajeConMensajeManual: clientesAsesor.length > 0 ? (clientesConMensajeManual / clientesAsesor.length * 100).toFixed(1) + '%' : '0%',
+      promedioMensajesPorCliente: promedioMensajesPorCliente.toFixed(1),
+      promedioMensajesManuales: promedioMensajesManuales.toFixed(1),
+      tiempoPromedioRespuestaManual: tiempoHastaPrimerMensaje.toFixed(1) + ' min',
+      // 🔍 Debug: Verificar filtro de mensajes automáticos vs manuales
+      clientesSinMensajeManual: tiemposHastaPrimerMensaje.filter(({ tiempo }) => tiempo === null).length,
+      clientesConRespuestaManual: tiemposHastaPrimerMensaje.filter(({ tiempo }) => tiempo !== null).length,
+      totalConversaciones: conversacionesAsesor.length,
+      mensajesAutomaticosPromedio: tiemposHastaPrimerMensaje.length > 0 
+        ? (tiemposHastaPrimerMensaje.reduce((acc, { mensajesAutomaticos }) => acc + mensajesAutomaticos, 0) / tiemposHastaPrimerMensaje.length).toFixed(1) 
+        : '0'
+    });
 
     return {
       totalClientes: clientesAsesor.length,

@@ -473,10 +473,24 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       const historialActual: ReglaHistorial[] = asesorActual.HISTORIAL ? JSON.parse(asesorActual.HISTORIAL) : [];
       const prioridadActual = asesorActual.PRIORIDAD || 1;
       
-      // Calcular la nueva prioridad con límites
+      // Calcular la nueva prioridad con límites estrictos: máximo +3 (prioridad 4), mínimo 1
       const nuevaPrioridad = tipo === 'BONUS' 
-        ? Math.min(prioridadActual + 1, 4)  // Máximo 4
+        ? Math.min(prioridadActual + 1, 4)  // Máximo 4 (base 1 + 3)
         : Math.max(prioridadActual - 1, 1);  // Mínimo 1
+      
+      // Validar que no se exceda el límite máximo de +3
+      if (tipo === 'BONUS' && prioridadActual >= 4) {
+        toast.error('El asesor ya tiene la prioridad máxima (+3). No se puede aumentar más.');
+        setMostrarModalPrioridad(false);
+        return;
+      }
+      
+      // Validar que no se exceda el límite mínimo
+      if (tipo === 'PENALIZACION' && prioridadActual <= 1) {
+        toast.error('El asesor ya tiene la prioridad mínima. No se puede reducir más.');
+        setMostrarModalPrioridad(false);
+        return;
+      }
 
       // Crear nueva entrada en el historial con epoch
       const nuevaEntrada: ReglaHistorial = {
@@ -693,11 +707,11 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       let motivo = '';
 
       if (tasaCierre > OBJETIVO_TASA_CIERRE.MAX) {
-        // Solo aumentar si la prioridad actual es menor que 4
+        // Solo aumentar si la prioridad actual es menor que 4 (máximo +3)
         cambio = prioridadActual < 4 ? 1 : 0;
         motivo = prioridadActual < 4
           ? `Rendimiento superior al rango objetivo (${tasaCierre.toFixed(1)}% > ${OBJETIVO_TASA_CIERRE.MAX}%)`
-          : `Rendimiento superior al rango objetivo, pero prioridad máxima alcanzada`;
+          : `Rendimiento superior al rango objetivo, pero prioridad máxima alcanzada (+3)`;
       } else if (tasaCierre < OBJETIVO_TASA_CIERRE.MIN) {
         // Solo restar si la prioridad actual es mayor que 1
         cambio = prioridadActual > 1 ? -1 : 0;
@@ -903,7 +917,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
           </div>
         </div>
         
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 mb-3">
           {/* Rendimiento Superior */}
           <div className="bg-white rounded-md p-3 border-l-2 border-green-500 shadow-sm">
             <div className="flex items-center gap-2 mb-1">
@@ -946,6 +960,20 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
             </div>
           </div>
         </div>
+        
+        {/* Nueva sección de información sobre prioridades */}
+        <div className="bg-white rounded-md p-3 border border-gray-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Star className="h-4 w-4 text-yellow-600" />
+            <span className="text-xs font-semibold text-gray-700">Sistema de Prioridades</span>
+          </div>
+          <div className="text-xs text-gray-600 space-y-1">
+            <div>• <span className="font-medium">Prioridad Base:</span> 1 (Normal)</div>
+            <div>• <span className="font-medium">Máximo:</span> +3 (Prioridad 4)</div>
+            <div>• <span className="font-medium">Mínimo:</span> 1 (No se puede reducir)</div>
+            <div>• <span className="font-medium">Efecto:</span> Mayor prioridad = más clientes asignados</div>
+          </div>
+        </div>
       </div>
       
       <div className="overflow-x-auto">
@@ -972,9 +1000,14 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                       {(asesor.PRIORIDAD ?? 1) > 1 ? (
                         <div className="flex items-center text-green-600">
                           <ArrowUpCircle className="h-5 w-5" />
-                          <span className="ml-1 font-medium">Premiado (+{asesor.PRIORIDAD})</span>
+                          <span className="ml-1 font-medium">
+                            Premiado (+{(asesor.PRIORIDAD ?? 1) - 1}) 
+                            {(asesor.PRIORIDAD ?? 1) >= 4 && 
+                              <span className="ml-1 px-1 py-0.5 bg-green-200 text-green-800 rounded text-xs">MAX</span>
+                            }
+                          </span>
                         </div>
-                      ) : (asesor.PRIORIDAD ?? 0) < 0 ? (
+                      ) : (asesor.PRIORIDAD ?? 0) < 1 ? (
                         <div className="flex items-center text-red-600">
                           <ArrowDownCircle className="h-5 w-5" />
                           <span className="ml-1 font-medium">
@@ -994,8 +1027,13 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                           setTipoPrioridadSeleccionada('BONUS');
                           setMostrarModalPrioridad(true);
                         }}
-                        className="p-1 text-green-600 hover:bg-green-50 rounded-full"
-                        title="Premiar asesor"
+                        disabled={(asesor.PRIORIDAD ?? 1) >= 4}
+                        className={`p-1 rounded-full ${
+                          (asesor.PRIORIDAD ?? 1) >= 4 
+                            ? 'text-gray-400 cursor-not-allowed' 
+                            : 'text-green-600 hover:bg-green-50'
+                        }`}
+                        title={(asesor.PRIORIDAD ?? 1) >= 4 ? 'Prioridad máxima alcanzada (+3)' : 'Premiar asesor'}
                       >
                         <ArrowUpCircle className="h-5 w-5" />
                       </button>
@@ -1005,8 +1043,13 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                           setTipoPrioridadSeleccionada('PENALIZACION');
                           setMostrarModalPrioridad(true);
                         }}
-                        className="p-1 text-red-600 hover:bg-red-50 rounded-full"
-                        title="Penalizar asesor"
+                        disabled={(asesor.PRIORIDAD ?? 1) <= 1}
+                        className={`p-1 rounded-full ${
+                          (asesor.PRIORIDAD ?? 1) <= 1 
+                            ? 'text-gray-400 cursor-not-allowed' 
+                            : 'text-red-600 hover:bg-red-50'
+                        }`}
+                        title={(asesor.PRIORIDAD ?? 1) <= 1 ? 'Prioridad mínima alcanzada' : 'Penalizar asesor'}
                       >
                         <ArrowDownCircle className="h-5 w-5" />
                       </button>

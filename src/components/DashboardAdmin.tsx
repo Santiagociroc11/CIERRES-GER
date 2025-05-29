@@ -66,6 +66,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   // 🆕 Estados de carga y rendimiento
   const [cargandoDatos, setCargandoDatos] = useState(false);
   const [cargandoConexiones, setCargandoConexiones] = useState(false);
+  const [cargandoClientes, setCargandoClientes] = useState(false);
   const [tiempoCarga, setTiempoCarga] = useState<number | null>(null);
   
   const itemsPerPage = 20;
@@ -129,7 +130,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       
       // ⚡ OPTIMIZACIÓN: Agregar timeout de 5 segundos para evitar que una verificación lenta bloquee las demás
       const timeoutController = new AbortController();
-      const timeoutId = setTimeout(() => timeoutController.abort(), 5000);
+      const timeoutId = setTimeout(() => timeoutController.abort(), 10000);
       
       const response = await fetch(url, {
         method: "GET",
@@ -183,7 +184,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     setConexionesEstado(nuevosEstados);
 
     // ⚡ OPTIMIZACIÓN: Procesar verificaciones en lotes de 3 para no sobrecargar la API
-    const BATCH_SIZE = 1;
+    const BATCH_SIZE = 8;
     const batches = [];
     for (let i = 0; i < asesoresData.length; i += BATCH_SIZE) {
       batches.push(asesoresData.slice(i, i + BATCH_SIZE));
@@ -218,7 +219,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       
       // Pequeña pausa entre lotes para no sobrecargar la API
       if (batches.indexOf(batch) < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 4000));
       }
     }
     
@@ -228,24 +229,165 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const fetchAllPages = async (
     endpoint: string,
     filter: string,
-    pageSize = 100
+    pageSize = 1000 // 🚀 Aumentamos pageSize por defecto de 100 a 1000
   ): Promise<any[]> => {
-    let allData: any[] = [];
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const url = `${endpoint}?${filter}&limit=${pageSize}&offset=${offset}`;
-      const data = await apiClient.request<any[]>(url);
-      if (data.length > 0) {
-        allData = [...allData, ...data];
-        offset += pageSize;
-      } else {
-        hasMore = false;
+    console.log(`🔄 Cargando datos de ${endpoint}...`);
+    const startTime = performance.now();
+    
+    try {
+      // 🚀 OPTIMIZACIÓN 1: Primero hacer un request para estimar el total
+      const firstPageUrl = `${endpoint}?${filter}&limit=${pageSize}&offset=0`;
+      const firstPage = await apiClient.request<any[]>(firstPageUrl);
+      
+      if (firstPage.length === 0) {
+        console.log(`✅ ${endpoint}: 0 registros (${Math.round(performance.now() - startTime)}ms)`);
+        return [];
       }
+      
+      // Si la primera página no está llena, ya tenemos todos los datos
+      if (firstPage.length < pageSize) {
+        console.log(`✅ ${endpoint}: ${firstPage.length} registros en 1 página (${Math.round(performance.now() - startTime)}ms)`);
+        return firstPage;
+      }
+      
+      // 🚀 OPTIMIZACIÓN 2: Estimar páginas restantes y hacer requests paralelos
+      const estimatedTotal = firstPage.length * 3; // Estimación conservadora
+      const estimatedPages = Math.ceil(estimatedTotal / pageSize);
+      const maxParallelRequests = Math.min(estimatedPages - 1, 5); // Máximo 5 requests paralelos
+      
+      console.log(`📊 ${endpoint}: Estimando ~${estimatedTotal} registros, cargando ${maxParallelRequests + 1} páginas en paralelo...`);
+      
+      // 🚀 OPTIMIZACIÓN 3: Requests paralelos para las páginas restantes
+      const parallelPromises: Promise<any[]>[] = [];
+      for (let i = 1; i <= maxParallelRequests; i++) {
+        const offset = i * pageSize;
+        const url = `${endpoint}?${filter}&limit=${pageSize}&offset=${offset}`;
+        parallelPromises.push(apiClient.request<any[]>(url));
+      }
+      
+      const parallelResults = await Promise.all(parallelPromises);
+      let allData = [...firstPage];
+      
+      // Combinar resultados y verificar si necesitamos más páginas
+      for (const pageData of parallelResults) {
+        if (pageData.length > 0) {
+          allData = [...allData, ...pageData];
+        }
+      }
+      
+      // 🚀 OPTIMIZACIÓN 4: Si la última página paralela está llena, continuar secuencialmente
+      const lastParallelPage = parallelResults[parallelResults.length - 1];
+      if (lastParallelPage && lastParallelPage.length === pageSize) {
+        let offset = (maxParallelRequests + 1) * pageSize;
+        let hasMore = true;
+        
+        while (hasMore) {
+          const url = `${endpoint}?${filter}&limit=${pageSize}&offset=${offset}`;
+          const pageData = await apiClient.request<any[]>(url);
+          
+          if (pageData.length > 0) {
+            allData = [...allData, ...pageData];
+            offset += pageSize;
+            
+            // Si esta página no está llena, hemos terminado
+            if (pageData.length < pageSize) {
+              hasMore = false;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+      }
+      
+      const loadTime = Math.round(performance.now() - startTime);
+      console.log(`✅ ${endpoint}: ${allData.length} registros cargados en ${loadTime}ms (${Math.round(allData.length / loadTime * 1000)} reg/s)`);
+      
+      return allData;
+      
+    } catch (error) {
+      const loadTime = Math.round(performance.now() - startTime);
+      console.error(`❌ Error cargando ${endpoint} en ${loadTime}ms:`, error);
+      throw error;
     }
-    return allData;
   };
 
+  // 🚀 FUNCIÓN ULTRA-OPTIMIZADA para datasets muy grandes (>10k registros)
+  const fetchAllPagesUltraFast = async (
+    endpoint: string,
+    filter: string,
+    pageSize = 2000
+  ): Promise<any[]> => {
+    console.log(`🚀 Carga ultra-rápida de ${endpoint}...`);
+    const startTime = performance.now();
+    
+    try {
+      // Primer request para estimar tamaño
+      const sampleUrl = `${endpoint}?${filter}&limit=1`;
+      await apiClient.request<any[]>(sampleUrl);
+      
+      // Hacer 8 requests paralelos inmediatamente
+      const maxParallelRequests = 8;
+      const parallelPromises: Promise<any[]>[] = [];
+      
+      for (let i = 0; i < maxParallelRequests; i++) {
+        const offset = i * pageSize;
+        const url = `${endpoint}?${filter}&limit=${pageSize}&offset=${offset}`;
+        parallelPromises.push(apiClient.request<any[]>(url));
+      }
+      
+      const parallelResults = await Promise.all(parallelPromises);
+      let allData: any[] = [];
+      
+      // Combinar todos los resultados
+      for (const pageData of parallelResults) {
+        if (pageData.length > 0) {
+          allData = [...allData, ...pageData];
+        }
+      }
+      
+      // Si la última página estaba llena, continuar con más requests
+      const lastPage = parallelResults[parallelResults.length - 1];
+      if (lastPage && lastPage.length === pageSize) {
+        let offset = maxParallelRequests * pageSize;
+        let hasMore = true;
+        
+        while (hasMore) {
+          // Hacer 4 requests paralelos más
+          const morePromises: Promise<any[]>[] = [];
+          for (let i = 0; i < 4; i++) {
+            const url = `${endpoint}?${filter}&limit=${pageSize}&offset=${offset + (i * pageSize)}`;
+            morePromises.push(apiClient.request<any[]>(url));
+          }
+          
+          const moreResults = await Promise.all(morePromises);
+          let foundData = false;
+          
+          for (const pageData of moreResults) {
+            if (pageData.length > 0) {
+              allData = [...allData, ...pageData];
+              foundData = true;
+            }
+          }
+          
+          if (!foundData || moreResults[moreResults.length - 1].length < pageSize) {
+            hasMore = false;
+          } else {
+            offset += 4 * pageSize;
+          }
+        }
+      }
+      
+      const loadTime = Math.round(performance.now() - startTime);
+      console.log(`🚀 ${endpoint}: ${allData.length} registros ultra-rápidos en ${loadTime}ms (${Math.round(allData.length / loadTime * 1000)} reg/s)`);
+      
+      return allData;
+      
+    } catch (error) {
+      console.error(`❌ Error en carga ultra-rápida de ${endpoint}:`, error);
+      // Fallback a método normal
+      return await fetchAllPages(endpoint, filter, pageSize);
+    }
+  };
 
   // Cargar datos al cambiar filtros
   useEffect(() => {
@@ -253,7 +395,28 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   }, [periodoSeleccionado, fechaInicio, fechaFin]);
 
   const refrescarClientes = async () => {
-    await cargarDatos();
+    console.log("🔄 Refrescando solo datos de clientes...");
+    setCargandoClientes(true);
+    try {
+      // Solo recargar clientes y reportes relacionados
+      const [clientesActualizados, reportesActualizados] = await Promise.all([
+        fetchAllPages('/GERSSON_CLIENTES', 'select=*'),
+        fetchAllPages('/GERSSON_REPORTES', 'select=*')
+      ]);
+      
+      setClientes(clientesActualizados);
+      setReportes(reportesActualizados);
+      setLastUpdated(new Date());
+      
+      console.log("✅ Datos de clientes refrescados:", {
+        clientes: clientesActualizados.length,
+        reportes: reportesActualizados.length
+      });
+    } catch (error) {
+      console.error("❌ Error refrescando clientes:", error);
+    } finally {
+      setCargandoClientes(false);
+    }
   };
 
   const cargarDatos = async () => {
@@ -281,12 +444,14 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         });
 
       // Paso 2: Cargar datos principales INMEDIATAMENTE (sin esperar verificaciones)
-      console.log("🔄 Cargando datos principales...");
+      console.log("🔄 Cargando datos principales con estrategias optimizadas...");
+      
+      // 🚀 ESTRATEGIA OPTIMIZADA: Usar la función correcta según el tamaño esperado del dataset
       const [clientesData, reportesData, registrosData, conversacionesData] = await Promise.all([
-        fetchAllPages('/GERSSON_CLIENTES', 'select=*'),
-        fetchAllPages('/GERSSON_REPORTES', 'select=*'),
-        fetchAllPages('/GERSSON_REGISTROS', 'select=*'),
-        fetchAllPages('/conversaciones', 'select=*'),
+        fetchAllPages('/GERSSON_CLIENTES', 'select=*'),           // Optimizada normal (clientes ~5k)
+        fetchAllPages('/GERSSON_REPORTES', 'select=*'),           // Optimizada normal (reportes ~10k)
+        fetchAllPages('/GERSSON_REGISTROS', 'select=*'),          // Optimizada normal (registros ~3k)
+        fetchAllPagesUltraFast('/conversaciones', 'select=*'),   // Ultra-fast (conversaciones >50k)
       ]);
       
       console.log("✅ Datos principales cargados:", {
@@ -2354,11 +2519,12 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               {/* Botón de refrescar y último update */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleRefresh}
-                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onClick={refrescarClientes}
+                  disabled={cargandoClientes}
+                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <RefreshCcw className="h-5 w-5 mr-2" />
-                  Refrescar
+                  <RefreshCcw className={`h-5 w-5 mr-2 ${cargandoClientes ? 'animate-spin' : ''}`} />
+                  {cargandoClientes ? 'Refrescando...' : 'Refrescar'}
                 </button>
                 <span className="text-xs text-gray-500">
                   Actualizado: {lastUpdated.toLocaleTimeString()}
@@ -2620,11 +2786,12 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               {/* Botón de refrescar y último update */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleRefresh}
-                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onClick={refrescarClientes}
+                  disabled={cargandoClientes}
+                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <RefreshCcw className="h-5 w-5 mr-2" />
-                  Refrescar
+                  <RefreshCcw className={`h-5 w-5 mr-2 ${cargandoClientes ? 'animate-spin' : ''}`} />
+                  {cargandoClientes ? 'Refrescando...' : 'Refrescar'}
                 </button>
                 <span className="text-xs text-gray-500">
                   Actualizado: {lastUpdated.toLocaleTimeString()}

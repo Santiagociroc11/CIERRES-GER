@@ -1051,6 +1051,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             onReportarVenta={setClienteParaVenta}
             onChat={setClienteParaChat}
             admin={false}
+            onClienteReasignado={cargarDatos}
           />
         )}
         {vistaActual === 'seguimientos' && (

@@ -2235,6 +2235,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                       bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
                       onBack={() => setAsesorSeleccionado(null)}
                       onChat={setClienteParaChat}
+                      onDataUpdate={cargarDatos}
                     />
                   )}
                 </div>
@@ -2451,6 +2452,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                       <ReasignarCliente
                                         clienteId={cliente.ID}
                                         asesorActual={asesorAsignado.NOMBRE}
+                                        onReasignSuccess={cargarDatos}
                                       />
                                     </div>
                                   )}
@@ -2716,6 +2718,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                       <ReasignarCliente
                                         clienteId={cliente.ID}
                                         asesorActual={asesorAsignado.NOMBRE}
+                                        onReasignSuccess={cargarDatos}
                                       />
                                     </div>
                                   )}
@@ -2820,6 +2823,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
                 onBack={() => setAsesorSeleccionado(null)}
                 onChat={setClienteParaChat}
+                onDataUpdate={cargarDatos}
               />
             )}
           </div>

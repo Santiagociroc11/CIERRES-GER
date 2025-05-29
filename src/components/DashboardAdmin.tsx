@@ -187,7 +187,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     setConexionesEstado(nuevosEstados);
 
     // ⚡ OPTIMIZACIÓN: Procesar verificaciones en lotes de 3 para no sobrecargar la API
-    const BATCH_SIZE = 3;
+    const BATCH_SIZE = 5;
     const batches = [];
     for (let i = 0; i < asesoresData.length; i += BATCH_SIZE) {
       batches.push(asesoresData.slice(i, i + BATCH_SIZE));
@@ -222,7 +222,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       
       // Pequeña pausa entre lotes para no sobrecargar la API
       if (batches.indexOf(batch) < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
     

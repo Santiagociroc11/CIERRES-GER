@@ -226,6 +226,16 @@ const getPerformanceStatus = (tasaCierre: number): 'superior' | 'objetivo' | 'in
 };
 
 export default function GestionAsignaciones({ asesores, onUpdate, estadisticas = {} }: GestionAsignacionesProps) {
+  // 🔍 Debug: Log para verificar prioridades desde BD
+  console.log('🎯 [GestionAsignaciones] Asesores con prioridades:', 
+    asesores.map(a => ({ 
+      id: a.ID, 
+      nombre: a.NOMBRE, 
+      prioridadBD: a.PRIORIDAD,
+      prioridadCalculada: a.PRIORIDAD || 1
+    }))
+  );
+  
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [mostrarModalPrioridad, setMostrarModalPrioridad] = useState(false);
@@ -283,8 +293,8 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
   const asesoresOrdenados = useMemo(() => {
     return [...asesores].sort((a, b) => {
       if (ordenamiento === 'prioridad') {
-        const prioridadA = a.PRIORIDAD || 0;
-        const prioridadB = b.PRIORIDAD || 0;
+        const prioridadA = a.PRIORIDAD || 1;
+        const prioridadB = b.PRIORIDAD || 1;
         return prioridadB - prioridadA; // Orden descendente por prioridad
       }
       if (ordenamiento === 'tasa_cierre') {
@@ -319,7 +329,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       if (!asesorActual) throw new Error('Asesor no encontrado');
       
       const historialActual: ReglaHistorial[] = asesorActual.HISTORIAL ? JSON.parse(asesorActual.HISTORIAL) : [];
-      const prioridadActual = asesorActual.PRIORIDAD || 0;
+      const prioridadActual = asesorActual.PRIORIDAD || 1;
 
       // Convertir fechas locales a UTC epoch
       const fechaInicioEpoch = regla.fechaInicioEpoch !== undefined ? regla.fechaInicioEpoch :
@@ -408,7 +418,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       if (!asesorActual) throw new Error('Asesor no encontrado');
       
       const historialActual: ReglaHistorial[] = asesorActual.HISTORIAL ? JSON.parse(asesorActual.HISTORIAL) : [];
-      const prioridadActual = asesorActual.PRIORIDAD || 0;
+      const prioridadActual = asesorActual.PRIORIDAD || 1;
 
       // Crear nueva entrada en el historial para registrar la eliminación del bloqueo
       const nuevaEntrada: ReglaHistorial = {
@@ -1001,7 +1011,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                         <div className="flex items-center text-green-600">
                           <ArrowUpCircle className="h-5 w-5" />
                           <span className="ml-1 font-medium">
-                            Premiado (+{(asesor.PRIORIDAD ?? 1) - 1}) 
+                            Prioridad {asesor.PRIORIDAD ?? 1}
                             {(asesor.PRIORIDAD ?? 1) >= 4 && 
                               <span className="ml-1 px-1 py-0.5 bg-green-200 text-green-800 rounded text-xs">MAX</span>
                             }

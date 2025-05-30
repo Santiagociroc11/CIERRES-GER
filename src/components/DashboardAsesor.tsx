@@ -367,11 +367,12 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [instanceInfo, setInstanceInfo] = useState<any>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
-  const [showWhatsAppWarning, setShowWhatsAppWarning] = useState(true);
+  const [showWhatsAppWarning, setShowWhatsAppWarning] = useState(false);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [telegramId, setTelegramId] = useState('');
   const [currentTelegramId, setCurrentTelegramId] = useState<string | null>(null);
   const [isLoadingTelegram, setIsLoadingTelegram] = useState(false);
+  const [verificandoWhatsApp, setVerificandoWhatsApp] = useState(false);
 
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
@@ -389,7 +390,18 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   }, [asesor.ID]);
 
   useEffect(() => {
-    refreshConnection();
+    // ⚡ MEJORA UX: Permitir que la plataforma cargue primero antes de verificar WhatsApp
+    // Esto evita que el modal de "WhatsApp no conectado" aparezca inmediatamente,
+    // proporcionando una mejor experiencia de usuario donde el dashboard se carga
+    // normalmente y la verificación ocurre en segundo plano
+    const verificarConexionInicial = async () => {
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 segundos de retraso
+      setVerificandoWhatsApp(true);
+      await refreshConnection();
+      setVerificandoWhatsApp(false);
+    };
+    
+    verificarConexionInicial();
   }, []);
 
   useEffect(() => {
@@ -413,6 +425,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   useEffect(() => {
     if (instanceInfo?.connectionStatus === "open") {
       setShowWhatsAppWarning(false);
+    } else if (instanceInfo && instanceInfo.connectionStatus !== "open") {
+      setShowWhatsAppWarning(true);
     }
   }, [instanceInfo]);
 
@@ -921,10 +935,11 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
               {/* Estado WhatsApp */}
               <div className="hidden sm:flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
                 <div className={`w-2 h-2 rounded-full ${
+                  verificandoWhatsApp ? 'bg-yellow-500 animate-pulse' :
                   whatsappStatus === 'Conectado' ? 'bg-green-500' : 'bg-red-500'
                 }`}></div>
                 <span className="text-xs font-medium text-gray-600">
-                  {whatsappStatus || 'Desconectado'}
+                  {verificandoWhatsApp ? 'Verificando...' : (whatsappStatus || 'Desconectado')}
                 </span>
               </div>
 

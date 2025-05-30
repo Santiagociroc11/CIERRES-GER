@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Asesor } from '../types';
-import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History, RefreshCcw, TrendingUp, TrendingDown } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History, RefreshCcw, TrendingUp, TrendingDown, DollarSign, MessageSquare, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface GestionAsignacionesProps {
@@ -223,6 +223,31 @@ const getPerformanceStatus = (tasaCierre: number): 'superior' | 'objetivo' | 'in
   if (tasaCierre > OBJETIVO_TASA_CIERRE.MAX) return 'superior';
   if (tasaCierre >= OBJETIVO_TASA_CIERRE.MIN && tasaCierre <= OBJETIVO_TASA_CIERRE.MAX) return 'objetivo';
   return 'inferior';
+};
+
+// Función para formatear tiempo en minutos de forma legible
+const formatearTiempoMinutos = (minutos: number | null) => {
+  if (minutos === null) return 'Nunca';
+  
+  if (minutos < 60) {
+    return `${minutos}m`;
+  } else if (minutos < 1440) { // menos de 24h
+    const horas = Math.floor(minutos / 60);
+    const minutosRestantes = minutos % 60;
+    return minutosRestantes > 0 ? `${horas}h ${minutosRestantes}m` : `${horas}h`;
+  } else { // más de 24h
+    const dias = Math.floor(minutos / 1440);
+    const horasRestantes = Math.floor((minutos % 1440) / 60);
+    return horasRestantes > 0 ? `${dias}d ${horasRestantes}h` : `${dias}d`;
+  }
+};
+
+// Función para obtener color según el tiempo transcurrido
+const getColorTiempo = (minutos: number | null, limite: number = 60) => {
+  if (minutos === null) return 'bg-gray-200 text-gray-600';
+  if (minutos <= limite) return 'bg-green-100 text-green-700';
+  if (minutos <= limite * 3) return 'bg-yellow-100 text-yellow-700';
+  return 'bg-red-100 text-red-700';
 };
 
 export default function GestionAsignaciones({ asesores, onUpdate, estadisticas = {} }: GestionAsignacionesProps) {
@@ -919,6 +944,34 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
     }
   };
 
+  // Añadir la función para formatear el tiempo transcurrido después de formatearFechaConcisa
+  // Función para formatear tiempo transcurrido
+  const formatTiempoTranscurrido = (epochTimestamp: number): string => {
+    if (!epochTimestamp) return 'Fecha no disponible';
+    
+    const ahora = Math.floor(Date.now() / 1000);
+    const segundosTranscurridos = ahora - epochTimestamp;
+    
+    if (segundosTranscurridos < 60) {
+      return 'Hace unos segundos';
+    } else if (segundosTranscurridos < 3600) {
+      const minutos = Math.floor(segundosTranscurridos / 60);
+      return `Hace ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}`;
+    } else if (segundosTranscurridos < 86400) {
+      const horas = Math.floor(segundosTranscurridos / 3600);
+      return `Hace ${horas} ${horas === 1 ? 'hora' : 'horas'}`;
+    } else if (segundosTranscurridos < 2592000) {
+      const dias = Math.floor(segundosTranscurridos / 86400);
+      return `Hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
+    } else if (segundosTranscurridos < 31536000) {
+      const meses = Math.floor(segundosTranscurridos / 2592000);
+      return `Hace ${meses} ${meses === 1 ? 'mes' : 'meses'}`;
+    } else {
+      const años = Math.floor(segundosTranscurridos / 31536000);
+      return `Hace ${años} ${años === 1 ? 'año' : 'años'}`;
+    }
+  };
+
   return (
     <div className="p-4">
       <div className="mb-6">
@@ -1037,6 +1090,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasa de Cierre</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Última Actividad</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reglas Activas</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
             </tr>
@@ -1265,6 +1319,105 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                   </div>
                 </td>
                 <td className="px-6 py-4">
+                  <div className="space-y-3 text-sm">
+                    {estadisticas[asesor.ID] ? (
+                      <>
+                        {/* Última venta */}
+                        <div className="bg-gray-50 p-2 rounded-md">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-600 flex items-center">
+                              <DollarSign className="h-4 w-4 mr-1" />
+                              Última Venta
+                            </span>
+                            {/* Usar variables directamente en lugar de IIFE */}
+                            {(() => {
+                              const ahora = Math.floor(Date.now() / 1000);
+                              const ultimaVenta = estadisticas[asesor.ID].ultimaVenta;
+                              const minutosDesdeVenta = ultimaVenta ? Math.floor((ahora - ultimaVenta) / 60) : null;
+                              
+                              return (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getColorTiempo(minutosDesdeVenta, 1440)}`}>
+                                  {formatearTiempoMinutos(minutosDesdeVenta)}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {estadisticas[asesor.ID].ultimaVenta 
+                              ? new Date(estadisticas[asesor.ID].ultimaVenta * 1000).toLocaleDateString() + ' ' + 
+                                new Date(estadisticas[asesor.ID].ultimaVenta * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                              : 'Sin ventas registradas'
+                            }
+                          </div>
+                        </div>
+                        
+                        {/* Último mensaje saliente */}
+                        <div className="bg-gray-50 p-2 rounded-md">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-600 flex items-center">
+                              <MessageSquare className="h-4 w-4 mr-1" />
+                              Último Mensaje
+                            </span>
+                            {/* Calcular tiempo desde el último mensaje */}
+                            {(() => {
+                              const ahora = Math.floor(Date.now() / 1000);
+                              const ultimoMensaje = estadisticas[asesor.ID].ultimoMensaje;
+                              const minutosDesdeMensaje = ultimoMensaje ? Math.floor((ahora - ultimoMensaje) / 60) : null;
+                              
+                              return (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getColorTiempo(minutosDesdeMensaje, 30)}`}>
+                                  {formatearTiempoMinutos(minutosDesdeMensaje)}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {estadisticas[asesor.ID].ultimoMensaje 
+                              ? new Date(estadisticas[asesor.ID].ultimoMensaje * 1000).toLocaleDateString() + ' ' + 
+                                new Date(estadisticas[asesor.ID].ultimoMensaje * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                              : 'Sin mensajes enviados'
+                            }
+                          </div>
+                        </div>
+                        
+                        {/* Último reporte */}
+                        <div className="bg-gray-50 p-2 rounded-md">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-600 flex items-center">
+                              <FileText className="h-4 w-4 mr-1" />
+                              Último Reporte
+                            </span>
+                            {/* Calcular tiempo desde el último reporte */}
+                            {(() => {
+                              const ahora = Math.floor(Date.now() / 1000);
+                              const ultimoReporte = estadisticas[asesor.ID].ultimoReporte;
+                              const minutosDesdeReporte = ultimoReporte ? Math.floor((ahora - ultimoReporte) / 60) : null;
+                              
+                              return (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getColorTiempo(minutosDesdeReporte, 60)}`}>
+                                  {formatearTiempoMinutos(minutosDesdeReporte)}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {estadisticas[asesor.ID].ultimoReporte 
+                              ? new Date(estadisticas[asesor.ID].ultimoReporte * 1000).toLocaleDateString() + ' ' + 
+                                new Date(estadisticas[asesor.ID].ultimoReporte * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                              : 'Sin reportes aún'
+                            }
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-4">
+                        <span className="text-gray-400 text-sm">Sin actividad registrada</span>
+                        <span className="text-xs text-gray-300">No hay datos disponibles</span>
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900 space-y-2">
                    
                     

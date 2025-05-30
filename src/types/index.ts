@@ -110,6 +110,7 @@ export interface EstadisticasDetalladas extends EstadisticasAsesor {
   ultimoReporte: number | null;
   ultimoSeguimiento: number | null;
   ultimaVenta: number | null;
+  ultimoMensaje: number | null;
 }
 
 export type EstadoCritico = 'CARRITOS' | 'RECHAZADOS' | 'TICKETS';

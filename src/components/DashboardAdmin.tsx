@@ -692,6 +692,17 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
     const ultimoReporte = reportesAsesor.length > 0
       ? Math.max(...reportesAsesor.map((r: any) => r.FECHA_REPORTE))
       : null;
+      
+    // Última venta del asesor (reporte con ESTADO_NUEVO = 'PAGADO')
+    const reportesVenta = reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'PAGADO');
+    const ultimaVenta = reportesVenta.length > 0
+      ? Math.max(...reportesVenta.map((r: any) => r.FECHA_REPORTE))
+      : null;
+    
+    // Último mensaje saliente del asesor  
+    const ultimoMensaje = mensajesAsesor.length > 0
+      ? Math.max(...mensajesAsesor.map((m: any) => m.timestamp))
+      : null;
 
     const tiemposHastaReporte = clientesAsesor
       .map((cliente: any) => {
@@ -825,7 +836,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
       ultimaActividad,
       ultimoReporte,
       ultimoSeguimiento: null,
-      ultimaVenta: null,
+      ultimaVenta, // Usar la variable que calculamos
+      ultimoMensaje, // Usar la variable que calculamos
       ventasReportadas: ventasRealizadas,
       ventasSinReportar: 0
     };

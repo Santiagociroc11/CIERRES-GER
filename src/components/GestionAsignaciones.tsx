@@ -226,6 +226,20 @@ const getPerformanceStatus = (tasaCierre: number): 'superior' | 'objetivo' | 'in
 };
 
 export default function GestionAsignaciones({ asesores, onUpdate, estadisticas = {} }: GestionAsignacionesProps) {
+  // Función auxiliar para verificar si un asesor está bloqueado
+  const isAsesorBloqueado = (asesor: Asesor, ahoraEpoch: number): boolean => {
+    if (!asesor.FECHA_INICIO_REGLA) return false;
+    
+    const fechaInicioEpoch = Number(asesor.FECHA_INICIO_REGLA);
+    const fechaFinEpoch = asesor.FECHA_FIN_REGLA ? Number(asesor.FECHA_FIN_REGLA) : null;
+    
+    // Bloqueo indefinido
+    if (!fechaFinEpoch) return true;
+    
+    // Bloqueo temporal dentro del rango de fechas
+    return ahoraEpoch >= fechaInicioEpoch && ahoraEpoch <= fechaFinEpoch;
+  };
+
   // 🔍 Debug: Log para verificar prioridades desde BD
   console.log('🎯 [GestionAsignaciones] Asesores con prioridades:', 
     asesores.map(a => ({ 
@@ -292,18 +306,47 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
   // Ordenar asesores según el criterio seleccionado
   const asesoresOrdenados = useMemo(() => {
     return [...asesores].sort((a, b) => {
+      // Primero verificar si están bloqueados
+      const ahoraEpoch = Math.floor(Date.now() / 1000);
+      
+      const aBloqueado = isAsesorBloqueado(a, ahoraEpoch);
+      const bBloqueado = isAsesorBloqueado(b, ahoraEpoch);
+      
+      // Si uno está bloqueado y el otro no, el bloqueado va al final
+      if (aBloqueado && !bBloqueado) return 1;
+      if (!aBloqueado && bBloqueado) return -1;
+      
+      // Si ambos están bloqueados o ambos no están bloqueados, ordenar por el criterio seleccionado
       if (ordenamiento === 'prioridad') {
         const prioridadA = a.PRIORIDAD || 1;
         const prioridadB = b.PRIORIDAD || 1;
-        return prioridadB - prioridadA; // Orden descendente por prioridad
+        // Si las prioridades son iguales, ordenar por tasa de cierre
+        if (prioridadB === prioridadA) {
+          const tasaA = estadisticas[a.ID]?.porcentajeCierre || 0;
+          const tasaB = estadisticas[b.ID]?.porcentajeCierre || 0;
+          return tasaB - tasaA;
+        }
+        return prioridadB - prioridadA;
       }
       if (ordenamiento === 'tasa_cierre') {
         const tasaA = estadisticas[a.ID]?.porcentajeCierre || 0;
         const tasaB = estadisticas[b.ID]?.porcentajeCierre || 0;
-        return tasaB - tasaA; // Orden descendente por tasa de cierre
+        // Si las tasas son iguales, ordenar por prioridad
+        if (tasaB === tasaA) {
+          const prioridadA = a.PRIORIDAD || 1;
+          const prioridadB = b.PRIORIDAD || 1;
+          return prioridadB - prioridadA;
+        }
+        return tasaB - tasaA;
       }
-      // Por defecto, ordenar por nombre
-      return a.NOMBRE.localeCompare(b.NOMBRE);
+      // Por defecto, ordenar por nombre pero considerar prioridad si los nombres son iguales
+      const comparacionNombre = a.NOMBRE.localeCompare(b.NOMBRE);
+      if (comparacionNombre === 0) {
+        const prioridadA = a.PRIORIDAD || 1;
+        const prioridadB = b.PRIORIDAD || 1;
+        return prioridadB - prioridadA;
+      }
+      return comparacionNombre;
     });
   }, [asesores, ordenamiento, estadisticas]);
 

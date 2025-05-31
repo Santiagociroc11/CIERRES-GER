@@ -22,7 +22,6 @@ export default function ReportarVenta({
   const [producto, setProducto] = useState<'PRINCIPAL' | 'DOWNSELL' | ''>('');
   // Si el producto es downsell, solo se permite venta interna
   const [tipoVenta, setTipoVenta] = useState<'INTERNA' | 'EXTERNA' | ''>('');
-  const [esStripe, setEsStripe] = useState(false);
   const [comentario, setComentario] = useState('');
   const [pais, setPais] = useState('');
   const [correoInscripcion, setCorreoInscripcion] = useState('');
@@ -34,6 +33,11 @@ export default function ReportarVenta({
   const [error, setError] = useState('');
   const [medioPago, setMedioPago] = useState('');
   const [nombreCliente, setNombreCliente] = useState(cliente.NOMBRE);
+  
+  // Nuevos campos para Western Union y Bancolombia
+  const [actividadEconomica, setActividadEconomica] = useState('');
+  const [cedulaComprador, setCedulaComprador] = useState('');
+  const [otroMedioPago, setOtroMedioPago] = useState('');
 
   // Si se selecciona "DOWNSELL", forzamos que la venta sea interna
   useEffect(() => {
@@ -41,6 +45,22 @@ export default function ReportarVenta({
       setTipoVenta('INTERNA');
     }
   }, [producto]);
+
+  // Limpiar campos específicos cuando cambia el medio de pago
+  useEffect(() => {
+    if (medioPago !== 'WESTERN_UNION') {
+      setActividadEconomica('');
+    }
+    if (medioPago !== 'BANCOLOMBIA') {
+      setCedulaComprador('');
+    }
+    if (medioPago !== 'STRIPE') {
+      setCorreoPago('');
+    }
+    if (medioPago !== 'OTRO') {
+      setOtroMedioPago('');
+    }
+  }, [medioPago]);
 
   const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -69,7 +89,7 @@ export default function ReportarVenta({
     setLoading(true);
     try {
       const payload: Record<string, any> = {
-        clienteID: cliente.ID,
+        clienteID: cliente.ID_CLIENTE,
         asesorID: asesor.ID,
         nombreAsesor: asesor.NOMBRE,
         tipoVenta,
@@ -78,11 +98,19 @@ export default function ReportarVenta({
       };
 
       if (tipoVenta === 'EXTERNA') {
-        payload.medioPago = medioPago || undefined;
+        payload.medioPago = medioPago === 'OTRO' ? otroMedioPago : medioPago;
         payload.pais = pais || undefined;
         payload.correoInscripcion = correoInscripcion || undefined;
         payload.telefono = telefono || undefined;
-        payload.correoPago = esStripe ? correoPago : undefined;
+        payload.correoPago = medioPago === 'STRIPE' ? correoPago : undefined;
+        
+        // Agregar campos específicos según el medio de pago
+        if (medioPago === 'WESTERN_UNION') {
+          payload.actividadEconomica = actividadEconomica || undefined;
+        }
+        if (medioPago === 'BANCOLOMBIA') {
+          payload.cedulaComprador = cedulaComprador || undefined;
+        }
       }
 
       const response = await fetch(
@@ -151,13 +179,36 @@ export default function ReportarVenta({
         setLoading(false);
         return;
       }
-      if (esStripe && !correoPago.trim()) {
-        setError('Para pagos Stripe, es necesario el correo con el que se pagó.');
+      if (!medioPago.trim()) {
+        setError('Para pagos externos, se debe especificar el medio de pago.');
         setLoading(false);
         return;
       }
-      if (!medioPago.trim()) {
-        setError('Para pagos externos, se debe especificar el medio de pago.');
+      
+      // Validaciones específicas para Western Union
+      if (medioPago === 'WESTERN_UNION' && !actividadEconomica.trim()) {
+        setError('Para pagos por Western Union, se requiere la actividad económica del comprador.');
+        setLoading(false);
+        return;
+      }
+      
+      // Validaciones específicas para Bancolombia
+      if (medioPago === 'BANCOLOMBIA' && !cedulaComprador.trim()) {
+        setError('Para pagos por Bancolombia, se requiere la cédula del comprador.');
+        setLoading(false);
+        return;
+      }
+      
+      // Validaciones específicas para Stripe
+      if (medioPago === 'STRIPE' && !correoPago.trim()) {
+        setError('Para pagos por Stripe, se requiere el correo con el que se pagó.');
+        setLoading(false);
+        return;
+      }
+      
+      // Validaciones específicas para Otro
+      if (medioPago === 'OTRO' && !otroMedioPago.trim()) {
+        setError('Para "Otro" medio de pago, se debe especificar cuál es.');
         setLoading(false);
         return;
       }
@@ -176,7 +227,7 @@ export default function ReportarVenta({
 
     try {
       await apiClient.request(
-        `/GERSSON_REPORTES?ID_CLIENTE=eq.${cliente.ID}&COMPLETADO=eq.false&FECHA_SEGUIMIENTO=not.is.null`,
+        `/GERSSON_REPORTES?ID_CLIENTE=eq.${cliente.ID_CLIENTE}&COMPLETADO=eq.false&FECHA_SEGUIMIENTO=not.is.null`,
         'PATCH',
         { COMPLETADO: true }
       );
@@ -187,8 +238,8 @@ export default function ReportarVenta({
     }
 
     try {
-      await apiClient.request('/GERSSON_REPORTES', 'POST', {
-        ID_CLIENTE: cliente.ID,
+      const reporteData: Record<string, any> = {
+        ID_CLIENTE: cliente.ID_CLIENTE,
         ID_ASESOR: asesor.ID,
         ESTADO_ANTERIOR: cliente.ESTADO,
         ESTADO_NUEVO: 'PAGADO',
@@ -200,10 +251,22 @@ export default function ReportarVenta({
         PAIS_CLIENTE: tipoVenta === 'EXTERNA' ? pais : null,
         CORREO_INSCRIPCION: tipoVenta === 'EXTERNA' ? correoInscripcion : null,
         TELEFONO_CLIENTE: tipoVenta === 'EXTERNA' ? telefono : null,
-        CORREO_PAGO: esStripe ? correoPago : null,
-        MEDIO_PAGO: tipoVenta === 'EXTERNA' ? medioPago : null,
-        PRODUCTO: producto, // Se almacena el producto
-      });
+        CORREO_PAGO: medioPago === 'STRIPE' ? correoPago : null,
+        MEDIO_PAGO: tipoVenta === 'EXTERNA' ? (medioPago === 'OTRO' ? otroMedioPago : medioPago) : null,
+        PRODUCTO: producto,
+      };
+
+      // Agregar campos específicos según el medio de pago
+      if (tipoVenta === 'EXTERNA') {
+        if (medioPago === 'WESTERN_UNION') {
+          reporteData.ACTIVIDAD_ECONOMICA = actividadEconomica;
+        }
+        if (medioPago === 'BANCOLOMBIA') {
+          reporteData.CEDULA_COMPRADOR = cedulaComprador;
+        }
+      }
+
+      await apiClient.request('/GERSSON_REPORTES', 'POST', reporteData);
     } catch (error: any) {
       setLoading(false);
       setError(error instanceof Error ? error.message : 'Error al reportar la venta.');
@@ -212,7 +275,7 @@ export default function ReportarVenta({
 
     try {
       await apiClient.request(
-        `/GERSSON_CLIENTES?ID=eq.${cliente.ID}`,
+        `/GERSSON_CLIENTES?ID=eq.${cliente.ID_CLIENTE}`,
         'PATCH',
         {
           NOMBRE: nombreCliente,
@@ -235,6 +298,23 @@ export default function ReportarVenta({
       setLoading(false);
       onComplete();
     }
+  };
+
+  // Función para determinar si mostrar campo específico
+  const mostrarCampoWestern = () => {
+    return tipoVenta === 'EXTERNA' && medioPago === 'WESTERN_UNION';
+  };
+
+  const mostrarCampoBancolombia = () => {
+    return tipoVenta === 'EXTERNA' && medioPago === 'BANCOLOMBIA';
+  };
+
+  const mostrarCampoStripe = () => {
+    return tipoVenta === 'EXTERNA' && medioPago === 'STRIPE';
+  };
+
+  const mostrarCampoOtro = () => {
+    return tipoVenta === 'EXTERNA' && medioPago === 'OTRO';
   };
 
   return (
@@ -334,15 +414,79 @@ export default function ReportarVenta({
                 <label className="block text-sm font-medium text-gray-700">
                   Medio de Pago
                 </label>
-                <input
-                  type="text"
+                <select
                   value={medioPago}
                   onChange={(e) => setMedioPago(e.target.value)}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
-                  placeholder="Ej: Transferencia, Western Union, Stripe, etc."
                   required
-                />
+                >
+                  <option value="">-- Selecciona Medio de Pago --</option>
+                  <option value="WESTERN_UNION">Western Union</option>
+                  <option value="BANCOLOMBIA">Bancolombia</option>
+                  <option value="STRIPE">Stripe</option>
+                  <option value="OTRO">Otro</option>
+                </select>
               </div>
+
+              {/* Campo específico para Otro */}
+              {mostrarCampoOtro() && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Especificar Medio de Pago
+                  </label>
+                  <input
+                    type="text"
+                    value={otroMedioPago}
+                    onChange={(e) => setOtroMedioPago(e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+                    placeholder="Ej: Zelle, bold, Remitly, pichincha, etc."
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    📝 Especifica el medio de pago utilizado
+                  </p>
+                </div>
+              )}
+
+              {/* Campo específico para Western Union */}
+              {mostrarCampoWestern() && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Actividad Económica del Comprador
+                  </label>
+                  <input
+                    type="text"
+                    value={actividadEconomica}
+                    onChange={(e) => setActividadEconomica(e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+                    placeholder="Ej: Empleado, Independiente, Estudiante, etc."
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    📋 Requerido para pagos por Western Union
+                  </p>
+                </div>
+              )}
+
+              {/* Campo específico para Bancolombia */}
+              {mostrarCampoBancolombia() && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Cédula del Comprador
+                  </label>
+                  <input
+                    type="text"
+                    value={cedulaComprador}
+                    onChange={(e) => setCedulaComprador(e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+                    placeholder="Número de cédula"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    🆔 Requerido para pagos por Bancolombia
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">
@@ -385,20 +529,8 @@ export default function ReportarVenta({
                 />
               </div>
 
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="stripeCheck"
-                  checked={esStripe}
-                  onChange={(e) => setEsStripe(e.target.checked)}
-                  className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                />
-                <label htmlFor="stripeCheck" className="text-sm text-gray-700">
-                  ¿Fue pago con Stripe?
-                </label>
-              </div>
-
-              {esStripe && (
+              {/* Campo específico para Stripe */}
+              {mostrarCampoStripe() && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Correo con el que hizo el pago en Stripe
@@ -411,8 +543,13 @@ export default function ReportarVenta({
                     placeholder="correo-de-pago@ejemplo.com"
                     required
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    📧 Requerido para pagos por Stripe
+                  </p>
                 </div>
               )}
+
+              
             </>
           )}
 

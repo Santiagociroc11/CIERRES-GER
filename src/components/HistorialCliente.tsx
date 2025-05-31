@@ -53,22 +53,31 @@ export default function HistorialCliente({
   // Combinar localReportes y registros en una sola línea de tiempo
   const timelineItems = [
     ...localReportes.map(reporte => ({
-      tipo: 'reporte',
-      fecha: reporte.FECHA_REPORTE,
+      tipo: 'reporte' as const,
+      fecha: parseInt(reporte.FECHA_REPORTE || '0'),
       data: reporte
     })),
     ...registros.map(registro => ({
-      tipo: 'registro',
+      tipo: 'registro' as const,
       fecha: parseInt(registro.FECHA_EVENTO),
       data: registro
     }))
   ].sort((a, b) => b.fecha - a.fecha);
 
-  const handleEliminarReporte = async (reporteId: string) => {
+  // Type guards
+  const isReporte = (item: any): item is { tipo: 'reporte'; fecha: number; data: Reporte } => {
+    return item.tipo === 'reporte';
+  };
+
+  const isRegistro = (item: any): item is { tipo: 'registro'; fecha: number; data: Registro } => {
+    return item.tipo === 'registro';
+  };
+
+  const handleEliminarReporte = async (reporteId: number) => {
     if (!window.confirm("¿Estás seguro de eliminar este reporte?")) return;
 
     try {
-      await eliminarReporte(reporteId);
+      await eliminarReporte(reporteId.toString());
       alert("✅ Reporte eliminado y estado del cliente restaurado.");
       setLocalReportes(prev => prev.filter(r => r.ID !== reporteId));
     } catch (error: any) {
@@ -164,27 +173,28 @@ export default function HistorialCliente({
               <div className="space-y-6">
                 {timelineItems.map((item, index) => (
                   <div
-                    key={`${item.tipo}-${item.data.ID}`}
+                    key={`${item.tipo}-${isReporte(item) ? item.data.ID : item.data.ID}`}
                     className={`relative pb-6 ${index !== timelineItems.length - 1 ? 'border-l-2 border-gray-200 ml-3' : ''}`}
                   >
                     <div className="relative flex items-start">
                       <div className="absolute -left-3.5 mt-1.5">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${item.tipo === 'registro' ? 'bg-purple-100' :
-                          item.data.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                          isRegistro(item) ? 'bg-purple-100' :
+                          isReporte(item) && item.data.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
                             ? 'bg-emerald-100'
-                            : item.data.ESTADO_NUEVO === 'PAGADO'
+                            : isReporte(item) && item.data.ESTADO_NUEVO === 'PAGADO'
                               ? 'bg-green-100'
                               : 'bg-blue-100'
                           }`}>
-                          {item.tipo === 'registro' ? (
+                          {isRegistro(item) ? (
                             <Activity className="h-4 w-4 text-purple-600" />
-                          ) : (
+                          ) : isReporte(item) ? (
                             getIconForReporte(item.data)
-                          )}
+                          ) : null}
                         </div>
                       </div>
                       <div className="ml-6">
-                        {item.tipo === 'registro' ? (
+                        {isRegistro(item) ? (
                           <div>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                               <div className="flex items-center flex-wrap gap-2">
@@ -197,7 +207,7 @@ export default function HistorialCliente({
                               </span>
                             </div>
                           </div>
-                        ) : (
+                        ) : isReporte(item) ? (
                           <div>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                               <div className="flex items-center flex-wrap gap-2">
@@ -228,87 +238,130 @@ export default function HistorialCliente({
                                 </button>
                               )}
                             </div>
-                            <p className="mt-2 text-sm text-gray-900">{item.data.COMENTARIO}</p>
-                            {item.data.PAIS_CLIENTE && (
-                              <p className="text-sm text-gray-700">
-                                🌍 País: <strong>{item.data.PAIS_CLIENTE}</strong>
-                              </p>
-                            )}
-                            {item.data.CORREO_INSCRIPCION && (
-                              <p className="text-sm text-gray-700">
-                                📧 Correo de inscripción: <strong>{item.data.CORREO_INSCRIPCION}</strong>
-                              </p>
-                            )}
-                            {item.data.TELEFONO_CLIENTE && (
-                              <p className="text-sm text-gray-700">
-                                📞 Teléfono: <strong>{item.data.TELEFONO_CLIENTE}</strong>
-                              </p>
-                            )}
-                            {item.data.CORREO_PAGO && (
-                              <p className="text-sm text-gray-700">
-                                💳 Correo de pago (Stripe): <strong>{item.data.CORREO_PAGO}</strong>
-                              </p>
-                            )}
-                            {item.data.FECHA_SEGUIMIENTO && (
-                              <div className="mt-2 flex items-center space-x-2 text-sm bg-blue-50 p-2 rounded-md">
-                                <Clock className="h-4 w-4 text-blue-500" />
-                                <span className="text-blue-700">
-                                  Seguimiento: {formatDate(item.data.FECHA_SEGUIMIENTO)}
-                                </span>
-                                {item.data.COMPLETADO && (
-                                  <CheckCircle className="h-4 w-4 text-green-500" />
+                            {isReporte(item) && (
+                              <>
+                                <p className="mt-2 text-sm text-gray-900">{item.data.COMENTARIO}</p>
+                                
+                                {/* Información del tipo de venta - Solo para ventas */}
+                                {(item.data.ESTADO_NUEVO === 'PAGADO' || item.data.ESTADO_NUEVO === 'VENTA CONSOLIDADA') && item.data.TIPO_VENTA && (
+                                  <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
+                                    <div className="flex items-center space-x-2 mb-2">
+                                      <DollarSign className="h-4 w-4 text-blue-600" />
+                                      <span className="font-medium text-blue-800">Información de la Venta</span>
+                                    </div>
+                                    <div className="space-y-1 text-sm">
+                                      {item.data.TIPO_VENTA === 'INTERNA' ? (
+                                        <p className="text-blue-700">
+                                          💳 <strong>Venta interna</strong> - Procesada por Hotmart
+                                        </p>
+                                      ) : (
+                                        <>
+                                          <p className="text-purple-700">
+                                            🌐 <strong>Venta externa</strong> - Procesada fuera de Hotmart
+                                          </p>
+                                          {item.data.MEDIO_PAGO && (
+                                            <p className="text-purple-700">
+                                              💰 <strong>Medio de pago:</strong> {item.data.MEDIO_PAGO}
+                                            </p>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
                                 )}
-                              </div>
-                            )}
-                            {(item.data.imagen_inicio_conversacion ||
-                              item.data.imagen_fin_conversacion ||
-                              item.data.video_conversacion) && (
-                                <div className="mt-4 space-y-2">
-                                  <h4 className="text-sm font-medium text-gray-700">Pruebas de consolidación:</h4>
-                                  <div className="flex flex-wrap gap-2">
-                                    {item.data.imagen_inicio_conversacion && (
-                                      <button
-                                        onClick={() => setImagenConsolidacion(item.data.imagen_inicio_conversacion)}
-                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
-                                      >
-                                        <ImageIcon className="h-4 w-4 mr-1" />
-                                        Ver inicio de conversación
-                                      </button>
-                                    )}
-                                    {item.data.imagen_fin_conversacion && (
-                                      <button
-                                        onClick={() => setImagenConsolidacion(item.data.imagen_fin_conversacion)}
-                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
-                                      >
-                                        <ImageIcon className="h-4 w-4 mr-1" />
-                                        Ver fin de conversación
-                                      </button>
-                                    )}
-                                    {item.data.video_conversacion && (
-                                      <button
-                                        onClick={() => setVideoConsolidacion(item.data.video_conversacion)}
-                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
-                                      >
-                                        <FileVideo className="h-4 w-4 mr-1" />
-                                        Ver video
-                                      </button>
+
+                                {item.data.PAIS_CLIENTE && (
+                                  <p className="text-sm text-gray-700 mt-2">
+                                    🌍 País: <strong>{item.data.PAIS_CLIENTE}</strong>
+                                  </p>
+                                )}
+                                {item.data.CORREO_INSCRIPCION && (
+                                  <p className="text-sm text-gray-700">
+                                    📧 Correo de inscripción: <strong>{item.data.CORREO_INSCRIPCION}</strong>
+                                  </p>
+                                )}
+                                {item.data.TELEFONO_CLIENTE && (
+                                  <p className="text-sm text-gray-700">
+                                    📞 Teléfono: <strong>{item.data.TELEFONO_CLIENTE}</strong>
+                                  </p>
+                                )}
+                                {item.data.CORREO_PAGO && (
+                                  <p className="text-sm text-gray-700">
+                                    💳 Correo de pago (Stripe): <strong>{item.data.CORREO_PAGO}</strong>
+                                  </p>
+                                )}
+                                {item.data.FECHA_SEGUIMIENTO && (
+                                  <div className="mt-2 flex items-center space-x-2 text-sm bg-blue-50 p-2 rounded-md">
+                                    <Clock className="h-4 w-4 text-blue-500" />
+                                    <span className="text-blue-700">
+                                      Seguimiento: {formatDate(item.data.FECHA_SEGUIMIENTO)}
+                                    </span>
+                                    {item.data.COMPLETADO && (
+                                      <CheckCircle className="h-4 w-4 text-green-500" />
                                     )}
                                   </div>
-                                </div>
-                              )}
-                            {item.data.IMAGEN_PAGO_URL && (
-                              <div className="mt-2">
-                                <button
-                                  onClick={() => setImagenPago(item.data.IMAGEN_PAGO_URL)}
-                                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100"
-                                >
-                                  <DollarSign className="h-4 w-4 mr-1" />
-                                  Ver comprobante de pago
-                                </button>
-                              </div>
+                                )}
+                                {(item.data.imagen_inicio_conversacion ||
+                                  item.data.imagen_fin_conversacion ||
+                                  item.data.video_conversacion) && (
+                                    <div className="mt-4 space-y-2">
+                                      <h4 className="text-sm font-medium text-gray-700">Pruebas de consolidación:</h4>
+                                      <div className="flex flex-wrap gap-2">
+                                        {item.data.imagen_inicio_conversacion && (
+                                          <button
+                                            onClick={() => setImagenConsolidacion(item.data.imagen_inicio_conversacion)}
+                                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
+                                          >
+                                            <ImageIcon className="h-4 w-4 mr-1" />
+                                            Ver inicio de conversación
+                                          </button>
+                                        )}
+                                        {item.data.imagen_fin_conversacion && (
+                                          <button
+                                            onClick={() => setImagenConsolidacion(item.data.imagen_fin_conversacion)}
+                                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
+                                          >
+                                            <ImageIcon className="h-4 w-4 mr-1" />
+                                            Ver fin de conversación
+                                          </button>
+                                        )}
+                                        {item.data.video_conversacion && (
+                                          <button
+                                            onClick={() => setVideoConsolidacion(item.data.video_conversacion)}
+                                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-md hover:bg-emerald-100"
+                                          >
+                                            <FileVideo className="h-4 w-4 mr-1" />
+                                            Ver video
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                {item.data.IMAGEN_PAGO_URL && (
+                                  <div className="mt-3">
+                                    <h4 className="text-sm font-medium text-gray-700 mb-2">📄 Comprobante de pago:</h4>
+                                    <div className="relative group cursor-pointer inline-block">
+                                      <img
+                                        src={item.data.IMAGEN_PAGO_URL}
+                                        alt="Comprobante de pago"
+                                        className="max-w-48 max-h-38 object-contain rounded-lg border-2 border-gray-200 hover:border-blue-400 transition-all duration-200 shadow-sm hover:shadow-md"
+                                        onClick={() => setImagenPago(item.data.IMAGEN_PAGO_URL)}
+                                      />
+                                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg transition-opacity duration-200 flex items-center justify-center">
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                          <div className="bg-white rounded-full p-1 shadow-lg">
+                                            <DollarSign className="h-4 w-4 text-blue-600" />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">Clic para ver en grande</p>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </div>

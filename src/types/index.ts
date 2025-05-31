@@ -28,6 +28,7 @@ export interface AsesorStats {
 }
 
 export interface Cliente {
+  ID: number;
   ID_CLIENTE: number;
   NOMBRE: string;
   TELEFONO: string;
@@ -49,6 +50,7 @@ export interface Cliente {
   DIAS_SIN_REPORTE: number | null;
   DIAS_SIN_SEGUIMIENTO: number | null;
   DIAS_SIN_VENTA: number | null;
+  WHATSAPP: string;
 }
 
 export interface Reporte {
@@ -66,6 +68,27 @@ export interface Reporte {
   MONTO_VENTA: number | null;
   CREATED_AT: string;
   UPDATED_AT: string;
+  ID: number;
+  ESTADO_ANTERIOR: string | null;
+  ESTADO_NUEVO: string;
+  COMENTARIO: string | null;
+  NOMBRE_ASESOR: string;
+  COMPLETADO: boolean | null;
+  IMAGEN_CONVERSACION_URL: string | null;
+  IMAGEN_PAGO_URL: string | null;
+  PAIS_CLIENTE: string | null;
+  CORREO_INSCRIPCION: string | null;
+  TELEFONO_CLIENTE: string | null;
+  CORREO_PAGO: string | null;
+  MEDIO_PAGO: string | null;
+  consolidado: boolean | null;
+  imagen_inicio_conversacion: string | null;
+  imagen_fin_conversacion: string | null;
+  video_conversacion: string | null;
+  PRODUCTO: string | null;
+  verificada: boolean | null;
+  estado_verificacion: string | null;
+  comentario_rechazo: string | null;
 }
 
 export interface Registro {

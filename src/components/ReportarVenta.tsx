@@ -164,6 +164,39 @@ export default function ReportarVenta({
     }
 
     if (tipoVenta === 'EXTERNA') {
+      // VALIDACIONES CRÍTICAS PARA MEDIOS DE PAGO - ESTAS SON OBLIGATORIAS
+      if (!medioPago.trim()) {
+        setError('❌ OBLIGATORIO: Para pagos externos, se debe especificar el medio de pago.');
+        setLoading(false);
+        return;
+      }
+      
+      // Validaciones específicas para cada medio de pago - MUY IMPORTANTES
+      if (medioPago === 'WESTERN_UNION' && !actividadEconomica.trim()) {
+        setError('❌ OBLIGATORIO: Para pagos por Western Union, se requiere la actividad económica del comprador.');
+        setLoading(false);
+        return;
+      }
+      
+      if (medioPago === 'BANCOLOMBIA' && !cedulaComprador.trim()) {
+        setError('❌ OBLIGATORIO: Para pagos por Bancolombia, se requiere la cédula del comprador.');
+        setLoading(false);
+        return;
+      }
+      
+      if (medioPago === 'STRIPE' && !correoPago.trim()) {
+        setError('❌ OBLIGATORIO: Para pagos por Stripe, se requiere el correo con el que se pagó.');
+        setLoading(false);
+        return;
+      }
+      
+      if (medioPago === 'OTRO' && !otroMedioPago.trim()) {
+        setError('❌ OBLIGATORIO: Para "Otro" medio de pago, se debe especificar cuál es.');
+        setLoading(false);
+        return;
+      }
+
+      // Otras validaciones para ventas externas
       if (!pais.trim()) {
         setError('Para pagos externos, se requiere el país del cliente.');
         setLoading(false);
@@ -176,39 +209,6 @@ export default function ReportarVenta({
       }
       if (!telefono.trim()) {
         setError('Para pagos externos, se requiere el teléfono de inscripción.');
-        setLoading(false);
-        return;
-      }
-      if (!medioPago.trim()) {
-        setError('Para pagos externos, se debe especificar el medio de pago.');
-        setLoading(false);
-        return;
-      }
-      
-      // Validaciones específicas para Western Union
-      if (medioPago === 'WESTERN_UNION' && !actividadEconomica.trim()) {
-        setError('Para pagos por Western Union, se requiere la actividad económica del comprador.');
-        setLoading(false);
-        return;
-      }
-      
-      // Validaciones específicas para Bancolombia
-      if (medioPago === 'BANCOLOMBIA' && !cedulaComprador.trim()) {
-        setError('Para pagos por Bancolombia, se requiere la cédula del comprador.');
-        setLoading(false);
-        return;
-      }
-      
-      // Validaciones específicas para Stripe
-      if (medioPago === 'STRIPE' && !correoPago.trim()) {
-        setError('Para pagos por Stripe, se requiere el correo con el que se pagó.');
-        setLoading(false);
-        return;
-      }
-      
-      // Validaciones específicas para Otro
-      if (medioPago === 'OTRO' && !otroMedioPago.trim()) {
-        setError('Para "Otro" medio de pago, se debe especificar cuál es.');
         setLoading(false);
         return;
       }
@@ -412,12 +412,12 @@ export default function ReportarVenta({
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Medio de Pago
+                  Medio de Pago <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={medioPago}
                   onChange={(e) => setMedioPago(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+                  className="mt-1 block w-full rounded-md border-red-300 shadow-sm focus:ring-red-500 focus:border-red-500"
                   required
                 >
                   <option value="">-- Selecciona Medio de Pago --</option>
@@ -426,24 +426,27 @@ export default function ReportarVenta({
                   <option value="STRIPE">Stripe</option>
                   <option value="OTRO">Otro</option>
                 </select>
+                <p className="text-xs text-red-600 mt-1 font-medium">
+                  ⚠️ OBLIGATORIO para ventas externas
+                </p>
               </div>
 
               {/* Campo específico para Otro */}
               {mostrarCampoOtro() && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Especificar Medio de Pago
+                    Especificar Medio de Pago <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={otroMedioPago}
                     onChange={(e) => setOtroMedioPago(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+                    className="mt-1 block w-full rounded-md border-red-300 shadow-sm focus:ring-red-500 focus:border-red-500"
                     placeholder="Ej: Zelle, bold, Remitly, pichincha, etc."
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    📝 Especifica el medio de pago utilizado
+                  <p className="text-xs text-red-600 mt-1 font-medium">
+                    ⚠️ OBLIGATORIO: Especifica el medio de pago utilizado
                   </p>
                 </div>
               )}
@@ -452,18 +455,18 @@ export default function ReportarVenta({
               {mostrarCampoWestern() && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Actividad Económica del Comprador
+                    Actividad Económica del Comprador <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={actividadEconomica}
                     onChange={(e) => setActividadEconomica(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+                    className="mt-1 block w-full rounded-md border-red-300 shadow-sm focus:ring-red-500 focus:border-red-500"
                     placeholder="Ej: Empleado, Independiente, Estudiante, etc."
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    📋 Requerido para pagos por Western Union
+                  <p className="text-xs text-red-600 mt-1 font-medium">
+                    ⚠️ OBLIGATORIO para pagos por Western Union
                   </p>
                 </div>
               )}
@@ -472,18 +475,18 @@ export default function ReportarVenta({
               {mostrarCampoBancolombia() && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Cédula del Comprador
+                    Cédula del Comprador <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={cedulaComprador}
                     onChange={(e) => setCedulaComprador(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+                    className="mt-1 block w-full rounded-md border-red-300 shadow-sm focus:ring-red-500 focus:border-red-500"
                     placeholder="Número de cédula"
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    🆔 Requerido para pagos por Bancolombia
+                  <p className="text-xs text-red-600 mt-1 font-medium">
+                    ⚠️ OBLIGATORIO para pagos por Bancolombia
                   </p>
                 </div>
               )}
@@ -533,18 +536,18 @@ export default function ReportarVenta({
               {mostrarCampoStripe() && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Correo con el que hizo el pago en Stripe
+                    Correo con el que hizo el pago en Stripe <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="email"
                     value={correoPago}
                     onChange={(e) => setCorreoPago(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500"
+                    className="mt-1 block w-full rounded-md border-red-300 shadow-sm focus:ring-red-500 focus:border-red-500"
                     placeholder="correo-de-pago@ejemplo.com"
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    📧 Requerido para pagos por Stripe
+                  <p className="text-xs text-red-600 mt-1 font-medium">
+                    ⚠️ OBLIGATORIO para pagos por Stripe
                   </p>
                 </div>
               )}

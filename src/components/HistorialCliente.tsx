@@ -340,14 +340,19 @@ export default function HistorialCliente({
                                 {item.data.IMAGEN_PAGO_URL && (
                                   <div className="mt-3">
                                     <h4 className="text-sm font-medium text-gray-700 mb-2">📄 Comprobante de pago:</h4>
-                                    <div className="relative group cursor-pointer inline-block">
+                                    <div 
+                                      className="relative group cursor-pointer inline-block"
+                                      onClick={() => {
+                                        console.log('Click en imagen de pago:', item.data.IMAGEN_PAGO_URL);
+                                        setImagenPago(item.data.IMAGEN_PAGO_URL);
+                                      }}
+                                    >
                                       <img
                                         src={item.data.IMAGEN_PAGO_URL}
                                         alt="Comprobante de pago"
                                         className="max-w-48 max-h-38 object-contain rounded-lg border-2 border-gray-200 hover:border-blue-400 transition-all duration-200 shadow-sm hover:shadow-md"
-                                        onClick={() => setImagenPago(item.data.IMAGEN_PAGO_URL)}
                                       />
-                                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg transition-opacity duration-200 flex items-center justify-center">
+                                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg transition-opacity duration-200 flex items-center justify-center pointer-events-none">
                                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                           <div className="bg-white rounded-full p-1 shadow-lg">
                                             <DollarSign className="h-4 w-4 text-blue-600" />

@@ -89,7 +89,7 @@ export default function ReportarVenta({
     setLoading(true);
     try {
       const payload: Record<string, any> = {
-        clienteID: cliente.ID_CLIENTE,
+        clienteID: cliente.ID,
         asesorID: asesor.ID,
         nombreAsesor: asesor.NOMBRE,
         tipoVenta,
@@ -227,7 +227,7 @@ export default function ReportarVenta({
 
     try {
       await apiClient.request(
-        `/GERSSON_REPORTES?ID_CLIENTE=eq.${cliente.ID_CLIENTE}&COMPLETADO=eq.false&FECHA_SEGUIMIENTO=not.is.null`,
+        `/GERSSON_REPORTES?ID_CLIENTE=eq.${cliente.ID}&COMPLETADO=eq.false&FECHA_SEGUIMIENTO=not.is.null`,
         'PATCH',
         { COMPLETADO: true }
       );
@@ -239,7 +239,7 @@ export default function ReportarVenta({
 
     try {
       const reporteData: Record<string, any> = {
-        ID_CLIENTE: cliente.ID_CLIENTE,
+        ID_CLIENTE: cliente.ID,
         ID_ASESOR: asesor.ID,
         ESTADO_ANTERIOR: cliente.ESTADO,
         ESTADO_NUEVO: 'PAGADO',
@@ -275,7 +275,7 @@ export default function ReportarVenta({
 
     try {
       await apiClient.request(
-        `/GERSSON_CLIENTES?ID=eq.${cliente.ID_CLIENTE}`,
+        `/GERSSON_CLIENTES?ID=eq.${cliente.ID}`,
         'PATCH',
         {
           NOMBRE: nombreCliente,

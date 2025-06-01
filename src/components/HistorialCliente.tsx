@@ -28,6 +28,15 @@ export default function HistorialCliente({
   // Estado local para los reportes, inicializado con la prop "reportes"
   const [localReportes, setLocalReportes] = useState<Reporte[]>(reportes);
 
+  // Estados para modales de eliminación de registros
+  const [mostrarModalConfirmacion, setMostrarModalConfirmacion] = useState(false);
+  const [mostrarModalContrasena, setMostrarModalContrasena] = useState(false);
+  const [mostrarModalMensaje, setMostrarModalMensaje] = useState(false);
+  const [registroAEliminar, setRegistroAEliminar] = useState<number | null>(null);
+  const [contrasenaInput, setContrasenaInput] = useState('');
+  const [mensajeModal, setMensajeModal] = useState('');
+  const [tipoMensaje, setTipoMensaje] = useState<'success' | 'error'>('success');
+
   // Actualizar el estado local si la prop "reportes" cambia
   useEffect(() => {
     setLocalReportes(reportes);
@@ -87,23 +96,58 @@ export default function HistorialCliente({
   };
 
   const handleEliminarRegistro = async (registroId: number) => {
-    if (!window.confirm("¿Estás seguro de eliminar este registro?")) return;
+    setRegistroAEliminar(registroId);
+    setMostrarModalConfirmacion(true);
+  };
+
+  const confirmarEliminacion = () => {
+    setMostrarModalConfirmacion(false);
+    setMostrarModalContrasena(true);
+  };
+
+  const ejecutarEliminacion = async () => {
+    if (contrasenaInput !== "santi123") {
+      setMensajeModal("❌ Contraseña incorrecta. Operación cancelada.");
+      setTipoMensaje('error');
+      setMostrarModalContrasena(false);
+      setMostrarModalMensaje(true);
+      setContrasenaInput('');
+      return;
+    }
+
+    setMostrarModalContrasena(false);
+    setContrasenaInput('');
+
+    if (!registroAEliminar) return;
 
     try {
-      const resultado = await eliminarRegistro(registroId.toString());
+      const resultado = await eliminarRegistro(registroAEliminar.toString());
       if (resultado.success) {
-        alert(`✅ ${resultado.message || 'Registro eliminado correctamente.'}`);
+        setMensajeModal(`✅ ${resultado.message || 'Registro eliminado correctamente.'}`);
+        setTipoMensaje('success');
         // Actualizar la lista de registros localmente
-        setRegistros(prev => prev.filter(r => r.ID !== registroId));
+        setRegistros(prev => prev.filter(r => r.ID !== registroAEliminar));
         // Recargar los registros para asegurar consistencia
         await cargarRegistros();
       } else {
-        alert(`❌ ${resultado.message || 'Error al eliminar el registro.'}`);
+        setMensajeModal(`❌ ${resultado.message || 'Error al eliminar el registro.'}`);
+        setTipoMensaje('error');
       }
     } catch (error: any) {
       console.error("❌ Error eliminando registro:", error);
-      alert("❌ Error eliminando registro: " + error.message);
+      setMensajeModal("❌ Error eliminando registro: " + error.message);
+      setTipoMensaje('error');
     }
+
+    setMostrarModalMensaje(true);
+    setRegistroAEliminar(null);
+  };
+
+  const cancelarEliminacion = () => {
+    setMostrarModalConfirmacion(false);
+    setMostrarModalContrasena(false);
+    setRegistroAEliminar(null);
+    setContrasenaInput('');
   };
 
   const getEstadoColor = (estado: string) => {
@@ -230,7 +274,7 @@ export default function HistorialCliente({
                                   <button
                                     onClick={() => handleEliminarRegistro(item.data.ID)}
                                     className="px-3 py-1 text-xs text-orange-700 bg-orange-100 rounded-md hover:bg-orange-200 transition-colors border border-orange-300"
-                                    title="Eliminar este registro y restaurar el estado anterior del cliente"
+                                    title="🔒 Eliminar este registro (requiere contraseña de administrador)"
                                   >
                                     🗑️ Eliminar Registro
                                   </button>
@@ -499,6 +543,143 @@ export default function HistorialCliente({
               >
                 Cerrar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación para eliminar registro */}
+      {mostrarModalConfirmacion && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div
+            className="absolute inset-0 bg-black bg-opacity-40 transition-opacity"
+            onClick={cancelarEliminacion}
+          ></div>
+          <div className="relative bg-white rounded-lg shadow-xl transform transition-all max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <AlertCircle className="h-8 w-8 text-orange-500 mr-3" />
+                <h3 className="text-lg font-medium text-gray-900">
+                  Confirmar Eliminación de Registro
+                </h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-6">
+                ¿Estás seguro de que quieres eliminar este registro? Esta acción restaurará 
+                el estado anterior del cliente y no se puede deshacer.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={cancelarEliminacion}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarEliminacion}
+                  className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 transition-colors"
+                >
+                  Continuar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de contraseña para eliminar registro */}
+      {mostrarModalContrasena && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div
+            className="absolute inset-0 bg-black bg-opacity-40 transition-opacity"
+            onClick={cancelarEliminacion}
+          ></div>
+          <div className="relative bg-white rounded-lg shadow-xl transform transition-all max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                    <span className="text-lg">🔒</span>
+                  </div>
+                </div>
+                <h3 className="ml-3 text-lg font-medium text-gray-900">
+                  Acción Crítica - Contraseña Requerida
+                </h3>
+              </div>
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-3">
+                  Ingresa la contraseña de administrador para proceder con la eliminación del registro:
+                </p>
+                <input
+                  type="password"
+                  value={contrasenaInput}
+                  onChange={(e) => setContrasenaInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500"
+                  placeholder="Contraseña de administrador"
+                  onKeyPress={(e) => e.key === 'Enter' && ejecutarEliminacion()}
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={cancelarEliminacion}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={ejecutarEliminacion}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+                >
+                  Eliminar Registro
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de mensaje (éxito/error) */}
+      {mostrarModalMensaje && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div
+            className="absolute inset-0 bg-black bg-opacity-40 transition-opacity"
+            onClick={() => setMostrarModalMensaje(false)}
+          ></div>
+          <div className="relative bg-white rounded-lg shadow-xl transform transition-all max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    tipoMensaje === 'success' ? 'bg-green-100' : 'bg-red-100'
+                  }`}>
+                    {tipoMensaje === 'success' ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    )}
+                  </div>
+                </div>
+                <h3 className="ml-3 text-lg font-medium text-gray-900">
+                  {tipoMensaje === 'success' ? 'Operación Exitosa' : 'Error en la Operación'}
+                </h3>
+              </div>
+              <div className="mb-6">
+                <p className="text-sm text-gray-600 whitespace-pre-line">
+                  {mensajeModal}
+                </p>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setMostrarModalMensaje(false)}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
+                    tipoMensaje === 'success' 
+                      ? 'bg-green-600 hover:bg-green-700' 
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -96,3 +96,60 @@ export const eliminarReporte = async (reporteId: string): Promise<{ success: boo
   }
 };
 
+// Función para eliminar registros con la sabiduría del tiempo y la precisión del destino
+export const eliminarRegistro = async (registroId: string): Promise<{ success: boolean; message?: string }> => {
+  try {
+    // 1️⃣: Buscamos el registro destinado a ser eliminado, como un arqueólogo del tiempo
+    const registros = await apiClient.request<any[]>(
+      `/GERSSON_REGISTROS?ID=eq.${registroId}&select=ID,ID_CLIENTE,TIPO_EVENTO,FECHA_EVENTO`
+    );
+    const registro = registros[0];
+    if (!registro) throw new Error('Registro no encontrado en los anales del tiempo.');
+
+    // 2️⃣: Buscamos el último reporte antes de este registro para restaurar el estado correcto
+    const reportesAnteriores = await apiClient.request<any[]>(
+      `/GERSSON_REPORTES?ID_CLIENTE=eq.${registro.ID_CLIENTE}&FECHA_REPORTE=lt.${registro.FECHA_EVENTO}&order=FECHA_REPORTE.desc&limit=1&select=ESTADO_NUEVO`
+    );
+
+    // 3️⃣: Determinamos el estado correcto al que restaurar
+    let estadoAnterior = 'SEGUIMIENTO'; // Estado por defecto
+    
+    if (reportesAnteriores.length > 0) {
+      // Si hay un reporte anterior, usamos ese estado
+      estadoAnterior = reportesAnteriores[0].ESTADO_NUEVO;
+    } else {
+      // Si no hay reportes anteriores, buscamos el estado original al crear el cliente
+      const cliente = await apiClient.request<any[]>(
+        `/GERSSON_CLIENTES?ID=eq.${registro.ID_CLIENTE}&select=ESTADO`
+      );
+      if (cliente.length > 0 && cliente[0].ESTADO) {
+        // Mantenemos el estado actual si no encontramos información anterior
+        console.log(`🔍 No hay reportes anteriores al registro. Estado actual: ${cliente[0].ESTADO}`);
+        estadoAnterior = 'SEGUIMIENTO'; // Siempre defaultear a SEGUIMIENTO si no hay reportes anteriores
+      }
+    }
+
+    // 4️⃣: Eliminamos el registro primero
+    await apiClient.request(
+      `/GERSSON_REGISTROS?ID=eq.${registroId}`,
+      'DELETE'
+    );
+
+    // 5️⃣: Actualizamos el estado del cliente al estado anterior correcto
+    await apiClient.request(
+      `/GERSSON_CLIENTES?ID=eq.${registro.ID_CLIENTE}`,
+      'PATCH',
+      { ESTADO: estadoAnterior }
+    );
+
+    console.log(`✅ Registro "${registro.TIPO_EVENTO}" eliminado y estado del cliente restaurado a: ${estadoAnterior}`);
+    return { 
+      success: true, 
+      message: `Registro "${registro.TIPO_EVENTO}" eliminado. Estado restaurado a: ${estadoAnterior}` 
+    };
+  } catch (error: any) {
+    console.error('⚠️ Error en eliminarRegistro:', error);
+    return { success: false, message: error.message || 'Error desconocido al eliminar registro' };
+  }
+};
+

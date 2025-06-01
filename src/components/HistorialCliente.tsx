@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Cliente, Reporte, Registro } from '../types';
 import { Clock, MessageSquare, DollarSign, AlertCircle, CheckCircle, X, Activity, FileVideo, Image as ImageIcon } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
-import { apiClient, eliminarReporte } from '../lib/apiClient';
+import { apiClient, eliminarReporte, eliminarRegistro } from '../lib/apiClient';
 
 interface HistorialClienteProps {
   cliente: Cliente;
@@ -83,6 +83,26 @@ export default function HistorialCliente({
     } catch (error: any) {
       console.error("❌ Error eliminando reporte:", error);
       alert("❌ Error eliminando reporte: " + error.message);
+    }
+  };
+
+  const handleEliminarRegistro = async (registroId: number) => {
+    if (!window.confirm("¿Estás seguro de eliminar este registro?")) return;
+
+    try {
+      const resultado = await eliminarRegistro(registroId.toString());
+      if (resultado.success) {
+        alert(`✅ ${resultado.message || 'Registro eliminado correctamente.'}`);
+        // Actualizar la lista de registros localmente
+        setRegistros(prev => prev.filter(r => r.ID !== registroId));
+        // Recargar los registros para asegurar consistencia
+        await cargarRegistros();
+      } else {
+        alert(`❌ ${resultado.message || 'Error al eliminar el registro.'}`);
+      }
+    } catch (error: any) {
+      console.error("❌ Error eliminando registro:", error);
+      alert("❌ Error eliminando registro: " + error.message);
     }
   };
 
@@ -202,9 +222,20 @@ export default function HistorialCliente({
                                   {item.data.TIPO_EVENTO}
                                 </span>
                               </div>
-                              <span className="text-sm text-gray-500 mt-1 sm:mt-0">
-                                {formatDate(parseInt(item.data.FECHA_EVENTO))}
-                              </span>
+                              <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                                <span className="text-sm text-gray-500">
+                                  {formatDate(parseInt(item.data.FECHA_EVENTO))}
+                                </span>
+                                {admin && (
+                                  <button
+                                    onClick={() => handleEliminarRegistro(item.data.ID)}
+                                    className="px-3 py-1 text-xs text-orange-700 bg-orange-100 rounded-md hover:bg-orange-200 transition-colors border border-orange-300"
+                                    title="Eliminar este registro y restaurar el estado anterior del cliente"
+                                  >
+                                    🗑️ Eliminar Registro
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         ) : isReporte(item) ? (

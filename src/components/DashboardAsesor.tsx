@@ -240,6 +240,16 @@ function WhatsAppModal({
                   Eliminar Instancia
                 </button>
                 
+                {/* Información de diagnóstico para móvil */}
+                {/Mobi|Android/i.test(navigator.userAgent) && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-left">
+                    <p className="text-xs text-orange-800 font-medium mb-1">📱 Dispositivo móvil detectado:</p>
+                    <p className="text-xs text-orange-700">
+                      Si ves "Iniciar Conexión" pero en PC aparece conectado, presiona "Eliminar Instancia" y vuelve a conectar.
+                    </p>
+                  </div>
+                )}
+                
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
                   <p className="text-xs text-blue-700">
                     <strong>Tip:</strong> Si el QR no funciona o hay errores, elimina la instancia y vuelve a iniciar la conexión.
@@ -278,6 +288,14 @@ function WhatsAppModal({
                   <span className="text-sm font-medium text-gray-700">Número:</span>
                   <span className="text-sm text-gray-600 font-mono">{instanceInfo.ownerJid?.split('@')[0] || "Configurando..."}</span>
                 </div>
+                
+                {/* Información adicional para móvil */}
+                {/Mobi|Android/i.test(navigator.userAgent) && (
+                  <div className="bg-green-100 border border-green-300 rounded-lg p-2 mt-3">
+                    <p className="text-xs text-green-800 font-medium">📱 Conexión verificada en móvil ✅</p>
+                    <p className="text-xs text-green-700">Estado sincronizado correctamente</p>
+                  </div>
+                )}
               </div>
               
               <button
@@ -395,10 +413,40 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     // proporcionando una mejor experiencia de usuario donde el dashboard se carga
     // normalmente y la verificación ocurre en segundo plano
     const verificarConexionInicial = async () => {
+      console.log('🔍 [WhatsApp] Iniciando verificación de conexión para:', asesor.NOMBRE);
+      console.log('🔍 [WhatsApp] Tipo de dispositivo:', /Mobi|Android/i.test(navigator.userAgent) ? 'MÓVIL' : 'DESKTOP');
+      
       await new Promise(resolve => setTimeout(resolve, 2000)); // 2 segundos de retraso
       setVerificandoWhatsApp(true);
-      await refreshConnection();
-      setVerificandoWhatsApp(false);
+      
+      try {
+        console.log('🔍 [WhatsApp] Ejecutando primera verificación...');
+        await refreshConnection();
+        
+        // 🚀 MEJORA MÓVIL: Si no obtuvimos información válida, reintentar
+        if (!instanceInfo || instanceInfo.connectionStatus !== "open") {
+          console.log('⚠️ [WhatsApp] Primera verificación sin éxito, reintentando en 3 segundos...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          console.log('🔍 [WhatsApp] Ejecutando segundo intento...');
+          await refreshConnection();
+          
+          // Tercer intento si es necesario
+          if (!instanceInfo || instanceInfo.connectionStatus !== "open") {
+            console.log('⚠️ [WhatsApp] Segundo intento sin éxito, último intento en 5 segundos...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            console.log('🔍 [WhatsApp] Ejecutando tercer y último intento...');
+            await refreshConnection();
+          }
+        }
+        
+        console.log('✅ [WhatsApp] Verificación completada. Estado final:', instanceInfo?.connectionStatus || 'SIN_INFO');
+      } catch (error) {
+        console.error('❌ [WhatsApp] Error en verificación inicial:', error);
+      } finally {
+        setVerificandoWhatsApp(false);
+      }
     };
     
     verificarConexionInicial();
@@ -768,8 +816,14 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   };
 
   const refreshConnection = async () => {
-    await handleInstanceConnect();
-    await handleFetchInstanceInfo();
+    console.log('🔄 [WhatsApp] Refrescando conexión...');
+    try {
+      await handleInstanceConnect();
+      await handleFetchInstanceInfo();
+      console.log('✅ [WhatsApp] Conexión refrescada exitosamente');
+    } catch (error) {
+      console.error('❌ [WhatsApp] Error refrescando conexión:', error);
+    }
   };
 
   const handleFetchInstanceInfo = async () => {
@@ -777,6 +831,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setIsLoadingWhatsApp(true);
       const instanceName = encodeURIComponent(asesor.NOMBRE);
       const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${instanceName}`;
+      
+      console.log('📡 [WhatsApp] Obteniendo info de instancia:', url);
+      console.log('📡 [WhatsApp] Usuario:', asesor.NOMBRE);
     
       const response = await fetch(url, {
         method: "GET",
@@ -785,25 +842,45 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           "apikey": evolutionApiKey,
         },
       });
-      if (!response.ok) throw new Error("Error al obtener la información de la instancia");
+      
+      console.log('📡 [WhatsApp] Response status:', response.status);
+      
+      if (!response.ok) {
+        console.error('❌ [WhatsApp] Error en response:', response.status);
+        throw new Error("Error al obtener la información de la instancia");
+      }
+      
       const data = await response.json();
-      console.log("Response data:", data);
+      console.log('📦 [WhatsApp] Response data:', data);
+      
       if (Array.isArray(data) && data.length > 0) {
         const instance = data[0];
+        console.log('✅ [WhatsApp] Instancia encontrada:', {
+          connectionStatus: instance.connectionStatus,
+          profileName: instance.profileName,
+          ownerJid: instance.ownerJid
+        });
+        
         setInstanceInfo(instance);
         if (instance.connectionStatus === "open") {
           setWhatsappStatus("Conectado");
+          console.log('🎉 [WhatsApp] Estado: CONECTADO');
         } else if (instance.connectionStatus === "connecting") {
           setWhatsappStatus("Desconectado");
+          console.log('⏳ [WhatsApp] Estado: CONECTANDO');
         } else {
           setWhatsappStatus("Desconectado");
+          console.log('❌ [WhatsApp] Estado: DESCONECTADO');
         }
       } else {
+        console.log('❌ [WhatsApp] No se encontró instancia');
         setInstanceInfo(null);
         setWhatsappStatus("Desconectado");
       }
     } catch (error) {
-      console.error("Error in handleFetchInstanceInfo:", error);
+      console.error("❌ [WhatsApp] Error in handleFetchInstanceInfo:", error);
+      setInstanceInfo(null);
+      setWhatsappStatus("Desconectado");
     } finally {
       setIsLoadingWhatsApp(false);
     }
@@ -943,6 +1020,29 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                 </span>
               </div>
 
+              {/* Botón de actualización manual - Solo visible en móvil si hay problemas */}
+              {(/Mobi|Android/i.test(navigator.userAgent) && whatsappStatus !== 'Conectado') && (
+                <button
+                  onClick={async () => {
+                    setVerificandoWhatsApp(true);
+                    console.log('🔄 [WhatsApp] Actualización manual solicitada');
+                    try {
+                      await refreshConnection();
+                    } finally {
+                      setVerificandoWhatsApp(false);
+                    }
+                  }}
+                  disabled={verificandoWhatsApp}
+                  className="flex items-center space-x-1 px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-md transition-all duration-200 text-xs"
+                  title="Actualizar estado de WhatsApp"
+                >
+                  <div className={`w-3 h-3 ${verificandoWhatsApp ? 'animate-spin' : ''}`}>
+                    {verificandoWhatsApp ? '⏳' : '🔄'}
+                  </div>
+                  <span className="hidden sm:inline">Actualizar</span>
+                </button>
+              )}
+
               {/* Botón WhatsApp */}
               <button
                 onClick={() => setShowWhatsAppModal(true)}
@@ -950,6 +1050,13 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
               >
                 <Smartphone className="h-4 w-4" />
                 <span className="hidden lg:inline font-medium">WhatsApp</span>
+                {/* Indicador visual del estado en móvil */}
+                <div className="sm:hidden">
+                  <div className={`w-2 h-2 rounded-full ${
+                    verificandoWhatsApp ? 'bg-yellow-300 animate-pulse' :
+                    whatsappStatus === 'Conectado' ? 'bg-green-300' : 'bg-red-300'
+                  }`}></div>
+                </div>
               </button>
 
               {/* Botón Telegram */}

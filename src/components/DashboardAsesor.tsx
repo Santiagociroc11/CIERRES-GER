@@ -1046,7 +1046,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
               {/* Botón WhatsApp */}
               <button
                 onClick={() => setShowWhatsAppModal(true)}
-                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md relative"
               >
                 <Smartphone className="h-4 w-4" />
                 <span className="hidden lg:inline font-medium">WhatsApp</span>
@@ -1057,6 +1057,16 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                     whatsappStatus === 'Conectado' ? 'bg-green-300' : 'bg-red-300'
                   }`}></div>
                 </div>
+                {/* Indicador tipo Telegram - visible en desktop y móvil */}
+                {!verificandoWhatsApp && (
+                  <div className={`absolute -top-1 -right-1 w-3 h-3 border-2 border-white rounded-full ${
+                    whatsappStatus === 'Conectado' ? 'bg-green-500' : 'bg-red-500'
+                  }`}></div>
+                )}
+                {/* Indicador de carga */}
+                {verificandoWhatsApp && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-500 border-2 border-white rounded-full animate-pulse"></div>
+                )}
               </button>
 
               {/* Botón Telegram */}
@@ -1068,9 +1078,10 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
               >
                 <Send className="h-4 w-4" />
                 <span className="hidden lg:inline font-medium">Telegram</span>
-                {currentTelegramId && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
-                )}
+                {/* Indicador verde/rojo - siempre visible */}
+                <div className={`absolute -top-1 -right-1 w-3 h-3 border-2 border-white rounded-full ${
+                  currentTelegramId ? 'bg-green-500' : 'bg-red-500'
+                }`}></div>
               </button>
 
               {/* Botón Cerrar Sesión */}

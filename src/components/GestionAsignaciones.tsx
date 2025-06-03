@@ -1472,7 +1472,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-medium text-purple-600 flex items-center">
                               <User className="h-3 w-3 mr-1" />
-                              Último Cliente
+                              Último Cliente Asignado
                             </span>
                             {(() => {
                               const ultimoCliente = getUltimoClienteAsignado(asesor.ID);
@@ -1509,7 +1509,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                                 <div className="space-y-1">
 
                                   <div className="flex justify-center">
-                                    <span className={`px-1 py-0.5 rounded text-xs font-medium ${
+                                    <span className= {`px-1 py-0.5 rounded text-xs font-medium ${
                                       fuente === 'LINK' ? 'bg-green-100 text-green-700' :
                                       fuente === 'MASIVOS' ? 'bg-blue-100 text-blue-700' :
                                       fuente === 'HOTMART' ? 'bg-orange-100 text-orange-700' :
@@ -1552,7 +1552,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                             <div className="flex flex-col items-center">
                               <div className="flex items-center mb-1">
                                 <MessageSquare className="h-3 w-3 text-gray-600 mr-1" />
-                                <span className="text-xs font-medium text-gray-600">Último Mensaje enviado</span>
+                                <span className="text-xs font-medium text-gray-600">Último Mensaje Enviado</span>
                               </div>
                               {(() => {
                                 const ahora = Math.floor(Date.now() / 1000);

@@ -972,6 +972,28 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
     }
   };
 
+  // Calculate advisor counts
+  const ahoraEpoch = Math.floor(Date.now() / 1000);
+  const recuentoAsesores = useMemo(() => {
+    let activos = 0;
+    let bloqueados = 0;
+    let pausados = 0;
+
+    asesores.forEach(asesor => {
+      const estaBloqueado = isAsesorBloqueado(asesor, ahoraEpoch);
+      
+      if (estaBloqueado) {
+        bloqueados++;
+      } else if (asesor.PAUSADO) {
+        pausados++;
+      } else {
+        activos++;
+      }
+    });
+
+    return { activos, bloqueados, pausados, total: asesores.length };
+  }, [asesores, ahoraEpoch]);
+
   return (
     <div className="p-4">
       <div className="mb-6">
@@ -1007,6 +1029,113 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
             >
               <Info className="h-6 w-6" />
             </button>
+          </div>
+        </div>
+        
+        {/* Recuento de Asesores */}
+        <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+              <Info className="h-3 w-3 text-blue-600" />
+              Estado del Equipo
+            </h3>
+            <div className="text-xs text-gray-500">
+              Total: {recuentoAsesores.total}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-3">
+            {/* Asesores Activos */}
+            <div className="bg-green-50 rounded-md p-2 border-l-2 border-green-500">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1">
+                  <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
+                    <CheckCircle2 className="h-3 w-3 text-green-600" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-green-700">
+                      {recuentoAsesores.activos}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 rounded">
+                  {recuentoAsesores.total > 0 ? ((recuentoAsesores.activos / recuentoAsesores.total) * 100).toFixed(0) : 0}%
+                </div>
+              </div>
+              <div className="text-xs font-medium text-green-600 mb-1">
+                Activos
+              </div>
+            </div>
+
+            {/* Asesores Bloqueados */}
+            <div className="bg-red-50 rounded-md p-2 border-l-2 border-red-500">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1">
+                  <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
+                    <Ban className="h-3 w-3 text-red-600" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-red-700">
+                      {recuentoAsesores.bloqueados}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+                  {recuentoAsesores.total > 0 ? ((recuentoAsesores.bloqueados / recuentoAsesores.total) * 100).toFixed(0) : 0}%
+                </div>
+              </div>
+              <div className="text-xs font-medium text-red-600 mb-1">
+                Bloqueados
+              </div>
+            </div>
+
+            {/* Asesores En Pausa */}
+            <div className="bg-yellow-50 rounded-md p-2 border-l-2 border-yellow-500">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1">
+                  <div className="w-5 h-5 rounded-full bg-yellow-100 flex items-center justify-center">
+                    <Clock className="h-3 w-3 text-yellow-600" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-yellow-700">
+                      {recuentoAsesores.pausados}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded">
+                  {recuentoAsesores.total > 0 ? ((recuentoAsesores.pausados / recuentoAsesores.total) * 100).toFixed(0) : 0}%
+                </div>
+              </div>
+              <div className="text-xs font-medium text-yellow-600 mb-1">
+                En Pausa
+              </div>
+            </div>
+          </div>
+          
+          {/* Información adicional */}
+          <div className="mt-2 pt-2 border-t border-gray-200">
+            <div className="flex items-center justify-between text-xs text-gray-600">
+              <div className="flex items-center gap-3">
+                <span>
+                  <span className="font-medium">Capacidad:</span> 
+                  <span className={`ml-1 font-semibold ${
+                    recuentoAsesores.activos >= recuentoAsesores.total * 0.8 ? 'text-green-600' :
+                    recuentoAsesores.activos >= recuentoAsesores.total * 0.6 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {recuentoAsesores.total > 0 ? ((recuentoAsesores.activos / recuentoAsesores.total) * 100).toFixed(0) : 0}%
+                  </span>
+                </span>
+                {recuentoAsesores.bloqueados > 0 && (
+                  <span className="text-red-600 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    {recuentoAsesores.bloqueados} sin operar
+                  </span>
+                )}
+              </div>
+              <div className="text-gray-500">
+                {new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1322,6 +1451,52 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                   <div className="space-y-3 text-sm">
                     {estadisticas[asesor.ID] ? (
                       <>
+                        {/* Velocidad de Ventas */}
+                        <div className="bg-blue-50 p-2 rounded-md border border-blue-200">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-blue-600 flex items-center">
+                              <TrendingUp className="h-4 w-4 mr-1" />
+                              Velocidad de Ventas
+                            </span>
+                            {/* Calcular velocidad de ventas */}
+                            {(() => {
+                              const ventasRealizadas = estadisticas[asesor.ID].ventasRealizadas || 0;
+                              const totalClientes = estadisticas[asesor.ID].totalClientes || 0;
+                              const ultimaVenta = estadisticas[asesor.ID].ultimaVenta;
+                              
+                              // Calcular días desde la primera asignación (asumiendo 30 días por defecto)
+                              const diasOperativos = 30; // Esto podría ser dinámico basado en fecha de inicio del asesor
+                              const ventasPorDia = totalClientes > 0 ? (ventasRealizadas / diasOperativos) : 0;
+                              
+                              let colorClase = 'bg-gray-100 text-gray-600';
+                              let textoVelocidad = '0/día';
+                              
+                              if (ventasPorDia > 0) {
+                                textoVelocidad = ventasPorDia >= 1 
+                                  ? `${ventasPorDia.toFixed(1)}/día`
+                                  : `${(ventasPorDia * 7).toFixed(1)}/sem`;
+                                
+                                if (ventasPorDia >= 1) {
+                                  colorClase = 'bg-green-100 text-green-700';
+                                } else if (ventasPorDia >= 0.5) {
+                                  colorClase = 'bg-yellow-100 text-yellow-700';
+                                } else if (ventasPorDia > 0) {
+                                  colorClase = 'bg-orange-100 text-orange-700';
+                                }
+                              }
+                              
+                              return (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${colorClase}`}>
+                                  {textoVelocidad}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div className="text-xs text-blue-600">
+                            {estadisticas[asesor.ID].ventasRealizadas || 0} ventas realizadas
+                          </div>
+                        </div>
+
                         {/* Última venta */}
                         <div className="bg-gray-50 p-2 rounded-md">
                           <div className="flex items-center justify-between mb-1">

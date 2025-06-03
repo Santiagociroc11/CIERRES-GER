@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
-import { Asesor } from '../types';
-import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History, RefreshCcw, TrendingUp, TrendingDown, DollarSign, MessageSquare, FileText } from 'lucide-react';
+import { Asesor, Registro } from '../types';
+import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History, RefreshCcw, TrendingUp, TrendingDown, DollarSign, MessageSquare, FileText, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface GestionAsignacionesProps {
@@ -281,6 +281,77 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
   const [mostrarModalHistorial, setMostrarModalHistorial] = useState(false);
   const [motivoPrioridad, setMotivoPrioridad] = useState('');
   const [tipoPrioridadSeleccionada, setTipoPrioridadSeleccionada] = useState<TipoPrioridad>('BONUS');
+  const [registros, setRegistros] = useState<Registro[]>([]);
+  
+  // Cargar registros para obtener las fuentes
+  React.useEffect(() => {
+    const cargarRegistros = async () => {
+      try {
+        const data = await apiClient.request<Registro[]>('/GERSSON_REGISTROS?order=FECHA_EVENTO.desc');
+        setRegistros(data || []);
+      } catch (error) {
+        console.error('Error al cargar registros:', error);
+      }
+    };
+    
+    cargarRegistros();
+  }, []);
+
+  // Función para obtener la fuente de un cliente
+  const getFuente = (clienteId: number): string => {
+    const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
+    if (registrosCliente.length > 0) {
+      // Ordenar por fecha más antigua primero para obtener la fuente original
+      registrosCliente.sort((a, b) => {
+        const fechaA = typeof a.FECHA_EVENTO === 'string' ? parseInt(a.FECHA_EVENTO) : a.FECHA_EVENTO;
+        const fechaB = typeof b.FECHA_EVENTO === 'string' ? parseInt(b.FECHA_EVENTO) : b.FECHA_EVENTO;
+        return fechaA - fechaB;
+      });
+      return registrosCliente[0].TIPO_EVENTO?.trim() || 'Desconocido';
+    }
+    return 'Desconocido';
+  };
+
+  // Estado para clientes por asesor y función para cargarlos
+  const [clientesPorAsesor, setClientesPorAsesor] = useState<Record<number, any[]>>({});
+
+  React.useEffect(() => {
+    const cargarClientesPorAsesor = async () => {
+      try {
+        const promesasClientes = asesores.map(async (asesor) => {
+          try {
+            const clientes = await apiClient.request<any[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}&order=FECHA_CREACION.desc&limit=1`);
+            return { asesorId: asesor.ID, clientes: clientes || [] };
+          } catch (error) {
+            console.error(`Error cargando clientes para asesor ${asesor.NOMBRE}:`, error);
+            return { asesorId: asesor.ID, clientes: [] };
+          }
+        });
+        
+        const resultados = await Promise.all(promesasClientes);
+        const clientesMap: Record<number, any[]> = {};
+        
+        resultados.forEach(({ asesorId, clientes }) => {
+          clientesMap[asesorId] = clientes;
+        });
+        
+        setClientesPorAsesor(clientesMap);
+      } catch (error) {
+        console.error('Error al cargar clientes por asesor:', error);
+      }
+    };
+    
+    if (asesores.length > 0) {
+      cargarClientesPorAsesor();
+    }
+  }, [asesores]);
+
+  // Función para obtener el último cliente asignado de un asesor
+  const getUltimoClienteAsignado = (asesorId: number) => {
+    const clientes = clientesPorAsesor[asesorId] || [];
+    return clientes.length > 0 ? clientes[0] : null;
+  };
+
   // Inicializar con valores por defecto incluidas fechas para reglas temporales
   const [nuevaRegla, setNuevaRegla] = useState<ReglaAsignacion>(() => {
     // Para bloqueos con duración predeterminada, establecer fechas 
@@ -1031,115 +1102,10 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
             </button>
           </div>
         </div>
-        
-        {/* Recuento de Asesores */}
-        <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-semibold text-gray-700 flex items-center gap-1">
-              <Info className="h-3 w-3 text-blue-600" />
-              Estado del Equipo
-            </h3>
-            <div className="text-xs text-gray-500">
-              Total: {recuentoAsesores.total}
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-3">
-            {/* Asesores Activos */}
-            <div className="bg-green-50 rounded-md p-2 border-l-2 border-green-500">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
-                    <CheckCircle2 className="h-3 w-3 text-green-600" />
-                  </div>
-                  <div>
-                    <div className="text-lg font-bold text-green-700">
-                      {recuentoAsesores.activos}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 rounded">
-                  {recuentoAsesores.total > 0 ? ((recuentoAsesores.activos / recuentoAsesores.total) * 100).toFixed(0) : 0}%
-                </div>
-              </div>
-              <div className="text-xs font-medium text-green-600 mb-1">
-                Activos
-              </div>
-            </div>
-
-            {/* Asesores Bloqueados */}
-            <div className="bg-red-50 rounded-md p-2 border-l-2 border-red-500">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
-                    <Ban className="h-3 w-3 text-red-600" />
-                  </div>
-                  <div>
-                    <div className="text-lg font-bold text-red-700">
-                      {recuentoAsesores.bloqueados}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
-                  {recuentoAsesores.total > 0 ? ((recuentoAsesores.bloqueados / recuentoAsesores.total) * 100).toFixed(0) : 0}%
-                </div>
-              </div>
-              <div className="text-xs font-medium text-red-600 mb-1">
-                Bloqueados
-              </div>
-            </div>
-
-            {/* Asesores En Pausa */}
-            <div className="bg-yellow-50 rounded-md p-2 border-l-2 border-yellow-500">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded-full bg-yellow-100 flex items-center justify-center">
-                    <Clock className="h-3 w-3 text-yellow-600" />
-                  </div>
-                  <div>
-                    <div className="text-lg font-bold text-yellow-700">
-                      {recuentoAsesores.pausados}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-xs text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded">
-                  {recuentoAsesores.total > 0 ? ((recuentoAsesores.pausados / recuentoAsesores.total) * 100).toFixed(0) : 0}%
-                </div>
-              </div>
-              <div className="text-xs font-medium text-yellow-600 mb-1">
-                En Pausa
-              </div>
-            </div>
-          </div>
-          
-          {/* Información adicional */}
-          <div className="mt-2 pt-2 border-t border-gray-200">
-            <div className="flex items-center justify-between text-xs text-gray-600">
-              <div className="flex items-center gap-3">
-                <span>
-                  <span className="font-medium">Capacidad:</span> 
-                  <span className={`ml-1 font-semibold ${
-                    recuentoAsesores.activos >= recuentoAsesores.total * 0.8 ? 'text-green-600' :
-                    recuentoAsesores.activos >= recuentoAsesores.total * 0.6 ? 'text-yellow-600' : 'text-red-600'
-                  }`}>
-                    {recuentoAsesores.total > 0 ? ((recuentoAsesores.activos / recuentoAsesores.total) * 100).toFixed(0) : 0}%
-                  </span>
-                </span>
-                {recuentoAsesores.bloqueados > 0 && (
-                  <span className="text-red-600 flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" />
-                    {recuentoAsesores.bloqueados} sin operar
-                  </span>
-                )}
-              </div>
-              <div className="text-gray-500">
-                {new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
-      
+
+     
+
       {/* Leyenda de Tasa de Conversión */}
       <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
         <div className="flex items-center justify-between mb-3">
@@ -1195,44 +1161,102 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
             </div>
           </div>
         </div>
-        
-        {/* Nueva sección de información sobre prioridades */}
-        <div className="bg-white rounded-md p-3 border border-gray-200">
-          <div className="flex items-center gap-2 mb-2">
-            <Star className="h-4 w-4 text-yellow-600" />
-            <span className="text-xs font-semibold text-gray-700">Sistema de Prioridades</span>
-          </div>
-          <div className="text-xs text-gray-600 space-y-1">
-            <div>• <span className="font-medium">Prioridad Base:</span> 1 (Normal)</div>
-            <div>• <span className="font-medium">Máximo:</span> +3 (Prioridad 4)</div>
-            <div>• <span className="font-medium">Mínimo:</span> 1 (No se puede reducir)</div>
-            <div>• <span className="font-medium">Efecto:</span> Mayor prioridad = más clientes asignados</div>
+      </div>
+
+       {/* Recuento de Asesores */}
+       <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <Info className="h-4 w-4 text-blue-600" />
+            Estado del Equipo
+          </h3>
+          <div className="text-sm text-gray-500">
+            Total: {recuentoAsesores.total}
           </div>
         </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          {/* Asesores Activos */}
+          <div className="bg-green-50 rounded-lg p-4 border-l-4 border-green-500">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center mr-3">
+                  <CheckCircle2 className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-green-700">{recuentoAsesores.activos}</div>
+                  <div className="text-sm text-green-600">Activos</div>
+                </div>
+              </div>
+              <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                {recuentoAsesores.total > 0 ? Math.round((recuentoAsesores.activos / recuentoAsesores.total) * 100) : 0}%
+              </div>
+            </div>
+          </div>
+
+          {/* Asesores Bloqueados */}
+          <div className="bg-red-50 rounded-lg p-4 border-l-4 border-red-500">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center mr-3">
+                  <Ban className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-red-700">{recuentoAsesores.bloqueados}</div>
+                  <div className="text-sm text-red-600">Bloqueados</div>
+                </div>
+              </div>
+              <div className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                {recuentoAsesores.total > 0 ? Math.round((recuentoAsesores.bloqueados / recuentoAsesores.total) * 100) : 0}%
+              </div>
+            </div>
+          </div>
+
+        </div>
+        
+        
       </div>
+
       
       <div className="overflow-x-auto">
-        <table className="min-w-full bg-white rounded-lg overflow-hidden">
-          <thead className="bg-gray-50">
+        <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-lg border border-gray-200">
+          <thead className="bg-gradient-to-r from-gray-100 to-gray-50 border-b-2 border-gray-200">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asesor</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasa de Cierre</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Última Actividad</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reglas Activas</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+              <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                Asesor
+              </th>
+              <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                Prioridad
+              </th>
+              <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                Tasa de Cierre
+              </th>
+              <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                Estado
+              </th>
+              <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                Última Actividad
+              </th>
+              <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                Reglas Activas
+              </th>
+              <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {asesoresOrdenados.map((asesor) => (
-              <tr key={asesor.ID} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</div>
+            {asesoresOrdenados.map((asesor, index) => (
+              <tr key={asesor.ID} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
+                <td className="px-4 py-6 text-center border-r border-gray-200">
+                  <div className="flex flex-col items-center">
+                    <div className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</div>
+                    <div className="text-xs text-gray-500 mt-1">ID: {asesor.ID}</div>
+                  </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-1">
+                <td className="px-4 py-6 text-center border-r border-gray-200">
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="flex items-center justify-center">
                       {(asesor.PRIORIDAD ?? 1) > 1 ? (
                         <div className="flex items-center text-green-600">
                           <ArrowUpCircle className="h-5 w-5" />
@@ -1256,7 +1280,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                         </div>
                       )}
                     </div>
-                    <div className="flex space-x-1">
+                    <div className="flex justify-center space-x-2">
                       <button
                         onClick={() => {
                           setAsesorSeleccionado(asesor);
@@ -1264,7 +1288,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                           setMostrarModalPrioridad(true);
                         }}
                         disabled={(asesor.PRIORIDAD ?? 1) >= 4}
-                        className={`p-1 rounded-full ${
+                        className={`p-2 rounded-full transition-colors ${
                           (asesor.PRIORIDAD ?? 1) >= 4 
                             ? 'text-gray-400 cursor-not-allowed' 
                             : 'text-green-600 hover:bg-green-50'
@@ -1280,7 +1304,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                           setMostrarModalPrioridad(true);
                         }}
                         disabled={(asesor.PRIORIDAD ?? 1) <= 1}
-                        className={`p-1 rounded-full ${
+                        className={`p-2 rounded-full transition-colors ${
                           (asesor.PRIORIDAD ?? 1) <= 1 
                             ? 'text-gray-400 cursor-not-allowed' 
                             : 'text-red-600 hover:bg-red-50'
@@ -1292,12 +1316,12 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-6 text-center border-r border-gray-200">
                   {estadisticas[asesor.ID] ? (
-                    <div className="flex flex-col space-y-2">
+                    <div className="flex flex-col items-center space-y-2">
                       {/* Tasa principal */}
-                      <div className="flex items-center gap-3">
-                        <div className="font-bold text-lg text-blue-600">
+                      <div className="flex flex-col items-center">
+                        <div className="font-bold text-2xl text-blue-600">
                           {estadisticas[asesor.ID].porcentajeCierre.toFixed(1)}%
                         </div>
                         {(() => {
@@ -1330,7 +1354,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                       </div>
                       
                       {/* Métricas adicionales */}
-                      <div className="text-xs text-gray-600 space-y-1">
+                      <div className="text-xs text-gray-600 space-y-1 text-center">
                         <div className="flex justify-between">
                           <span>Ventas:</span>
                           <span className="font-medium">
@@ -1354,34 +1378,36 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                         </div>
                         
                         {/* Recomendación basada en rendimiento */}
-                        {(() => {
-                          const tasa = estadisticas[asesor.ID].porcentajeCierre;
-                          const prioridadActual = asesor.PRIORIDAD || 1;
-                          
-                          if (tasa > OBJETIVO_TASA_CIERRE.MAX && prioridadActual <= 1) {
-                            return (
-                              <div className="flex items-center gap-1 text-green-600">
-                                <ArrowUpCircle className="h-3 w-3" />
-                                <span className="font-medium">Merece bonificación</span>
-                              </div>
-                            );
-                          } else if (tasa < OBJETIVO_TASA_CIERRE.MIN && prioridadActual >= 1) {
-                            return (
-                              <div className="flex items-center gap-1 text-red-600">
-                                <AlertTriangle className="h-3 w-3" />
-                                <span className="font-medium">Requiere seguimiento</span>
-                              </div>
-                            );
-                          } else if (tasa >= OBJETIVO_TASA_CIERRE.MIN && tasa <= OBJETIVO_TASA_CIERRE.MAX) {
-                            return (
-                              <div className="flex items-center gap-1 text-blue-600">
-                                <CheckCircle2 className="h-3 w-3" />
-                                <span className="font-medium">Rendimiento óptimo</span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
+                        <div className="mt-2">
+                          {(() => {
+                            const tasa = estadisticas[asesor.ID].porcentajeCierre;
+                            const prioridadActual = asesor.PRIORIDAD || 1;
+                            
+                            if (tasa > OBJETIVO_TASA_CIERRE.MAX && prioridadActual <= 1) {
+                              return (
+                                <div className="flex items-center gap-1 text-green-600">
+                                  <ArrowUpCircle className="h-3 w-3" />
+                                  <span className="font-medium text-xs">Merece bonificación</span>
+                                </div>
+                              );
+                            } else if (tasa < OBJETIVO_TASA_CIERRE.MIN && prioridadActual >= 1) {
+                              return (
+                                <div className="flex items-center gap-1 text-red-600">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <span className="font-medium text-xs">Requiere seguimiento</span>
+                                </div>
+                              );
+                            } else if (tasa >= OBJETIVO_TASA_CIERRE.MIN && tasa <= OBJETIVO_TASA_CIERRE.MAX) {
+                              return (
+                                <div className="flex items-center gap-1 text-blue-600">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  <span className="font-medium text-xs">Rendimiento óptimo</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1391,72 +1417,16 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                     </div>
                   )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    {(() => {
-                      const ahoraEpoch = Math.floor(Date.now() / 1000); // Timestamp actual en segundos (epoch)
-                      // Las fechas en la BD ahora son epoch (timestamp unix en segundos)
-                      const fechaInicioEpoch = asesor.FECHA_INICIO_REGLA ? Number(asesor.FECHA_INICIO_REGLA) : null;
-                      const fechaFinEpoch = asesor.FECHA_FIN_REGLA ? Number(asesor.FECHA_FIN_REGLA) : null;
-                      
-                      // Para debug/display convertimos a Date (sólo para visualización)
-                      const fechaInicio = fechaInicioEpoch ? new Date(fechaInicioEpoch * 1000) : null;
-                      const fechaFin = fechaFinEpoch ? new Date(fechaFinEpoch * 1000) : null;
-                      
-                      // Está bloqueado si:
-                      // 1. Existe fecha inicio y no hay fecha fin
-                      // 2. Existe fecha inicio y fin, y ahora está entre ese rango
-                      const bloqueado = (fechaInicioEpoch && !fechaFinEpoch) || 
-                                        (fechaInicioEpoch && fechaFinEpoch && 
-                                         ahoraEpoch >= fechaInicioEpoch && ahoraEpoch <= fechaFinEpoch);
-                      
-                      if (bloqueado) {
-                        return (
-                          <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center">
-                              <Ban className="h-5 w-5 text-red-600" />
-                            </div>
-                            <span className="px-2 py-1 text-sm font-medium bg-red-100 text-red-700 rounded-lg">
-                              Bloqueado
-                            </span>
-                          </div>
-                        );
-                      } else if (asesor.PAUSADO) {
-                        return (
-                          <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-full bg-yellow-100 flex items-center justify-center">
-                              <Clock className="h-5 w-5 text-yellow-600" />
-                            </div>
-                            <span className="px-2 py-1 text-sm font-medium bg-yellow-100 text-yellow-700 rounded-lg">
-                              En pausa
-                            </span>
-                          </div>
-                        );
-                      } else {
-                        return (
-                          <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                              <CheckCircle2 className="h-5 w-5 text-green-600" />
-                            </div>
-                            <span className="px-2 py-1 text-sm font-medium bg-green-100 text-green-700 rounded-lg">
-                              Activo
-                            </span>
-                          </div>
-                        );
-                      }
-                    })()}
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="space-y-3 text-sm">
+                <td className="px-4 py-6 text-center border-r border-gray-200">
+                  <div className="space-y-2 max-w-xs mx-auto">
                     {estadisticas[asesor.ID] ? (
                       <>
-                        {/* Velocidad de Ventas */}
+                        {/* Velocidad de Ventas - Compacto */}
                         <div className="bg-blue-50 p-2 rounded-md border border-blue-200">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium text-blue-600 flex items-center">
-                              <TrendingUp className="h-4 w-4 mr-1" />
-                              Velocidad de Ventas
+                            <span className="text-xs font-medium text-blue-600 flex items-center">
+                              <TrendingUp className="h-3 w-3 mr-1" />
+                              Velocidad
                             </span>
                             {/* Calcular velocidad de ventas */}
                             {(() => {
@@ -1486,114 +1456,152 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                               }
                               
                               return (
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${colorClase}`}>
+                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${colorClase}`}>
                                   {textoVelocidad}
                                 </span>
                               );
                             })()}
                           </div>
-                          <div className="text-xs text-blue-600">
-                            {estadisticas[asesor.ID].ventasRealizadas || 0} ventas realizadas
+                          <div className="text-xs text-blue-600 text-center">
+                            {estadisticas[asesor.ID].ventasRealizadas || 0} ventas
                           </div>
                         </div>
 
-                        {/* Última venta */}
-                        <div className="bg-gray-50 p-2 rounded-md">
+                        {/* Último Cliente Asignado - Compacto */}
+                        <div className="bg-purple-50 p-2 rounded-md border border-purple-200">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium text-gray-600 flex items-center">
-                              <DollarSign className="h-4 w-4 mr-1" />
-                              Última Venta
+                            <span className="text-xs font-medium text-purple-600 flex items-center">
+                              <User className="h-3 w-3 mr-1" />
+                              Último Cliente
                             </span>
-                            {/* Usar variables directamente en lugar de IIFE */}
                             {(() => {
+                              const ultimoCliente = getUltimoClienteAsignado(asesor.ID);
+                              if (!ultimoCliente) {
+                                return (
+                                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                    Sin clientes
+                                  </span>
+                                );
+                              }
+
+                              const fechaCreacion = typeof ultimoCliente.FECHA_CREACION === 'string' 
+                                ? parseInt(ultimoCliente.FECHA_CREACION) 
+                                : ultimoCliente.FECHA_CREACION;
                               const ahora = Math.floor(Date.now() / 1000);
-                              const ultimaVenta = estadisticas[asesor.ID].ultimaVenta;
-                              const minutosDesdeVenta = ultimaVenta ? Math.floor((ahora - ultimaVenta) / 60) : null;
+                              const minutosDesdeAsignacion = Math.floor((ahora - fechaCreacion) / 60);
                               
                               return (
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getColorTiempo(minutosDesdeVenta, 1440)}`}>
-                                  {formatearTiempoMinutos(minutosDesdeVenta)}
+                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${getColorTiempo(minutosDesdeAsignacion, 60)}`}>
+                                  {formatearTiempoMinutos(minutosDesdeAsignacion)}
                                 </span>
                               );
                             })()}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {estadisticas[asesor.ID].ultimaVenta 
-                              ? new Date(estadisticas[asesor.ID].ultimaVenta * 1000).toLocaleDateString() + ' ' + 
-                                new Date(estadisticas[asesor.ID].ultimaVenta * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-                              : 'Sin ventas registradas'
-                            }
+                          <div className="text-xs text-purple-600">
+                            {(() => {
+                              const ultimoCliente = getUltimoClienteAsignado(asesor.ID);
+                              if (!ultimoCliente) {
+                                return <span className="text-center block">No hay clientes</span>;
+                              }
+                              
+                              const fuente = getFuente(ultimoCliente.ID);
+                              return (
+                                <div className="space-y-1">
+
+                                  <div className="flex justify-center">
+                                    <span className={`px-1 py-0.5 rounded text-xs font-medium ${
+                                      fuente === 'LINK' ? 'bg-green-100 text-green-700' :
+                                      fuente === 'MASIVOS' ? 'bg-blue-100 text-blue-700' :
+                                      fuente === 'HOTMART' ? 'bg-orange-100 text-orange-700' :
+                                      'bg-gray-100 text-gray-700'
+                                    }`}>
+                                      {fuente}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
-                        
-                        {/* Último mensaje saliente */}
-                        <div className="bg-gray-50 p-2 rounded-md">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium text-gray-600 flex items-center">
-                              <MessageSquare className="h-4 w-4 mr-1" />
-                              Último Mensaje
-                            </span>
-                            {/* Calcular tiempo desde el último mensaje */}
-                            {(() => {
-                              const ahora = Math.floor(Date.now() / 1000);
-                              const ultimoMensaje = estadisticas[asesor.ID].ultimoMensaje;
-                              const minutosDesdeMensaje = ultimoMensaje ? Math.floor((ahora - ultimoMensaje) / 60) : null;
-                              
-                              return (
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getColorTiempo(minutosDesdeMensaje, 30)}`}>
-                                  {formatearTiempoMinutos(minutosDesdeMensaje)}
-                                </span>
-                              );
-                            })()}
+
+                        {/* Actividades en Grid 2x2 para mayor compacidad */}
+                        <div className="grid grid-cols-2 gap-1">
+                          {/* Última venta */}
+                          <div className="bg-gray-50 p-1.5 rounded border border-gray-200">
+                            <div className="flex flex-col items-center">
+                              <div className="flex items-center mb-1">
+                                <DollarSign className="h-3 w-3 text-gray-600 mr-1" />
+                                <span className="text-xs font-medium text-gray-600">Última Venta</span>
+                              </div>
+                              {(() => {
+                                const ahora = Math.floor(Date.now() / 1000);
+                                const ultimaVenta = estadisticas[asesor.ID].ultimaVenta;
+                                const minutosDesdeVenta = ultimaVenta ? Math.floor((ahora - ultimaVenta) / 60) : null;
+                                
+                                return (
+                                  <span className={`text-xs font-semibold px-1 py-0.5 rounded-full ${getColorTiempo(minutosDesdeVenta, 1440)}`}>
+                                    {formatearTiempoMinutos(minutosDesdeVenta)}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {estadisticas[asesor.ID].ultimoMensaje 
-                              ? new Date(estadisticas[asesor.ID].ultimoMensaje * 1000).toLocaleDateString() + ' ' + 
-                                new Date(estadisticas[asesor.ID].ultimoMensaje * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-                              : 'Sin mensajes enviados'
-                            }
+                          
+                          {/* Último mensaje */}
+                          <div className="bg-gray-50 p-1.5 rounded border border-gray-200">
+                            <div className="flex flex-col items-center">
+                              <div className="flex items-center mb-1">
+                                <MessageSquare className="h-3 w-3 text-gray-600 mr-1" />
+                                <span className="text-xs font-medium text-gray-600">Último Mensaje enviado</span>
+                              </div>
+                              {(() => {
+                                const ahora = Math.floor(Date.now() / 1000);
+                                const ultimoMensaje = estadisticas[asesor.ID].ultimoMensaje;
+                                const minutosDesdeMensaje = ultimoMensaje ? Math.floor((ahora - ultimoMensaje) / 60) : null;
+                                
+                                return (
+                                  <span className={`text-xs font-semibold px-1 py-0.5 rounded-full ${getColorTiempo(minutosDesdeMensaje, 30)}`}>
+                                    {formatearTiempoMinutos(minutosDesdeMensaje)}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </div>
-                        </div>
-                        
-                        {/* Último reporte */}
-                        <div className="bg-gray-50 p-2 rounded-md">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium text-gray-600 flex items-center">
-                              <FileText className="h-4 w-4 mr-1" />
-                              Último Reporte
-                            </span>
-                            {/* Calcular tiempo desde el último reporte */}
-                            {(() => {
-                              const ahora = Math.floor(Date.now() / 1000);
-                              const ultimoReporte = estadisticas[asesor.ID].ultimoReporte;
-                              const minutosDesdeReporte = ultimoReporte ? Math.floor((ahora - ultimoReporte) / 60) : null;
-                              
-                              return (
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getColorTiempo(minutosDesdeReporte, 60)}`}>
-                                  {formatearTiempoMinutos(minutosDesdeReporte)}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {estadisticas[asesor.ID].ultimoReporte 
-                              ? new Date(estadisticas[asesor.ID].ultimoReporte * 1000).toLocaleDateString() + ' ' + 
-                                new Date(estadisticas[asesor.ID].ultimoReporte * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-                              : 'Sin reportes aún'
-                            }
+                          
+                          {/* Último reporte */}
+                          <div className="bg-gray-50 p-1.5 rounded border border-gray-200 col-span-2">
+                            <div className="flex items-center justify-center">
+                              <div className="flex items-center mr-2">
+                                <FileText className="h-3 w-3 text-gray-600 mr-1" />
+                                <span className="text-xs font-medium text-gray-600">Último Reporte:</span>
+                              </div>
+                              {(() => {
+                                const ahora = Math.floor(Date.now() / 1000);
+                                const ultimoReporte = estadisticas[asesor.ID].ultimoReporte;
+                                const minutosDesdeReporte = ultimoReporte ? Math.floor((ahora - ultimoReporte) / 60) : null;
+                                
+                                return (
+                                  <span className={`text-xs font-semibold px-1 py-0.5 rounded-full ${getColorTiempo(minutosDesdeReporte, 60)}`}>
+                                    {formatearTiempoMinutos(minutosDesdeReporte)}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </div>
                       </>
                     ) : (
                       <div className="flex flex-col items-center justify-center py-4">
-                        <span className="text-gray-400 text-sm">Sin actividad registrada</span>
-                        <span className="text-xs text-gray-300">No hay datos disponibles</span>
+                        <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mb-2">
+                          <AlertTriangle className="h-4 w-4 text-gray-400" />
+                        </div>
+                        <p className="text-gray-500 text-center font-medium text-xs">Sin datos</p>
                       </div>
                     )}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900 space-y-2">
+                <td className="px-4 py-6 text-center border-r border-gray-200">
+                  <div className="flex flex-col items-center space-y-3">
                    
                     
                     {/* Bloqueo */}
@@ -1622,33 +1630,36 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                           ahoraEpoch: ahoraEpoch
                         });
                         return (
-                          <div className="flex items-center gap-2 p-2 bg-red-50 rounded-md border border-red-200">
-                            <Ban className="h-4 w-4 text-red-600 flex-shrink-0" />
-                            <div className="flex flex-col w-full">
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium text-red-700">Bloqueo activo</span>
-                                {fechaFin && (
-                                  <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full font-medium text-xs">
-                                    {calcularTiempoRestante(fechaFin)}
-                                  </span>
-                                )}
-                              </div>
+                          <div className="flex flex-col items-center gap-3 p-4 bg-red-50 rounded-lg border border-red-200 max-w-xs">
+                            <div className="flex items-center gap-2">
+                              <Ban className="h-5 w-5 text-red-600 flex-shrink-0" />
+                              <span className="font-medium text-red-700 text-sm">Bloqueo activo</span>
+                            </div>
+                            <div className="text-center">
                               {mostrarPeriodoBloqueo(fechaInicio, fechaFin)}
                               
-                              {/* Botón para quitar bloqueo */}
-                              <button
-                                onClick={() => {
-                                  if (confirm('¿Estás seguro de quitar el bloqueo?')) {
-                                    quitarBloqueo(asesor.ID);
-                                  }
-                                }}
-                                className="mt-2 px-2 py-1 bg-white border border-red-300 text-red-700 rounded-md 
-                                          text-xs font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-1"
-                              >
-                                <X className="h-3 w-3" />
-                                <span>Quitar bloqueo</span>
-                              </button>
+                              {fechaFin && (
+                                <div className="mt-2">
+                                  <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full font-medium text-xs">
+                                    {calcularTiempoRestante(fechaFin)}
+                                  </span>
+                                </div>
+                              )}
                             </div>
+                            
+                            {/* Botón para quitar bloqueo */}
+                            <button
+                              onClick={() => {
+                                if (confirm('¿Estás seguro de quitar el bloqueo?')) {
+                                  quitarBloqueo(asesor.ID);
+                                }
+                              }}
+                              className="px-3 py-1 bg-white border border-red-300 text-red-700 rounded-md 
+                                        text-xs font-medium hover:bg-red-50 transition-colors flex items-center gap-1"
+                            >
+                              <X className="h-3 w-3" />
+                              <span>Quitar bloqueo</span>
+                            </button>
                           </div>
                         );
                       }
@@ -1661,33 +1672,33 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                         setAsesorSeleccionado(asesor);
                         setMostrarModalHistorial(true);
                       }}
-                      className="inline-flex items-center gap-1 px-2 py-1 mt-1
+                      className="inline-flex items-center gap-2 px-4 py-2
                         bg-gradient-to-b from-white to-blue-50 
                         text-blue-700 text-sm
-                        rounded 
+                        rounded-lg 
                         border border-blue-200 
-                        shadow-sm hover:shadow 
+                        shadow-sm hover:shadow-md 
                         transform hover:-translate-y-0.5 
                         transition-all duration-150
                         group"
                     >
-                      <History className="h-3.5 w-3.5 group-hover:text-blue-800" />
+                      <History className="h-4 w-4 group-hover:text-blue-800" />
                       <span className="font-medium group-hover:text-blue-800">Historial</span>
                       {asesor.HISTORIAL ? (
-                        <span className="ml-0.5 px-1 py-0 bg-blue-600 text-white rounded-full text-xs font-medium shadow-inner">
+                        <span className="px-1.5 py-0.5 bg-blue-600 text-white rounded-full text-xs font-medium shadow-inner">
                           {JSON.parse(asesor.HISTORIAL).length}
                         </span>
                       ) : null}
                     </button>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
+                <td className="px-4 py-6 text-center">
                   <button
                     onClick={() => {
                       setAsesorSeleccionado(asesor);
                       setMostrarModal(true);
                     }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
                   >
                     Otras Reglas
                   </button>

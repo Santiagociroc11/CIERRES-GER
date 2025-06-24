@@ -47,7 +47,7 @@ function normalizeString(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
-function sonSimilares(c1: Cliente, c2: Cliente, umbral = 0.76): boolean {
+function sonSimilares(c1: Cliente, c2: Cliente, umbral = 0.8): boolean {
   const nombreSim = similarity(normalizeString(c1.NOMBRE), normalizeString(c2.NOMBRE));
   const whatsappSim = similarity(normalizeString(c1.WHATSAPP || ''), normalizeString(c2.WHATSAPP || ''));
   return nombreSim >= umbral || whatsappSim >= umbral;
@@ -82,6 +82,7 @@ const ClienteRow = React.memo(({
   getFuente: (id: number) => string;
   onVerHistorial: (cliente: Cliente) => void;
   onVerificarVenta: (cliente: Cliente) => void;
+  onDesverificarVenta: (cliente: Cliente) => void;
   enDisputa: boolean;
 }) => {
   // Función para obtener el texto del estado, incluyendo detalle de verificación
@@ -477,7 +478,8 @@ function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalRes
   const [comentario, setComentario] = useState("");
   const [password, setPassword] = useState("");
 
-  const getNombreAsesor = (id: number) => {
+  const getNombreAsesor = (id: number | null) => {
+    if (id === null) return "Desconocido";
     const asesor = asesores.find(a => a.ID === id);
     return asesor ? asesor.NOMBRE : "Desconocido";
   };
@@ -749,7 +751,7 @@ function AuditorDashboard() {
 
     const workbook = XLSX.utils.book_new();
 
-    /*** 1. Hoja “Parametros” ***/
+    /*** 1. Hoja "Parametros" ***/
     // Agrupar fuentes: si la fuente no es "LINKS" ni "MASIVOS", se agrupa como "HOTMART"
     // Para la hoja "Parametros"
     const uniqueSources = Array.from(
@@ -781,7 +783,7 @@ function AuditorDashboard() {
     const wsParametros = XLSX.utils.aoa_to_sheet(parametrosData);
     XLSX.utils.book_append_sheet(workbook, wsParametros, "Parametros");
 
-    /*** 2. Hoja “Detalle” ***/
+    /*** 2. Hoja "Detalle" ***/
     const detalleData = [];
     detalleData.push(["Asesor", "Cliente", "WhatsApp", "Fuente", "Estado", "Comisión"]);
 
@@ -828,7 +830,7 @@ function AuditorDashboard() {
     const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData);
     XLSX.utils.book_append_sheet(workbook, wsDetalle, "Detalle");
 
-    /*** 3. Hoja “Resumen” ***/
+    /*** 3. Hoja "Resumen" ***/
     // Nuevo encabezado con columnas para ventas reportadas y válidas
     const resumenData = [];
     resumenData.push([
@@ -1051,7 +1053,7 @@ function AuditorDashboard() {
       function normalizeString(str) {
         return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
       }
-      function sonSimilares(c1, c2, umbral = 0.76) {
+      function sonSimilares(c1, c2, umbral = 0.8) {
         const nombreSim = similarity(normalizeString(c1.NOMBRE), normalizeString(c2.NOMBRE));
         const whatsappSim = similarity(normalizeString(c1.WHATSAPP || ''), normalizeString(c2.WHATSAPP || ''));
         return nombreSim >= umbral || whatsappSim >= umbral;
@@ -1176,7 +1178,7 @@ function AuditorDashboard() {
     setVentaVerificar(cliente);
   };
 
-  const confirmDesverificarVenta = async (cliente: Cliente) => {
+  const confirmDesverificarVenta = async (cliente: Cliente, comentario: string) => {
     const reporteIndex = reportes.findIndex(
       r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
     );
@@ -1189,11 +1191,11 @@ function AuditorDashboard() {
         {
           verificada: false,
           estado_verificacion: '',
-          comentario_rechazo: ''
+          comentario_rechazo: comentario
         }
       );
       console.log('Respuesta del PATCH (desverificar):', response);
-      const updatedReporte = { ...reporte, verificada: false, estado_verificacion: '', comentario_rechazo: '' };
+      const updatedReporte = { ...reporte, verificada: false, estado_verificacion: '', comentario_rechazo: comentario };
       const nuevosReportes = [...reportes];
       nuevosReportes[reporteIndex] = updatedReporte;
       setReportes(nuevosReportes);

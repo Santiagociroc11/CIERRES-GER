@@ -941,27 +941,65 @@ function AuditorDashboard() {
     );
   }, [clientes, productoFiltro, reportes]);
 
-  const getNombreAsesor = (asesorId: number): string => {
+  const getNombreAsesor = (asesorId: number | null): string => {
+    if (asesorId === null) return '';
     const asesor = asesores.find(a => a.ID === asesorId);
     return asesor ? asesor.NOMBRE : '';
   };
 
   const getEstadisticasAsesor = (asesorId: number) => {
+    const reportesAsesor = reportesFiltrados.filter(r => r.ID_ASESOR === asesorId);
+    
     const ventasReportadas = Array.from(
-      new Set(
-        reportesFiltrados
-          .filter(r => r.ID_ASESOR === asesorId && r.ESTADO_NUEVO === 'PAGADO')
-          .map(r => r.ID_CLIENTE)
-      )
+        new Set(reportesAsesor.filter(r => r.ESTADO_NUEVO === 'PAGADO').map(r => r.ID_CLIENTE))
     ).length;
-    const ventasConsolidadas = Array.from(
-      new Set(
-        reportesFiltrados
-          .filter(r => r.ID_ASESOR === asesorId && (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'))
-          .map(r => r.ID_CLIENTE)
-      )
-    ).length;
-    return { ventasReportadas, ventasConsolidadas };
+
+    // Usar reportesFiltrados para el conteo inicial de consolidadas por producto
+    const reportesAsesorConsolidados = reportesAsesor.filter(
+        r => r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
+    );
+    const clientesConsolidadosIds = Array.from(new Set(reportesAsesorConsolidados.map(r => r.ID_CLIENTE)));
+    
+    let ventasAprobadas = 0;
+    let ventasRechazadas = 0;
+    let ventasPorVerificar = 0;
+
+    for (const clienteId of clientesConsolidadosIds) {
+        if (!clienteId) continue;
+        
+        // Usar TODOS los reportes (sin filtro de producto) para encontrar el estado de verificación más reciente del cliente
+        const todosLosReportesCliente = reportes.filter(r => r.ID_CLIENTE === clienteId && (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'));
+        
+        if (todosLosReportesCliente.length === 0) continue;
+
+        todosLosReportesCliente.sort((a, b) => {
+            const fechaA = typeof a.FECHA_REPORTE === 'string' ? parseInt(a.FECHA_REPORTE, 10) : (a.FECHA_REPORTE || 0);
+            const fechaB = typeof b.FECHA_REPORTE === 'string' ? parseInt(b.FECHA_REPORTE, 10) : (b.FECHA_REPORTE || 0);
+            return fechaB - fechaA;
+        });
+        
+        const ultimoReporte = todosLosReportesCliente[0];
+        
+        if (ultimoReporte) {
+            if (ultimoReporte.verificada) {
+                if (ultimoReporte.estado_verificacion === 'aprobada') {
+                    ventasAprobadas++;
+                } else if (ultimoReporte.estado_verificacion === 'rechazada') {
+                    ventasRechazadas++;
+                }
+            } else {
+                ventasPorVerificar++;
+            }
+        }
+    }
+
+    return {
+        ventasReportadas,
+        ventasConsolidadas: clientesConsolidadosIds.length,
+        ventasAprobadas,
+        ventasRechazadas,
+        ventasPorVerificar
+    };
   };
 
   const normalizeString = (str: string) =>
@@ -1102,12 +1140,18 @@ function AuditorDashboard() {
     asesor,
     ventasReportadas,
     ventasConsolidadas,
+    ventasAprobadas,
+    ventasRechazadas,
+    ventasPorVerificar,
     onClick,
     style,
   }: {
     asesor: Asesor;
     ventasReportadas: number;
     ventasConsolidadas: number;
+    ventasAprobadas: number;
+    ventasRechazadas: number;
+    ventasPorVerificar: number;
     onClick: () => void;
     style: React.CSSProperties;
   }) => {
@@ -1115,6 +1159,7 @@ function AuditorDashboard() {
       ventasReportadas > 0
         ? ((ventasConsolidadas / ventasReportadas) * 100).toFixed(1)
         : '0';
+
     return (
       <div
         className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
@@ -1126,24 +1171,30 @@ function AuditorDashboard() {
             <h3 className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</h3>
             <p className="text-sm text-gray-500">WhatsApp: {asesor.WHATSAPP}</p>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-center">
-              <span className="block text-2xl font-semibold text-green-600">
-                {ventasReportadas}
-              </span>
+          <div className="flex items-center space-x-2">
+            <div className="text-center p-2 rounded-lg min-w-[80px]">
+              <span className="block text-xl font-semibold text-green-600">{ventasReportadas}</span>
               <span className="text-xs text-gray-500">Reportadas</span>
             </div>
-            <div className="text-center">
-              <span className="block text-2xl font-semibold text-purple-600">
-                {ventasConsolidadas}
-              </span>
+            <div className="text-center p-2 rounded-lg min-w-[80px]">
+              <span className="block text-xl font-semibold text-purple-600">{ventasConsolidadas}</span>
               <span className="text-xs text-gray-500">Consolidadas</span>
             </div>
-            <div className="text-center">
-              <span className="block text-2xl font-semibold text-blue-600">
-                {porcentajeConsolidacion}%
-              </span>
+            <div className="text-center p-2 rounded-lg min-w-[80px]">
+              <span className="block text-xl font-semibold text-blue-600">{porcentajeConsolidacion}%</span>
               <span className="text-xs text-gray-500">Consolidación</span>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-yellow-100 min-w-[80px]">
+              <span className="block text-xl font-semibold text-yellow-800">{ventasPorVerificar}</span>
+              <span className="text-xs text-yellow-600">Por Verificar</span>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-green-100 min-w-[80px]">
+              <span className="block text-xl font-semibold text-green-800">{ventasAprobadas}</span>
+              <span className="text-xs text-green-600">Aprobadas</span>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-red-100 min-w-[80px]">
+              <span className="block text-xl font-semibold text-red-800">{ventasRechazadas}</span>
+              <span className="text-xs text-red-600">Rechazadas</span>
             </div>
           </div>
         </div>
@@ -1154,13 +1205,16 @@ function AuditorDashboard() {
   const renderAsesorRow = useCallback(
     ({ index, style }: { index: number; style: React.CSSProperties }) => {
       const asesor = asesoresFiltrados[index];
-      const { ventasReportadas, ventasConsolidadas } = getEstadisticasAsesor(asesor.ID);
+      const { ventasReportadas, ventasConsolidadas, ventasAprobadas, ventasRechazadas, ventasPorVerificar } = getEstadisticasAsesor(asesor.ID);
       return (
         <AsesorItem
           key={asesor.ID}
           asesor={asesor}
           ventasReportadas={ventasReportadas}
           ventasConsolidadas={ventasConsolidadas}
+          ventasAprobadas={ventasAprobadas}
+          ventasRechazadas={ventasRechazadas}
+          ventasPorVerificar={ventasPorVerificar}
           onClick={() => setAsesorSeleccionado(asesor)}
           style={style}
         />
@@ -1386,16 +1440,22 @@ function AuditorDashboard() {
           </div>
           {asesoresFiltrados.length > 0 ? (
             <div className="divide-y divide-gray-200">
-              {sortedAsesores.map((asesor, index) => (
-                <AsesorItem
-                  key={asesor.ID}
-                  asesor={asesor}
-                  ventasReportadas={getEstadisticasAsesor(asesor.ID).ventasReportadas}
-                  ventasConsolidadas={getEstadisticasAsesor(asesor.ID).ventasConsolidadas}
-                  onClick={() => setAsesorSeleccionado(asesor)}
-                  style={{ height: '100px' }}
-                />
-              ))}
+              {sortedAsesores.map((asesor) => {
+                const { ventasReportadas, ventasConsolidadas, ventasAprobadas, ventasRechazadas, ventasPorVerificar } = getEstadisticasAsesor(asesor.ID);
+                return (
+                  <AsesorItem
+                    key={asesor.ID}
+                    asesor={asesor}
+                    ventasReportadas={ventasReportadas}
+                    ventasConsolidadas={ventasConsolidadas}
+                    ventasAprobadas={ventasAprobadas}
+                    ventasRechazadas={ventasRechazadas}
+                    ventasPorVerificar={ventasPorVerificar}
+                    onClick={() => setAsesorSeleccionado(asesor)}
+                    style={{ height: '100px' }}
+                  />
+                );
+              })}
             </div>
 
           ) : (
@@ -1540,3 +1600,4 @@ function AuditorDashboard() {
 }
 
 export default AuditorDashboard;
+

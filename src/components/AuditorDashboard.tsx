@@ -9,12 +9,13 @@ import React, {
 import { FixedSizeList as List } from 'react-window';
 import { Asesor, Cliente, Reporte, Registro } from '../types';
 import { apiClient } from '../lib/apiClient';
-import { FileVideo, DollarSign, Search, LogOut, X, CheckCircle } from 'lucide-react';
+import { FileVideo, DollarSign, Search, LogOut, X, CheckCircle, MessageSquare } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 
 // Lazy load para reducir el tamaño inicial del bundle
 const HistorialCliente = lazy(() => import('./HistorialCliente'));
+const ChatModal = lazy(() => import('./ChatModal'));
 
 /* ––––––– FUNCIONES DE SIMILITUD ––––––– */
 function levenshteinDistance(a: string, b: string): number {
@@ -65,6 +66,7 @@ interface ClientesAsesorModalProps {
   onVerificarVenta: (cliente: Cliente) => void;
   onDesverificarVenta: (cliente: Cliente) => void;
   onResolverDisputa: (grupo: Cliente[]) => void;
+  onVerChat: (cliente: Cliente) => void;
 }
 
 // Componente para renderizar cada fila de cliente y usar memo para actualizar solo esa fila
@@ -75,6 +77,7 @@ const ClienteRow = React.memo(({
   onVerHistorial,
   onVerificarVenta,
   onDesverificarVenta,
+  onVerChat,
   enDisputa
 }: {
   cliente: Cliente;
@@ -83,6 +86,7 @@ const ClienteRow = React.memo(({
   onVerHistorial: (cliente: Cliente) => void;
   onVerificarVenta: (cliente: Cliente) => void;
   onDesverificarVenta: (cliente: Cliente) => void;
+  onVerChat: (cliente: Cliente) => void;
   enDisputa: boolean;
 }) => {
   // Función para obtener el texto del estado, incluyendo detalle de verificación
@@ -146,34 +150,43 @@ const ClienteRow = React.memo(({
         {cliente.WHATSAPP}
       </td>
       <td className="px-6 py-4 whitespace-normal break-words text-right text-sm font-medium">
-        <button
-          onClick={() => onVerHistorial(cliente)}
-          className="text-purple-600 hover:text-purple-900"
-        >
-          Ver Historial
-        </button>
-        {reporte &&
-          (reporte.verificada ? (
-            <button
-              onClick={() => onDesverificarVenta(cliente)}
-              className="ml-2 px-3 py-1 rounded border bg-red-100 text-red-800 hover:bg-red-200"
-            >
-              Quitar verificación
-            </button>
-          ) : (
-            enDisputa ? (
-              <span className="ml-2 px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300">
-                EN DISPUTA
-              </span>
-            ) : (
+        <div className="flex flex-wrap gap-2 justify-end">
+          <button
+            onClick={() => onVerHistorial(cliente)}
+            className="px-3 py-1 text-purple-600 hover:text-purple-900 border border-purple-200 rounded hover:bg-purple-50"
+          >
+            Ver Historial
+          </button>
+          <button
+            onClick={() => onVerChat(cliente)}
+            className="inline-flex items-center px-3 py-1 text-white bg-indigo-600 hover:bg-indigo-700 rounded"
+          >
+            <MessageSquare className="h-3.5 w-3.5 mr-1" />
+            Chat
+          </button>
+          {reporte &&
+            (reporte.verificada ? (
               <button
-                onClick={() => onVerificarVenta(cliente)}
-                className="ml-2 px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
+                onClick={() => onDesverificarVenta(cliente)}
+                className="px-3 py-1 rounded border bg-red-100 text-red-800 hover:bg-red-200"
               >
-                Verificar
+                Quitar verificación
               </button>
-            )
-          ))}
+            ) : (
+              enDisputa ? (
+                <span className="px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300">
+                  EN DISPUTA
+                </span>
+              ) : (
+                <button
+                  onClick={() => onVerificarVenta(cliente)}
+                  className="px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
+                >
+                  Verificar
+                </button>
+              )
+            ))}
+        </div>
       </td>
     </tr>
   );
@@ -193,6 +206,7 @@ function ClientesAsesorModal({
   onVerificarVenta,
   onDesverificarVenta,
   onResolverDisputa,
+  onVerChat,
 }: ClientesAsesorModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -320,6 +334,7 @@ function ClientesAsesorModal({
                     onVerHistorial={onVerHistorial}
                     onVerificarVenta={onVerificarVenta}
                     onDesverificarVenta={onDesverificarVenta}
+                    onVerChat={onVerChat}
                     enDisputa={enDisputa}
                   />
                 );
@@ -689,7 +704,7 @@ function AuditorDashboard() {
   const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
   const [ventaDesverificar, setVentaDesverificar] = useState<Cliente | null>(null);
-
+  const [clienteParaChat, setClienteParaChat] = useState<Cliente | null>(null);
 
   // Estados para duplicados, progresos y modales
   const [duplicados, setDuplicados] = useState<Cliente[][]>([]);
@@ -1516,6 +1531,7 @@ function AuditorDashboard() {
           onVerificarVenta={handleVerificarVenta}
           onDesverificarVenta={(cliente) => setVentaDesverificar(cliente)}
           onResolverDisputa={handleResolverDisputa}
+          onVerChat={(cliente) => setClienteParaChat(cliente)}
           registros={registros}
         />
       )}
@@ -1592,6 +1608,24 @@ function AuditorDashboard() {
           }}
         />
 
+      )}
+
+      {/* Modal de Chat */}
+      {clienteParaChat && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+            </div>
+          }
+        >
+          <ChatModal
+            isOpen={!!clienteParaChat}
+            onClose={() => setClienteParaChat(null)}
+            cliente={clienteParaChat}
+            asesor={asesorSeleccionado ? { ID: asesorSeleccionado.ID, NOMBRE: asesorSeleccionado.NOMBRE } : { ID: 0, NOMBRE: 'Auditor' }}
+          />
+        </Suspense>
       )}
 
       <Toaster position="top-right" />

@@ -67,6 +67,7 @@ interface ClientesAsesorModalProps {
   onDesverificarVenta: (cliente: Cliente) => void;
   onResolverDisputa: (grupo: Cliente[]) => void;
   onVerChat: (cliente: Cliente) => void;
+  onResolverConflicto: (cliente: Cliente) => void;
 }
 
 // Componente para renderizar cada fila de cliente y usar memo para actualizar solo esa fila
@@ -78,6 +79,7 @@ const ClienteRow = React.memo(({
   onVerificarVenta,
   onDesverificarVenta,
   onVerChat,
+  onResolverConflicto,
   enDisputa
 }: {
   cliente: Cliente;
@@ -87,34 +89,73 @@ const ClienteRow = React.memo(({
   onVerificarVenta: (cliente: Cliente) => void;
   onDesverificarVenta: (cliente: Cliente) => void;
   onVerChat: (cliente: Cliente) => void;
+  onResolverConflicto: (cliente: Cliente) => void;
   enDisputa: boolean;
 }) => {
-  // Función para obtener el texto del estado, incluyendo detalle de verificación
+  // Función para obtener el texto del estado, incluyendo detalle de verificación doble
   const getEstadoFinal = (): string => {
     if (!reporte) return 'PAGADO (sin reporte)';
     const consolidado = reporte.consolidado || reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA';
-    let estado = consolidado ? (reporte.verificada ? 'VERIFICADA' : 'CONSOLIDADO') : 'PAGADO';
-    if (reporte.verificada && reporte.estado_verificacion) {
-      if (reporte.estado_verificacion === 'aprobada') {
-        estado += ' - Aprobada';
-      } else if (reporte.estado_verificacion === 'rechazada') {
-        estado += ' - Rechazada';
-        if (reporte.comentario_rechazo) {
-          estado += ` (${reporte.comentario_rechazo})`;
-        }
+    
+    if (!consolidado) return 'PAGADO';
+    
+    // Estados del nuevo sistema de doble verificación
+    if (reporte.estado_doble_verificacion) {
+      switch (reporte.estado_doble_verificacion) {
+        case 'pendiente_auditor1':
+          return 'CONSOLIDADO - Sin verificar';
+        case 'pendiente_auditor2':
+          return 'CONSOLIDADO - Esperando 2do auditor';
+        case 'aprobada':
+          return 'VERIFICADA - Aprobada';
+        case 'rechazada':
+          return 'VERIFICADA - Rechazada';
+        case 'conflicto':
+          return 'EN CONFLICTO - Requiere resolución';
+        default:
+          return 'CONSOLIDADO';
       }
     }
-    return estado;
+    
+    // Compatibilidad con sistema anterior
+    if (reporte.verificada && reporte.estado_verificacion) {
+      if (reporte.estado_verificacion === 'aprobada') {
+        return 'VERIFICADA - Aprobada';
+      } else if (reporte.estado_verificacion === 'rechazada') {
+        return 'VERIFICADA - Rechazada';
+      }
+    }
+    
+    return reporte.verificada ? 'VERIFICADA' : 'CONSOLIDADO';
   };
 
   // Función para asignar la clase de estilo según el estado
   const getEstadoClass = (): string => {
     if (reporte) {
+      // Estados del nuevo sistema de doble verificación
+      if (reporte.estado_doble_verificacion) {
+        switch (reporte.estado_doble_verificacion) {
+          case 'pendiente_auditor1':
+            return 'bg-gray-100 text-gray-800';
+          case 'pendiente_auditor2':
+            return 'bg-blue-100 text-blue-800';
+          case 'aprobada':
+            return 'bg-green-100 text-green-800';
+          case 'rechazada':
+            return 'bg-red-100 text-red-800';
+          case 'conflicto':
+            return 'bg-yellow-100 text-yellow-800';
+          default:
+            return 'bg-purple-100 text-purple-800';
+        }
+      }
+      
+      // Compatibilidad con sistema anterior
       if (reporte.verificada) {
         if (reporte.estado_verificacion === 'rechazada') {
           return 'bg-red-100 text-red-800';
         } else if (reporte.estado_verificacion === 'aprobada') {
-          return 'bg-green-100 text-blue-800';
+          return 'bg-green-100 text-green-800';
         }
       } else if (reporte.consolidado || reporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
         return 'bg-purple-100 text-purple-800';
@@ -164,28 +205,75 @@ const ClienteRow = React.memo(({
             <MessageSquare className="h-3.5 w-3.5 mr-1" />
             Chat
           </button>
-          {reporte &&
-            (reporte.verificada ? (
-              <button
-                onClick={() => onDesverificarVenta(cliente)}
-                className="px-3 py-1 rounded border bg-red-100 text-red-800 hover:bg-red-200"
-              >
-                Quitar verificación
-              </button>
-            ) : (
-              enDisputa ? (
-                <span className="px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300">
-                  EN DISPUTA
-                </span>
-              ) : (
-                <button
-                  onClick={() => onVerificarVenta(cliente)}
-                  className="px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
-                >
-                  Verificar
-                </button>
-              )
-            ))}
+          {reporte && (
+            (() => {
+              const estadoDoble = reporte.estado_doble_verificacion;
+              
+              // Sistema de doble verificación
+              if (estadoDoble) {
+                switch (estadoDoble) {
+                  case 'pendiente_auditor1':
+                  case 'pendiente_auditor2':
+                    return (
+                      <button
+                        onClick={() => onVerificarVenta(cliente)}
+                        className="px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
+                      >
+                        {estadoDoble === 'pendiente_auditor1' ? 'Verificar (1er auditor)' : 'Verificar (2do auditor)'}
+                      </button>
+                    );
+                  case 'aprobada':
+                  case 'rechazada':
+                    return (
+                      <button
+                        onClick={() => onDesverificarVenta(cliente)}
+                        className="px-3 py-1 rounded border bg-red-100 text-red-800 hover:bg-red-200"
+                      >
+                        Quitar verificación
+                      </button>
+                    );
+                  case 'conflicto':
+                    return (
+                      <button
+                        onClick={() => onResolverConflicto(cliente)}
+                        className="px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200"
+                      >
+                        Resolver Conflicto
+                      </button>
+                    );
+                  default:
+                    return null;
+                }
+              }
+              
+              // Sistema anterior (compatibilidad)
+              if (reporte.verificada) {
+                return (
+                  <button
+                    onClick={() => onDesverificarVenta(cliente)}
+                    className="px-3 py-1 rounded border bg-red-100 text-red-800 hover:bg-red-200"
+                  >
+                    Quitar verificación
+                  </button>
+                );
+              } else if (enDisputa) {
+                return (
+                  <span className="px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300">
+                    EN DISPUTA
+                  </span>
+                );
+              } else {
+                return (
+                  <button
+                    onClick={() => onVerificarVenta(cliente)}
+                    className="px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
+                  >
+                    Verificar
+                  </button>
+                );
+              }
+            })()
+          )}
         </div>
       </td>
     </tr>
@@ -207,6 +295,7 @@ function ClientesAsesorModal({
   onDesverificarVenta,
   onResolverDisputa,
   onVerChat,
+  onResolverConflicto,
 }: ClientesAsesorModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -335,6 +424,7 @@ function ClientesAsesorModal({
                     onVerificarVenta={onVerificarVenta}
                     onDesverificarVenta={onDesverificarVenta}
                     onVerChat={onVerChat}
+                    onResolverConflicto={onResolverConflicto}
                     enDisputa={enDisputa}
                   />
                 );
@@ -357,7 +447,7 @@ function ClientesAsesorModal({
 /* ––––––– MODAL: Verificar Venta con Decisión ––––––– */
 interface ModalVerificarVentaProps {
   cliente: Cliente;
-  onConfirm: (decision: 'aprobada' | 'rechazada', comentario: string) => void;
+  onConfirm: (decision: 'aprobada' | 'rechazada', comentario: string, auditorId: string) => void;
   onCancel: () => void;
 }
 function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVentaProps) {
@@ -367,24 +457,26 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
 
   const handleConfirm = () => {
     if (!password.trim()) {
-      toast.error('Debe ingresar la contraseña.');
+      toast.error('Debe ingresar su contraseña de auditor.');
       return;
     }
     if (decision === 'rechazada' && !comentario.trim()) {
       toast.error('Debe ingresar el motivo del rechazo.');
       return;
     }
-    if (password !== '0911') {
+    const validPasswords = ['0911', '1109', '2023', '2024'];
+    if (!validPasswords.includes(password)) {
       toast.error('Contraseña incorrecta.');
       return;
     }
-    onConfirm(decision, decision === 'rechazada' ? comentario : '');
+    onConfirm(decision, decision === 'rechazada' ? comentario : '', password);
   };
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded shadow-lg max-w-sm w-full">
         <h2 className="text-xl font-bold mb-4">Verificar Venta de {cliente.NOMBRE}</h2>
+        <p className="text-sm text-gray-600 mb-4">Ingrese su decisión como auditor. Se requiere la decisión de 2 auditores independientes.</p>
         <div className="mb-4">
           <label className="block font-medium">Decisión:</label>
           <select
@@ -407,15 +499,15 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
             />
           </div>
         )}
-        {/* Campo de contraseña siempre visible */}
+        {/* Campo de contraseña del auditor actual */}
         <div className="mb-4">
-          <label className="block font-medium">Contraseña:</label>
+          <label className="block font-medium">Su Contraseña de Auditor:</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="mt-1 block w-full border rounded-md p-2"
-            placeholder="Escriba la contraseña"
+            placeholder="Escriba su contraseña"
           />
         </div>
         <div className="flex justify-end space-x-4">
@@ -442,10 +534,11 @@ function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverifi
 
   const handleConfirm = () => {
     if (!password.trim()) {
-      toast.error('Debe ingresar la contraseña.');
+      toast.error('Debe ingresar su contraseña de auditor.');
       return;
     }
-    if (password !== '0911') {
+    const validPasswords = ['0911', '1109', '2023', '2024'];
+    if (!validPasswords.includes(password)) {
       toast.error('Contraseña incorrecta.');
       return;
     }
@@ -456,15 +549,16 @@ function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverifi
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded shadow-lg max-w-sm w-full">
         <h2 className="text-xl font-bold mb-4">Quitar verificación de {cliente.NOMBRE}</h2>
-        {/* Puedes dejar un textarea opcional para comentarios */}
+        <p className="text-sm text-gray-600 mb-4">Esta acción reiniciará el proceso de doble verificación.</p>
+        {/* Campo de contraseña del auditor */}
         <div className="mb-4">
-          <label className="block font-medium">Contraseña:</label>
+          <label className="block font-medium">Su Contraseña de Auditor:</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="mt-1 block w-full border rounded-md p-2"
-            placeholder="Escriba la contraseña"
+            placeholder="Escriba su contraseña"
           />
         </div>
         <div className="flex justify-end space-x-4">
@@ -481,6 +575,131 @@ function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverifi
 }
 
 
+/* ––––––– MODAL: Resolver Conflicto de Auditores ––––––– */
+interface ModalResolverConflictoProps {
+  cliente: Cliente;
+  reporte: Reporte;
+  onResolve: (decision: 'aprobada' | 'rechazada', comentario: string) => void;
+  onCancel: () => void;
+}
+
+function ModalResolverConflicto({ cliente, reporte, onResolve, onCancel }: ModalResolverConflictoProps) {
+  const [decision, setDecision] = useState<'aprobada' | 'rechazada'>('aprobada');
+  const [comentario, setComentario] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleConfirm = () => {
+    if (!password.trim()) {
+      toast.error('Debe ingresar la contraseña de supervisor.');
+      return;
+    }
+    if (!comentario.trim()) {
+      toast.error('Debe ingresar un comentario explicando la resolución del conflicto.');
+      return;
+    }
+    // Contraseña especial para supervisores que pueden resolver conflictos
+    if (password !== '2025') {
+      toast.error('Solo los supervisores pueden resolver conflictos.');
+      return;
+    }
+    onResolve(decision, comentario);
+  };
+
+  const formatTimestamp = (timestamp: number | null) => {
+    if (!timestamp) return 'Fecha no disponible';
+    return new Date(timestamp * 1000).toLocaleString();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-700 bg-opacity-70 flex items-center justify-center z-50">
+      <div className="bg-white p-8 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <h2 className="text-2xl font-bold text-red-600 mb-4">
+          ⚠️ Resolver Conflicto de Verificación
+        </h2>
+        <p className="text-gray-700 mb-6">
+          Los auditores no coincidieron en la verificación de la venta de <strong>{cliente.NOMBRE}</strong>. 
+          Como supervisor, debe tomar la decisión final.
+        </p>
+
+        {/* Mostrar las decisiones en conflicto */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+            <h3 className="font-bold text-blue-800 mb-2">🔵 Auditor 1</h3>
+            <p><strong>Decisión:</strong> <span className={`px-2 py-1 rounded text-sm ${reporte.auditor1_decision === 'aprobada' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+              {reporte.auditor1_decision?.toUpperCase()}
+            </span></p>
+            <p><strong>Comentario:</strong> {reporte.auditor1_comentario || 'Sin comentario'}</p>
+            <p><strong>Fecha:</strong> {formatTimestamp(reporte.auditor1_timestamp)}</p>
+          </div>
+
+          <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+            <h3 className="font-bold text-purple-800 mb-2">🟣 Auditor 2</h3>
+            <p><strong>Decisión:</strong> <span className={`px-2 py-1 rounded text-sm ${reporte.auditor2_decision === 'aprobada' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+              {reporte.auditor2_decision?.toUpperCase()}
+            </span></p>
+            <p><strong>Comentario:</strong> {reporte.auditor2_comentario || 'Sin comentario'}</p>
+            <p><strong>Fecha:</strong> {formatTimestamp(reporte.auditor2_timestamp)}</p>
+          </div>
+        </div>
+
+        {/* Decisión del supervisor */}
+        <div className="border-t pt-6">
+          <h3 className="font-bold text-gray-800 mb-4">👑 Decisión Final del Supervisor</h3>
+          
+          <div className="mb-4">
+            <label className="block font-medium">Decisión Final:</label>
+            <select
+              value={decision}
+              onChange={(e) => setDecision(e.target.value as 'aprobada' | 'rechazada')}
+              className="mt-1 block w-full border rounded-md p-2"
+            >
+              <option value="aprobada">Aprobar</option>
+              <option value="rechazada">Rechazar</option>
+            </select>
+          </div>
+
+          <div className="mb-4">
+            <label className="block font-medium">Comentario de Resolución:</label>
+            <textarea
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              className="mt-1 block w-full border rounded-md p-2"
+              placeholder="Explique por qué toma esta decisión final..."
+              rows={3}
+            />
+          </div>
+
+          <div className="mb-6">
+            <label className="block font-medium">Contraseña de Supervisor:</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full border rounded-md p-2"
+              placeholder="Contraseña de supervisor"
+            />
+          </div>
+
+          <div className="flex justify-end space-x-4">
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Resolver Conflicto
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ––––––– MODAL: Resolver Disputa ––––––– */
 interface ModalResolverDisputaProps {
   grupo: Cliente[];
@@ -491,7 +710,8 @@ interface ModalResolverDisputaProps {
 
 function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalResolverDisputaProps) {
   const [comentario, setComentario] = useState("");
-  const [password, setPassword] = useState("");
+  const [password1, setPassword1] = useState("");
+  const [password2, setPassword2] = useState("");
 
   const getNombreAsesor = (id: number | null) => {
     if (id === null) return "Desconocido";
@@ -504,12 +724,16 @@ function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalRes
       toast.error("Por favor, ingrese el motivo de rechazo para las ventas duplicadas.");
       return;
     }
-    if (!password.trim()) {
-      toast.error("Por favor, ingrese la clave para resolver la disputa.");
+    if (!password1.trim() || !password2.trim()) {
+      toast.error("Por favor, ingrese ambas claves de auditor para resolver la disputa.");
       return;
     }
-    if (password !== '0911') {
-      toast.error("Clave incorrecta.");
+    if (password1 !== '0911' || password2 !== '0911') {
+      toast.error("Una o ambas claves son incorrectas.");
+      return;
+    }
+    if (password1 === password2) {
+      toast.error("Las claves deben ser de diferentes auditores.");
       return;
     }
     onResolve(cliente, comentario);
@@ -522,7 +746,7 @@ function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalRes
           Resolver Disputa de Ventas Duplicadas
         </h2>
         <p className="text-gray-700 mb-4">
-          Se han detectado ventas duplicadas. Ingrese el motivo de rechazo que se aplicará a todas las ventas duplicadas (excepto la seleccionada como válida), y confirme con su clave.
+          Se han detectado ventas duplicadas. Ingrese el motivo de rechazo que se aplicará a todas las ventas duplicadas (excepto la seleccionada como válida), y confirme con las claves de 2 auditores.
         </p>
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-600 mb-1">
@@ -536,16 +760,28 @@ function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalRes
             rows={3}
           />
         </div>
-        <div className="mb-6">
+        <div className="mb-4">
           <label className="block text-sm font-medium text-gray-600 mb-1">
-            Clave
+            Clave Auditor 1
           </label>
           <input
             type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={password1}
+            onChange={(e) => setPassword1(e.target.value)}
             className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            placeholder="Ingrese la clave"
+            placeholder="Ingrese la primera clave"
+          />
+        </div>
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-600 mb-1">
+            Clave Auditor 2
+          </label>
+          <input
+            type="password"
+            value={password2}
+            onChange={(e) => setPassword2(e.target.value)}
+            className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Ingrese la segunda clave"
           />
         </div>
         <p className="text-gray-700 mb-2">
@@ -705,6 +941,7 @@ function AuditorDashboard() {
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
   const [ventaDesverificar, setVentaDesverificar] = useState<Cliente | null>(null);
   const [clienteParaChat, setClienteParaChat] = useState<Cliente | null>(null);
+  const [conflictoParaResolver, setConflictoParaResolver] = useState<{cliente: Cliente, reporte: Reporte} | null>(null);
 
   // Estados para duplicados, progresos y modales
   const [duplicados, setDuplicados] = useState<Cliente[][]>([]);
@@ -1247,6 +1484,58 @@ function AuditorDashboard() {
     setVentaVerificar(cliente);
   };
 
+  const handleResolverConflicto = (cliente: Cliente) => {
+    const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
+    if (reporte) {
+      setConflictoParaResolver({ cliente, reporte });
+    }
+  };
+
+  const confirmResolverConflicto = async (decision: 'aprobada' | 'rechazada', comentario: string) => {
+    if (!conflictoParaResolver) return;
+    
+    const { cliente, reporte } = conflictoParaResolver;
+    const reporteIndex = reportes.findIndex(r => r.ID === reporte.ID);
+    if (reporteIndex === -1) return;
+
+    try {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const updateData = {
+        estado_doble_verificacion: decision,
+        verificada: true,
+        estado_verificacion: decision,
+        comentario_rechazo: decision === 'rechazada' ? comentario : '',
+        // Agregar timestamp de resolución del supervisor
+        supervisor_resolution_timestamp: timestamp,
+        supervisor_resolution_comment: comentario
+      };
+
+      const response = await apiClient.request(
+        `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+        'PATCH',
+        updateData
+      );
+      
+      console.log('Respuesta del PATCH (resolver conflicto):', response);
+      
+      // Actualizar en memoria local
+      const updatedReporte = { ...reporte, ...updateData };
+      const nuevosReportes = [...reportes];
+      nuevosReportes[reporteIndex] = updatedReporte;
+      setReportes(nuevosReportes);
+      
+      toast.success(`✅ Conflicto resuelto: Venta de ${cliente.NOMBRE} ${decision === 'aprobada' ? 'APROBADA' : 'RECHAZADA'} por supervisor.`, {
+        style: { borderRadius: '8px', background: '#16a34a', color: '#fff' },
+        icon: '👑'
+      });
+      
+    } catch (err) {
+      console.error('❌ Error al resolver conflicto:', err);
+      toast.error('Hubo un error al intentar resolver el conflicto.');
+    }
+    setConflictoParaResolver(null);
+  };
+
   const confirmDesverificarVenta = async (cliente: Cliente, comentario: string) => {
     const reporteIndex = reportes.findIndex(
       r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
@@ -1260,17 +1549,41 @@ function AuditorDashboard() {
         {
           verificada: false,
           estado_verificacion: '',
-          comentario_rechazo: comentario
+          comentario_rechazo: comentario,
+          // Reiniciar el proceso de doble verificación
+          auditor1_decision: null,
+          auditor1_comentario: null,
+          auditor1_timestamp: null,
+          auditor1_id: null,
+          auditor2_decision: null,
+          auditor2_comentario: null,
+          auditor2_timestamp: null,
+          auditor2_id: null,
+          estado_doble_verificacion: 'pendiente_auditor1'
         }
       );
       console.log('Respuesta del PATCH (desverificar):', response);
-      const updatedReporte = { ...reporte, verificada: false, estado_verificacion: '', comentario_rechazo: comentario };
+      const updatedReporte = { 
+        ...reporte, 
+        verificada: false, 
+        estado_verificacion: '', 
+        comentario_rechazo: comentario,
+        auditor1_decision: null,
+        auditor1_comentario: null,
+        auditor1_timestamp: null,
+        auditor1_id: null,
+        auditor2_decision: null,
+        auditor2_comentario: null,
+        auditor2_timestamp: null,
+        auditor2_id: null,
+        estado_doble_verificacion: 'pendiente_auditor1'
+      };
       const nuevosReportes = [...reportes];
       nuevosReportes[reporteIndex] = updatedReporte;
       setReportes(nuevosReportes);
-      toast.success(`✅ Venta de ${cliente.NOMBRE} desverificada`, {
+      toast.success(`✅ Verificación de ${cliente.NOMBRE} reiniciada. Requiere nuevas decisiones de 2 auditores.`, {
         style: { borderRadius: '8px', background: '#4f46e5', color: '#fff' },
-        icon: '🎉'
+        icon: '🔄'
       });
     } catch (err) {
       console.error('❌ Error al desverificar la venta:', err);
@@ -1278,35 +1591,95 @@ function AuditorDashboard() {
     }
   };
 
-  // Función de verificación que actualiza en memoria y en BD
-  const confirmVerificarVenta = async (cliente: Cliente, decision: 'aprobada' | 'rechazada', comentario: string) => {
+  // Función de verificación con doble auditoría independiente
+  const confirmVerificarVenta = async (cliente: Cliente, decision: 'aprobada' | 'rechazada', comentario: string, auditorId: string) => {
     const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
     if (reporteIndex === -1) return;
     const reporte = reportes[reporteIndex];
+    
     try {
+      const timestamp = Math.floor(Date.now() / 1000);
+      
+      // Determinar si es el primer o segundo auditor
+      const esSegundoAuditor = reporte.auditor1_decision && !reporte.auditor2_decision;
+      
+      let updateData: any = {};
+      let mensaje = '';
+      
+      if (!reporte.auditor1_decision) {
+        // Primer auditor
+        updateData = {
+          auditor1_decision: decision,
+          auditor1_comentario: comentario,
+          auditor1_timestamp: timestamp,
+          auditor1_id: auditorId,
+          estado_doble_verificacion: 'pendiente_auditor2'
+        };
+        mensaje = `📝 Su decisión ha sido registrada. Esperando decisión del segundo auditor.`;
+        
+      } else if (!reporte.auditor2_decision && reporte.auditor1_id !== auditorId) {
+        // Segundo auditor (y es diferente al primero)
+        const primeraDecision = reporte.auditor1_decision;
+        const coinciden = primeraDecision === decision;
+        
+        if (coinciden) {
+          // Las decisiones coinciden - aplicar la decisión final
+          updateData = {
+            auditor2_decision: decision,
+            auditor2_comentario: comentario,
+            auditor2_timestamp: timestamp,
+            auditor2_id: auditorId,
+            estado_doble_verificacion: decision,
+            verificada: true,
+            estado_verificacion: decision,
+            comentario_rechazo: decision === 'rechazada' ? comentario : ''
+          };
+          mensaje = `✅ Ambos auditores coinciden. Venta ${decision === 'aprobada' ? 'APROBADA' : 'RECHAZADA'}.`;
+          
+        } else {
+          // Las decisiones no coinciden - conflicto
+          updateData = {
+            auditor2_decision: decision,
+            auditor2_comentario: comentario,
+            auditor2_timestamp: timestamp,
+            auditor2_id: auditorId,
+            estado_doble_verificacion: 'conflicto'
+          };
+          mensaje = `⚠️ CONFLICTO: Los auditores no coinciden. Requiere resolución manual.`;
+        }
+        
+      } else if (reporte.auditor1_id === auditorId) {
+        toast.error('Ya ha emitido su decisión para esta venta.');
+        setVentaVerificar(null);
+        return;
+      } else {
+        toast.error('Esta venta ya tiene las decisiones de 2 auditores.');
+        setVentaVerificar(null);
+        return;
+      }
+
       const response = await apiClient.request(
         `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
         'PATCH',
-        {
-          verificada: true,
-          estado_verificacion: decision,
-          comentario_rechazo: decision === 'rechazada' ? comentario : ''
-        }
+        updateData
       );
+      
       console.log('Respuesta del PATCH:', response);
-      // Actualiza en memoria local
-      const updatedReporte = { ...reporte, verificada: true, estado_verificacion: decision, comentario_rechazo: decision === 'rechazada' ? comentario : '' };
+      
+      // Actualizar en memoria local
+      const updatedReporte = { ...reporte, ...updateData };
       const nuevosReportes = [...reportes];
-
       nuevosReportes[reporteIndex] = updatedReporte;
       setReportes(nuevosReportes);
-      toast.success(`✅ Venta de ${cliente.NOMBRE} ${decision === 'aprobada' ? 'aprobada' : 'rechazada'}`, {
+      
+      toast.success(mensaje, {
         style: { borderRadius: '8px', background: '#4f46e5', color: '#fff' },
-        icon: '🎉'
+        icon: updateData.estado_doble_verificacion === 'conflicto' ? '⚠️' : '🎉'
       });
+      
     } catch (err) {
       console.error('❌ Error al verificar la venta:', err);
-      alert('Hubo un error al intentar verificar la venta.');
+      toast.error('Hubo un error al intentar verificar la venta.');
     }
     setVentaVerificar(null);
   };
@@ -1532,6 +1905,7 @@ function AuditorDashboard() {
           onDesverificarVenta={(cliente) => setVentaDesverificar(cliente)}
           onResolverDisputa={handleResolverDisputa}
           onVerChat={(cliente) => setClienteParaChat(cliente)}
+          onResolverConflicto={handleResolverConflicto}
           registros={registros}
         />
       )}
@@ -1558,7 +1932,7 @@ function AuditorDashboard() {
       {ventaVerificar && (
         <ModalVerificarVenta
           cliente={ventaVerificar}
-          onConfirm={(decision, comentario) => confirmVerificarVenta(ventaVerificar, decision, comentario)}
+          onConfirm={(decision, comentario, auditorId) => confirmVerificarVenta(ventaVerificar, decision, comentario, auditorId)}
           onCancel={cancelVerificarVenta}
         />
       )}
@@ -1626,6 +2000,16 @@ function AuditorDashboard() {
             asesor={asesorSeleccionado ? { ID: asesorSeleccionado.ID, NOMBRE: asesorSeleccionado.NOMBRE } : { ID: 0, NOMBRE: 'Auditor' }}
           />
         </Suspense>
+      )}
+
+      {/* Modal para resolver conflicto de auditores */}
+      {conflictoParaResolver && (
+        <ModalResolverConflicto
+          cliente={conflictoParaResolver.cliente}
+          reporte={conflictoParaResolver.reporte}
+          onResolve={confirmResolverConflicto}
+          onCancel={() => setConflictoParaResolver(null)}
+        />
       )}
 
       <Toaster position="top-right" />

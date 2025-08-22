@@ -89,6 +89,17 @@ export interface Reporte {
   verificada: boolean | null;
   estado_verificacion: string | null;
   comentario_rechazo: string | null;
+  auditor1_decision: string | null;
+  auditor1_comentario: string | null;
+  auditor1_timestamp: number | null;
+  auditor1_id: string | null;
+  auditor2_decision: string | null;
+  auditor2_comentario: string | null;
+  auditor2_timestamp: number | null;
+  auditor2_id: string | null;
+  estado_doble_verificacion: string | null;
+  supervisor_resolution_timestamp: number | null;
+  supervisor_resolution_comment: string | null;
 }
 
 export interface Registro {

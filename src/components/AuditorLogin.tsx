@@ -11,7 +11,7 @@ export default function AuditorLogin({ onLogin }: AuditorLoginProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'isa123') {
+    if (password === 'auditortd2025') {
       onLogin();
     } else {
       setError('Contraseña incorrecta');

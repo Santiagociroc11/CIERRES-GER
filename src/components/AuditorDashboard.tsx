@@ -464,7 +464,7 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
       toast.error('Debe ingresar el motivo del rechazo.');
       return;
     }
-    const validPasswords = ['0911', '1109', '2023', '2024'];
+    const validPasswords = ['0911', '2222'];
     if (!validPasswords.includes(password)) {
       toast.error('Contraseña incorrecta.');
       return;

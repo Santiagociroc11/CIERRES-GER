@@ -15,7 +15,7 @@ import { getHotmartConfig } from '../config/webhookConfig';
 const MANYCHAT_API_BASE = 'https://api.manychat.com/fb';
 
 export async function findManyChatSubscriber(phoneNumber: string): Promise<ManyChatResponse> {
-  const config = getHotmartConfig();
+  const config = await getHotmartConfig();
   const MANYCHAT_TOKEN = config.tokens.manychat;
   try {
     const response = await fetch(`${MANYCHAT_API_BASE}/subscriber/findByName?name=${encodeURIComponent(`+${phoneNumber}`)}`, {
@@ -40,7 +40,7 @@ export async function findManyChatSubscriber(phoneNumber: string): Promise<ManyC
 }
 
 export async function createManyChatSubscriber(nombre: string, phoneNumber: string): Promise<ManyChatResponse> {
-  const config = getHotmartConfig();
+  const config = await getHotmartConfig();
   const MANYCHAT_TOKEN = config.tokens.manychat;
   
   try {
@@ -70,7 +70,7 @@ export async function createManyChatSubscriber(nombre: string, phoneNumber: stri
 }
 
 export async function sendManyChatFlow(subscriberId: string, flowId: string): Promise<ManyChatResponse> {
-  const config = getHotmartConfig();
+  const config = await getHotmartConfig();
   const MANYCHAT_TOKEN = config.tokens.manychat;
   
   try {

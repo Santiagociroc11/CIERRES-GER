@@ -9,7 +9,7 @@ import { getHotmartConfig } from '../config/webhookConfig';
 const FLODESK_API_BASE = 'https://api.flodesk.com/v1';
 
 export async function addSubscriberToFlodesk(email: string, segmentId: string): Promise<FlodeskResponse> {
-  const config = getHotmartConfig();
+  const config = await getHotmartConfig();
   const FLODESK_TOKEN = config.tokens.flodesk;
   
   try {

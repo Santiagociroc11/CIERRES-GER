@@ -438,7 +438,7 @@ router.post('/webhook', async (req, res) => {
     try {
       if (flujo === 'COMPRAS') {
         // Notificación de venta al grupo general
-        const ventaMessage = createVentaMessage(body.data, asesorAsignado?.NOMBRE);
+        const ventaMessage = await createVentaMessage(body.data, asesorAsignado?.NOMBRE);
         telegramChatId = ventaMessage.chat_id;
         
         const telegramResult = await sendTelegramMessage(ventaMessage);
@@ -1269,7 +1269,7 @@ router.post('/test-telegram', async (req, res) => {
         }
       };
       
-      message = createVentaMessage(fakeHotmartData, asesor.NOMBRE);
+      message = await createVentaMessage(fakeHotmartData, asesor.NOMBRE);
     } else {
       // Mensaje de notificación al asesor
       message = createAsesorNotificationMessage(

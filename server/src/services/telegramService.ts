@@ -21,7 +21,7 @@ export interface TelegramResponse {
 import { getHotmartConfig } from '../config/webhookConfig';
 
 export async function sendTelegramMessage(message: TelegramMessage): Promise<TelegramResponse> {
-  const config = getHotmartConfig();
+  const config = await getHotmartConfig();
   const TELEGRAM_BOT_TOKEN = config.tokens.telegram;
   try {
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -44,8 +44,8 @@ export async function sendTelegramMessage(message: TelegramMessage): Promise<Tel
   }
 }
 
-export function createVentaMessage(hotmartData: any, asesorNombre?: string): TelegramMessage {
-  const config = getHotmartConfig();
+export async function createVentaMessage(hotmartData: any, asesorNombre?: string): Promise<TelegramMessage> {
+  const config = await getHotmartConfig();
   
   const transaction = hotmartData.purchase?.transaction || 'N/A';
   const buyerName = hotmartData.buyer?.name || 'N/A';

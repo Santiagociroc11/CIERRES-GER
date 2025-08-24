@@ -3,6 +3,7 @@ import { apiClient } from '../lib/apiClient';
 import { Asesor } from '../types';
 import { UserCheck, Lock } from 'lucide-react';
 import AuditorLogin from './AuditorLogin';
+import { safeJsonParseObject } from '../utils/safeJsonParse';
 
 interface LoginProps {
   onLogin: (asesor: Asesor, isAdmin: boolean) => void;
@@ -18,8 +19,13 @@ export default function Login({ onLogin }: LoginProps) {
     const sessionData = localStorage.getItem('userSession');
     if (sessionData) {
       try {
-        const { asesor, isAdmin } = JSON.parse(sessionData);
-        onLogin(asesor, isAdmin);
+        const parsedSession = safeJsonParseObject<{ asesor: Asesor; isAdmin: boolean }>(sessionData);
+        if (parsedSession.asesor && typeof parsedSession.isAdmin === 'boolean') {
+          onLogin(parsedSession.asesor, parsedSession.isAdmin);
+        } else {
+          console.error('Datos de sesión inválidos');
+          localStorage.removeItem('userSession');
+        }
       } catch (err) {
         console.error('Error al parsear la sesión:', err);
         localStorage.removeItem('userSession');

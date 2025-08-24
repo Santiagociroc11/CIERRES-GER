@@ -25,6 +25,7 @@ import {
   Send,
   FileText,
   DollarSign,
+  Webhook,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -49,6 +50,7 @@ import CrearClienteModal from './CrearClienteModal';
 import ChatModal from './ChatModal';
 import GestionAsignaciones from './GestionAsignaciones';
 import CrearAsesorModal from './CrearAsesorModal';
+import WebhookConfig from './WebhookConfig';
 
 interface DashboardAdminProps {
   onLogout: () => void;
@@ -91,7 +93,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [mostrarModalCrearAsesor, setMostrarModalCrearAsesor] = useState(false);
 
   // Estado para alternar entre vista de Asesores y Clientes
-  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion'>('asesores');
+  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks'>('asesores');
   // Estado para el modal de historial de cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
 
@@ -1460,6 +1462,21 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                   <Settings className="h-5 w-5" />
                   <span className="font-semibold">Gestión</span>
                   <div className="text-xs opacity-75 hidden sm:block">Asignaciones</div>
+                </button>
+
+                <button
+                  onClick={() => setVistaAdmin('webhooks')}
+                  className={`
+                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                    ${vistaAdmin === 'webhooks'
+                      ? 'bg-teal-600 text-white shadow-lg border-2 border-teal-600'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
+                    }
+                  `}
+                >
+                  <Webhook className="h-5 w-5" />
+                  <span className="font-semibold">Webhooks</span>
+                  <div className="text-xs opacity-75 hidden sm:block">Configuración</div>
                 </button>
               </div>
 
@@ -2922,6 +2939,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
             onUpdate={cargarSoloAsesores}
             estadisticas={estadisticas}
           />
+        ) : vistaAdmin === 'webhooks' ? (
+          <WebhookConfig />
         ) : (
           <div className="p-4 space-y-8">
             {/* Botón para crear cliente */}

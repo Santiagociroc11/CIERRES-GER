@@ -71,7 +71,22 @@ export function loadWebhookConfig(): WebhookConfig {
     }
 
     const configData = fs.readFileSync(CONFIG_FILE, 'utf8');
-    const config = JSON.parse(configData);
+    
+    // Validar que el archivo no esté vacío
+    if (!configData.trim()) {
+      console.warn('Archivo de configuración vacío, usando configuración por defecto');
+      saveWebhookConfig(DEFAULT_CONFIG);
+      return DEFAULT_CONFIG;
+    }
+    
+    let config;
+    try {
+      config = JSON.parse(configData);
+    } catch (parseError) {
+      console.error('Error parseando configuración JSON:', parseError);
+      saveWebhookConfig(DEFAULT_CONFIG);
+      return DEFAULT_CONFIG;
+    }
     
     // Validar que la configuración tenga la estructura correcta
     if (!config.hotmart || !config.hotmart.numericos || !config.hotmart.mailer || !config.hotmart.tablas) {

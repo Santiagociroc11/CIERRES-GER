@@ -5,7 +5,7 @@
  * @returns The parsed JSON or the default value
  */
 export function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T = [] as T): T {
-  if (!jsonString || jsonString.trim() === '') {
+  if (!jsonString || typeof jsonString !== 'string' || jsonString.trim() === '') {
     return defaultValue;
   }
   
@@ -24,7 +24,10 @@ export function safeJsonParse<T>(jsonString: string | null | undefined, defaultV
  */
 export function safeJsonParseArray<T>(jsonString: string | null | undefined): T[] {
   const result = safeJsonParse<T[]>(jsonString, []);
-  return Array.isArray(result) ? (result as T[]) : [];
+  if (Array.isArray(result)) {
+    return result as T[];
+  }
+  return [];
 }
 
 /**
@@ -34,5 +37,22 @@ export function safeJsonParseArray<T>(jsonString: string | null | undefined): T[
  */
 export function safeJsonParseObject<T>(jsonString: string | null | undefined): T {
   const result = safeJsonParse<T>(jsonString, {} as T);
-  return typeof result === 'object' && result !== null ? result : {} as T;
+  if (typeof result === 'object' && result !== null) {
+    return result as T;
+  }
+  return {} as T;
+}
+
+/**
+ * Safely parses a JSON string that should be a ReglaHistorial array
+ * This is a specific function to avoid type casting issues
+ * @param jsonString - The JSON string to parse
+ * @returns The parsed ReglaHistorial array or an empty array
+ */
+export function safeJsonParseReglaHistorial(jsonString: string | null | undefined): any[] {
+  const result = safeJsonParse<any[]>(jsonString, []);
+  if (Array.isArray(result)) {
+    return result;
+  }
+  return [];
 }

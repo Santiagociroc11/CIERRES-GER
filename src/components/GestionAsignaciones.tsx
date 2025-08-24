@@ -3,7 +3,8 @@ import { apiClient } from '../lib/apiClient';
 import { Asesor, Registro } from '../types';
 import { ArrowUpCircle, ArrowDownCircle, Clock, Ban, Star, AlertTriangle, CheckCircle2, Info, X, History, RefreshCcw, TrendingUp, TrendingDown, DollarSign, MessageSquare, FileText, User } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { safeJsonParseArray } from '../utils/safeJsonParse';
+import { safeJsonParseArray, safeJsonParseReglaHistorial } from '../utils/safeJsonParse';
+import { safeTrim, safeIsEmpty } from '../utils/safeStringUtils';
 
 interface GestionAsignacionesProps {
   asesores: Asesor[];
@@ -468,7 +469,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       const asesorActual = asesores.find(a => a.ID === asesorId);
       if (!asesorActual) throw new Error('Asesor no encontrado');
       
-      const historialActual: ReglaHistorial[] = safeJsonParseArray<ReglaHistorial>(asesorActual.HISTORIAL);
+      const historialActual: ReglaHistorial[] = safeJsonParseReglaHistorial(asesorActual.HISTORIAL) as ReglaHistorial[];
       const prioridadActual = asesorActual.PRIORIDAD || 1;
 
       // Convertir fechas locales a UTC epoch
@@ -557,7 +558,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       const asesorActual = asesores.find(a => a.ID === asesorId);
       if (!asesorActual) throw new Error('Asesor no encontrado');
       
-      const historialActual: ReglaHistorial[] = safeJsonParseArray<ReglaHistorial>(asesorActual.HISTORIAL);
+      const historialActual: ReglaHistorial[] = safeJsonParseReglaHistorial(asesorActual.HISTORIAL) as ReglaHistorial[];
       const prioridadActual = asesorActual.PRIORIDAD || 1;
 
       // Crear nueva entrada en el historial para registrar la eliminación del bloqueo
@@ -620,7 +621,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       const asesorActual = asesores.find(a => a.ID === asesorId);
       if (!asesorActual) throw new Error('Asesor no encontrado');
       
-      const historialActual: ReglaHistorial[] = safeJsonParseArray<ReglaHistorial>(asesorActual.HISTORIAL);
+      const historialActual: ReglaHistorial[] = safeJsonParseReglaHistorial(asesorActual.HISTORIAL) as ReglaHistorial[];
       const prioridadActual = asesorActual.PRIORIDAD || 1;
       
       // Calcular la nueva prioridad con límites estrictos: máximo +3 (prioridad 4), mínimo 1
@@ -935,7 +936,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
           const asesorActual = asesores.find(a => a.ID === actualizacion.asesorId);
           
           // Parse existing history or start with an empty array
-          const historialActual: ReglaHistorial[] = safeJsonParseArray<ReglaHistorial>(asesorActual?.HISTORIAL);
+          const historialActual: ReglaHistorial[] = safeJsonParseReglaHistorial(asesorActual?.HISTORIAL) as ReglaHistorial[];
           
           // Create a new entry for the priority reset
           const nuevaEntrada: ReglaHistorial = {
@@ -1685,7 +1686,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                       <span className="font-medium group-hover:text-blue-800">Historial</span>
                       {asesor.HISTORIAL ? (
                         <span className="px-1.5 py-0.5 bg-blue-600 text-white rounded-full text-xs font-medium shadow-inner">
-                          {safeJsonParseArray(asesor.HISTORIAL).length}
+                          {safeJsonParseReglaHistorial(asesor.HISTORIAL).length}
                         </span>
                       ) : null}
                     </button>
@@ -2012,7 +2013,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                 </button>
                 <button
                   onClick={() => {
-                    if (!motivoPrioridad.trim()) {
+                    if (safeIsEmpty(motivoPrioridad)) {
                       return;
                     }
                     aplicarPrioridad(asesorSeleccionado.ID, tipoPrioridadSeleccionada, motivoPrioridad);
@@ -2045,7 +2046,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                     Historial de Reglas
                   </h3>
                   <p className="text-sm text-gray-600">
-                    {asesorSeleccionado.NOMBRE} - {asesorSeleccionado.HISTORIAL ? safeJsonParseArray(asesorSeleccionado.HISTORIAL).length : 0} registros
+                    {asesorSeleccionado.NOMBRE} - {asesorSeleccionado.HISTORIAL ? safeJsonParseReglaHistorial(asesorSeleccionado.HISTORIAL).length : 0} registros
                   </p>
                 </div>
               </div>
@@ -2066,21 +2067,21 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                     <div className="flex gap-1">
                       
                       <span className="px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-medium">
-                        BLOQUEO: {safeJsonParseArray(asesorSeleccionado.HISTORIAL).filter((r: ReglaHistorial) => r.tipo === 'BLOQUEO').length}
+                        BLOQUEO: {safeJsonParseReglaHistorial(asesorSeleccionado.HISTORIAL).filter((r: any) => r.tipo === 'BLOQUEO').length}
                       </span>
                       <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
-                        BONUS: {safeJsonParseArray(asesorSeleccionado.HISTORIAL).filter((r: ReglaHistorial) => r.tipo === 'BONUS').length}
+                        BONUS: {safeJsonParseReglaHistorial(asesorSeleccionado.HISTORIAL).filter((r: any) => r.tipo === 'BONUS').length}
                       </span>
                       <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-md text-xs font-medium">
-                        PENALIZACIÓN: {safeJsonParseArray(asesorSeleccionado.HISTORIAL).filter((r: ReglaHistorial) => r.tipo === 'PENALIZACION').length}
+                        PENALIZACIÓN: {safeJsonParseReglaHistorial(asesorSeleccionado.HISTORIAL).filter((r: any) => r.tipo === 'PENALIZACION').length}
                       </span>
                     </div>
                   </div>
-                  {safeJsonParseArray<ReglaHistorial>(asesorSeleccionado.HISTORIAL)
-                    .sort((a: ReglaHistorial, b: ReglaHistorial) => 
+                  {safeJsonParseReglaHistorial(asesorSeleccionado.HISTORIAL)
+                    .sort((a: any, b: any) => 
                       new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
                     )
-                    .map((entrada: ReglaHistorial, index: number) => 
+                    .map((entrada: any, index: number) => 
                       <div key={entrada.fecha + '-' + index}>
                         {renderHistorialItem(entrada)}
                       </div>

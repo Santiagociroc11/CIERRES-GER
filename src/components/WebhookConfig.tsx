@@ -12,9 +12,15 @@ import {
   Divider,
   Chip,
   IconButton,
-  Tooltip
+  Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress,
+  Collapse
 } from '@mui/material';
-import { Refresh, Save, RestoreFromTrash, Wifi } from '@mui/icons-material';
+import { Refresh, Save, RestoreFromTrash, Wifi, Search, Send, PersonAdd, Email, Telegram } from '@mui/icons-material';
 import { toast } from 'react-hot-toast';
 
 interface HotmartConfig {
@@ -41,6 +47,12 @@ interface HotmartConfig {
   };
 }
 
+interface Advisor {
+  ID: number;
+  NOMBRE: string;
+  ID_TG: string;
+}
+
 const FLUJO_LABELS = {
   CARRITOS: 'Carritos Abandonados',
   RECHAZADOS: 'Pagos Rechazados',
@@ -63,10 +75,26 @@ const WebhookConfig: React.FC = () => {
     severity: 'info'
   });
 
+  // Individual testing states
+  const [advisors, setAdvisors] = useState<Advisor[]>([]);
+  const [testStates, setTestStates] = useState({
+    manychat: { loading: false, phoneNumber: '', result: null as any },
+    flodesk: { loading: false, email: '', segmentId: 'COMPRAS', result: null as any },
+    telegram: { loading: false, advisorId: '', messageType: 'test', clientName: '', result: null as any }
+  });
+  const [showTestSections, setShowTestSections] = useState(false);
+
   // Cargar configuración al montar el componente
   useEffect(() => {
     loadConfig();
   }, []);
+
+  // Cargar asesores con Telegram cuando se muestren las secciones de test
+  useEffect(() => {
+    if (showTestSections) {
+      loadAdvisors();
+    }
+  }, [showTestSections]);
 
   const loadConfig = async () => {
     try {
@@ -84,6 +112,22 @@ const WebhookConfig: React.FC = () => {
       toast.error('Error cargando configuración');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAdvisors = async () => {
+    try {
+      const response = await fetch('/api/hotmart/advisors-with-telegram');
+      const data = await response.json();
+      
+      if (data.success) {
+        setAdvisors(data.data);
+      } else {
+        throw new Error(data.error || 'Error cargando asesores');
+      }
+    } catch (error) {
+      console.error('Error cargando asesores:', error);
+      toast.error('Error cargando asesores');
     }
   };
 
@@ -233,6 +277,186 @@ const WebhookConfig: React.FC = () => {
     } finally {
       setTesting(false);
     }
+  };
+
+  // Individual test functions
+  const testManyChat = async (action: 'search' | 'create' | 'sendFlow') => {
+    const phoneNumber = testStates.manychat.phoneNumber;
+    if (!phoneNumber.trim()) {
+      toast.error('Por favor ingresa un número de teléfono');
+      return;
+    }
+
+    // Para sendFlow, necesitamos subscriber ID y flow ID
+    if (action === 'sendFlow') {
+      const subscriberId = prompt('Ingresa el Subscriber ID:');
+      const flowId = prompt('Ingresa el Flow ID:');
+      
+      if (!subscriberId || !flowId) {
+        toast.error('Subscriber ID y Flow ID son requeridos para enviar flujo');
+        return;
+      }
+      
+      // Actualizar el body con los parámetros adicionales
+      const body = { phoneNumber, action, subscriberId, flowId };
+    }
+
+    setTestStates(prev => ({
+      ...prev,
+      manychat: { ...prev.manychat, loading: true, result: null as any }
+    }));
+
+    try {
+      let body: any = { phoneNumber, action };
+      
+      // Para sendFlow, agregar parámetros adicionales
+      if (action === 'sendFlow') {
+        const subscriberId = prompt('Ingresa el Subscriber ID:');
+        const flowId = prompt('Ingresa el Flow ID:');
+        
+        if (!subscriberId || !flowId) {
+          toast.error('Subscriber ID y Flow ID son requeridos para enviar flujo');
+          return;
+        }
+        
+        body = { phoneNumber, action, subscriberId, flowId };
+      }
+
+      const response = await fetch('/api/hotmart/test-manychat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const data = await response.json();
+      
+      setTestStates(prev => ({
+        ...prev,
+        manychat: { ...prev.manychat, result: data }
+      }));
+
+      if (data.success) {
+        toast.success(`Prueba ManyChat (${action}) completada exitosamente`);
+      } else {
+        toast.error(`Error en prueba ManyChat: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error testing ManyChat:', error);
+      toast.error('Error probando ManyChat');
+      setTestStates(prev => ({
+        ...prev,
+        manychat: { ...prev.manychat, result: { success: false, error: 'Error de conexión' } }
+      }));
+    } finally {
+      setTestStates(prev => ({
+        ...prev,
+        manychat: { ...prev.manychat, loading: false }
+      }));
+    }
+  };
+
+  const testFlodesk = async () => {
+    const { email, segmentId } = testStates.flodesk;
+    if (!email.trim()) {
+      toast.error('Por favor ingresa un email');
+      return;
+    }
+
+    setTestStates(prev => ({
+      ...prev,
+      flodesk: { ...prev.flodesk, loading: true, result: null as any }
+    }));
+
+    try {
+      const response = await fetch('/api/hotmart/test-flodesk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, segmentId })
+      });
+
+      const data = await response.json();
+      
+      setTestStates(prev => ({
+        ...prev,
+        flodesk: { ...prev.flodesk, result: data }
+      }));
+
+      if (data.success) {
+        toast.success('Prueba Flodesk completada exitosamente');
+      } else {
+        toast.error(`Error en prueba Flodesk: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error testing Flodesk:', error);
+      toast.error('Error probando Flodesk');
+      setTestStates(prev => ({
+        ...prev,
+        flodesk: { ...prev.flodesk, result: { success: false, error: 'Error de conexión' } }
+      }));
+    } finally {
+      setTestStates(prev => ({
+        ...prev,
+        flodesk: { ...prev.flodesk, loading: false }
+      }));
+    }
+  };
+
+  const testTelegram = async () => {
+    const { advisorId, messageType, clientName } = testStates.telegram;
+    if (!advisorId) {
+      toast.error('Por favor selecciona un asesor');
+      return;
+    }
+
+    setTestStates(prev => ({
+      ...prev,
+      telegram: { ...prev.telegram, loading: true, result: null as any }
+    }));
+
+    try {
+      const response = await fetch('/api/hotmart/test-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          advisorId: parseInt(advisorId), 
+          messageType,
+          clientName: clientName || 'Cliente de Prueba',
+          clientPhone: '57300000000' // Número por defecto para pruebas
+        })
+      });
+
+      const data = await response.json();
+      
+      setTestStates(prev => ({
+        ...prev,
+        telegram: { ...prev.telegram, result: data }
+      }));
+
+      if (data.success) {
+        toast.success('Prueba Telegram completada exitosamente');
+      } else {
+        toast.error(`Error en prueba Telegram: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error testing Telegram:', error);
+      toast.error('Error probando Telegram');
+      setTestStates(prev => ({
+        ...prev,
+        telegram: { ...prev.telegram, result: { success: false, error: 'Error de conexión' } }
+      }));
+    } finally {
+      setTestStates(prev => ({
+        ...prev,
+        telegram: { ...prev.telegram, loading: false }
+      }));
+    }
+  };
+
+  const updateTestState = (service: 'manychat' | 'flodesk' | 'telegram', field: string, value: string) => {
+    setTestStates(prev => ({
+      ...prev,
+      [service]: { ...prev[service], [field]: value }
+    }));
   };
 
   if (loading) {
@@ -404,15 +628,26 @@ const WebhookConfig: React.FC = () => {
           </Grid>
 
           <Box display="flex" justifyContent="space-between" alignItems="center" mt={3}>
-            <Button
-              variant="outlined"
-              onClick={testConnections}
-              disabled={testing}
-              startIcon={<Wifi />}
-              size="large"
-            >
-              {testing ? 'Probando...' : 'Probar Conexiones'}
-            </Button>
+            <Box display="flex" gap={2}>
+              <Button
+                variant="outlined"
+                onClick={testConnections}
+                disabled={testing}
+                startIcon={<Wifi />}
+                size="large"
+              >
+                {testing ? 'Probando...' : 'Probar Conexiones'}
+              </Button>
+              
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={() => setShowTestSections(!showTestSections)}
+                size="large"
+              >
+                {showTestSections ? 'Ocultar Tests Individuales' : 'Mostrar Tests Individuales'}
+              </Button>
+            </Box>
             
             <Button
               variant="contained"
@@ -451,6 +686,244 @@ const WebhookConfig: React.FC = () => {
           </Box>
         </CardContent>
       </Card>
+
+      {/* Secciones de Test Individuales */}
+      <Collapse in={showTestSections}>
+        <Box mt={3}>
+          {/* Test ManyChat */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <Chip label="ManyChat" color="primary" size="small" sx={{ mr: 1 }} />
+                Test Individual
+              </Typography>
+              
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Número de Teléfono"
+                    value={testStates.manychat.phoneNumber}
+                    onChange={(e) => updateTestState('manychat', 'phoneNumber', e.target.value)}
+                    placeholder="57300000000"
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box display="flex" gap={1}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => testManyChat('search')}
+                      disabled={testStates.manychat.loading}
+                      startIcon={<Search />}
+                      size="small"
+                    >
+                      Buscar
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => testManyChat('create')}
+                      disabled={testStates.manychat.loading}
+                      startIcon={<PersonAdd />}
+                      size="small"
+                    >
+                      Crear
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => testManyChat('sendFlow')}
+                      disabled={testStates.manychat.loading}
+                      startIcon={<Send />}
+                      size="small"
+                    >
+                      Enviar Flujo
+                    </Button>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {/* Resultado del test */}
+              {testStates.manychat.result && (
+                <Box mt={2}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Resultado:
+                  </Typography>
+                  <Box
+                    component="pre"
+                    sx={{
+                      p: 2,
+                      bgcolor: testStates.manychat.result.success ? 'success.light' : 'error.light',
+                      borderRadius: 1,
+                      fontSize: '0.75rem',
+                      overflow: 'auto'
+                    }}
+                  >
+                    {JSON.stringify(testStates.manychat.result, null, 2)}
+                  </Box>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Test Flodesk */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <Chip label="Flodesk" color="secondary" size="small" sx={{ mr: 1 }} />
+                Test Individual
+              </Typography>
+              
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Email"
+                    value={testStates.flodesk.email}
+                    onChange={(e) => updateTestState('flodesk', 'email', e.target.value)}
+                    placeholder="cliente@ejemplo.com"
+                    size="small"
+                    type="email"
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Segmento</InputLabel>
+                    <Select
+                      value={testStates.flodesk.segmentId}
+                      onChange={(e) => updateTestState('flodesk', 'segmentId', e.target.value)}
+                      label="Segmento"
+                    >
+                      {Object.entries(FLUJO_LABELS).map(([key, label]) => (
+                        <MenuItem key={key} value={key}>{label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Button
+                    variant="outlined"
+                    onClick={testFlodesk}
+                    disabled={testStates.flodesk.loading}
+                    startIcon={<Email />}
+                    fullWidth
+                    size="small"
+                  >
+                    {testStates.flodesk.loading ? 'Probando...' : 'Probar Flodesk'}
+                  </Button>
+                </Grid>
+              </Grid>
+
+              {/* Resultado del test */}
+              {testStates.flodesk.result && (
+                <Box mt={2}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Resultado:
+                  </Typography>
+                  <Box
+                    component="pre"
+                    sx={{
+                      p: 2,
+                      bgcolor: testStates.flodesk.result.success ? 'success.light' : 'error.light',
+                      borderRadius: 1,
+                      fontSize: '0.75rem',
+                      overflow: 'auto'
+                    }}
+                  >
+                    {JSON.stringify(testStates.flodesk.result, null, 2)}
+                  </Box>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Test Telegram */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <Chip label="Telegram" color="info" size="small" sx={{ mr: 1 }} />
+                Test Individual
+              </Typography>
+              
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Asesor</InputLabel>
+                    <Select
+                      value={testStates.telegram.advisorId}
+                      onChange={(e) => updateTestState('telegram', 'advisorId', e.target.value)}
+                      label="Asesor"
+                    >
+                      <MenuItem value="">
+                        <em>Seleccionar asesor</em>
+                      </MenuItem>
+                      {advisors.map((advisor) => (
+                        <MenuItem key={advisor.ID} value={advisor.ID}>
+                          {advisor.NOMBRE}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Tipo de Mensaje</InputLabel>
+                    <Select
+                      value={testStates.telegram.messageType}
+                      onChange={(e) => updateTestState('telegram', 'messageType', e.target.value)}
+                      label="Tipo de Mensaje"
+                    >
+                      <MenuItem value="test">Mensaje de Prueba</MenuItem>
+                      <MenuItem value="venta">Notificación de Venta</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Nombre Cliente (opcional)"
+                    placeholder="Cliente de Prueba"
+                    size="small"
+                    onChange={(e) => updateTestState('telegram', 'clientName', e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <Button
+                    variant="outlined"
+                    onClick={testTelegram}
+                    disabled={testStates.telegram.loading}
+                    startIcon={<Telegram />}
+                    fullWidth
+                    size="small"
+                  >
+                    {testStates.telegram.loading ? 'Probando...' : 'Probar Telegram'}
+                  </Button>
+                </Grid>
+              </Grid>
+
+              {/* Resultado del test */}
+              {testStates.telegram.result && (
+                <Box mt={2}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Resultado:
+                  </Typography>
+                  <Box
+                    component="pre"
+                    sx={{
+                      p: 2,
+                      bgcolor: testStates.telegram.result.success ? 'success.light' : 'error.light',
+                      borderRadius: 1,
+                      fontSize: '0.75rem',
+                      overflow: 'auto'
+                    }}
+                  >
+                    {JSON.stringify(testStates.telegram.result, null, 2)}
+                  </Box>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+      </Collapse>
 
       <Snackbar
         open={snackbar.open}

@@ -14,6 +14,7 @@ import {
   getRecentWebhookLogs,
   getWebhookStats,
   getWebhookLogById,
+  getAsesores,
   type WebhookLogEntry
 } from '../dbClient';
 import { 
@@ -85,6 +86,7 @@ function determinarFlujo(event: string): string {
 router.post('/webhook', async (req, res) => {
   const startTime = Date.now();
   let webhookLogId: number | null = null;
+  let processingSteps: any[] = [];
   
   try {
     const { body } = req;
@@ -321,10 +323,9 @@ router.post('/webhook', async (req, res) => {
     let manychatSubscriberId = '';
     let manychatError = '';
 
-    // Variables para tracking de pasos del procesamiento
-    let processingSteps = [];
-    let clienteProcessingError = null;
-    let asesorAssignmentError = null;
+    // Variables para tracking de errores específicos (para uso futuro)
+    // let clienteProcessingError = null;
+    // let asesorAssignmentError = null;
 
     // 3. Procesar ManyChat (para todos los flujos)
     processingSteps.push({ step: 'manychat_integration', status: 'starting', timestamp: new Date() });
@@ -1044,6 +1045,271 @@ router.get('/webhook-stats', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     }
+  }
+});
+
+// Endpoint para obtener asesores con Telegram configurado
+router.get('/advisors-with-telegram', async (_req, res) => {
+  try {
+    const asesores = await getAsesores();
+    
+    // Filtrar solo asesores que tengan ID_TG configurado
+    const asesoresConTelegram = [];
+    
+    for (const asesor of asesores) {
+      try {
+        const asesorCompleto = await getAsesorById(asesor.ID);
+        if (asesorCompleto && asesorCompleto.ID_TG) {
+          asesoresConTelegram.push({
+            id: asesorCompleto.ID,
+            nombre: asesorCompleto.NOMBRE,
+            telegramId: asesorCompleto.ID_TG,
+            whatsapp: asesorCompleto.WHATSAPP
+          });
+        }
+      } catch (error) {
+        logger.warn(`Error obteniendo detalles del asesor ${asesor.ID}:`, error);
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: asesoresConTelegram,
+      total: asesoresConTelegram.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo asesores con Telegram:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test individual de ManyChat - Buscar subscriber
+router.post('/test-manychat', async (req, res) => {
+  try {
+    const { phoneNumber, action = 'search' } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Número de teléfono requerido',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const config = getHotmartConfig();
+    let result: any = {};
+    
+    if (action === 'search') {
+      // Buscar subscriber
+      const searchResult = await findManyChatSubscriber(phoneNumber);
+      result = {
+        action: 'search',
+        phoneNumber,
+        searchResult: searchResult,
+        found: searchResult.success && searchResult.data?.data?.length > 0
+      };
+      
+      if (searchResult.success && searchResult.data?.data?.length > 0) {
+        result.subscriber = searchResult.data.data[0];
+      }
+    } else if (action === 'create') {
+      // Crear subscriber (requiere nombre)
+      const { name } = req.body;
+      if (!name) {
+        return res.status(400).json({
+          success: false,
+          error: 'Nombre requerido para crear subscriber',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      const createResult = await createManyChatSubscriber(name, phoneNumber);
+      result = {
+        action: 'create',
+        phoneNumber,
+        name,
+        createResult: createResult,
+        success: createResult.success
+      };
+    } else if (action === 'sendFlow') {
+      // Enviar flujo (requiere subscriber ID y flow ID)
+      const { subscriberId, flowId } = req.body;
+      if (!subscriberId || !flowId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Subscriber ID y Flow ID requeridos',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      const flowResult = await sendManyChatFlow(subscriberId, flowId);
+      result = {
+        action: 'sendFlow',
+        subscriberId,
+        flowId,
+        flowResult: flowResult,
+        success: flowResult.success
+      };
+    }
+    
+    res.json({
+      success: true,
+      data: result,
+      config: {
+        token: config.tokens.manychat ? '***configurado***' : 'no configurado',
+        flows: config.numericos
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error en test de ManyChat:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test individual de Flodesk
+router.post('/test-flodesk', async (req, res) => {
+  try {
+    const { email, segmentId } = req.body;
+    
+    if (!email || !segmentId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email y Segment ID requeridos',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const config = getHotmartConfig();
+    const result = await addSubscriberToFlodesk(email, segmentId);
+    
+    res.json({
+      success: true,
+      data: {
+        email,
+        segmentId,
+        result: result,
+        addedSuccessfully: result.success
+      },
+      config: {
+        token: config.tokens.flodesk ? '***configurado***' : 'no configurado',
+        segments: config.flodesk
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error en test de Flodesk:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test individual de Telegram
+router.post('/test-telegram', async (req, res) => {
+  try {
+    const { advisorId, messageType = 'test', clientName, clientPhone, motivo } = req.body;
+    
+    if (!advisorId) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID del asesor requerido',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const asesor = await getAsesorById(advisorId);
+    if (!asesor) {
+      return res.status(404).json({
+        success: false,
+        error: 'Asesor no encontrado',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    if (!asesor.ID_TG) {
+      return res.status(400).json({
+        success: false,
+        error: 'El asesor no tiene ID de Telegram configurado',
+        advisorName: asesor.NOMBRE,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    let message;
+    const config = getHotmartConfig();
+    
+    if (messageType === 'venta') {
+      // Mensaje de venta al grupo general
+      const fakeHotmartData = {
+        buyer: { 
+          name: clientName || 'Cliente de Prueba',
+          email: 'test@ejemplo.com',
+          address: { country: 'Colombia' }
+        },
+        product: { name: 'Producto de Prueba' },
+        purchase: { 
+          transaction: 'TEST_' + Date.now(),
+          order_date: new Date().toISOString()
+        }
+      };
+      
+      message = createVentaMessage(fakeHotmartData, asesor.NOMBRE);
+    } else {
+      // Mensaje de notificación al asesor
+      message = createAsesorNotificationMessage(
+        'CARRITOS', // evento de prueba
+        clientName || 'Cliente de Prueba',
+        clientPhone || '57300000000',
+        asesor.ID_TG,
+        motivo || 'Mensaje de prueba desde el dashboard'
+      );
+    }
+    
+    const result = await sendTelegramMessage(message);
+    
+    res.json({
+      success: true,
+      data: {
+        advisorId,
+        advisorName: asesor.NOMBRE,
+        advisorTelegramId: asesor.ID_TG,
+        messageType,
+        message: message,
+        result: result,
+        sentSuccessfully: result.success
+      },
+      config: {
+        token: config.tokens.telegram ? '***configurado***' : 'no configurado',
+        groupChatId: config.telegram.groupChatId,
+        threadId: config.telegram.threadId
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error en test de Telegram:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

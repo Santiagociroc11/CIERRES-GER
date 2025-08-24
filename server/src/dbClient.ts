@@ -363,11 +363,20 @@ export async function getWebhookConfigFromDB(platform: string): Promise<any> {
     
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`Error response: ${errorText}`);
       throw new Error(`Error getting webhook config: ${response.status} - ${errorText}`);
     }
     
     const result = await response.json();
-    return result[0]?.config || {};
+    // PostgREST puede devolver el resultado directamente o en un array
+    // Si es un objeto directo, usarlo; si es un array, tomar el primer elemento
+    let finalResult;
+    if (Array.isArray(result)) {
+      finalResult = result[0] || {};
+    } else {
+      finalResult = result || {};
+    }
+    return finalResult;
   } catch (error) {
     console.error('Error getting webhook config from DB:', error);
     throw error;

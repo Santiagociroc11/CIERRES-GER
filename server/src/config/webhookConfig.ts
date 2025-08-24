@@ -51,7 +51,6 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
     
     if (dbConfig && Object.keys(dbConfig).length > 0) {
       console.log('Configuración cargada exitosamente desde base de datos');
-      console.log('dbConfig completo:', JSON.stringify(dbConfig, null, 2));
       
       // Usar ÚNICAMENTE los valores de la base de datos, sin mezclar con defaults
       const config: WebhookConfig = {
@@ -63,7 +62,6 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
         }
       };
       
-      console.log('Configuración final construida (SOLO de BD):', JSON.stringify(config.hotmart, null, 2));
       return config;
     } else {
       console.log('No hay configuración en BD, devolviendo configuración vacía');

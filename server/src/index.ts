@@ -31,8 +31,24 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware de seguridad y logging
-app.use(helmet());
-app.use(cors());
+// app.use(helmet()); // DESACTIVADO - Causa problemas de CSP
+app.use(cors({
+  origin: '*', // Permitir cualquier origen
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true
+}));
+
+// Headers personalizados para permitir conexiones externas
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+});
+
 app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

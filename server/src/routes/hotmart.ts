@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import winston from 'winston';
+import { getHotmartConfig, updateHotmartConfig, resetToDefault } from '../config/webhookConfig';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -12,28 +13,6 @@ const logger = winston.createLogger({
     new winston.transports.Console()
   ]
 });
-
-// Configuración de valores para diferentes flujos
-const FLUJO_CONFIG = {
-  numericos: {
-    CARRITOS: "content20250222080111_909145",
-    RECHAZADOS: "content20250222082908_074257",
-    COMPRAS: "content20250222083048_931507",
-    TICKETS: "content20250222083004_157122"
-  },
-  mailer: {
-    CARRITOS: "112554445482493399",
-    RECHAZADOS: "112554438393071296",
-    COMPRAS: "112554427903116632",
-    TICKETS: "147071027455723326"
-  },
-  tablas: {
-    CARRITOS: "FECHA_ABANDONADO",
-    RECHAZADOS: "FECHA_RECHAZADO",
-    COMPRAS: "FECHA_COMPRA",
-    TICKETS: "FECHA_TICKET"
-  }
-};
 
 // Función para extraer datos del comprador según el flujo
 function extraerDatosComprador(body: any, flujo: string) {
@@ -55,13 +34,15 @@ function extraerDatosComprador(body: any, flujo: string) {
   };
 }
 
-// Función para asignar valores según el flujo
+// Función para asignar valores según el flujo (usando configuración dinámica)
 function asignarValores(datos: any) {
+  const config = getHotmartConfig();
+  
   return {
     ...datos,
-    flujomany: FLUJO_CONFIG.numericos[datos.flujo as keyof typeof FLUJO_CONFIG.numericos] || 0,
-    grupomailer: FLUJO_CONFIG.mailer[datos.flujo as keyof typeof FLUJO_CONFIG.mailer] || 0,
-    tabla: FLUJO_CONFIG.tablas[datos.flujo as keyof typeof FLUJO_CONFIG.tablas] || 0
+    flujomany: config.numericos[datos.flujo as keyof typeof config.numericos] || 0,
+    grupomailer: config.mailer[datos.flujo as keyof typeof config.mailer] || 0,
+    tabla: config.tablas[datos.flujo as keyof typeof config.tablas] || 0
   };
 }
 
@@ -188,13 +169,105 @@ router.post('/test', async (req, res) => {
   }
 });
 
-// Endpoint para obtener la configuración de flujos
+// Endpoint para obtener la configuración actual
 router.get('/config', (req, res) => {
-  res.json({
-    success: true,
-    data: FLUJO_CONFIG,
-    timestamp: new Date().toISOString()
-  });
+  try {
+    const config = getHotmartConfig();
+    res.json({
+      success: true,
+      data: config,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo configuración', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para actualizar la configuración
+router.put('/config', async (req, res) => {
+  try {
+    const { body } = req;
+    
+    // Validar estructura de la configuración
+    if (!body || !body.numericos || !body.mailer || !body.tablas) {
+      return res.status(400).json({
+        success: false,
+        error: 'Estructura de configuración inválida',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Actualizar configuración
+    const success = updateHotmartConfig(body);
+    
+    if (success) {
+      logger.info('Configuración de Hotmart actualizada', { 
+        updatedBy: req.ip,
+        timestamp: new Date().toISOString()
+      });
+      
+      res.json({
+        success: true,
+        message: 'Configuración actualizada exitosamente',
+        data: getHotmartConfig(),
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Error guardando configuración',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error actualizando configuración', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para resetear a configuración por defecto
+router.post('/config/reset', (req, res) => {
+  try {
+    const success = resetToDefault();
+    
+    if (success) {
+      logger.info('Configuración reseteada a valores por defecto', { 
+        resetBy: req.ip,
+        timestamp: new Date().toISOString()
+      });
+      
+      res.json({
+        success: true,
+        message: 'Configuración reseteada a valores por defecto',
+        data: getHotmartConfig(),
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Error reseteando configuración',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error reseteando configuración', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 export default router;

@@ -62,6 +62,7 @@ const FLUJO_LABELS = {
 };
 
 const WebhookConfig: React.FC = () => {
+  console.log('Componente WebhookConfig renderizando...');
   const [config, setConfig] = useState<HotmartConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -130,7 +131,9 @@ const WebhookConfig: React.FC = () => {
       console.log('Respuesta de asesores:', data);
       
       if (data.success) {
+        console.log('Antes de setAdvisors, advisors.length:', advisors.length);
         setAdvisors(data.data || []);
+        console.log('Después de setAdvisors, data.data:', data.data);
         console.log('Asesores cargados:', data.data);
         if (data.data && data.data.length > 0) {
           toast.success(`${data.data.length} asesores cargados`);
@@ -496,6 +499,10 @@ const WebhookConfig: React.FC = () => {
   // Debug: Log del estado de asesores
   console.log('Estado actual de asesores:', advisors);
   console.log('Estado de loading de asesores:', advisorsLoading);
+  console.log('showTestSections:', showTestSections);
+  console.log('advisors.length:', advisors.length);
+  console.log('Tipo de advisors:', typeof advisors);
+  console.log('Es array:', Array.isArray(advisors));
 
   return (
     <Box p={3}>
@@ -918,14 +925,18 @@ const WebhookConfig: React.FC = () => {
                           {advisorsLoading ? 'Cargando asesores...' : 'Seleccionar asesor'}
                         </em>
                       </MenuItem>
-                      {advisors.map((advisor) => {
-                        console.log('Renderizando asesor:', advisor);
-                        return (
-                          <MenuItem key={advisor.id} value={advisor.id}>
-                            {advisor.nombre}
-                          </MenuItem>
-                        );
-                      })}
+                      {(() => {
+                        console.log('Renderizando Select con', advisors.length, 'asesores');
+                        console.log('advisors:', advisors);
+                        return advisors.map((advisor) => {
+                          console.log('Renderizando asesor:', advisor);
+                          return (
+                            <MenuItem key={advisor.id} value={advisor.id}>
+                              {advisor.nombre}
+                            </MenuItem>
+                          );
+                        });
+                      })()}
                     </Select>
                     {advisorsLoading && (
                       <Box display="flex" alignItems="center" gap={1} mt={1}>

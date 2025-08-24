@@ -627,8 +627,13 @@ const WebhookConfig: React.FC = () => {
             </Grid>
           </Grid>
 
-          <Box display="flex" justifyContent="space-between" alignItems="center" mt={3}>
-            <Box display="flex" gap={2}>
+          {/* Botones de Acción */}
+          <Box mt={3}>
+            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+              Acciones de Configuración
+            </Typography>
+            
+            <Box display="flex" flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
               <Button
                 variant="outlined"
                 onClick={testConnections}
@@ -640,24 +645,33 @@ const WebhookConfig: React.FC = () => {
               </Button>
               
               <Button
-                variant="outlined"
-                color="secondary"
+                variant={showTestSections ? "contained" : "outlined"}
+                color="info"
                 onClick={() => setShowTestSections(!showTestSections)}
                 size="large"
+                sx={{ 
+                  borderWidth: showTestSections ? 0 : 2,
+                  fontWeight: 'bold',
+                  '&:hover': { borderWidth: showTestSections ? 0 : 2 },
+                  minWidth: '280px'
+                }}
               >
-                {showTestSections ? 'Ocultar Tests Individuales' : 'Mostrar Tests Individuales'}
+                {showTestSections ? '🔽 Ocultar Tests Individuales' : '🔼 Mostrar Tests Individuales'}
               </Button>
             </Box>
             
-            <Button
-              variant="contained"
-              onClick={saveConfig}
-              disabled={saving}
-              startIcon={<Save />}
-              size="large"
-            >
-              {saving ? 'Guardando...' : 'Guardar Configuración'}
-            </Button>
+            <Box display="flex" justifyContent="flex-end">
+              <Button
+                variant="contained"
+                onClick={saveConfig}
+                disabled={saving}
+                startIcon={<Save />}
+                size="large"
+                color="success"
+              >
+                {saving ? 'Guardando...' : '💾 Guardar Configuración'}
+              </Button>
+            </Box>
           </Box>
         </CardContent>
       </Card>
@@ -688,8 +702,20 @@ const WebhookConfig: React.FC = () => {
       </Card>
 
       {/* Secciones de Test Individuales */}
-      <Collapse in={showTestSections}>
+      <Collapse in={showTestSections} timeout={400}>
         <Box mt={3}>
+          {/* Header de Tests */}
+          <Card sx={{ mb: 3, bgcolor: 'info.light' }}>
+            <CardContent>
+              <Typography variant="h5" gutterBottom align="center" color="info.dark">
+                🧪 Tests Individuales de Integración
+              </Typography>
+              <Typography variant="body1" align="center" color="info.dark">
+                Prueba cada servicio por separado para verificar la configuración
+              </Typography>
+            </CardContent>
+          </Card>
+          
           {/* Test ManyChat */}
           <Card sx={{ mb: 3 }}>
             <CardContent>

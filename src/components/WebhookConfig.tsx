@@ -24,13 +24,7 @@ interface HotmartConfig {
     COMPRAS: string;
     TICKETS: string;
   };
-  mailer: {
-    CARRITOS: string;
-    RECHAZADOS: string;
-    COMPRAS: string;
-    TICKETS: string;
-  };
-  tablas: {
+  flodesk: {
     CARRITOS: string;
     RECHAZADOS: string;
     COMPRAS: string;
@@ -38,7 +32,7 @@ interface HotmartConfig {
   };
   tokens: {
     manychat: string;
-    mailerlite: string;
+    flodesk: string;
     telegram: string;
   };
   telegram: {
@@ -168,7 +162,7 @@ const WebhookConfig: React.FC = () => {
     }
   };
 
-  const handleConfigChange = (section: keyof HotmartConfig, flujo: string, value: string) => {
+  const handleConfigChange = (section: 'numericos' | 'flodesk', flujo: string, value: string) => {
     if (!config) return;
     
     setConfig({
@@ -264,7 +258,7 @@ const WebhookConfig: React.FC = () => {
       </Typography>
       
       <Typography variant="body1" color="text.secondary" paragraph>
-        Configura los IDs de flujo, grupos, tablas de seguimiento y tokens de API para la integración completa de Hotmart con ManyChat, MailerLite y Telegram.
+        Configura los IDs de flujo, segmentos y tokens de API para la integración completa de Hotmart con ManyChat, Flodesk y Telegram.
       </Typography>
 
       <Card sx={{ mb: 3 }}>
@@ -310,45 +304,22 @@ const WebhookConfig: React.FC = () => {
 
           <Divider sx={{ my: 3 }} />
 
-          {/* MailerLite */}
+          {/* Flodesk */}
           <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-            <Chip label="MailerLite" color="secondary" size="small" sx={{ mr: 1 }} />
-            IDs de Grupo
+            <Chip label="Flodesk" color="secondary" size="small" sx={{ mr: 1 }} />
+            IDs de Segmento
           </Typography>
           
           <Grid container spacing={2}>
-            {Object.entries(config.mailer).map(([flujo, value]) => (
-              <Grid item xs={12} sm={6} md={3} key={`mailer-${flujo}`}>
+            {Object.entries(config.flodesk).map(([flujo, value]) => (
+              <Grid item xs={12} sm={6} md={3} key={`flodesk-${flujo}`}>
                 <TextField
                   fullWidth
                   label={FLUJO_LABELS[flujo as keyof typeof FLUJO_LABELS]}
                   value={value}
-                  onChange={(e) => handleConfigChange('mailer', flujo, e.target.value)}
+                  onChange={(e) => handleConfigChange('flodesk', flujo, e.target.value)}
                   size="small"
-                  helperText={`Grupo: ${flujo}`}
-                />
-              </Grid>
-            ))}
-          </Grid>
-
-          <Divider sx={{ my: 3 }} />
-
-          {/* Tablas de Seguimiento */}
-          <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-            <Chip label="Base de Datos" color="success" size="small" sx={{ mr: 1 }} />
-            Tablas de Seguimiento
-          </Typography>
-          
-          <Grid container spacing={2}>
-            {Object.entries(config.tablas).map(([flujo, value]) => (
-              <Grid item xs={12} sm={6} md={3} key={`tablas-${flujo}`}>
-                <TextField
-                  fullWidth
-                  label={FLUJO_LABELS[flujo as keyof typeof FLUJO_LABELS]}
-                  value={value}
-                  onChange={(e) => handleConfigChange('tablas', flujo, e.target.value)}
-                  size="small"
-                  helperText={`Tabla: ${flujo}`}
+                  helperText={`Segmento: ${flujo}`}
                 />
               </Grid>
             ))}
@@ -377,11 +348,11 @@ const WebhookConfig: React.FC = () => {
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
-                label="MailerLite Token"
-                value={config.tokens.mailerlite}
-                onChange={(e) => handleTokenChange('mailerlite', e.target.value)}
+                label="Flodesk Token"
+                value={config.tokens.flodesk}
+                onChange={(e) => handleTokenChange('flodesk', e.target.value)}
                 size="small"
-                helperText="Token de autenticación para MailerLite API"
+                helperText="Token de autenticación para Flodesk API"
                 type="password"
               />
             </Grid>

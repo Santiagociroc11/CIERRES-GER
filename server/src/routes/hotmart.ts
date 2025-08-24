@@ -15,7 +15,7 @@ import {
   createManyChatSubscriber, 
   sendManyChatFlow 
 } from '../services/manychatService';
-import { addSubscriberToMailerLite } from '../services/mailerliteService';
+import { addSubscriberToFlodesk } from '../services/flodeskService';
 import { 
   sendTelegramMessage, 
   createVentaMessage, 
@@ -62,8 +62,7 @@ function asignarValores(datos: any) {
   return {
     ...datos,
     flujomany: config.numericos[datos.flujo as keyof typeof config.numericos] || 0,
-    grupomailer: config.mailer[datos.flujo as keyof typeof config.mailer] || 0,
-    tabla: config.tablas[datos.flujo as keyof typeof config.tablas] || 0
+    grupoflodesk: config.flodesk[datos.flujo as keyof typeof config.flodesk] || 0
   };
 }
 
@@ -289,13 +288,13 @@ router.post('/webhook', async (req, res) => {
       }
     }
 
-    // 4. Procesar MailerLite
-    if (datosProcesados.correo && datosProcesados.grupomailer) {
+    // 4. Procesar Flodesk
+    if (datosProcesados.correo && datosProcesados.grupoflodesk) {
       try {
-        await addSubscriberToMailerLite(datosProcesados.correo, datosProcesados.grupomailer);
-        logger.info('Subscriber agregado a MailerLite', { email: datosProcesados.correo });
+        await addSubscriberToFlodesk(datosProcesados.correo, datosProcesados.grupoflodesk);
+        logger.info('Subscriber agregado a Flodesk', { email: datosProcesados.correo });
       } catch (error) {
-        logger.error('Error procesando MailerLite', error);
+        logger.error('Error procesando Flodesk', error);
       }
     }
 
@@ -392,8 +391,8 @@ router.post('/test', async (req, res) => {
       });
 
       processingSteps.push({
-        step: 'MailerLite',
-        action: `Agregaría a grupo ${datosProcesados.grupomailer}`,
+        step: 'Flodesk',
+        action: `Agregaría a segmento ${datosProcesados.grupoflodesk}`,
         enabled: !!datosProcesados.correo
       });
     } else {
@@ -463,7 +462,7 @@ router.post('/test-connections', async (_req, res) => {
     const config = getHotmartConfig();
     const testResults = {
       manychat: { status: 'unknown', message: '' },
-      mailerlite: { status: 'unknown', message: '' },
+      flodesk: { status: 'unknown', message: '' },
       telegram: { status: 'unknown', message: '' }
     };
 
@@ -520,22 +519,22 @@ router.post('/test-connections', async (_req, res) => {
       testResults.telegram = { status: 'error', message: 'Error de conexión con Telegram' };
     }
 
-    // Probar MailerLite (verificando autenticación)
+    // Probar Flodesk (verificando autenticación)
     try {
-      const mailerliteResponse = await fetch('https://connect.mailerlite.com/api/me', {
+      const flodeskResponse = await fetch('https://api.flodesk.com/v1/subscribers?limit=1', {
         headers: {
-          'Authorization': `Bearer ${config.tokens.mailerlite}`,
+          'Authorization': `Bearer ${config.tokens.flodesk}`,
           'Content-Type': 'application/json'
         }
       });
       
-      if (mailerliteResponse.ok) {
-        testResults.mailerlite = { status: 'success', message: 'Token válido y conexión exitosa' };
+      if (flodeskResponse.ok) {
+        testResults.flodesk = { status: 'success', message: 'Token válido y conexión exitosa' };
       } else {
-        testResults.mailerlite = { status: 'error', message: 'Token inválido o error de conexión' };
+        testResults.flodesk = { status: 'error', message: 'Token inválido o error de conexión' };
       }
     } catch (error) {
-      testResults.mailerlite = { status: 'error', message: 'Error de conexión con MailerLite' };
+      testResults.flodesk = { status: 'error', message: 'Error de conexión con Flodesk' };
     }
 
     res.json({
@@ -579,10 +578,10 @@ router.put('/config', async (req, res) => {
     const { body } = req;
     
     // Validar estructura de la configuración
-    if (!body || !body.numericos || !body.mailer || !body.tablas || !body.tokens || !body.telegram) {
+    if (!body || !body.numericos || !body.flodesk || !body.tokens || !body.telegram) {
       return res.status(400).json({
         success: false,
-        error: 'Estructura de configuración inválida. Debe incluir: numericos, mailer, tablas, tokens y telegram',
+        error: 'Estructura de configuración inválida. Debe incluir: numericos, flodesk, tokens y telegram',
         timestamp: new Date().toISOString()
       });
     }

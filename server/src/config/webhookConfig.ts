@@ -10,13 +10,7 @@ export interface WebhookConfig {
       COMPRAS: string;
       TICKETS: string;
     };
-    mailer: {
-      CARRITOS: string;
-      RECHAZADOS: string;
-      COMPRAS: string;
-      TICKETS: string;
-    };
-    tablas: {
+    flodesk: {
       CARRITOS: string;
       RECHAZADOS: string;
       COMPRAS: string;
@@ -24,7 +18,7 @@ export interface WebhookConfig {
     };
     tokens: {
       manychat: string;
-      mailerlite: string;
+      flodesk: string;
       telegram: string;
     };
     telegram: {
@@ -46,21 +40,15 @@ const DEFAULT_CONFIG: WebhookConfig = {
       COMPRAS: "content20250222083048_931507",
       TICKETS: "content20250222083004_157122"
     },
-    mailer: {
+    flodesk: {
       CARRITOS: "112554445482493399",
       RECHAZADOS: "112554438393071296",
       COMPRAS: "112554427903116632",
       TICKETS: "147071027455723326"
     },
-    tablas: {
-      CARRITOS: "FECHA_ABANDONADO",
-      RECHAZADOS: "FECHA_RECHAZADO",
-      COMPRAS: "FECHA_COMPRA",
-      TICKETS: "FECHA_TICKET"
-    },
     tokens: {
       manychat: process.env.MANYCHAT_TOKEN || "288702267651723:f96a1f26344892df99c98292741de8c9",
-      mailerlite: process.env.MAILERLITE_TOKEN || "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiI0IiwianRpIjoiNjJkOWNjNDIwNmY2MjU3NmNlODlkZjI0ZjI2YTY3Y2I2YzBlMDU1ZTUyNjI3Mzk3ZDI5YzY4YzQ1ZDQ5ODA1MGIwN2U3YmI2MzRjMTdlMWIiLCJpYXQiOjE3MDczNDE5NzMuMTk4MDI2LCJuYmYiOjE3MDczNDE5NzMuMTk4MDI4LCJleHAiOjQ4NjMwMTU1NzMuMTk0NjIzLCJzdWIiOiI3ODg1NjciLCJzY29wZXMiOltdfQ.szhVxEi-fFJkTPNuE5xraeYUUhH_mh4c0fsqQCUoZD7lWk4FEmiKtO6KzqETU9wOjGPYw0hf0i08UzHAXJShiktN-Jd-X6EodonxdgqIYFae4Mfc11BNx8kunRotBESUN7gxeA0yvVSjXv-AuCZ-jjNuRjWFtXrAK237WqIZQoMmGdyrkt6-BLU0FcnksVxLHdliocY1LDisSAjJ3kUKEAVF2OLjI3Ks3SFxsuDcb4zeUgjqACBiYCreoKQKwPlyr1srybwnrbXZL302QtiV-t4jYogole8SwDtQP4El0kVbqkgEiadFcBLF-wNg5K5RNrvTdk-YucFbbKwTVlXH_NdwzgRqNjw9LUl4u7i6FGeiECYVI6ufZ39QTLbwEMaQ4Q2lC6CDt7baSVnT4ahthxN3tlAm49L_5bjAz9UYP3dNHhNX5jh3SeR-qp86TAP3sSyiCQnrHx9HKeyGzmwkXpSdEAl8wCg4jEpX9a3ajJuqfTbcoANyMxJQgqjedep8tAYwOPpnkOmfo45qf4txzIDVE1eeqKrB5_Y1hexB2VZObRMYmGVDyKXnyqJgdWjzOlbkcnoegkXQEkp2t3EyzD2H6S41G9c_0nNjlqgu1elCMFFrMgRXLi9_Op87Y5tCEi52cTUNQ2WSHWMHibEySLzNa873Vop9Gc_tugl9M9g",
+      flodesk: process.env.FLODESK_TOKEN || "fd_key_62533317a47c4da09b593dbca41a5fe5.vVzT3lmlnQg1Q8arCbjKXnOyZDJQCDKINkBM9hocCsT7xrKUYxEFRd9j1IXkb4bkon89xZk8ozWNoCrmwRMsDQCEn3PCrfXJLVGEIXrI45LIa5ItnwfN8n9drHsEZdRR3417444zrfVVNznmrDdkWnNy8UCUGGpcPnJv4gtTRkgv14P9N5qScIZa8lb5FGqw",
       telegram: process.env.TELEGRAM_BOT_TOKEN || "8117750846:AAExGxB3Mbwv2YBb6b7rMAvP6vsIPeH8EIM"
     },
     telegram: {
@@ -107,7 +95,7 @@ export function loadWebhookConfig(): WebhookConfig {
     }
     
     // Validar que la configuración tenga la estructura correcta
-    if (!config.hotmart || !config.hotmart.numericos || !config.hotmart.mailer || !config.hotmart.tablas || !config.hotmart.tokens || !config.hotmart.telegram) {
+    if (!config.hotmart || !config.hotmart.numericos || !config.hotmart.flodesk || !config.hotmart.tokens || !config.hotmart.telegram) {
       console.warn('Configuración inválida, usando configuración por defecto');
       saveWebhookConfig(DEFAULT_CONFIG);
       return DEFAULT_CONFIG;

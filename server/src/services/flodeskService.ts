@@ -1,4 +1,4 @@
-export interface MailerLiteResponse {
+export interface FlodeskResponse {
   success: boolean;
   data?: any;
   error?: string;
@@ -6,21 +6,22 @@ export interface MailerLiteResponse {
 
 import { getHotmartConfig } from '../config/webhookConfig';
 
-const MAILERLITE_API_BASE = 'https://connect.mailerlite.com/api';
+const FLODESK_API_BASE = 'https://api.flodesk.com/v1';
 
-export async function addSubscriberToMailerLite(email: string, groupId: string): Promise<MailerLiteResponse> {
+export async function addSubscriberToFlodesk(email: string, segmentId: string): Promise<FlodeskResponse> {
   const config = getHotmartConfig();
-  const MAILERLITE_TOKEN = config.tokens.mailerlite;
+  const FLODESK_TOKEN = config.tokens.flodesk;
+  
   try {
-    const response = await fetch(`${MAILERLITE_API_BASE}/subscribers`, {
+    const response = await fetch(`${FLODESK_API_BASE}/subscribers`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${MAILERLITE_TOKEN}`,
+        'Authorization': `Bearer ${FLODESK_TOKEN}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         email: email,
-        groups: [groupId]
+        segments: [segmentId]
       })
     });
 

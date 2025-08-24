@@ -10,7 +10,7 @@ const FLODESK_API_BASE = 'https://api.flodesk.com/v1';
 
 export async function addSubscriberToFlodesk(email: string, segmentId: string): Promise<FlodeskResponse> {
   const config = await getHotmartConfig();
-  const FLODESK_TOKEN = config.tokens.flodesk;
+  const FLODESK_TOKEN = config.tokens.flodesk || '';
   
   try {
     // Flodesk usa Basic Auth con el token como username y password vacía

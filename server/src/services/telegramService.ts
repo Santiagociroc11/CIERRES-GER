@@ -65,8 +65,8 @@ export async function createVentaMessage(hotmartData: any, asesorNombre?: string
     `<b>Fecha de compra:</b> ${purchaseDate}\n`;
 
   return {
-    chat_id: config.telegram.groupChatId,
-    message_thread_id: parseInt(config.telegram.threadId, 10),
+    chat_id: config.telegram.groupChatId || '',
+    message_thread_id: parseInt(config.telegram.threadId || '0', 10),
     text,
     parse_mode: 'HTML'
   };

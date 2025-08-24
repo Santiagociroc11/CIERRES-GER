@@ -37,7 +37,20 @@ import {
   Error,
   Pending,
   Schedule,
-  Info
+  Info,
+  PlayArrow,
+  Done,
+  Close,
+  SkipNext,
+  Timeline,
+  Person,
+  ShoppingCart,
+  Message,
+  Email,
+  Telegram,
+  AccessTime,
+  MonetizationOn,
+  Public
 } from '@mui/icons-material';
 import { toast } from 'react-hot-toast';
 
@@ -52,16 +65,61 @@ interface WebhookLog {
   buyer_country?: string;
   product_name?: string;
   transaction_id?: string;
+  purchase_amount?: number;
+  purchase_date?: string;
   cliente_id?: number;
+  asesor_id?: number;
   asesor_nombre?: string;
+  // Estados detallados de integraciones
   manychat_status?: 'success' | 'error' | 'skipped';
+  manychat_flow_id?: string;
+  manychat_subscriber_id?: string;
+  manychat_error?: string;
   flodesk_status?: 'success' | 'error' | 'skipped';
+  flodesk_segment_id?: string;
+  flodesk_error?: string;
   telegram_status?: 'success' | 'error' | 'skipped';
+  telegram_chat_id?: string;
+  telegram_message_id?: string;
+  telegram_error?: string;
   processing_time_ms?: number;
   error_message?: string;
+  error_stack?: string;
   received_at: string;
   processed_at?: string;
   raw_webhook_data?: any;
+  // Nuevos campos para pasos de procesamiento
+  processing_steps?: ProcessingStep[];
+  integration_results?: IntegrationResults;
+}
+
+interface ProcessingStep {
+  step: string;
+  status: 'starting' | 'completed' | 'failed' | 'skipped';
+  result?: string;
+  error?: string;
+  timestamp: string;
+  duration_ms?: number;
+}
+
+interface IntegrationResults {
+  manychat: {
+    status: 'success' | 'error' | 'skipped';
+    flowId?: string;
+    subscriberId?: string;
+    error?: string;
+  };
+  flodesk: {
+    status: 'success' | 'error' | 'skipped';
+    segmentId?: string;
+    error?: string;
+  };
+  telegram: {
+    status: 'success' | 'error' | 'skipped';
+    chatId?: string;
+    messageId?: string;
+    error?: string;
+  };
 }
 
 interface WebhookStats {
@@ -97,6 +155,20 @@ const INTEGRATION_COLORS = {
   error: 'error',
   skipped: 'default'
 } as const;
+
+const STEP_COLORS = {
+  starting: 'info',
+  completed: 'success',
+  failed: 'error',
+  skipped: 'default'
+} as const;
+
+const STEP_ICONS = {
+  starting: <PlayArrow />,
+  completed: <Done />,
+  failed: <Close />,
+  skipped: <SkipNext />
+};
 
 const WebhookLogs: React.FC = () => {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
@@ -242,6 +314,121 @@ const WebhookLogs: React.FC = () => {
       />
     );
   };
+
+  const getStepChip = (status: ProcessingStep['status']) => (
+    <Chip
+      icon={STEP_ICONS[status]}
+      label={status.toUpperCase()}
+      color={STEP_COLORS[status]}
+      size="small"
+    />
+  );
+
+  const renderProcessingTimeline = (steps?: ProcessingStep[]) => {
+    if (!steps || steps.length === 0) return null;
+
+    return (
+      <Box mt={2}>
+        <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+          <Timeline sx={{ mr: 1 }} />
+          Timeline de Procesamiento
+        </Typography>
+        <Box sx={{ pl: 2 }}>
+          {steps.map((step, index) => (
+            <Box key={index} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+              {getStepChip(step.status)}
+              <Typography variant="body2" sx={{ ml: 1, flex: 1 }}>
+                {step.step}
+              </Typography>
+              <Typography variant="caption" color="textSecondary" sx={{ ml: 1 }}>
+                {new Date(step.timestamp).toLocaleTimeString()}
+              </Typography>
+              {step.duration_ms && (
+                <Chip 
+                  label={`${step.duration_ms}ms`} 
+                  size="small" 
+                  variant="outlined" 
+                  sx={{ ml: 1 }} 
+                />
+              )}
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    );
+  };
+
+  const renderIntegrationDetails = (log: WebhookLog) => (
+    <Box mt={2}>
+      <Typography variant="subtitle2" gutterBottom>
+        Detalles de Integraciones
+      </Typography>
+      <Grid container spacing={2}>
+        {/* ManyChat Details */}
+        <Grid item xs={12} md={4}>
+          <Card variant="outlined" sx={{ p: 1 }}>
+            <Box display="flex" alignItems="center" mb={1}>
+              <Message sx={{ mr: 1, color: log.manychat_status === 'success' ? 'success.main' : log.manychat_status === 'error' ? 'error.main' : 'grey.500' }} />
+              <Typography variant="subtitle2">ManyChat</Typography>
+              {getIntegrationChip(log.manychat_status)}
+            </Box>
+            {log.manychat_flow_id && (
+              <Typography variant="caption" display="block">Flow ID: {log.manychat_flow_id}</Typography>
+            )}
+            {log.manychat_subscriber_id && (
+              <Typography variant="caption" display="block">Subscriber: {log.manychat_subscriber_id}</Typography>
+            )}
+            {log.manychat_error && (
+              <Alert severity="error" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                {log.manychat_error}
+              </Alert>
+            )}
+          </Card>
+        </Grid>
+
+        {/* Flodesk Details */}
+        <Grid item xs={12} md={4}>
+          <Card variant="outlined" sx={{ p: 1 }}>
+            <Box display="flex" alignItems="center" mb={1}>
+              <Email sx={{ mr: 1, color: log.flodesk_status === 'success' ? 'success.main' : log.flodesk_status === 'error' ? 'error.main' : 'grey.500' }} />
+              <Typography variant="subtitle2">Flodesk</Typography>
+              {getIntegrationChip(log.flodesk_status)}
+            </Box>
+            {log.flodesk_segment_id && (
+              <Typography variant="caption" display="block">Segment: {log.flodesk_segment_id}</Typography>
+            )}
+            {log.flodesk_error && (
+              <Alert severity="error" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                {log.flodesk_error}
+              </Alert>
+            )}
+          </Card>
+        </Grid>
+
+        {/* Telegram Details */}
+        <Grid item xs={12} md={4}>
+          <Card variant="outlined" sx={{ p: 1 }}>
+            <Box display="flex" alignItems="center" mb={1}>
+              <Telegram sx={{ mr: 1, color: log.telegram_status === 'success' ? 'success.main' : log.telegram_status === 'error' ? 'error.main' : 'grey.500' }} />
+              <Typography variant="subtitle2">Telegram</Typography>
+              {getIntegrationChip(log.telegram_status)}
+            </Box>
+            {log.telegram_chat_id && (
+              <Typography variant="caption" display="block">Chat: {log.telegram_chat_id}</Typography>
+            )}
+            {log.telegram_message_id && (
+              <Typography variant="caption" display="block">Message: {log.telegram_message_id}</Typography>
+            )}
+            {log.telegram_error && (
+              <Alert severity="error" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                {log.telegram_error}
+              </Alert>
+            )}
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
+  );
 
   const filteredLogs = logs.filter(log => {
     if (filterStatus && log.status !== filterStatus) return false;
@@ -475,29 +662,84 @@ const WebhookLogs: React.FC = () => {
                       <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={10}>
                         <Collapse in={expandedRow === log.id} timeout="auto" unmountOnExit>
                           <Box margin={1}>
-                            <Grid container spacing={2}>
+                            <Grid container spacing={3}>
+                              {/* Información del Comprador */}
                               <Grid item xs={12} md={6}>
-                                <Typography variant="subtitle2" gutterBottom>
-                                  Detalles del Comprador
-                                </Typography>
-                                <Typography variant="body2">Email: {log.buyer_email || 'N/A'}</Typography>
-                                <Typography variant="body2">País: {log.buyer_country || 'N/A'}</Typography>
-                                <Typography variant="body2">Producto: {log.product_name || 'N/A'}</Typography>
-                                <Typography variant="body2">Transacción: {log.transaction_id || 'N/A'}</Typography>
+                                <Card variant="outlined" sx={{ p: 2, height: '100%' }}>
+                                  <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Person sx={{ mr: 1 }} />
+                                    Detalles del Comprador
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                    <Email sx={{ mr: 1, fontSize: 16 }} />
+                                    <Typography variant="body2">{log.buyer_email || 'N/A'}</Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                    <Public sx={{ mr: 1, fontSize: 16 }} />
+                                    <Typography variant="body2">{log.buyer_country || 'N/A'}</Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                    <ShoppingCart sx={{ mr: 1, fontSize: 16 }} />
+                                    <Typography variant="body2">{log.product_name || 'N/A'}</Typography>
+                                  </Box>
+                                  {log.purchase_amount && (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                      <MonetizationOn sx={{ mr: 1, fontSize: 16 }} />
+                                      <Typography variant="body2">${log.purchase_amount}</Typography>
+                                    </Box>
+                                  )}
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                    <Info sx={{ mr: 1, fontSize: 16 }} />
+                                    <Typography variant="body2">TX: {log.transaction_id || 'N/A'}</Typography>
+                                  </Box>
+                                </Card>
                               </Grid>
+
+                              {/* Información de Procesamiento */}
                               <Grid item xs={12} md={6}>
-                                <Typography variant="subtitle2" gutterBottom>
-                                  Procesamiento
-                                </Typography>
-                                <Typography variant="body2">Cliente ID: {log.cliente_id || 'N/A'}</Typography>
-                                <Typography variant="body2">
-                                  Procesado: {log.processed_at ? new Date(log.processed_at).toLocaleString() : 'N/A'}
-                                </Typography>
-                                {log.error_message && (
-                                  <Alert severity="error" size="small" sx={{ mt: 1 }}>
-                                    {log.error_message}
-                                  </Alert>
-                                )}
+                                <Card variant="outlined" sx={{ p: 2, height: '100%' }}>
+                                  <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Schedule sx={{ mr: 1 }} />
+                                    Procesamiento
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                    <Person sx={{ mr: 1, fontSize: 16 }} />
+                                    <Typography variant="body2">Cliente ID: {log.cliente_id || 'N/A'}</Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                    <AccessTime sx={{ mr: 1, fontSize: 16 }} />
+                                    <Typography variant="body2">
+                                      Procesado: {log.processed_at ? new Date(log.processed_at).toLocaleString() : 'N/A'}
+                                    </Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                    <Schedule sx={{ mr: 1, fontSize: 16 }} />
+                                    <Typography variant="body2">
+                                      Duración: {log.processing_time_ms || 0}ms
+                                    </Typography>
+                                  </Box>
+                                  {log.asesor_nombre && (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                      <Person sx={{ mr: 1, fontSize: 16 }} />
+                                      <Typography variant="body2">Asesor: {log.asesor_nombre}</Typography>
+                                    </Box>
+                                  )}
+                                  {log.error_message && (
+                                    <Alert severity="error" size="small" sx={{ mt: 1 }}>
+                                      {log.error_message}
+                                    </Alert>
+                                  )}
+                                </Card>
+                              </Grid>
+
+                              {/* Detalles de Integraciones */}
+                              <Grid item xs={12}>
+                                {renderIntegrationDetails(log)}
+                              </Grid>
+
+                              {/* Timeline de Procesamiento */}
+                              <Grid item xs={12}>
+                                {renderProcessingTimeline(log.processing_steps)}
                               </Grid>
                             </Grid>
                           </Box>

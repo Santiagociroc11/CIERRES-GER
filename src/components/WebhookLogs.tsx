@@ -117,7 +117,17 @@ const WebhookLogs: React.FC = () => {
     try {
       const offset = (page - 1) * pageSize;
       const response = await fetch(`/api/hotmart/webhook-logs?limit=${pageSize}&offset=${offset}`);
-      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const text = await response.text();
+      if (!text) {
+        throw new Error('Respuesta vacía del servidor');
+      }
+      
+      const data = JSON.parse(text);
       
       if (data.success) {
         setLogs(data.data);
@@ -135,7 +145,18 @@ const WebhookLogs: React.FC = () => {
   const loadStats = useCallback(async () => {
     try {
       const response = await fetch('/api/hotmart/webhook-stats?days=7');
-      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const text = await response.text();
+      if (!text) {
+        console.warn('Respuesta vacía para estadísticas, continuando...');
+        return;
+      }
+      
+      const data = JSON.parse(text);
       
       if (data.success) {
         setStats(data.data);
@@ -177,7 +198,17 @@ const WebhookLogs: React.FC = () => {
   const handleViewDetail = async (logId: number) => {
     try {
       const response = await fetch(`/api/hotmart/webhook-logs/${logId}`);
-      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const text = await response.text();
+      if (!text) {
+        throw new Error('Respuesta vacía del servidor');
+      }
+      
+      const data = JSON.parse(text);
       
       if (data.success) {
         setSelectedLog(data.data);
@@ -186,6 +217,7 @@ const WebhookLogs: React.FC = () => {
         toast.error('Error cargando detalle del log');
       }
     } catch (error) {
+      console.error('Error cargando detalle del log:', error);
       toast.error('Error cargando detalle del log');
     }
   };

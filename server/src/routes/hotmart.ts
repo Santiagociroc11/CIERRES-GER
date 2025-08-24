@@ -859,11 +859,28 @@ router.get('/webhook-logs', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error obteniendo webhook logs', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error interno del servidor',
-      timestamp: new Date().toISOString()
-    });
+    
+    // Si es un error de vista no encontrada, devolver logs vacíos
+    if (error instanceof Error && (error.message.includes('relation "recent_webhook_logs" does not exist') || error.message.includes('relation "webhook_logs" does not exist'))) {
+      logger.warn('Vista/tabla webhook_logs no existe, devolviendo logs vacíos');
+      res.json({
+        success: true,
+        data: [],
+        pagination: {
+          limit,
+          offset,
+          total: 0
+        },
+        warning: 'Tabla de logs no disponible',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Error interno del servidor',
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 });
 
@@ -919,11 +936,24 @@ router.get('/webhook-stats', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error obteniendo estadísticas de webhooks', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error interno del servidor',
-      timestamp: new Date().toISOString()
-    });
+    
+    // Si es un error de vista no encontrada, devolver estadísticas vacías
+    if (error instanceof Error && error.message.includes('relation "webhook_stats" does not exist')) {
+      logger.warn('Vista webhook_stats no existe, devolviendo estadísticas vacías');
+      res.json({
+        success: true,
+        data: [],
+        period: `${days} días`,
+        warning: 'Vista de estadísticas no disponible',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Error interno del servidor',
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 });
 

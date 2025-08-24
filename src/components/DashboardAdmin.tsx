@@ -28,6 +28,8 @@ import {
   Webhook,
   Edit,
   Trash2,
+  Grid3X3,
+  List,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -96,6 +98,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [clienteParaChat, setClienteParaChat] = useState<any | null>(null);
   const [mostrarModalCrearAsesor, setMostrarModalCrearAsesor] = useState(false);
   const [asesorParaEditar, setAsesorParaEditar] = useState<Asesor | null>(null);
+  const [vistaAsesores, setVistaAsesores] = useState<'cards' | 'tabla'>('cards');
 
   // Estado para alternar entre vista de Asesores y Clientes
   const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks'>('asesores');
@@ -1383,6 +1386,34 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                 <Download className="h-4 w-4" />
                 <span className="hidden lg:inline font-medium">Exportar</span>
               </button>
+              
+              {/* Toggle Vista */}
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setVistaAsesores('cards')}
+                  className={`flex items-center px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
+                    vistaAsesores === 'cards'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Vista de tarjetas"
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                  <span className="hidden lg:inline ml-1">Cards</span>
+                </button>
+                <button
+                  onClick={() => setVistaAsesores('tabla')}
+                  className={`flex items-center px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
+                    vistaAsesores === 'tabla'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Vista de tabla"
+                >
+                  <List className="h-4 w-4" />
+                  <span className="hidden lg:inline ml-1">Tabla</span>
+                </button>
+              </div>
               <button
                 onClick={() => verificarEstadosConexion(asesores)}
                 className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
@@ -2272,8 +2303,9 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                   <h2 className="text-lg font-medium text-gray-900">Rendimiento de Asesores</h2>
                 </div>
                 <div className="p-4">
-                  <div className="grid grid-cols-1 gap-4">
-                    {asesoresOrdenados.map((asesor) => {
+                  {vistaAsesores === 'cards' ? (
+                    <div className="grid grid-cols-1 gap-4">
+                      {asesoresOrdenados.map((asesor) => {
                       const stats = estadisticas[asesor.ID];
                       const ultimaActividadDate = stats?.ultimaActividad ? new Date(stats.ultimaActividad * 1000) : null;
                       const horasSinActividad = ultimaActividadDate
@@ -2646,12 +2678,134 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                         </div>
                       );
                     })}
-                    {asesoresOrdenados.length === 0 && (
-                      <div className="text-center py-8 text-gray-500">
-                        No se encontraron asesores que coincidan con los filtros aplicados
-                      </div>
-                    )}
-                  </div>
+                      {asesoresOrdenados.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          No se encontraron asesores que coincidan con los filtros aplicados
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Vista de Tabla */
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Asesor
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Conexiones
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Clientes
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Ventas
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Cierre
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actividad
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Acciones
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {asesoresOrdenados.map((asesor) => {
+                            const stats = estadisticas[asesor.ID];
+                            const ultimaActividadDate = stats?.ultimaActividad ? new Date(stats.ultimaActividad * 1000) : null;
+                            const horasSinActividad = ultimaActividadDate
+                              ? Math.floor((Date.now() - ultimaActividadDate.getTime()) / (1000 * 60 * 60))
+                              : null;
+                            const estadoConexion = conexionesEstado[asesor.ID];
+
+                            return (
+                              <tr key={asesor.ID} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <Users className="h-10 w-10 text-blue-500 mr-3" />
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</div>
+                                      <div className="text-sm text-gray-500">{asesor.WHATSAPP}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  <div className="flex flex-col space-y-1">
+                                    <div className="flex items-center space-x-2">
+                                      <div className={`w-2 h-2 rounded-full ${
+                                        estadoConexion?.whatsapp === 'conectado' ? 'bg-green-500' : 'bg-red-500'
+                                      }`}></div>
+                                      <span className="text-xs">WhatsApp</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <div className={`w-2 h-2 rounded-full ${
+                                        estadoConexion?.telegram ? 'bg-green-500' : 'bg-red-500'
+                                      }`}></div>
+                                      <span className="text-xs">Telegram</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-gray-900">{stats?.totalClientes || 0}</span>
+                                    <span className="text-xs text-gray-500">
+                                      {stats?.clientesSinReporte || 0} sin reporte
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-green-600">{stats?.ventasPrincipal || 0} Principal</span>
+                                    <span className="text-xs text-blue-600">{stats?.ventasDownsell || 0} Downsell</span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    {stats?.porcentajeCierre?.toFixed(1) || '0.0'}%
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {horasSinActividad !== null ? (
+                                    <span className={`text-xs ${horasSinActividad > 10 ? 'text-red-600' : 'text-green-600'}`}>
+                                      {formatInactivityTime(stats?.ultimaActividad)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-gray-400">Sin datos</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                  <div className="flex justify-end space-x-2">
+                                    <button
+                                      onClick={() => setAsesorParaEditar(asesor)}
+                                      className="text-indigo-600 hover:text-indigo-900 p-1 rounded"
+                                      title="Editar"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => setAsesorSeleccionado(asesor)}
+                                      className="text-blue-600 hover:text-blue-900 text-xs"
+                                    >
+                                      Ver Detalle
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {asesoresOrdenados.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          No se encontraron asesores que coincidan con los filtros aplicados
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

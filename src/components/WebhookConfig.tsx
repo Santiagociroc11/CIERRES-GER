@@ -77,6 +77,7 @@ const WebhookConfig: React.FC = () => {
 
   // Individual testing states
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
+  const [advisorsLoading, setAdvisorsLoading] = useState(false);
   const [testStates, setTestStates] = useState({
     manychat: { loading: false, phoneNumber: '', result: null as any },
     flodesk: { loading: false, email: '', segmentId: 'COMPRAS', result: null as any },
@@ -91,10 +92,12 @@ const WebhookConfig: React.FC = () => {
 
   // Cargar asesores con Telegram cuando se muestren las secciones de test
   useEffect(() => {
-    if (showTestSections) {
+    console.log('useEffect showTestSections:', showTestSections, 'advisors.length:', advisors.length);
+    if (showTestSections && advisors.length === 0) {
+      console.log('Ejecutando loadAdvisors...');
       loadAdvisors();
     }
-  }, [showTestSections]);
+  }, [showTestSections, advisors.length]);
 
   const loadConfig = async () => {
     try {
@@ -117,17 +120,31 @@ const WebhookConfig: React.FC = () => {
 
   const loadAdvisors = async () => {
     try {
+      setAdvisorsLoading(true);
+      console.log('Cargando asesores...');
+      
       const response = await fetch('/api/hotmart/advisors-with-telegram');
       const data = await response.json();
       
+      console.log('Respuesta de asesores:', data);
+      
       if (data.success) {
-        setAdvisors(data.data);
+        setAdvisors(data.data || []);
+        console.log('Asesores cargados:', data.data);
+        if (data.data && data.data.length > 0) {
+          toast.success(`${data.data.length} asesores cargados`);
+        } else {
+          toast('No se encontraron asesores con Telegram configurado', { icon: 'ℹ️' });
+        }
       } else {
         throw new Error(data.error || 'Error cargando asesores');
       }
     } catch (error) {
       console.error('Error cargando asesores:', error);
       toast.error('Error cargando asesores');
+      setAdvisors([]);
+    } finally {
+      setAdvisorsLoading(false);
     }
   };
 
@@ -865,10 +882,21 @@ const WebhookConfig: React.FC = () => {
           {/* Test Telegram */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                <Chip label="Telegram" color="info" size="small" sx={{ mr: 1 }} />
-                Test Individual
-              </Typography>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">
+                  <Chip label="Telegram" color="info" size="small" sx={{ mr: 1 }} />
+                  Test Individual
+                </Typography>
+                <Button
+                  size="small"
+                  onClick={loadAdvisors}
+                  disabled={advisorsLoading}
+                  startIcon={<Refresh />}
+                  variant="outlined"
+                >
+                  {advisorsLoading ? 'Cargando...' : 'Recargar Asesores'}
+                </Button>
+              </Box>
               
               <Grid container spacing={2} sx={{ mb: 2 }}>
                 <Grid item xs={12} md={3}>
@@ -878,9 +906,12 @@ const WebhookConfig: React.FC = () => {
                       value={testStates.telegram.advisorId}
                       onChange={(e) => updateTestState('telegram', 'advisorId', e.target.value)}
                       label="Asesor"
+                      disabled={advisorsLoading}
                     >
                       <MenuItem value="">
-                        <em>Seleccionar asesor</em>
+                        <em>
+                          {advisorsLoading ? 'Cargando asesores...' : 'Seleccionar asesor'}
+                        </em>
                       </MenuItem>
                       {advisors.map((advisor) => (
                         <MenuItem key={advisor.ID} value={advisor.ID}>
@@ -888,6 +919,19 @@ const WebhookConfig: React.FC = () => {
                         </MenuItem>
                       ))}
                     </Select>
+                    {advisorsLoading && (
+                      <Box display="flex" alignItems="center" gap={1} mt={1}>
+                        <CircularProgress size={16} />
+                        <Typography variant="caption" color="text.secondary">
+                          Cargando asesores...
+                        </Typography>
+                      </Box>
+                    )}
+                    {!advisorsLoading && (
+                      <Typography variant="caption" color="text.secondary" mt={1}>
+                        {advisors.length > 0 ? `${advisors.length} asesores disponibles` : 'No hay asesores con Telegram configurado'}
+                      </Typography>
+                    )}
                   </FormControl>
                 </Grid>
                 <Grid item xs={12} md={3}>

@@ -382,6 +382,13 @@ export async function updateWebhookConfigInDB(
 ): Promise<boolean> {
   try {
     console.log(`Actualizando webhook config - Platform: ${platform}, Key: ${configKey}`);
+    console.log(`POSTGREST_URL: ${POSTGREST_URL}`);
+    console.log(`Payload:`, JSON.stringify({
+      p_platform: platform,
+      p_config_key: configKey,
+      p_config_value: configValue,
+      p_updated_by: updatedBy
+    }));
     
     const response = await fetch(`${POSTGREST_URL}/rpc/update_webhook_config`, {
       method: 'POST',
@@ -397,6 +404,9 @@ export async function updateWebhookConfigInDB(
       })
     });
     
+    console.log(`Response status: ${response.status}`);
+    console.log(`Response headers:`, Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Error HTTP ${response.status} actualizando webhook config (${platform}.${configKey}): ${errorText}`);
@@ -408,11 +418,13 @@ export async function updateWebhookConfigInDB(
     }
     
     const result = await response.json();
+    console.log(`Response result:`, result);
     const success = result[0]?.success || false;
     console.log(`Resultado actualización ${platform}.${configKey}:`, success);
     return success;
   } catch (error) {
     console.error(`Error de conexión actualizando webhook config (${platform}.${configKey}):`, error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'Unknown error');
     // En lugar de throw, retornar false para que el proceso continue
     return false;
   }

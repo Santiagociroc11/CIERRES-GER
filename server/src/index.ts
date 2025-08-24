@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { setupWhatsAppEventHandlers } from './whatsappEvents';
 import apiRoutes from './routes/api';
+import hotmartRoutes from './routes/hotmart';
 
 // Configurar variables de entorno
 dotenv.config();
@@ -56,6 +57,9 @@ app.get('/health', (req, res) => {
 
 // Usar las rutas de la API
 app.use('/api', apiRoutes);
+
+// Usar las rutas de Hotmart
+app.use('/api/hotmart', hotmartRoutes);
 
 // Configuración del cliente WebSocket
 const evolutionApiUrl = process.env.EVOLUTION_API_URL || process.env.VITE_EVOLUTIONAPI_URL;

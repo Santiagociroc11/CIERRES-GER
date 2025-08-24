@@ -7,6 +7,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { setupWhatsAppEventHandlers } from './whatsappEvents';
 import path from 'path';
+import apiRoutes from './routes/api';
+import hotmartRoutes from './routes/hotmart';
 
 // Configurar variables de entorno
 dotenv.config();
@@ -59,6 +61,12 @@ app.use('/api', (req, res, next) => {
   logger.info(`API Request: ${req.method} ${req.path}`);
   next();
 });
+
+// Usar las rutas de la API
+app.use('/api', apiRoutes);
+
+// Usar las rutas de Hotmart
+app.use('/api/hotmart', hotmartRoutes);
 
 // Ejemplo de ruta de API
 app.get('/api/status', (req, res) => {

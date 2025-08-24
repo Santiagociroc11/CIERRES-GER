@@ -429,21 +429,30 @@ const WebhookConfig: React.FC = () => {
       return;
     }
 
+    // Debug: Ver el token que se está usando
+    console.log('Token de Telegram configurado:', config?.tokens.telegram);
+    console.log('Longitud del token:', config?.tokens.telegram?.length);
+    console.log('Token visible (primeros 10 chars):', config?.tokens.telegram?.substring(0, 10) + '...');
+
     setTestStates(prev => ({
       ...prev,
       telegram: { ...prev.telegram, loading: true, result: null as any }
     }));
 
     try {
+      const requestBody = { 
+        advisorId: parseInt(advisorId), 
+        messageType,
+        clientName: clientName || 'Cliente de Prueba',
+        clientPhone: '57300000000' // Número por defecto para pruebas
+      };
+      
+      console.log('Enviando request a test-telegram:', requestBody);
+      
       const response = await fetch('/api/hotmart/test-telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          advisorId: parseInt(advisorId), 
-          messageType,
-          clientName: clientName || 'Cliente de Prueba',
-          clientPhone: '57300000000' // Número por defecto para pruebas
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
@@ -470,6 +479,33 @@ const WebhookConfig: React.FC = () => {
         ...prev,
         telegram: { ...prev.telegram, loading: false }
       }));
+    }
+  };
+
+  const testBotToken = async () => {
+    if (!config?.tokens.telegram) {
+      toast.error('No hay token de Telegram configurado');
+      return;
+    }
+
+    try {
+      console.log('Probando token del bot...');
+      
+      const response = await fetch(`https://api.telegram.org/bot${config.tokens.telegram}/getMe`);
+      const data = await response.json();
+      
+      console.log('Respuesta de getMe:', data);
+      
+      if (data.ok) {
+        toast.success(`Bot válido: ${data.result.username}`);
+        console.log('Bot info:', data.result);
+      } else {
+        toast.error(`Token inválido: ${data.description}`);
+        console.error('Error del bot:', data);
+      }
+    } catch (error) {
+      console.error('Error probando bot:', error);
+      toast.error('Error de conexión con Telegram');
     }
   };
 
@@ -899,15 +935,27 @@ const WebhookConfig: React.FC = () => {
                   <Chip label="Telegram" color="info" size="small" sx={{ mr: 1 }} />
                   Test Individual
                 </Typography>
-                <Button
-                  size="small"
-                  onClick={loadAdvisors}
-                  disabled={advisorsLoading}
-                  startIcon={<Refresh />}
-                  variant="outlined"
-                >
-                  {advisorsLoading ? 'Cargando...' : 'Recargar Asesores'}
-                </Button>
+                <Box display="flex" gap={1}>
+                  <Button
+                    size="small"
+                    onClick={loadAdvisors}
+                    disabled={advisorsLoading}
+                    startIcon={<Refresh />}
+                    variant="outlined"
+                  >
+                    {advisorsLoading ? 'Cargando...' : 'Recargar Asesores'}
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={testBotToken}
+                    disabled={testStates.telegram.loading}
+                    startIcon={<Wifi />}
+                    variant="outlined"
+                    color="warning"
+                  >
+                    Test Bot Token
+                  </Button>
+                </Box>
               </Box>
               
               <Grid container spacing={2} sx={{ mb: 2 }}>

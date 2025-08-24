@@ -381,6 +381,8 @@ export async function updateWebhookConfigInDB(
   updatedBy: string = 'system'
 ): Promise<boolean> {
   try {
+    console.log(`Actualizando webhook config - Platform: ${platform}, Key: ${configKey}`);
+    
     const response = await fetch(`${POSTGREST_URL}/rpc/update_webhook_config`, {
       method: 'POST',
       headers: {
@@ -397,14 +399,22 @@ export async function updateWebhookConfigInDB(
     
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Error updating webhook config: ${response.status} - ${errorText}`);
+      console.error(`Error HTTP ${response.status} actualizando webhook config (${platform}.${configKey}): ${errorText}`);
+      
+      // Crear error más descriptivo pero no hacer throw para que el proceso continue
+      const errorMessage = `Failed to update ${platform}.${configKey}: HTTP ${response.status} - ${errorText}`;
+      console.error(errorMessage);
+      return false; // Retornar false en lugar de throw
     }
     
     const result = await response.json();
-    return result[0]?.success || false;
+    const success = result[0]?.success || false;
+    console.log(`Resultado actualización ${platform}.${configKey}:`, success);
+    return success;
   } catch (error) {
-    console.error('Error updating webhook config in DB:', error);
-    throw error;
+    console.error(`Error de conexión actualizando webhook config (${platform}.${configKey}):`, error);
+    // En lugar de throw, retornar false para que el proceso continue
+    return false;
   }
 }
 

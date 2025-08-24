@@ -175,14 +175,37 @@ const WebhookConfig: React.FC = () => {
           severity: 'success'
         });
       } else {
-        throw new Error(data.error || 'Error guardando configuración');
+        // Manejar el error con más detalle si está disponible
+        const errorMessage = data.error || 'Error guardando configuración';
+        let detailedMessage = errorMessage;
+        
+        if (data.details?.note) {
+          detailedMessage += '. ' + data.details.note;
+        }
+        
+        console.error('Detalles del error:', data);
+        toast.error(detailedMessage);
+        setSnackbar({
+          open: true,
+          message: detailedMessage,
+          severity: 'error'
+        });
+        
+        // Si hay configuración actual en los detalles, recargar la configuración
+        if (data.details?.currentConfig && data.details.currentConfig !== 'No disponible') {
+          console.log('Recargando configuración actualizada...');
+          setTimeout(() => {
+            loadConfig();
+          }, 2000);
+        }
       }
     } catch (error) {
       console.error('Error guardando configuración:', error);
-      toast.error('Error guardando configuración');
+      const errorMessage = error instanceof Error ? error.message : 'Error guardando configuración';
+      toast.error(errorMessage);
       setSnackbar({
         open: true,
-        message: 'Error guardando configuración',
+        message: errorMessage,
         severity: 'error'
       });
     } finally {
@@ -317,9 +340,6 @@ const WebhookConfig: React.FC = () => {
         toast.error('Subscriber ID y Flow ID son requeridos para enviar flujo');
         return;
       }
-      
-      // Actualizar el body con los parámetros adicionales
-      const body = { phoneNumber, action, subscriberId, flowId };
     }
 
     setTestStates(prev => ({

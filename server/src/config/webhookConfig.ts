@@ -154,21 +154,59 @@ export async function updateHotmartConfig(hotmartConfig: WebhookConfig['hotmart'
   try {
     console.log('Actualizando configuración de Hotmart en BD...');
     
-    // Actualizar cada sección en la base de datos
-    const numericosSuccess = await updateWebhookConfigInDB('hotmart', 'numericos', hotmartConfig.numericos, 'system');
-    const flodeskSuccess = await updateWebhookConfigInDB('hotmart', 'flodesk', hotmartConfig.flodesk, 'system');
-    const tokensSuccess = await updateWebhookConfigInDB('hotmart', 'tokens', hotmartConfig.tokens, 'system');
-    const telegramSuccess = await updateWebhookConfigInDB('hotmart', 'telegram', hotmartConfig.telegram, 'system');
+    // Actualizar cada sección individualmente con manejo de errores individual
+    const updateResults = {
+      numericos: false,
+      flodesk: false,
+      tokens: false,
+      telegram: false
+    };
+
+    // Intentar actualizar numericos
+    try {
+      updateResults.numericos = await updateWebhookConfigInDB('hotmart', 'numericos', hotmartConfig.numericos, 'system');
+      console.log('Sección numericos actualizada:', updateResults.numericos);
+    } catch (error) {
+      console.error('Error actualizando numericos:', error);
+    }
+
+    // Intentar actualizar flodesk
+    try {
+      updateResults.flodesk = await updateWebhookConfigInDB('hotmart', 'flodesk', hotmartConfig.flodesk, 'system');
+      console.log('Sección flodesk actualizada:', updateResults.flodesk);
+    } catch (error) {
+      console.error('Error actualizando flodesk:', error);
+    }
+
+    // Intentar actualizar tokens
+    try {
+      updateResults.tokens = await updateWebhookConfigInDB('hotmart', 'tokens', hotmartConfig.tokens, 'system');
+      console.log('Sección tokens actualizada:', updateResults.tokens);
+    } catch (error) {
+      console.error('Error actualizando tokens:', error);
+    }
+
+    // Intentar actualizar telegram
+    try {
+      updateResults.telegram = await updateWebhookConfigInDB('hotmart', 'telegram', hotmartConfig.telegram, 'system');
+      console.log('Sección telegram actualizada:', updateResults.telegram);
+    } catch (error) {
+      console.error('Error actualizando telegram:', error);
+    }
     
-    const allSuccess = numericosSuccess && flodeskSuccess && tokensSuccess && telegramSuccess;
+    const allSuccess = updateResults.numericos && updateResults.flodesk && updateResults.tokens && updateResults.telegram;
+    const someSuccess = updateResults.numericos || updateResults.flodesk || updateResults.tokens || updateResults.telegram;
     
     if (allSuccess) {
       console.log('Configuración de Hotmart actualizada exitosamente en BD');
+    } else if (someSuccess) {
+      console.warn('Configuración parcialmente actualizada. Resultados:', updateResults);
     } else {
-      console.error('Error actualizando alguna sección de la configuración');
+      console.error('Error actualizando todas las secciones de la configuración');
     }
     
-    return allSuccess;
+    // Retornar true si al menos una sección se actualizó correctamente
+    return someSuccess;
   } catch (error) {
     console.error('Error actualizando configuración de Hotmart:', error);
     return false;

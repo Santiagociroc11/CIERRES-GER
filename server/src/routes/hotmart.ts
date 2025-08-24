@@ -886,12 +886,23 @@ router.put('/config', async (req, res) => {
 
   } catch (error) {
     logger.error('Error actualizando configuración', error);
+    
+    // Intentar obtener la configuración actual para verificar si algunos datos se guardaron
+    let currentConfig = null;
+    try {
+      currentConfig = await getHotmartConfig();
+    } catch (configError) {
+      logger.warn('No se pudo obtener configuración actual para verificación:', configError);
+    }
+    
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
       details: {
         message: error instanceof Error ? error.message : 'Error desconocido',
         stack: error instanceof Error ? error.stack : undefined,
+        note: 'Algunos cambios podrían haberse guardado parcialmente. Revisa la configuración actual.',
+        currentConfig: currentConfig || 'No disponible'
       },
       timestamp: new Date().toISOString()
     });

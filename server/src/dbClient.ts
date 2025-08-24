@@ -1,5 +1,63 @@
 const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
 
+// Interfaces para webhook logs
+export interface WebhookLogEntry {
+  event_type: string;
+  flujo: string;
+  status: 'received' | 'processing' | 'success' | 'error';
+  buyer_name?: string;
+  buyer_email?: string;
+  buyer_phone?: string;
+  buyer_country?: string;
+  product_name?: string;
+  transaction_id?: string;
+  purchase_amount?: number;
+  purchase_date?: Date;
+  cliente_id?: number;
+  asesor_id?: number;
+  asesor_nombre?: string;
+  manychat_status?: 'success' | 'error' | 'skipped';
+  manychat_flow_id?: string;
+  manychat_subscriber_id?: string;
+  manychat_error?: string;
+  flodesk_status?: 'success' | 'error' | 'skipped';
+  flodesk_segment_id?: string;
+  flodesk_error?: string;
+  telegram_status?: 'success' | 'error' | 'skipped';
+  telegram_chat_id?: string;
+  telegram_message_id?: string;
+  telegram_error?: string;
+  raw_webhook_data?: any;
+  processing_time_ms?: number;
+  error_message?: string;
+  error_stack?: string;
+  received_at?: Date;
+  processed_at?: Date;
+}
+
+export interface WebhookLogUpdate {
+  id: number;
+  status?: 'processing' | 'success' | 'error';
+  cliente_id?: number;
+  asesor_id?: number;
+  asesor_nombre?: string;
+  manychat_status?: 'success' | 'error' | 'skipped';
+  manychat_flow_id?: string;
+  manychat_subscriber_id?: string;
+  manychat_error?: string;
+  flodesk_status?: 'success' | 'error' | 'skipped';
+  flodesk_segment_id?: string;
+  flodesk_error?: string;
+  telegram_status?: 'success' | 'error' | 'skipped';
+  telegram_chat_id?: string;
+  telegram_message_id?: string;
+  telegram_error?: string;
+  processing_time_ms?: number;
+  error_message?: string;
+  error_stack?: string;
+  processed_at?: Date;
+}
+
 export async function insertConversacion(data: {
   id_asesor: number;
   id_cliente?: number | null;
@@ -158,4 +216,88 @@ export async function insertRegistro(data: {
     throw new Error(`Error al insertar registro: ${response.status} - ${errorText}`);
   }
   return response.json();
+}
+
+// Funciones para webhook logs
+export async function insertWebhookLog(logEntry: WebhookLogEntry) {
+  // Convert dates to ISO strings for JSON
+  const processedEntry = {
+    ...logEntry,
+    received_at: logEntry.received_at?.toISOString() || new Date().toISOString(),
+    processed_at: logEntry.processed_at?.toISOString(),
+    purchase_date: logEntry.purchase_date?.toISOString()
+  };
+
+  const response = await fetch(`${POSTGREST_URL}/webhook_logs`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify(processedEntry)
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error al insertar webhook log: ${response.status} - ${errorText}`);
+  }
+  return response.json();
+}
+
+export async function updateWebhookLog(logUpdate: WebhookLogUpdate) {
+  const { id, ...updates } = logUpdate;
+  
+  // Convert dates to ISO strings for JSON
+  const processedUpdates = {
+    ...updates,
+    processed_at: updates.processed_at?.toISOString() || new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  const response = await fetch(`${POSTGREST_URL}/webhook_logs?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify(processedUpdates)
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error al actualizar webhook log: ${response.status} - ${errorText}`);
+  }
+  return response.json();
+}
+
+export async function getRecentWebhookLogs(limit: number = 100, offset: number = 0) {
+  const response = await fetch(`${POSTGREST_URL}/recent_webhook_logs?order=received_at.desc&limit=${limit}&offset=${offset}`);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error al obtener webhook logs: ${response.status} - ${errorText}`);
+  }
+  return response.json();
+}
+
+export async function getWebhookStats(days: number = 7) {
+  const response = await fetch(`${POSTGREST_URL}/webhook_stats?date=gte.${new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&order=date.desc`);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error al obtener estadísticas de webhook: ${response.status} - ${errorText}`);
+  }
+  return response.json();
+}
+
+export async function getWebhookLogById(id: number) {
+  const response = await fetch(`${POSTGREST_URL}/webhook_logs?id=eq.${id}&limit=1`);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error al obtener webhook log: ${response.status} - ${errorText}`);
+  }
+  
+  const data = await response.json();
+  return data && data.length > 0 ? data[0] : null;
 } 

@@ -51,6 +51,7 @@ import ChatModal from './ChatModal';
 import GestionAsignaciones from './GestionAsignaciones';
 import CrearAsesorModal from './CrearAsesorModal';
 import WebhookConfig from './WebhookConfig';
+import WebhookLogs from './WebhookLogs';
 
 interface DashboardAdminProps {
   onLogout: () => void;
@@ -96,6 +97,8 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks'>('asesores');
   // Estado para el modal de historial de cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
+  // Estado para la sub-vista de webhooks
+  const [vistaWebhook, setVistaWebhook] = useState<'config' | 'logs'>('config');
 
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
@@ -2940,7 +2943,54 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
             estadisticas={estadisticas}
           />
         ) : vistaAdmin === 'webhooks' ? (
-          <WebhookConfig />
+          <div className="space-y-6">
+            {/* Sub-navegación de Webhooks */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                    <Webhook className="mr-3 h-6 w-6 text-teal-600" />
+                    Administración de Webhooks
+                  </h2>
+                </div>
+                
+                {/* Pestañas */}
+                <div className="flex space-x-2 border-b border-gray-200">
+                  <button
+                    onClick={() => setVistaWebhook('config')}
+                    className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                      vistaWebhook === 'config'
+                        ? 'border-teal-500 text-teal-600 bg-teal-50'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <Settings className="h-4 w-4 inline mr-2" />
+                    Configuración
+                  </button>
+                  <button
+                    onClick={() => setVistaWebhook('logs')}
+                    className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                      vistaWebhook === 'logs'
+                        ? 'border-teal-500 text-teal-600 bg-teal-50'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <FileText className="h-4 w-4 inline mr-2" />
+                    Logs en Tiempo Real
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Contenido de la vista de webhook */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+              {vistaWebhook === 'config' ? (
+                <WebhookConfig />
+              ) : (
+                <WebhookLogs />
+              )}
+            </div>
+          </div>
         ) : (
           <div className="p-4 space-y-8">
             {/* Botón para crear cliente */}

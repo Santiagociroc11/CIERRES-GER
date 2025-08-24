@@ -8,7 +8,14 @@ import {
   getNextAsesorPonderado, 
   getAsesorById, 
   updateAsesorCounter, 
-  insertRegistro 
+  insertRegistro,
+  insertWebhookLog,
+  updateWebhookLog,
+  getRecentWebhookLogs,
+  getWebhookStats,
+  getWebhookLogById,
+  type WebhookLogEntry,
+  type WebhookLogUpdate
 } from '../dbClient';
 import { 
   findManyChatSubscriber, 
@@ -77,6 +84,9 @@ function determinarFlujo(event: string): string {
 
 // Endpoint principal para webhooks de Hotmart
 router.post('/webhook', async (req, res) => {
+  const startTime = Date.now();
+  let webhookLogId: number | null = null;
+  
   try {
     const { body } = req;
     
@@ -124,6 +134,43 @@ router.post('/webhook', async (req, res) => {
         flujo,
         timestamp: new Date().toISOString()
       });
+    }
+
+    // Crear entrada inicial en webhook logs
+    const initialLogEntry: WebhookLogEntry = {
+      event_type: body.event,
+      flujo,
+      status: 'received',
+      buyer_name: datosComprador.nombre || undefined,
+      buyer_email: datosComprador.correo || undefined,
+      buyer_phone: datosComprador.numero,
+      buyer_country: body.data?.buyer?.address?.country || undefined,
+      product_name: body.data?.product?.name || undefined,
+      transaction_id: body.data?.purchase?.transaction || undefined,
+      purchase_amount: body.data?.purchase?.price ? parseFloat(body.data.purchase.price) : undefined,
+      purchase_date: body.data?.purchase?.order_date ? new Date(body.data.purchase.order_date) : undefined,
+      raw_webhook_data: body,
+      received_at: new Date()
+    };
+
+    try {
+      const logResult = await insertWebhookLog(initialLogEntry);
+      webhookLogId = logResult[0]?.id || null;
+      logger.info(`Webhook log creado con ID: ${webhookLogId}`);
+    } catch (logError) {
+      logger.error('Error creando webhook log:', logError);
+    }
+
+    // Actualizar status a processing
+    if (webhookLogId) {
+      try {
+        await updateWebhookLog({
+          id: webhookLogId,
+          status: 'processing'
+        });
+      } catch (updateError) {
+        logger.error('Error actualizando webhook log a processing:', updateError);
+      }
     }
 
     // Asignar valores según el flujo
@@ -259,52 +306,106 @@ router.post('/webhook', async (req, res) => {
       FECHA_EVENTO: currentTimestamp
     });
 
+    // Variables para tracking de resultados de integraciones
+    let manychatStatus: 'success' | 'error' | 'skipped' = 'skipped';
+    let manychatFlowId = '';
+    let manychatSubscriberId = '';
+    let manychatError = '';
+
     // 3. Procesar ManyChat (para todos los flujos)
     if (datosProcesados.flujomany) {
       try {
+        manychatFlowId = datosProcesados.flujomany;
+        
         // Buscar subscriber existente
         const subscriberResult = await findManyChatSubscriber(datosProcesados.numero);
         let subscriberId = null;
 
         if (subscriberResult.success && subscriberResult.data?.data?.length > 0) {
           subscriberId = subscriberResult.data.data[0].id;
+          manychatSubscriberId = subscriberId;
           logger.info('Subscriber ManyChat encontrado', { subscriberId });
         } else {
           // Crear nuevo subscriber
           const createResult = await createManyChatSubscriber(datosProcesados.nombre, datosProcesados.numero);
           if (createResult.success && createResult.data?.data) {
             subscriberId = createResult.data.data.id;
+            manychatSubscriberId = subscriberId;
             logger.info('Subscriber ManyChat creado', { subscriberId });
           }
         }
 
         // Enviar flujo si tenemos subscriber ID
         if (subscriberId) {
-          await sendManyChatFlow(subscriberId, datosProcesados.flujomany);
-          logger.info('Flujo ManyChat enviado', { subscriberId, flowId: datosProcesados.flujomany });
+          const flowResult = await sendManyChatFlow(subscriberId, datosProcesados.flujomany);
+          if (flowResult.success) {
+            manychatStatus = 'success';
+            logger.info('Flujo ManyChat enviado', { subscriberId, flowId: datosProcesados.flujomany });
+          } else {
+            manychatStatus = 'error';
+            manychatError = flowResult.error || 'Error enviando flujo';
+            logger.error('Error enviando flujo ManyChat', flowResult.error);
+          }
+        } else {
+          manychatStatus = 'error';
+          manychatError = 'No se pudo obtener subscriber ID';
         }
       } catch (error) {
+        manychatStatus = 'error';
+        manychatError = error instanceof Error ? error.message : 'Error desconocido';
         logger.error('Error procesando ManyChat', error);
       }
     }
 
+    // Variables para tracking de Flodesk
+    let flodeskStatus: 'success' | 'error' | 'skipped' = 'skipped';
+    let flodeskSegmentId = '';
+    let flodeskError = '';
+
     // 4. Procesar Flodesk
     if (datosProcesados.correo && datosProcesados.grupoflodesk) {
       try {
-        await addSubscriberToFlodesk(datosProcesados.correo, datosProcesados.grupoflodesk);
-        logger.info('Subscriber agregado a Flodesk', { email: datosProcesados.correo });
+        flodeskSegmentId = datosProcesados.grupoflodesk;
+        const flodeskResult = await addSubscriberToFlodesk(datosProcesados.correo, datosProcesados.grupoflodesk);
+        
+        if (flodeskResult.success) {
+          flodeskStatus = 'success';
+          logger.info('Subscriber agregado a Flodesk', { email: datosProcesados.correo });
+        } else {
+          flodeskStatus = 'error';
+          flodeskError = flodeskResult.error || 'Error agregando subscriber';
+          logger.error('Error agregando subscriber a Flodesk', flodeskResult.error);
+        }
       } catch (error) {
+        flodeskStatus = 'error';
+        flodeskError = error instanceof Error ? error.message : 'Error desconocido';
         logger.error('Error procesando Flodesk', error);
       }
     }
+
+    // Variables para tracking de Telegram
+    let telegramStatus: 'success' | 'error' | 'skipped' = 'skipped';
+    let telegramChatId = '';
+    let telegramMessageId = '';
+    let telegramError = '';
 
     // 5. Enviar notificaciones de Telegram
     try {
       if (flujo === 'COMPRAS') {
         // Notificación de venta al grupo general
         const ventaMessage = createVentaMessage(body.data, asesorAsignado?.NOMBRE);
-        await sendTelegramMessage(ventaMessage);
-        logger.info('Notificación de venta enviada', { asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR' });
+        telegramChatId = ventaMessage.chat_id;
+        
+        const telegramResult = await sendTelegramMessage(ventaMessage);
+        if (telegramResult.success) {
+          telegramStatus = 'success';
+          telegramMessageId = telegramResult.data?.result?.message_id?.toString() || '';
+          logger.info('Notificación de venta enviada', { asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR' });
+        } else {
+          telegramStatus = 'error';
+          telegramError = telegramResult.error || 'Error enviando mensaje';
+          logger.error('Error enviando notificación de venta', telegramResult.error);
+        }
       } else {
         // Notificar al asesor asignado para eventos no-compra
         if (asesorAsignado?.ID_TG) {
@@ -315,18 +416,61 @@ router.post('/webhook', async (req, res) => {
             asesorAsignado.ID_TG,
             datosProcesados.motivo
           );
-          await sendTelegramMessage(asesorMessage);
-          logger.info('Notificación enviada al asesor', { 
-            asesor: asesorAsignado.NOMBRE, 
-            evento: flujo,
-            cliente: datosProcesados.nombre 
-          });
+          telegramChatId = asesorMessage.chat_id;
+          
+          const telegramResult = await sendTelegramMessage(asesorMessage);
+          if (telegramResult.success) {
+            telegramStatus = 'success';
+            telegramMessageId = telegramResult.data?.result?.message_id?.toString() || '';
+            logger.info('Notificación enviada al asesor', { 
+              asesor: asesorAsignado.NOMBRE, 
+              evento: flujo,
+              cliente: datosProcesados.nombre 
+            });
+          } else {
+            telegramStatus = 'error';
+            telegramError = telegramResult.error || 'Error enviando mensaje al asesor';
+            logger.error('Error enviando notificación al asesor', telegramResult.error);
+          }
         } else {
+          telegramStatus = 'skipped';
+          telegramError = 'Asesor sin ID_TG configurado';
           logger.warn('No se pudo notificar: asesor sin ID_TG', { flujo, cliente: datosProcesados.nombre });
         }
       }
     } catch (error) {
+      telegramStatus = 'error';
+      telegramError = error instanceof Error ? error.message : 'Error desconocido';
       logger.error('Error enviando notificaciones Telegram', error);
+    }
+
+    // Finalizar webhook log con resultado exitoso
+    const processingTime = Date.now() - startTime;
+    if (webhookLogId) {
+      try {
+        await updateWebhookLog({
+          id: webhookLogId,
+          status: 'success',
+          cliente_id: clienteId,
+          asesor_id: asesorAsignado?.ID || undefined,
+          asesor_nombre: asesorAsignado?.NOMBRE || undefined,
+          manychat_status: manychatStatus,
+          manychat_flow_id: manychatFlowId || undefined,
+          manychat_subscriber_id: manychatSubscriberId || undefined,
+          manychat_error: manychatError || undefined,
+          flodesk_status: flodeskStatus,
+          flodesk_segment_id: flodeskSegmentId || undefined,
+          flodesk_error: flodeskError || undefined,
+          telegram_status: telegramStatus,
+          telegram_chat_id: telegramChatId || undefined,
+          telegram_message_id: telegramMessageId || undefined,
+          telegram_error: telegramError || undefined,
+          processing_time_ms: processingTime,
+          processed_at: new Date()
+        });
+      } catch (updateError) {
+        logger.error('Error finalizando webhook log:', updateError);
+      }
     }
 
     res.status(200).json({
@@ -336,16 +480,40 @@ router.post('/webhook', async (req, res) => {
         ...datosProcesados,
         clienteId,
         asesorAsignado: asesorAsignado?.NOMBRE || null,
-        esClienteExistente: !!clienteExistente
+        esClienteExistente: !!clienteExistente,
+        webhookLogId,
+        integrationResults: {
+          manychat: { status: manychatStatus, error: manychatError || undefined },
+          flodesk: { status: flodeskStatus, error: flodeskError || undefined },
+          telegram: { status: telegramStatus, error: telegramError || undefined }
+        }
       },
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
+    // Finalizar webhook log con error
+    const processingTime = Date.now() - startTime;
+    if (webhookLogId) {
+      try {
+        await updateWebhookLog({
+          id: webhookLogId,
+          status: 'error',
+          processing_time_ms: processingTime,
+          error_message: error instanceof Error ? error.message : 'Error desconocido',
+          error_stack: error instanceof Error ? error.stack : undefined,
+          processed_at: new Date()
+        });
+      } catch (updateError) {
+        logger.error('Error actualizando webhook log con error:', updateError);
+      }
+    }
+
     logger.error('Error procesando webhook de Hotmart', error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
+      webhookLogId,
       timestamp: new Date().toISOString()
     });
   }
@@ -646,6 +814,95 @@ router.post('/config/reset', (req, res) => {
 
   } catch (error) {
     logger.error('Error reseteando configuración', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoints para webhook logs
+// Endpoint para obtener logs recientes
+router.get('/webhook-logs', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 100;
+    const offset = parseInt(req.query.offset as string) || 0;
+    
+    const logs = await getRecentWebhookLogs(limit, offset);
+    
+    res.json({
+      success: true,
+      data: logs,
+      pagination: {
+        limit,
+        offset,
+        total: logs.length
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo webhook logs', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para obtener un log específico por ID
+router.get('/webhook-logs/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID inválido',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const log = await getWebhookLogById(id);
+    
+    if (!log) {
+      return res.status(404).json({
+        success: false,
+        error: 'Log no encontrado',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: log,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo webhook log', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para obtener estadísticas de webhooks
+router.get('/webhook-stats', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days as string) || 7;
+    
+    const stats = await getWebhookStats(days);
+    
+    res.json({
+      success: true,
+      data: stats,
+      period: `${days} días`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo estadísticas de webhooks', error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',

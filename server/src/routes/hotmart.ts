@@ -159,6 +159,7 @@ router.post('/webhook', async (req, res) => {
       logger.info(`Webhook log creado con ID: ${webhookLogId}`);
     } catch (logError) {
       logger.error('Error creando webhook log:', logError);
+      // Continuar procesamiento aunque falle el logging
     }
 
     // Actualizar status a processing
@@ -170,6 +171,7 @@ router.post('/webhook', async (req, res) => {
         });
       } catch (updateError) {
         logger.error('Error actualizando webhook log a processing:', updateError);
+        // Continuar procesamiento aunque falle la actualización del log
       }
     }
 
@@ -470,6 +472,7 @@ router.post('/webhook', async (req, res) => {
         });
       } catch (updateError) {
         logger.error('Error finalizando webhook log:', updateError);
+        // No afectar la respuesta exitosa del webhook por errores de logging
       }
     }
 
@@ -492,7 +495,9 @@ router.post('/webhook', async (req, res) => {
     });
 
   } catch (error) {
-    // Finalizar webhook log con error
+    logger.error('Error procesando webhook de Hotmart', error);
+    
+    // Finalizar webhook log con error (no afectar la respuesta si esto falla)
     const processingTime = Date.now() - startTime;
     if (webhookLogId) {
       try {
@@ -506,10 +511,10 @@ router.post('/webhook', async (req, res) => {
         });
       } catch (updateError) {
         logger.error('Error actualizando webhook log con error:', updateError);
+        // No afectar la respuesta del webhook por errores de logging
       }
     }
 
-    logger.error('Error procesando webhook de Hotmart', error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',

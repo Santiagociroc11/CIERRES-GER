@@ -220,6 +220,11 @@ export async function insertRegistro(data: {
 
 // Funciones para webhook logs
 export async function insertWebhookLog(logEntry: WebhookLogEntry) {
+  // Verificar que POSTGREST_URL esté configurada
+  if (!POSTGREST_URL) {
+    throw new Error('POSTGREST_URL no está configurada');
+  }
+  
   // Convert dates to ISO strings for JSON
   const processedEntry = {
     ...logEntry,
@@ -245,6 +250,11 @@ export async function insertWebhookLog(logEntry: WebhookLogEntry) {
 }
 
 export async function updateWebhookLog(logUpdate: WebhookLogUpdate) {
+  // Verificar que POSTGREST_URL esté configurada
+  if (!POSTGREST_URL) {
+    throw new Error('POSTGREST_URL no está configurada');
+  }
+  
   const { id, ...updates } = logUpdate;
   
   // Convert dates to ISO strings for JSON
@@ -271,6 +281,10 @@ export async function updateWebhookLog(logUpdate: WebhookLogUpdate) {
 }
 
 export async function getRecentWebhookLogs(limit: number = 100, offset: number = 0) {
+  if (!POSTGREST_URL) {
+    throw new Error('POSTGREST_URL no está configurada');
+  }
+  
   const response = await fetch(`${POSTGREST_URL}/recent_webhook_logs?order=received_at.desc&limit=${limit}&offset=${offset}`);
   
   if (!response.ok) {
@@ -281,6 +295,10 @@ export async function getRecentWebhookLogs(limit: number = 100, offset: number =
 }
 
 export async function getWebhookStats(days: number = 7) {
+  if (!POSTGREST_URL) {
+    throw new Error('POSTGREST_URL no está configurada');
+  }
+  
   const response = await fetch(`${POSTGREST_URL}/webhook_stats?date=gte.${new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&order=date.desc`);
   
   if (!response.ok) {
@@ -291,6 +309,10 @@ export async function getWebhookStats(days: number = 7) {
 }
 
 export async function getWebhookLogById(id: number) {
+  if (!POSTGREST_URL) {
+    throw new Error('POSTGREST_URL no está configurada');
+  }
+  
   const response = await fetch(`${POSTGREST_URL}/webhook_logs?id=eq.${id}&limit=1`);
   
   if (!response.ok) {

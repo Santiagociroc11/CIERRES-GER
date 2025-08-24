@@ -723,7 +723,7 @@ router.get('/stats', async (_req, res) => {
 // Endpoint para probar conexiones con las APIs
 router.post('/test-connections', async (_req, res) => {
   try {
-    const config = getHotmartConfig();
+    const config = await getHotmartConfig();
     const testResults = {
       manychat: { status: 'unknown', message: '' },
       flodesk: { status: 'unknown', message: '' },
@@ -862,7 +862,7 @@ router.put('/config', async (req, res) => {
     }
 
     // Actualizar configuración
-    const success = updateHotmartConfig(body);
+    const success = await updateHotmartConfig(body);
     
     if (success) {
       logger.info('Configuración de Hotmart actualizada', { 
@@ -873,7 +873,7 @@ router.put('/config', async (req, res) => {
       res.json({
         success: true,
         message: 'Configuración actualizada exitosamente',
-        data: getHotmartConfig(),
+        data: await getHotmartConfig(),
         timestamp: new Date().toISOString()
       });
     } else {
@@ -895,9 +895,9 @@ router.put('/config', async (req, res) => {
 });
 
 // Endpoint para resetear a configuración por defecto
-router.post('/config/reset', (req, res) => {
+router.post('/config/reset', async (req, res) => {
   try {
-    const success = resetToDefault();
+    const success = await resetToDefault();
     
     if (success) {
       logger.info('Configuración reseteada a valores por defecto', { 
@@ -908,7 +908,7 @@ router.post('/config/reset', (req, res) => {
       res.json({
         success: true,
         message: 'Configuración reseteada a valores por defecto',
-        data: getHotmartConfig(),
+        data: await getHotmartConfig(),
         timestamp: new Date().toISOString()
       });
     } else {
@@ -1101,7 +1101,7 @@ router.post('/test-manychat', async (req, res) => {
       });
     }
     
-    const config = getHotmartConfig();
+    const config = await getHotmartConfig();
     let result: any = {};
     
     if (action === 'search') {
@@ -1191,7 +1191,7 @@ router.post('/test-flodesk', async (req, res) => {
       });
     }
     
-    const config = getHotmartConfig();
+    const config = await getHotmartConfig();
     const result = await addSubscriberToFlodesk(email, segmentId);
     
     res.json({
@@ -1252,7 +1252,7 @@ router.post('/test-telegram', async (req, res) => {
     }
     
     let message;
-    const config = getHotmartConfig();
+    const config = await getHotmartConfig();
     
     if (messageType === 'venta') {
       // Mensaje de venta al grupo general

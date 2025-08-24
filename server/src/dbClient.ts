@@ -347,3 +347,105 @@ export async function getWebhookLogById(id: number) {
   const data = await response.json();
   return data && data.length > 0 ? data[0] : null;
 } 
+
+// Webhook Configuration Functions
+export async function getWebhookConfigFromDB(platform: string): Promise<any> {
+  try {
+    // Usar PostgREST para llamar a la función de la base de datos
+    const response = await fetch(`${POSTGREST_URL}/rpc/get_webhook_config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({ p_platform: platform })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error getting webhook config: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json();
+    return result[0]?.config || {};
+  } catch (error) {
+    console.error('Error getting webhook config from DB:', error);
+    throw error;
+  }
+}
+
+export async function updateWebhookConfigInDB(
+  platform: string, 
+  configKey: string, 
+  configValue: any, 
+  updatedBy: string = 'system'
+): Promise<boolean> {
+  try {
+    const response = await fetch(`${POSTGREST_URL}/rpc/update_webhook_config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        p_platform: platform,
+        p_config_key: configKey,
+        p_config_value: configValue,
+        p_updated_by: updatedBy
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error updating webhook config: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json();
+    return result[0]?.success || false;
+  } catch (error) {
+    console.error('Error updating webhook config in DB:', error);
+    throw error;
+  }
+}
+
+export async function resetWebhookConfigInDB(platform: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${POSTGREST_URL}/rpc/reset_webhook_config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({ p_platform: platform })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error resetting webhook config: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json();
+    return result[0]?.success || false;
+  } catch (error) {
+    console.error('Error resetting webhook config in DB:', error);
+    throw error;
+  }
+}
+
+export async function getWebhookConfigHistory(platform: string, limit: number = 10): Promise<any[]> {
+  try {
+    const response = await fetch(
+      `${POSTGREST_URL}/webhook_config?platform=eq.${platform}&order=updated_at.desc&limit=${limit}&select=*`
+    );
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error getting webhook config history: ${response.status} - ${errorText}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error getting webhook config history:', error);
+    throw error;
+  }
+} 

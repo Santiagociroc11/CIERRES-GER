@@ -63,8 +63,8 @@ function extraerDatosComprador(body: any, flujo: string) {
 }
 
 // Función para asignar valores según el flujo (usando configuración dinámica)
-function asignarValores(datos: any) {
-  const config = getHotmartConfig();
+async function asignarValores(datos: any) {
+  const config = await getHotmartConfig();
   
   return {
     ...datos,
@@ -177,7 +177,7 @@ router.post('/webhook', async (req, res) => {
     }
 
     // Asignar valores según el flujo
-    const datosProcesados = asignarValores(datosComprador);
+    const datosProcesados = await asignarValores(datosComprador);
 
     logger.info('Datos procesados del webhook', {
       flujo,
@@ -631,7 +631,7 @@ router.post('/test', async (req, res) => {
     // Simular el procesamiento
     const flujo = determinarFlujo(body.event || '');
     const datosComprador = extraerDatosComprador(body, flujo);
-    const datosProcesados = asignarValores(datosComprador);
+    const datosProcesados = await asignarValores(datosComprador);
 
     let processingSteps = [];
 
@@ -829,9 +829,9 @@ router.post('/test-connections', async (_req, res) => {
 });
 
 // Endpoint para obtener la configuración actual
-router.get('/config', (_req, res) => {
+router.get('/config', async (_req, res) => {
   try {
-    const config = getHotmartConfig();
+    const config = await getHotmartConfig();
     res.json({
       success: true,
       data: config,

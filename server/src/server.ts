@@ -102,14 +102,16 @@ app.use('/api/*', (req, res) => {
 });
 
 // Servir archivos estáticos del frontend en producción
+let frontendPath: string | undefined;
+
 if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '../../dist');
+  frontendPath = path.join(__dirname, '../../dist');
   app.use(express.static(frontendPath));
   
   // Para SPA, redirigir todas las rutas no-API al index.html
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(frontendPath, 'index.html'));
+      res.sendFile(path.join(frontendPath!, 'index.html'));
     }
   });
 }
@@ -158,7 +160,7 @@ app.listen(PORT, () => {
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🌐 API base: http://localhost:${PORT}/api`);
   
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && frontendPath) {
     console.log(`🌍 Frontend servido desde: ${frontendPath}`);
   }
 });

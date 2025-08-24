@@ -382,13 +382,6 @@ export async function updateWebhookConfigInDB(
 ): Promise<boolean> {
   try {
     console.log(`Actualizando webhook config - Platform: ${platform}, Key: ${configKey}`);
-    console.log(`POSTGREST_URL: ${POSTGREST_URL}`);
-    console.log(`Payload:`, JSON.stringify({
-      p_platform: platform,
-      p_config_key: configKey,
-      p_config_value: configValue,
-      p_updated_by: updatedBy
-    }));
     
     const response = await fetch(`${POSTGREST_URL}/rpc/update_webhook_config`, {
       method: 'POST',
@@ -404,24 +397,16 @@ export async function updateWebhookConfigInDB(
       })
     });
     
-    console.log(`Response status: ${response.status}`);
-    console.log(`Response headers:`, Object.fromEntries(response.headers.entries()));
-    
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Error HTTP ${response.status} actualizando webhook config (${platform}.${configKey}): ${errorText}`);
-      
-      // Crear error más descriptivo pero no hacer throw para que el proceso continue
-      const errorMessage = `Failed to update ${platform}.${configKey}: HTTP ${response.status} - ${errorText}`;
-      console.error(errorMessage);
-      return false; // Retornar false en lugar de throw
+      return false;
     }
     
     const result = await response.json();
-    console.log(`Response result:`, result);
     // PostgREST devuelve directamente true/false para funciones RPC
     const success = result === true || result === 'true';
-    console.log(`Resultado actualización ${platform}.${configKey}:`, success);
+    console.log(`Configuración ${platform}.${configKey} actualizada: ${success}`);
     return success;
   } catch (error) {
     console.error(`Error de conexión actualizando webhook config (${platform}.${configKey}):`, error);

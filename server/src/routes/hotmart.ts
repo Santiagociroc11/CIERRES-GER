@@ -14,8 +14,7 @@ import {
   getRecentWebhookLogs,
   getWebhookStats,
   getWebhookLogById,
-  type WebhookLogEntry,
-  type WebhookLogUpdate
+  type WebhookLogEntry
 } from '../dbClient';
 import { 
   findManyChatSubscriber, 
@@ -841,10 +840,10 @@ router.post('/config/reset', (req, res) => {
 // Endpoints para webhook logs
 // Endpoint para obtener logs recientes
 router.get('/webhook-logs', async (req, res) => {
+  const limit = parseInt(req.query.limit as string) || 100;
+  const offset = parseInt(req.query.offset as string) || 0;
+  
   try {
-    const limit = parseInt(req.query.limit as string) || 100;
-    const offset = parseInt(req.query.offset as string) || 0;
-    
     const logs = await getRecentWebhookLogs(limit, offset);
     
     res.json({
@@ -923,9 +922,9 @@ router.get('/webhook-logs/:id', async (req, res) => {
 
 // Endpoint para obtener estadísticas de webhooks
 router.get('/webhook-stats', async (req, res) => {
+  const days = parseInt(req.query.days as string) || 7;
+  
   try {
-    const days = parseInt(req.query.days as string) || 7;
-    
     const stats = await getWebhookStats(days);
     
     res.json({

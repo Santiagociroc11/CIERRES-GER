@@ -195,7 +195,19 @@ export async function updateAsesorCounter(asesorId: number, flujo: string) {
     const errorText = await response.text();
     throw new Error(`Error al actualizar contador: ${response.status} - ${errorText}`);
   }
-  return response.json();
+  
+  // Para stored procedures que no devuelven datos, verificar si hay contenido antes de parsear JSON
+  const responseText = await response.text();
+  if (!responseText || responseText.trim() === '') {
+    return { success: true }; // Respuesta vacía es considerada exitosa para updates
+  }
+  
+  try {
+    return JSON.parse(responseText);
+  } catch (parseError) {
+    // Si no se puede parsear, pero la respuesta HTTP fue exitosa, considerarlo como éxito
+    return { success: true };
+  }
 }
 
 export async function insertRegistro(data: {
@@ -215,7 +227,19 @@ export async function insertRegistro(data: {
     const errorText = await response.text();
     throw new Error(`Error al insertar registro: ${response.status} - ${errorText}`);
   }
-  return response.json();
+  
+  // Para inserts con return=representation, verificar si hay contenido antes de parsear JSON
+  const responseText = await response.text();
+  if (!responseText || responseText.trim() === '') {
+    return { success: true }; // Respuesta vacía es considerada exitosa
+  }
+  
+  try {
+    return JSON.parse(responseText);
+  } catch (parseError) {
+    // Si no se puede parsear, pero la respuesta HTTP fue exitosa, considerarlo como éxito
+    return { success: true };
+  }
 }
 
 // Funciones para webhook logs

@@ -368,6 +368,18 @@ router.post('/webhook', async (req, res) => {
             subscriberId = createResult.data.data.id;
             manychatSubscriberId = subscriberId;
             logger.info('Subscriber ManyChat creado', { subscriberId });
+          } else if (createResult.error && createResult.error.includes('already exists') && createResult.data?.already_exists) {
+            // Si el subscriber ya existe pero no lo encontramos en las búsquedas anteriores
+            // Hacer una búsqueda más exhaustiva
+            logger.info('Subscriber ya existe según ManyChat, intentando búsqueda exhaustiva');
+            
+            // TODO: Aquí podríamos implementar búsquedas adicionales si fuera necesario
+            // Por ahora, logueamos el problema para debugging
+            logger.warn(`Subscriber ${createResult.data.phone} existe en ManyChat pero no se encontró en búsquedas previas`);
+            
+            // Marcar como warning pero continuar el procesamiento
+            manychatStatus = 'error';
+            manychatError = 'Subscriber existe pero no se pudo obtener ID';
           } else {
             logger.error('No se pudo crear subscriber ManyChat', { error: createResult.error, data: createResult.data });
           }

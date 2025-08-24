@@ -889,6 +889,10 @@ router.put('/config', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
+      details: {
+        message: error instanceof Error ? error.message : 'Error desconocido',
+        stack: error instanceof Error ? error.stack : undefined,
+      },
       timestamp: new Date().toISOString()
     });
   }

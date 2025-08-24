@@ -48,9 +48,10 @@ interface HotmartConfig {
 }
 
 interface Advisor {
-  ID: number;
-  NOMBRE: string;
-  ID_TG: string;
+  id: number;
+  nombre: string;
+  telegramId: string;
+  whatsapp: string;
 }
 
 const FLUJO_LABELS = {
@@ -492,6 +493,10 @@ const WebhookConfig: React.FC = () => {
     );
   }
 
+  // Debug: Log del estado de asesores
+  console.log('Estado actual de asesores:', advisors);
+  console.log('Estado de loading de asesores:', advisorsLoading);
+
   return (
     <Box p={3}>
       <Typography variant="h4" gutterBottom>
@@ -913,11 +918,14 @@ const WebhookConfig: React.FC = () => {
                           {advisorsLoading ? 'Cargando asesores...' : 'Seleccionar asesor'}
                         </em>
                       </MenuItem>
-                      {advisors.map((advisor) => (
-                        <MenuItem key={advisor.ID} value={advisor.ID}>
-                          {advisor.NOMBRE}
-                        </MenuItem>
-                      ))}
+                      {advisors.map((advisor) => {
+                        console.log('Renderizando asesor:', advisor);
+                        return (
+                          <MenuItem key={advisor.id} value={advisor.id}>
+                            {advisor.nombre}
+                          </MenuItem>
+                        );
+                      })}
                     </Select>
                     {advisorsLoading && (
                       <Box display="flex" alignItems="center" gap={1} mt={1}>

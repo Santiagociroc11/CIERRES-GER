@@ -14,7 +14,7 @@ import {
   IconButton,
   Tooltip
 } from '@mui/material';
-import { Refresh, Save, RestoreFromTrash } from '@mui/icons-material';
+import { Refresh, Save, RestoreFromTrash, Wifi } from '@mui/icons-material';
 import { toast } from 'react-hot-toast';
 
 interface HotmartConfig {
@@ -36,6 +36,15 @@ interface HotmartConfig {
     COMPRAS: string;
     TICKETS: string;
   };
+  tokens: {
+    manychat: string;
+    mailerlite: string;
+    telegram: string;
+  };
+  telegram: {
+    groupChatId: string;
+    threadId: string;
+  };
 }
 
 const FLUJO_LABELS = {
@@ -49,6 +58,7 @@ const WebhookConfig: React.FC = () => {
   const [config, setConfig] = useState<HotmartConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -170,6 +180,67 @@ const WebhookConfig: React.FC = () => {
     });
   };
 
+  const handleTokenChange = (tokenType: string, value: string) => {
+    if (!config) return;
+    
+    setConfig({
+      ...config,
+      tokens: {
+        ...config.tokens,
+        [tokenType]: value
+      }
+    });
+  };
+
+  const handleTelegramChange = (field: string, value: string) => {
+    if (!config) return;
+    
+    setConfig({
+      ...config,
+      telegram: {
+        ...config.telegram,
+        [field]: value
+      }
+    });
+  };
+
+  const testConnections = async () => {
+    if (!config) return;
+    
+    try {
+      setTesting(true);
+      const response = await fetch('/api/hotmart/test-connections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        const results = data.data;
+        let message = 'Resultados de conexión:\n';
+        
+        Object.entries(results).forEach(([service, result]: [string, any]) => {
+          const status = result.status === 'success' ? '✅' : 
+                        result.status === 'warning' ? '⚠️' : '❌';
+          message += `${status} ${service.toUpperCase()}: ${result.message}\n`;
+        });
+        
+        toast.success('Pruebas de conexión completadas');
+        alert(message);
+      } else {
+        throw new Error(data.error || 'Error probando conexiones');
+      }
+    } catch (error) {
+      console.error('Error probando conexiones:', error);
+      toast.error('Error probando conexiones');
+    } finally {
+      setTesting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -193,7 +264,7 @@ const WebhookConfig: React.FC = () => {
       </Typography>
       
       <Typography variant="body1" color="text.secondary" paragraph>
-        Configura los valores para ManyChat, MailerLite y tablas de seguimiento para cada flujo de Hotmart.
+        Configura los IDs de flujo, grupos, tablas de seguimiento y tokens de API para la integración completa de Hotmart con ManyChat, MailerLite y Telegram.
       </Typography>
 
       <Card sx={{ mb: 3 }}>
@@ -283,7 +354,95 @@ const WebhookConfig: React.FC = () => {
             ))}
           </Grid>
 
-          <Box display="flex" justifyContent="flex-end" mt={3}>
+          <Divider sx={{ my: 3 }} />
+
+          {/* Tokens de API */}
+          <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+            <Chip label="Tokens API" color="warning" size="small" sx={{ mr: 1 }} />
+            Configuración de Tokens
+          </Typography>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                label="ManyChat Token"
+                value={config.tokens.manychat}
+                onChange={(e) => handleTokenChange('manychat', e.target.value)}
+                size="small"
+                helperText="Token de autenticación para ManyChat API"
+                type="password"
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                label="MailerLite Token"
+                value={config.tokens.mailerlite}
+                onChange={(e) => handleTokenChange('mailerlite', e.target.value)}
+                size="small"
+                helperText="Token de autenticación para MailerLite API"
+                type="password"
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                label="Telegram Bot Token"
+                value={config.tokens.telegram}
+                onChange={(e) => handleTokenChange('telegram', e.target.value)}
+                size="small"
+                helperText="Token del bot de Telegram"
+                type="password"
+              />
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ my: 3 }} />
+
+          {/* Configuración de Telegram */}
+          <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+            <Chip label="Telegram Config" color="info" size="small" sx={{ mr: 1 }} />
+            Configuración de Grupo
+          </Typography>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="ID del Grupo/Chat"
+                value={config.telegram.groupChatId}
+                onChange={(e) => handleTelegramChange('groupChatId', e.target.value)}
+                size="small"
+                helperText="ID del grupo de Telegram donde se envían las notificaciones de venta (ej: -1002176532359)"
+                placeholder="-1002176532359"
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Thread ID"
+                value={config.telegram.threadId}
+                onChange={(e) => handleTelegramChange('threadId', e.target.value)}
+                size="small"
+                helperText="ID del hilo/tema específico dentro del grupo (ej: 807)"
+                placeholder="807"
+                type="number"
+              />
+            </Grid>
+          </Grid>
+
+          <Box display="flex" justifyContent="space-between" alignItems="center" mt={3}>
+            <Button
+              variant="outlined"
+              onClick={testConnections}
+              disabled={testing}
+              startIcon={<Wifi />}
+              size="large"
+            >
+              {testing ? 'Probando...' : 'Probar Conexiones'}
+            </Button>
+            
             <Button
               variant="contained"
               onClick={saveConfig}

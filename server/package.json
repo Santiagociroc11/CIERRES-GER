@@ -2,7 +2,6 @@
   "name": "whatsapp-events-server",
   "version": "1.0.0",
   "description": "Servidor WebSocket para eventos de WhatsApp y API REST",
-  "type": "module",
   "main": "src/index.ts",
   "scripts": {
     "start": "ts-node src/index.ts",

@@ -5,7 +5,7 @@ import winston from 'winston';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { setupWhatsAppEventHandlers } from './whatsappEvents.js';
+import { setupWhatsAppEventHandlers } from './whatsappEvents';
 import path from 'path';
 
 // Configurar variables de entorno

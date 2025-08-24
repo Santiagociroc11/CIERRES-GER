@@ -5,8 +5,8 @@ import winston from 'winston';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { setupWhatsAppEventHandlers } from './whatsappEvents.js';
-import apiRoutes from './routes/api.js';
+import { setupWhatsAppEventHandlers } from './whatsappEvents';
+import apiRoutes from './routes/api';
 
 // Configurar variables de entorno
 dotenv.config();

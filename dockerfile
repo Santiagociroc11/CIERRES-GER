@@ -14,10 +14,10 @@ COPY . .
 # Construir la aplicación Vite con las variables de entorno
 RUN npm run build
 
-# Instalar `serve` y PM2 globalmente
-RUN npm install -g serve pm2
+# Instalar PM2 globalmente
+RUN npm install -g pm2
 
-# Crear directorio para el servidor WebSocket
+# Crear directorio para el servidor
 WORKDIR /app/server
 
 # Copia package.json y package-lock.json del servidor e instala dependencias
@@ -35,10 +35,10 @@ RUN npm run build
 # Crear directorio para logs
 RUN mkdir -p logs
 
-# Exponer los puertos necesarios
-EXPOSE 4445 3000
+# Exponer el puerto del servidor unificado
+EXPOSE 4445
 
-# Script de inicio que ejecuta tanto el frontend como el servidor WebSocket
+# Script de inicio que ejecuta el servidor unificado
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 

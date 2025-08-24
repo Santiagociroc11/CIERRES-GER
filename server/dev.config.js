@@ -1,12 +1,12 @@
 module.exports = {
   apps: [{
-    name: 'cierres-ger-server',
-    script: 'dist/server.js',
-    watch: false,
+    name: 'cierres-ger-dev',
+    script: 'src/index.ts',
+    watch: ['src'],
     env: {
-      NODE_ENV: 'production',
-      LOG_LEVEL: 'info',
-      PORT: 4445
+      NODE_ENV: 'development',
+      LOG_LEVEL: 'debug',
+      PORT: 3001
     },
     error_file: 'logs/err.log',
     out_file: 'logs/out.log',
@@ -18,4 +18,4 @@ module.exports = {
     restart_delay: 3000,
     exp_backoff_restart_delay: 100
   }]
-}; 
+};

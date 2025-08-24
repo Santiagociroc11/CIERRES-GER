@@ -6,7 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { setupWhatsAppEventHandlers } from './whatsappEvents';
-import apiRoutes from './routes/api';
+import path from 'path';
 
 // Configurar variables de entorno
 dotenv.config();
@@ -20,8 +20,8 @@ const logger = winston.createLogger({
   ),
   transports: [
     new winston.transports.Console(),
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
+    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'logs/combined.log' })
   ]
 });
 
@@ -54,14 +54,69 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Usar las rutas de la API
-app.use('/api', apiRoutes);
+// API Routes
+app.use('/api', (req, res, next) => {
+  logger.info(`API Request: ${req.method} ${req.path}`);
+  next();
+});
+
+// Ejemplo de ruta de API
+app.get('/api/status', (req, res) => {
+  res.json({
+    message: 'API funcionando correctamente',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'production'
+  });
+});
+
+// Ejemplo de ruta para obtener datos
+app.get('/api/data', (req, res) => {
+  res.json({
+    data: [
+      { id: 1, name: 'Ejemplo 1' },
+      { id: 2, name: 'Ejemplo 2' }
+    ],
+    total: 2
+  });
+});
+
+// Ruta POST de ejemplo
+app.post('/api/data', (req, res) => {
+  const { name } = req.body;
+  
+  if (!name) {
+    return res.status(400).json({ error: 'El nombre es requerido' });
+  }
+  
+  logger.info(`Creando nuevo item: ${name}`);
+  
+  res.status(201).json({
+    message: 'Item creado exitosamente',
+    data: { id: Date.now(), name }
+  });
+});
+
+// Manejo de rutas no encontradas para API
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ error: 'Endpoint no encontrado' });
+});
+
+// Servir archivos estáticos del frontend en producción
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../../dist');
+  app.use(express.static(frontendPath));
+  
+  // Para SPA, redirigir todas las rutas no-API al index.html
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(frontendPath, 'index.html'));
+    }
+  });
+}
 
 // Configuración del cliente WebSocket
 const evolutionApiUrl = process.env.EVOLUTION_API_URL || process.env.VITE_EVOLUTIONAPI_URL;
 const evolutionApiKey = process.env.EVOLUTION_API_KEY || process.env.VITE_EVOLUTIONAPI_TOKEN;
-
-console.log('ENV:', process.env.EVOLUTION_API_URL, process.env.EVOLUTION_API_KEY);
 
 if (!evolutionApiUrl || !evolutionApiKey) {
   logger.error('Faltan variables de entorno requeridas');
@@ -97,11 +152,15 @@ setupWhatsAppEventHandlers(socket);
 
 // Iniciar servidor Express
 app.listen(PORT, () => {
-  logger.info(`Servidor API iniciado en puerto ${PORT}`);
-  console.log(`🚀 Servidor API iniciado en puerto ${PORT}`);
+  logger.info(`Servidor iniciado en puerto ${PORT}`);
+  console.log(`🚀 Servidor iniciado en puerto ${PORT}`);
   console.log(`📡 WebSocket conectado a Evolution API`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🌐 API base: http://localhost:${PORT}/api`);
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`🌍 Frontend servido desde: ${frontendPath}`);
+  }
 });
 
 // Manejar señales de terminación
@@ -128,4 +187,4 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Promesa rechazada no manejada:', reason);
   console.log('❌ Promesa rechazada no manejada:', reason);
-}); 
+});

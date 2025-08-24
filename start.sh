@@ -1,9 +1,8 @@
 #!/bin/bash
 
-# Iniciar el servidor WebSocket en segundo plano
+# Iniciar el servidor unificado (API REST + WebSocket + Frontend)
 cd /app/server
 pm2 start ecosystem.config.js
 
-# Iniciar el frontend
-cd /app
-serve -s dist -l 4445 
+# Mantener el contenedor en ejecución
+pm2 logs 

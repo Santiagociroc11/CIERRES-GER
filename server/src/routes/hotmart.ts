@@ -186,9 +186,17 @@ router.post('/webhook', async (req, res) => {
     });
 
     // 1. Buscar en la base de datos si el cliente existe
+    processingSteps.push({ step: 'database_lookup', status: 'starting', timestamp: new Date() });
     const clienteExistente = await getClienteByWhatsapp(datosProcesados.numero);
+    processingSteps.push({ 
+      step: 'database_lookup', 
+      status: 'completed', 
+      result: clienteExistente ? 'client_found' : 'client_not_found',
+      clientId: clienteExistente?.ID,
+      timestamp: new Date() 
+    });
+    
     const currentTimestamp = Math.floor(Date.now() / 1000);
-
     let clienteId: number;
     let asesorAsignado = null;
 
@@ -313,7 +321,13 @@ router.post('/webhook', async (req, res) => {
     let manychatSubscriberId = '';
     let manychatError = '';
 
+    // Variables para tracking de pasos del procesamiento
+    let processingSteps = [];
+    let clienteProcessingError = null;
+    let asesorAssignmentError = null;
+
     // 3. Procesar ManyChat (para todos los flujos)
+    processingSteps.push({ step: 'manychat_integration', status: 'starting', timestamp: new Date() });
     if (datosProcesados.flujomany) {
       try {
         manychatFlowId = datosProcesados.flujomany;
@@ -341,10 +355,26 @@ router.post('/webhook', async (req, res) => {
           const flowResult = await sendManyChatFlow(subscriberId, datosProcesados.flujomany);
           if (flowResult.success) {
             manychatStatus = 'success';
+            processingSteps.push({ 
+              step: 'manychat_integration', 
+              status: 'completed', 
+              result: 'success',
+              subscriberId, 
+              flowId: datosProcesados.flujomany,
+              timestamp: new Date() 
+            });
             logger.info('Flujo ManyChat enviado', { subscriberId, flowId: datosProcesados.flujomany });
           } else {
             manychatStatus = 'error';
             manychatError = flowResult.error || 'Error enviando flujo';
+            processingSteps.push({ 
+              step: 'manychat_integration', 
+              status: 'failed', 
+              error: manychatError,
+              subscriberId, 
+              flowId: datosProcesados.flujomany,
+              timestamp: new Date() 
+            });
             logger.error('Error enviando flujo ManyChat', flowResult.error);
           }
         } else {
@@ -354,8 +384,21 @@ router.post('/webhook', async (req, res) => {
       } catch (error) {
         manychatStatus = 'error';
         manychatError = error instanceof Error ? error.message : 'Error desconocido';
+        processingSteps.push({ 
+          step: 'manychat_integration', 
+          status: 'failed', 
+          error: manychatError,
+          timestamp: new Date() 
+        });
         logger.error('Error procesando ManyChat', error);
       }
+    } else {
+      processingSteps.push({ 
+        step: 'manychat_integration', 
+        status: 'skipped', 
+        reason: 'No flow ID configured',
+        timestamp: new Date() 
+      });
     }
 
     // Variables para tracking de Flodesk
@@ -475,6 +518,16 @@ router.post('/webhook', async (req, res) => {
       }
     }
 
+    // Obtener el log completo si existe
+    let fullLog = null;
+    if (webhookLogId) {
+      try {
+        fullLog = await getWebhookLogById(webhookLogId);
+      } catch (logError) {
+        logger.warn('No se pudo obtener el log completo para la respuesta:', logError);
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: 'Webhook procesado exitosamente',
@@ -484,11 +537,30 @@ router.post('/webhook', async (req, res) => {
         asesorAsignado: asesorAsignado?.NOMBRE || null,
         esClienteExistente: !!clienteExistente,
         webhookLogId,
+        processingTimeMs: processingTime,
         integrationResults: {
-          manychat: { status: manychatStatus, error: manychatError || undefined },
-          flodesk: { status: flodeskStatus, error: flodeskError || undefined },
-          telegram: { status: telegramStatus, error: telegramError || undefined }
-        }
+          manychat: { 
+            status: manychatStatus, 
+            error: manychatError || undefined,
+            flowId: manychatFlowId || undefined,
+            subscriberId: manychatSubscriberId || undefined
+          },
+          flodesk: { 
+            status: flodeskStatus, 
+            error: flodeskError || undefined,
+            segmentId: flodeskSegmentId || undefined
+          },
+          telegram: { 
+            status: telegramStatus, 
+            error: telegramError || undefined,
+            chatId: telegramChatId || undefined,
+            messageId: telegramMessageId || undefined
+          }
+        },
+        // Pasos detallados del procesamiento
+        processingSteps: processingSteps,
+        // Log completo de la base de datos
+        fullLog: fullLog
       },
       timestamp: new Date().toISOString()
     });
@@ -514,10 +586,29 @@ router.post('/webhook', async (req, res) => {
       }
     }
 
+    // Obtener el log completo para la respuesta de error también
+    let fullLog = null;
+    if (webhookLogId) {
+      try {
+        fullLog = await getWebhookLogById(webhookLogId);
+      } catch (logError) {
+        logger.warn('No se pudo obtener el log completo para la respuesta de error:', logError);
+      }
+    }
+
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
-      webhookLogId,
+      details: {
+        message: error instanceof Error ? error.message : 'Error desconocido',
+        stack: error instanceof Error ? error.stack : undefined,
+        webhookLogId,
+        processingTimeMs: processingTime,
+        // Pasos detallados del procesamiento hasta el error
+        processingSteps: processingSteps || [],
+        // Log completo para debugging
+        fullLog: fullLog
+      },
       timestamp: new Date().toISOString()
     });
   }

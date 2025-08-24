@@ -333,8 +333,25 @@ router.post('/webhook', async (req, res) => {
       try {
         manychatFlowId = datosProcesados.flujomany;
         
+        // Verificar que tengamos token de ManyChat
+        const config = await getHotmartConfig();
+        const manychatToken = config.tokens.manychat;
+        logger.info('Verificando configuración ManyChat', { 
+          hasToken: !!manychatToken, 
+          tokenLength: manychatToken ? manychatToken.length : 0,
+          flowId: datosProcesados.flujomany 
+        });
+        
+        if (!manychatToken) {
+          manychatStatus = 'error';
+          manychatError = 'Token de ManyChat no configurado';
+          logger.error('Token de ManyChat no configurado en la base de datos');
+        } else {
+        
         // Buscar subscriber existente
+        logger.info('Buscando subscriber ManyChat', { numero: datosProcesados.numero });
         const subscriberResult = await findManyChatSubscriber(datosProcesados.numero);
+        logger.info('Resultado búsqueda ManyChat', { success: subscriberResult.success, error: subscriberResult.error });
         let subscriberId = null;
 
         if (subscriberResult.success && subscriberResult.data?.data?.length > 0) {
@@ -343,11 +360,16 @@ router.post('/webhook', async (req, res) => {
           logger.info('Subscriber ManyChat encontrado', { subscriberId });
         } else {
           // Crear nuevo subscriber
+          logger.info('Creando nuevo subscriber ManyChat', { nombre: datosProcesados.nombre, numero: datosProcesados.numero });
           const createResult = await createManyChatSubscriber(datosProcesados.nombre, datosProcesados.numero);
+          logger.info('Resultado creación ManyChat', { success: createResult.success, error: createResult.error });
+          
           if (createResult.success && createResult.data?.data) {
             subscriberId = createResult.data.data.id;
             manychatSubscriberId = subscriberId;
             logger.info('Subscriber ManyChat creado', { subscriberId });
+          } else {
+            logger.error('No se pudo crear subscriber ManyChat', { error: createResult.error, data: createResult.data });
           }
         }
 
@@ -382,6 +404,7 @@ router.post('/webhook', async (req, res) => {
           manychatStatus = 'error';
           manychatError = 'No se pudo obtener subscriber ID';
         }
+        } // Cerrar el else del token check
       } catch (error) {
         manychatStatus = 'error';
         manychatError = error instanceof Error ? error.message : 'Error desconocido';

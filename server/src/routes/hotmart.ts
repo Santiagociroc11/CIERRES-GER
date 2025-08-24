@@ -689,20 +689,31 @@ router.post('/test-connections', async (_req, res) => {
 
     // Probar Flodesk (verificando autenticación)
     try {
+      // Flodesk usa Basic Auth con el token como username y password vacía
+      const basicAuth = Buffer.from(`${config.tokens.flodesk}:`).toString('base64');
+      
       const flodeskResponse = await fetch('https://api.flodesk.com/v1/subscribers?limit=1', {
         headers: {
-          'Authorization': `Bearer ${config.tokens.flodesk}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Basic ${basicAuth}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Hotmart Integration (hotmart-webhook-processor)'
         }
       });
       
       if (flodeskResponse.ok) {
         testResults.flodesk = { status: 'success', message: 'Token válido y conexión exitosa' };
       } else {
-        testResults.flodesk = { status: 'error', message: 'Token inválido o error de conexión' };
+        const errorText = await flodeskResponse.text();
+        testResults.flodesk = { 
+          status: 'error', 
+          message: `Token inválido o error de conexión: ${flodeskResponse.status} - ${errorText}` 
+        };
       }
     } catch (error) {
-      testResults.flodesk = { status: 'error', message: 'Error de conexión con Flodesk' };
+      testResults.flodesk = { 
+        status: 'error', 
+        message: `Error de conexión con Flodesk: ${error instanceof Error ? error.message : 'Error desconocido'}` 
+      };
     }
 
     res.json({

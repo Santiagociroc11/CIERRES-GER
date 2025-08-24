@@ -13,11 +13,15 @@ export async function addSubscriberToFlodesk(email: string, segmentId: string): 
   const FLODESK_TOKEN = config.tokens.flodesk;
   
   try {
+    // Flodesk usa Basic Auth con el token como username y password vacía
+    const basicAuth = Buffer.from(`${FLODESK_TOKEN}:`).toString('base64');
+    
     const response = await fetch(`${FLODESK_API_BASE}/subscribers`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${FLODESK_TOKEN}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Basic ${basicAuth}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Hotmart Integration (hotmart-webhook-processor)'
       },
       body: JSON.stringify({
         email: email,

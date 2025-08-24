@@ -26,6 +26,8 @@ import {
   FileText,
   DollarSign,
   Webhook,
+  Edit,
+  Trash2,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -50,6 +52,7 @@ import CrearClienteModal from './CrearClienteModal';
 import ChatModal from './ChatModal';
 import GestionAsignaciones from './GestionAsignaciones';
 import CrearAsesorModal from './CrearAsesorModal';
+import EditarAsesorModal from './EditarAsesorModal';
 import WebhookConfig from './WebhookConfig';
 import WebhookLogs from './WebhookLogs';
 
@@ -92,6 +95,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
   const [mostrarModalCrearCliente, setMostrarModalCrearCliente] = useState(false);
   const [clienteParaChat, setClienteParaChat] = useState<any | null>(null);
   const [mostrarModalCrearAsesor, setMostrarModalCrearAsesor] = useState(false);
+  const [asesorParaEditar, setAsesorParaEditar] = useState<Asesor | null>(null);
 
   // Estado para alternar entre vista de Asesores y Clientes
   const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks'>('asesores');
@@ -2622,11 +2626,19 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                                 </ul>
                               </div>
                             )}
-                          {/* Botón para ver detalle */}
-                          <div className="mt-4 flex justify-end">
+                          {/* Botones de acción */}
+                          <div className="mt-4 flex justify-end space-x-2">
+                            <button
+                              onClick={() => setAsesorParaEditar(asesor)}
+                              className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200"
+                              title="Editar asesor"
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              Editar
+                            </button>
                             <button
                               onClick={() => setAsesorSeleccionado(asesor)}
-                              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
                             >
                               Ver Detalle
                             </button>
@@ -3278,6 +3290,14 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
         <CrearAsesorModal
           onClose={() => setMostrarModalCrearAsesor(false)}
           onAsesorCreado={cargarDatos}
+        />
+      )}
+      {asesorParaEditar && (
+        <EditarAsesorModal
+          asesor={asesorParaEditar}
+          onClose={() => setAsesorParaEditar(null)}
+          onAsesorActualizado={cargarDatos}
+          onAsesorEliminado={cargarDatos}
         />
       )}
 

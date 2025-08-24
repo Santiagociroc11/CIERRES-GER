@@ -140,8 +140,8 @@ export async function createManyChatSubscriber(nombre: string, phoneNumber: stri
     const fullPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
     const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber.slice(1) : phoneNumber;
     
-    // Preparar el payload con el formato correcto según documentación
-    const payload: any = {
+    // PASO 1: Crear subscriber básico (sin custom fields)
+    const payload = {
       first_name: nombre,          // Usar el nombre real, no el teléfono
       last_name: "",              // Opcional
       whatsapp_phone: fullPhone,  // Con + para WhatsApp
@@ -149,19 +149,6 @@ export async function createManyChatSubscriber(nombre: string, phoneNumber: stri
       has_opt_in_sms: true,       // Requerido para phone field
       consent_phrase: "webhook"   // Requerido para phone field
     };
-    
-    // Obtener el ID del custom field de WhatsApp dinámicamente
-    const whatsappFieldId = await getWhatsAppCustomFieldId(MANYCHAT_TOKEN);
-    
-    if (whatsappFieldId) {
-      // Agregar custom field si existe
-      payload.custom_fields = [
-        {
-          field_id: whatsappFieldId,
-          field_value: cleanPhone // Sin + para búsquedas actuales
-        }
-      ];
-    }
     
     const response = await fetch(`${MANYCHAT_API_BASE}/subscriber/createSubscriber`, {
       method: 'POST',
@@ -176,13 +163,21 @@ export async function createManyChatSubscriber(nombre: string, phoneNumber: stri
     const data = await response.json();
     
     // Manejar diferentes tipos de respuesta
-    if (response.ok) {
-      // Éxito (200)
-      if (data.status === 'success') {
-        return { success: true, data };
-      } else {
-        return { success: false, error: `Response status: ${data.status}` };
+    if (response.ok && data.status === 'success') {
+      // PASO 2: Si la creación fue exitosa, establecer custom field
+      const subscriberId = data.data?.id;
+      
+      if (subscriberId) {
+        // Obtener el ID del custom field de WhatsApp dinámicamente
+        const whatsappFieldId = await getWhatsAppCustomFieldId(MANYCHAT_TOKEN);
+        
+        if (whatsappFieldId) {
+          // Establecer custom field en una segunda llamada
+          await setCustomFieldForSubscriber(subscriberId, whatsappFieldId, cleanPhone, MANYCHAT_TOKEN);
+        }
       }
+      
+      return { success: true, data };
     } else if (response.status === 400) {
       // Error de validación (400) - subscriber ya existe
       if (data.status === 'error' && data.details?.messages?.wa_id?.message?.includes('already exists')) {
@@ -204,6 +199,42 @@ export async function createManyChatSubscriber(nombre: string, phoneNumber: stri
 
   } catch (error) {
     return { success: false, error: `Error de conexión: ${error}` };
+  }
+}
+
+// Función helper para establecer custom field después de crear subscriber
+async function setCustomFieldForSubscriber(subscriberId: string, fieldId: number, fieldValue: string, token: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${MANYCHAT_API_BASE}/subscriber/setCustomFields`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        subscriber_id: subscriberId,
+        fields: [
+          {
+            field_id: fieldId,
+            field_value: fieldValue
+          }
+        ]
+      })
+    });
+
+    const data = await response.json();
+    
+    if (response.ok && data.status === 'success') {
+      console.log(`Custom field establecido exitosamente para subscriber ${subscriberId}`);
+      return true;
+    } else {
+      console.error(`Error estableciendo custom field: ${response.status}`, data);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error en setCustomFieldForSubscriber:', error);
+    return false;
   }
 }
 

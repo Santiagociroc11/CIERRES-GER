@@ -88,38 +88,6 @@ interface WebhookLog {
   received_at: string;
   processed_at?: string;
   raw_webhook_data?: any;
-  // Nuevos campos para pasos de procesamiento
-  processing_steps?: ProcessingStep[];
-  integration_results?: IntegrationResults;
-}
-
-interface ProcessingStep {
-  step: string;
-  status: 'starting' | 'completed' | 'failed' | 'skipped';
-  result?: string;
-  error?: string;
-  timestamp: string;
-  duration_ms?: number;
-}
-
-interface IntegrationResults {
-  manychat: {
-    status: 'success' | 'error' | 'skipped';
-    flowId?: string;
-    subscriberId?: string;
-    error?: string;
-  };
-  flodesk: {
-    status: 'success' | 'error' | 'skipped';
-    segmentId?: string;
-    error?: string;
-  };
-  telegram: {
-    status: 'success' | 'error' | 'skipped';
-    chatId?: string;
-    messageId?: string;
-    error?: string;
-  };
 }
 
 interface WebhookStats {
@@ -156,19 +124,6 @@ const INTEGRATION_COLORS = {
   skipped: 'default'
 } as const;
 
-const STEP_COLORS = {
-  starting: 'info',
-  completed: 'success',
-  failed: 'error',
-  skipped: 'default'
-} as const;
-
-const STEP_ICONS = {
-  starting: <PlayArrow />,
-  completed: <Done />,
-  failed: <Close />,
-  skipped: <SkipNext />
-};
 
 const WebhookLogs: React.FC = () => {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
@@ -315,17 +270,64 @@ const WebhookLogs: React.FC = () => {
     );
   };
 
-  const getStepChip = (status: ProcessingStep['status']) => (
-    <Chip
-      icon={STEP_ICONS[status]}
-      label={status.toUpperCase()}
-      color={STEP_COLORS[status]}
-      size="small"
-    />
-  );
 
-  const renderProcessingTimeline = (steps?: ProcessingStep[]) => {
-    if (!steps || steps.length === 0) return null;
+  const renderProcessingTimeline = (log: WebhookLog) => {
+    const timeline = [];
+    
+    // Webhook recibido
+    timeline.push({
+      step: 'Webhook Recibido',
+      status: 'completed',
+      timestamp: log.received_at,
+      icon: <Schedule />
+    });
+    
+    // Procesamiento de integraciones
+    if (log.manychat_status) {
+      timeline.push({
+        step: 'Procesamiento ManyChat',
+        status: log.manychat_status === 'success' ? 'completed' : log.manychat_status === 'error' ? 'failed' : 'skipped',
+        timestamp: log.processed_at || log.received_at,
+        icon: <Message />
+      });
+    }
+    
+    if (log.flodesk_status) {
+      timeline.push({
+        step: 'Procesamiento Flodesk',
+        status: log.flodesk_status === 'success' ? 'completed' : log.flodesk_status === 'error' ? 'failed' : 'skipped',
+        timestamp: log.processed_at || log.received_at,
+        icon: <Email />
+      });
+    }
+    
+    if (log.telegram_status) {
+      timeline.push({
+        step: 'Procesamiento Telegram',
+        status: log.telegram_status === 'success' ? 'completed' : log.telegram_status === 'error' ? 'failed' : 'skipped',
+        timestamp: log.processed_at || log.received_at,
+        icon: <Telegram />
+      });
+    }
+    
+    // Webhook completado
+    if (log.processed_at) {
+      timeline.push({
+        step: 'Webhook Completado',
+        status: log.status === 'success' ? 'completed' : 'failed',
+        timestamp: log.processed_at,
+        icon: log.status === 'success' ? <CheckCircle /> : <Error />
+      });
+    }
+
+    const getStepColor = (status: string) => {
+      switch (status) {
+        case 'completed': return 'success.main';
+        case 'failed': return 'error.main';
+        case 'skipped': return 'grey.500';
+        default: return 'info.main';
+      }
+    };
 
     return (
       <Box mt={2}>
@@ -334,23 +336,23 @@ const WebhookLogs: React.FC = () => {
           Timeline de Procesamiento
         </Typography>
         <Box sx={{ pl: 2 }}>
-          {steps.map((step, index) => (
+          {timeline.map((item, index) => (
             <Box key={index} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-              {getStepChip(step.status)}
-              <Typography variant="body2" sx={{ ml: 1, flex: 1 }}>
-                {step.step}
+              <Box sx={{ color: getStepColor(item.status), mr: 1 }}>
+                {item.icon}
+              </Box>
+              <Chip
+                label={item.status.toUpperCase()}
+                color={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'error' : 'default'}
+                size="small"
+                sx={{ mr: 1 }}
+              />
+              <Typography variant="body2" sx={{ flex: 1 }}>
+                {item.step}
               </Typography>
-              <Typography variant="caption" color="textSecondary" sx={{ ml: 1 }}>
-                {new Date(step.timestamp).toLocaleTimeString()}
+              <Typography variant="caption" color="textSecondary">
+                {new Date(item.timestamp).toLocaleTimeString()}
               </Typography>
-              {step.duration_ms && (
-                <Chip 
-                  label={`${step.duration_ms}ms`} 
-                  size="small" 
-                  variant="outlined" 
-                  sx={{ ml: 1 }} 
-                />
-              )}
             </Box>
           ))}
         </Box>
@@ -366,21 +368,39 @@ const WebhookLogs: React.FC = () => {
       <Grid container spacing={2}>
         {/* ManyChat Details */}
         <Grid item xs={12} md={4}>
-          <Card variant="outlined" sx={{ p: 1 }}>
-            <Box display="flex" alignItems="center" mb={1}>
+          <Card variant="outlined" sx={{ p: 2, height: '100%' }}>
+            <Box display="flex" alignItems="center" mb={2}>
               <Message sx={{ mr: 1, color: log.manychat_status === 'success' ? 'success.main' : log.manychat_status === 'error' ? 'error.main' : 'grey.500' }} />
               <Typography variant="subtitle2">ManyChat</Typography>
-              {getIntegrationChip(log.manychat_status)}
+              <Box sx={{ ml: 'auto' }}>
+                {getIntegrationChip(log.manychat_status)}
+              </Box>
             </Box>
             {log.manychat_flow_id && (
-              <Typography variant="caption" display="block">Flow ID: {log.manychat_flow_id}</Typography>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="caption" color="textSecondary">Flow ID:</Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.manychat_flow_id}</Typography>
+              </Box>
             )}
             {log.manychat_subscriber_id && (
-              <Typography variant="caption" display="block">Subscriber: {log.manychat_subscriber_id}</Typography>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="caption" color="textSecondary">Subscriber ID:</Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.manychat_subscriber_id}</Typography>
+              </Box>
+            )}
+            {log.manychat_status === 'success' && !log.manychat_error && (
+              <Alert severity="success" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                Flujo enviado correctamente
+              </Alert>
             )}
             {log.manychat_error && (
               <Alert severity="error" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
                 {log.manychat_error}
+              </Alert>
+            )}
+            {log.manychat_status === 'skipped' && (
+              <Alert severity="info" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                No procesado (token no configurado o error de configuración)
               </Alert>
             )}
           </Card>
@@ -388,18 +408,33 @@ const WebhookLogs: React.FC = () => {
 
         {/* Flodesk Details */}
         <Grid item xs={12} md={4}>
-          <Card variant="outlined" sx={{ p: 1 }}>
-            <Box display="flex" alignItems="center" mb={1}>
+          <Card variant="outlined" sx={{ p: 2, height: '100%' }}>
+            <Box display="flex" alignItems="center" mb={2}>
               <Email sx={{ mr: 1, color: log.flodesk_status === 'success' ? 'success.main' : log.flodesk_status === 'error' ? 'error.main' : 'grey.500' }} />
               <Typography variant="subtitle2">Flodesk</Typography>
-              {getIntegrationChip(log.flodesk_status)}
+              <Box sx={{ ml: 'auto' }}>
+                {getIntegrationChip(log.flodesk_status)}
+              </Box>
             </Box>
             {log.flodesk_segment_id && (
-              <Typography variant="caption" display="block">Segment: {log.flodesk_segment_id}</Typography>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="caption" color="textSecondary">Segment ID:</Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.flodesk_segment_id}</Typography>
+              </Box>
+            )}
+            {log.flodesk_status === 'success' && !log.flodesk_error && (
+              <Alert severity="success" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                Suscriptor agregado al segmento
+              </Alert>
             )}
             {log.flodesk_error && (
               <Alert severity="error" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
                 {log.flodesk_error}
+              </Alert>
+            )}
+            {log.flodesk_status === 'skipped' && (
+              <Alert severity="info" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                No procesado (token no configurado o error de configuración)
               </Alert>
             )}
           </Card>
@@ -407,21 +442,39 @@ const WebhookLogs: React.FC = () => {
 
         {/* Telegram Details */}
         <Grid item xs={12} md={4}>
-          <Card variant="outlined" sx={{ p: 1 }}>
-            <Box display="flex" alignItems="center" mb={1}>
+          <Card variant="outlined" sx={{ p: 2, height: '100%' }}>
+            <Box display="flex" alignItems="center" mb={2}>
               <Telegram sx={{ mr: 1, color: log.telegram_status === 'success' ? 'success.main' : log.telegram_status === 'error' ? 'error.main' : 'grey.500' }} />
               <Typography variant="subtitle2">Telegram</Typography>
-              {getIntegrationChip(log.telegram_status)}
+              <Box sx={{ ml: 'auto' }}>
+                {getIntegrationChip(log.telegram_status)}
+              </Box>
             </Box>
             {log.telegram_chat_id && (
-              <Typography variant="caption" display="block">Chat: {log.telegram_chat_id}</Typography>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="caption" color="textSecondary">Chat ID:</Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.telegram_chat_id}</Typography>
+              </Box>
             )}
             {log.telegram_message_id && (
-              <Typography variant="caption" display="block">Message: {log.telegram_message_id}</Typography>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="caption" color="textSecondary">Message ID:</Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.telegram_message_id}</Typography>
+              </Box>
+            )}
+            {log.telegram_status === 'success' && !log.telegram_error && (
+              <Alert severity="success" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                Mensaje enviado correctamente
+              </Alert>
             )}
             {log.telegram_error && (
               <Alert severity="error" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
                 {log.telegram_error}
+              </Alert>
+            )}
+            {log.telegram_status === 'skipped' && (
+              <Alert severity="info" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                No procesado (token no configurado o error de configuración)
               </Alert>
             )}
           </Card>
@@ -739,7 +792,7 @@ const WebhookLogs: React.FC = () => {
 
                               {/* Timeline de Procesamiento */}
                               <Grid item xs={12}>
-                                {renderProcessingTimeline(log.processing_steps)}
+                                {renderProcessingTimeline(log)}
                               </Grid>
                             </Grid>
                           </Box>

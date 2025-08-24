@@ -419,7 +419,8 @@ export async function updateWebhookConfigInDB(
     
     const result = await response.json();
     console.log(`Response result:`, result);
-    const success = result[0]?.success || false;
+    // PostgREST devuelve directamente true/false para funciones RPC
+    const success = result === true || result === 'true';
     console.log(`Resultado actualización ${platform}.${configKey}:`, success);
     return success;
   } catch (error) {

@@ -115,6 +115,32 @@ export interface Registro {
   FECHA_EVENTO: string;
 }
 
+export interface QuickReply {
+  id: number;
+  id_asesor: number;
+  texto: string;
+  categoria: string;
+  orden: number;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduledMessage {
+  id: number;
+  id_asesor: number;
+  id_cliente: number;
+  wha_cliente: string;
+  mensaje: string;
+  fecha_envio: string;
+  estado: 'pendiente' | 'enviado' | 'cancelado' | 'error';
+  intentos: number;
+  max_intentos: number;
+  error_message?: string;
+  created_at: string;
+  enviado_at?: string;
+}
+
 export interface EstadisticasAsesor {
   totalClientes: number;
   clientesReportados: number;

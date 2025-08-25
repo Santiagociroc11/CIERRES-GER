@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, X, MessageSquare, Phone, FileText, Calendar, Activity, Check, CheckCheck, Clock, AlertCircle, RefreshCw } from 'lucide-react';
+import { Send, X, MessageSquare, Phone, FileText, Calendar, Activity, Check, CheckCheck, Clock, AlertCircle, RefreshCw, Search, Clock as ClockIcon } from 'lucide-react';
 import { apiClient } from '../lib/apiClient';
-import { Reporte, Registro } from '../types';
+import { Reporte, Registro, QuickReply, ScheduledMessage } from '../types';
 
 function formatChatDate(ts: number) {
   const date = new Date(ts * 1000);
@@ -73,6 +73,15 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Nuevas funcionalidades
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredTimeline, setFilteredTimeline] = useState<TimelineItem[]>([]);
+  const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduledMessage, setScheduledMessage] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
   const reintentoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -134,6 +143,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     items.sort((a, b) => a.timestamp - b.timestamp);
     
     setTimeline(items);
+    setFilteredTimeline(items); // Inicializar filtrado con todos los items
   }, [mensajes, mensajesTemporales, reportes, registros]);
 
   useEffect(() => {
@@ -159,6 +169,35 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     }
   }, [timeline]);
 
+  // Función de búsqueda en tiempo real
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredTimeline(timeline);
+      return;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    const filtered = timeline.filter(item => {
+      if (item.tipo === 'mensaje') {
+        const mensaje = item.contenido as Mensaje | MensajeTemporal;
+        return mensaje.mensaje.toLowerCase().includes(query);
+      } else if (item.tipo === 'reporte') {
+        const reporte = item.contenido as Reporte;
+        return (
+          reporte.COMENTARIO?.toLowerCase().includes(query) ||
+          reporte.ESTADO_ANTERIOR?.toLowerCase().includes(query) ||
+          reporte.ESTADO_NUEVO.toLowerCase().includes(query)
+        );
+      } else if (item.tipo === 'registro') {
+        const registro = item.contenido as Registro;
+        return registro.TIPO_EVENTO?.toLowerCase().includes(query);
+      }
+      return false;
+    });
+    
+    setFilteredTimeline(filtered);
+  }, [searchQuery, timeline]);
+
   const cargarDatos = async (silencioso = false) => {
     try {
       if (!silencioso) {
@@ -166,7 +205,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
       }
       
       // Cargar mensajes, reportes y registros en paralelo
-      const [mensajesData, reportesData, registrosData] = await Promise.all([
+      const [mensajesData, reportesData, registrosData, quickRepliesData] = await Promise.all([
         apiClient.request<Mensaje[]>(
           `/conversaciones?select=*&or=(id_cliente.eq.${cliente.ID},wha_cliente.ilike.*${cliente.WHATSAPP.slice(-7)}*)&order=timestamp.asc`
         ),
@@ -175,6 +214,9 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         ),
         apiClient.request<Registro[]>(
           `/GERSSON_REGISTROS?ID_CLIENTE=eq.${cliente.ID}&order=FECHA_EVENTO.asc`
+        ),
+        apiClient.request<QuickReply[]>(
+          `/chat_quick_replies?id_asesor=eq.${asesor.ID}&activo=eq.true&order=orden.asc`
         )
       ]);
       
@@ -189,6 +231,9 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         setReportes(reportesData || []);
         setRegistros(registrosData || []);
       }
+      
+      // Siempre actualizar respuestas rápidas
+      setQuickReplies(quickRepliesData || []);
     } catch (error) {
       console.error('Error al cargar datos:', error);
     } finally {
@@ -322,6 +367,45 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     setEnviando(false);
   };
 
+  // Función para usar respuesta rápida
+  const usarRespuestaRapida = (texto: string) => {
+    setNuevoMensaje(texto);
+  };
+
+  // Función para programar mensaje
+  const programarMensaje = async () => {
+    if (!scheduledMessage.trim() || !scheduledDate || !scheduledTime) return;
+    
+    try {
+      const fechaCompleta = `${scheduledDate}T${scheduledTime}`;
+      const timestamp = new Date(fechaCompleta).getTime() / 1000;
+      
+      const scheduledData = {
+        id_asesor: asesor.ID,
+        id_cliente: cliente.ID,
+        wha_cliente: cliente.WHATSAPP,
+        mensaje: scheduledMessage,
+        fecha_envio: fechaCompleta,
+        estado: 'pendiente'
+      };
+      
+      await apiClient.request('/chat_scheduled_messages', 'POST', scheduledData);
+      
+      // Limpiar formulario
+      setScheduledMessage('');
+      setScheduledDate('');
+      setScheduledTime('');
+      setShowScheduleModal(false);
+      
+      // Mostrar confirmación
+      alert('Mensaje programado exitosamente');
+      
+    } catch (error) {
+      console.error('Error programando mensaje:', error);
+      setError('Error al programar mensaje');
+    }
+  };
+
   const renderEstadoMensaje = (mensaje: Mensaje | MensajeTemporal) => {
     if (mensaje.modo !== 'saliente') return null;
     
@@ -451,23 +535,38 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-fadeIn">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col border border-gray-200 animate-slideUp">
         {/* Header */}
-        <div className="p-4 border-b flex items-center gap-4 bg-gradient-to-r from-blue-50 to-indigo-100 rounded-t-2xl">
-          {avatar}
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-gray-900">{cliente.NOMBRE}</h2>
-              <a href={`https://wa.me/${cliente.WHATSAPP.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" title="Abrir en WhatsApp">
-                <Phone className="h-5 w-5 text-green-500" />
-              </a>
+        <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-100 rounded-t-2xl">
+          {/* Información del cliente */}
+          <div className="flex items-center gap-4 mb-3">
+            {avatar}
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-900">{cliente.NOMBRE}</h2>
+                <a href={`https://wa.me/${cliente.WHATSAPP.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" title="Abrir en WhatsApp">
+                  <Phone className="h-5 w-5 text-green-500" />
+                </a>
+              </div>
+              <div className="text-xs text-gray-500">{cliente.WHATSAPP}</div>
             </div>
-            <div className="text-xs text-gray-500">{cliente.WHATSAPP}</div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+            >
+              <X className="h-6 w-6 text-gray-500" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-200 rounded-full transition-colors"
-          >
-            <X className="h-6 w-6 text-gray-500" />
-          </button>
+          
+          {/* Barra de búsqueda */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar en el chat..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none text-sm"
+            />
+          </div>
         </div>
 
         {/* Timeline Container with onScroll handler */}
@@ -480,16 +579,33 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
             <div className="flex justify-center items-center h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
-          ) : timeline.length === 0 ? (
+          ) : filteredTimeline.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <MessageSquare className="h-12 w-12 mb-2" />
-              <p>No hay historial de interacción</p>
+              <p>{searchQuery ? 'No se encontraron resultados' : 'No hay historial de interacción'}</p>
             </div>
           ) : (
-            timeline.map(item => renderTimelineItem(item))
+            filteredTimeline.map(item => renderTimelineItem(item))
           )}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Respuestas Rápidas */}
+        {quickReplies.length > 0 && (
+          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {quickReplies.map((reply) => (
+                <button
+                  key={reply.id}
+                  onClick={() => usarRespuestaRapida(reply.texto)}
+                  className="px-3 py-1 bg-white border border-blue-200 rounded-full text-sm text-blue-700 hover:bg-blue-50 whitespace-nowrap transition-colors"
+                >
+                  {reply.texto}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Input Form */}
         <form onSubmit={enviarMensaje} className="p-4 border-t bg-white sticky bottom-0">
@@ -507,6 +623,14 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
             </div>
           )}
           <div className="flex space-x-2 items-center">
+            <button
+              type="button"
+              onClick={() => setShowScheduleModal(true)}
+              className="p-2 text-gray-500 hover:text-blue-500 transition-colors"
+              title="Programar mensaje"
+            >
+              <ClockIcon className="h-5 w-5" />
+            </button>
             <input
               type="text"
               value={nuevoMensaje}
@@ -536,6 +660,83 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
       `}</style>
+
+      {/* Modal para Programar Mensaje */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Programar Mensaje</h3>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Mensaje
+                </label>
+                <textarea
+                  value={scheduledMessage}
+                  onChange={(e) => setScheduledMessage(e.target.value)}
+                  placeholder="Escribe el mensaje que quieres programar..."
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  rows={3}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hora
+                  </label>
+                  <input
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={programarMensaje}
+                  disabled={!scheduledMessage.trim() || !scheduledDate || !scheduledTime}
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Programar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

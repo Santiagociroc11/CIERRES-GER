@@ -6,6 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { setupWhatsAppEventHandlers } from './whatsappEvents';
+import { scheduledMessageService } from './services/scheduledMessageService';
 import apiRoutes from './routes/api';
 import hotmartRoutes from './routes/hotmart';
 
@@ -115,11 +116,15 @@ socket.on('connect_error', (error) => {
 // Configurar manejadores de eventos de WhatsApp
 setupWhatsAppEventHandlers(socket);
 
+// Iniciar servicio de mensajes programados
+scheduledMessageService.start();
+
 // Iniciar servidor Express
 app.listen(PORT, () => {
   logger.info(`Servidor API iniciado en puerto ${PORT}`);
   console.log(`🚀 Servidor API iniciado en puerto ${PORT}`);
   console.log(`📡 WebSocket conectado a Evolution API`);
+  console.log(`📅 Servicio de mensajes programados iniciado`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🌐 API base: http://localhost:${PORT}/api`);
 });
@@ -128,6 +133,7 @@ app.listen(PORT, () => {
 process.on('SIGINT', () => {
   logger.info('Cerrando servidor...');
   console.log('🛑 Cerrando servidor...');
+  scheduledMessageService.stop();
   socket.disconnect();
   process.exit(0);
 });
@@ -135,6 +141,7 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   logger.info('Cerrando servidor...');
   console.log('🛑 Cerrando servidor...');
+  scheduledMessageService.stop();
   socket.disconnect();
   process.exit(0);
 });

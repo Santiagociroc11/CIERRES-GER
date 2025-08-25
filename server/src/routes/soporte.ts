@@ -470,15 +470,41 @@ router.post('/formulario-soporte', async (req, res) => {
       telegramError = 'Asesor sin ID_TG configurado';
     }
 
-    // 5. Preparar mensaje de WhatsApp y respuesta
+    // 5. Preparar mensaje de WhatsApp personalizado según tipo de lead
     let whatsappUrl;
     if (asesorAsignado?.WHATSAPP) {
-      const mensajeBase = haComprado 
-        ? "Hola, ya hice la compra y tengo un problema, mi nombre es"
-        : "Hola, quiero inscribirme a la terapia del dolor pero tengo unas dudas o problemas, mi nombre es";
+      let mensajePersonalizado = '';
+
+      if (haComprado) {
+        // VIP POST-VENTA - Mensaje directo y urgente
+        mensajePersonalizado = `🔥 Hola! Soy ${nombre}, YA COMPRÉ el curso y tengo un problema que necesito resolver urgentemente. ¿Me puedes ayudar?`;
+      } else {
+        // PROSPECTOS - Mensajes según tipo de duda
+        switch (mainDoubt) {
+          case 'precio':
+            mensajePersonalizado = `💰 Hola! Soy ${nombre}. Estoy MUY interesado en el curso pero tengo algunas dudas sobre el precio y métodos de pago. ¿Podríamos hablar?`;
+            break;
+            
+          case 'tecnico':
+            mensajePersonalizado = `🚨 URGENTE - Hola! Soy ${nombre}. Estaba tratando de COMPRAR el curso pero tengo un problema técnico que me impide completar la compra. ¡Ayúdame por favor!`;
+            break;
+            
+          case 'adecuacion':
+            mensajePersonalizado = `🎯 Hola! Soy ${nombre}. Estoy evaluando si el curso es realmente para mí y mi situación. ¿Podrías ayudarme a aclarar algunas dudas?`;
+            break;
+            
+          case 'contenido':
+            mensajePersonalizado = `📚 Hola! Soy ${nombre}. Tengo una pregunta específica sobre el contenido del curso antes de tomar la decisión de comprar. ¿Puedes orientarme?`;
+            break;
+            
+          case 'otra':
+          default:
+            mensajePersonalizado = `❓ Hola! Soy ${nombre}. Tengo algunas consultas sobre la terapia del dolor y me gustaría conversar contigo. ¿Tienes un momento?`;
+            break;
+        }
+      }
       
-      const mensajeCompleto = `${mensajeBase} ${nombre}`;
-      const mensajeCodificado = encodeURIComponent(mensajeCompleto);
+      const mensajeCodificado = encodeURIComponent(mensajePersonalizado);
       whatsappUrl = `https://wa.me/${asesorAsignado.WHATSAPP}?text=${mensajeCodificado}`;
     } else {
       // Fallback si no hay asesor - usar número configurado (obligatorio)

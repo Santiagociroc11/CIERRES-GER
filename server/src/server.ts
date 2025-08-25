@@ -9,6 +9,7 @@ import { setupWhatsAppEventHandlers } from './whatsappEvents';
 import path from 'path';
 import apiRoutes from './routes/api';
 import hotmartRoutes from './routes/hotmart';
+import soporteRoutes from './routes/soporte';
 
 // Configurar variables de entorno
 dotenv.config();
@@ -83,6 +84,9 @@ app.use('/api', apiRoutes);
 
 // Usar las rutas de Hotmart
 app.use('/api/hotmart', hotmartRoutes);
+
+// Usar las rutas de Soporte
+app.use('/api/soporte', soporteRoutes);
 
 // Ejemplo de ruta de API
 app.get('/api/status', (req, res) => {

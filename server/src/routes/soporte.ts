@@ -34,38 +34,150 @@ function limpiarNumeroWhatsapp(numero: string): string {
   return numero.replace(/^\+/, '').replace(/\s/g, '');
 }
 
+// Función para segmentar clientes según CRM
+function segmentarCliente(haComprado: boolean, mainDoubt: string | null): {
+  tipo: 'VIP_POST_VENTA' | 'PROSPECTO_CALIENTE' | 'PROSPECTO_FRIO';
+  prioridad: 'ALTA' | 'MEDIA' | 'BAJA';
+  emoji: string;
+  descripcion: string;
+} {
+  if (haComprado) {
+    return {
+      tipo: 'VIP_POST_VENTA',
+      prioridad: 'ALTA',
+      emoji: '🔥',
+      descripcion: 'Cliente VIP - Post-venta'
+    };
+  }
+
+  // Para no compradores, segmentar según tipo de duda
+  switch (mainDoubt) {
+    case 'tecnico':
+      return {
+        tipo: 'PROSPECTO_CALIENTE',
+        prioridad: 'ALTA', // Técnico es alta porque puede ser venta perdida
+        emoji: '⚠️',
+        descripcion: 'URGENTE - Venta Fallida (Problema Técnico)'
+      };
+    
+    case 'precio':
+      return {
+        tipo: 'PROSPECTO_CALIENTE',
+        prioridad: 'MEDIA',
+        emoji: '💰',
+        descripcion: 'Lead Caliente - Objeción de Precio'
+      };
+    
+    case 'adecuacion':
+      return {
+        tipo: 'PROSPECTO_CALIENTE',
+        prioridad: 'MEDIA',
+        emoji: '🎯',
+        descripcion: 'Lead Caliente - Evaluando Compra'
+      };
+    
+    case 'contenido':
+      return {
+        tipo: 'PROSPECTO_CALIENTE',
+        prioridad: 'MEDIA',
+        emoji: '📚',
+        descripcion: 'Lead Caliente - Duda sobre Producto'
+      };
+    
+    case 'otra':
+    default:
+      return {
+        tipo: 'PROSPECTO_FRIO',
+        prioridad: 'BAJA',
+        emoji: '❄️',
+        descripcion: 'Prospecto Frío - Consulta General'
+      };
+  }
+}
+
 // Función para crear mensaje de notificación al asesor
 function createSoporteNotificationMessage(
   clienteName: string,
   clientePhone: string,
   asesorTelegramId: string,
-  hasBought: boolean
+  segmentacion: {
+    tipo: string;
+    prioridad: string;
+    emoji: string;
+    descripcion: string;
+  },
+  mainDoubt: string | null = null,
+  crmLabel: string | null = null
 ): any {
-  const messageText = `*CLIENTE INGRESÓ SUS DATOS EN LINK DE SOPORTE*
+  // Crear header según prioridad
+  let headerEmoji = '';
+  let urgencyText = '';
+  
+  switch (segmentacion.prioridad) {
+    case 'ALTA':
+      headerEmoji = '🚨🔥🚨';
+      urgencyText = '*PRIORIDAD ALTA*';
+      break;
+    case 'MEDIA':
+      headerEmoji = '⚡💡⚡';
+      urgencyText = '*OPORTUNIDAD DE VENTA*';
+      break;
+    case 'BAJA':
+    default:
+      headerEmoji = '💬';
+      urgencyText = '*CONSULTA GENERAL*';
+      break;
+  }
 
-Un cliente puso sus datos en el link de soporte, te debe llegar directamente a tu whatsapp, si no llega, escribele 👇🏻
+  // Mapear dudas para el mensaje
+  const doubtLabels = {
+    'precio': '💰 Objeción de Precio - Listo para cerrar',
+    'adecuacion': '🎯 Evaluando si comprar - Calentar lead',
+    'contenido': '📚 Duda sobre el producto - Educar beneficios', 
+    'tecnico': '🔧 ¡PROBLEMA TÉCNICO! - Venta fallida, rescatar YA',
+    'otra': '❓ Consulta general'
+  };
 
-Nombre: ${clienteName}
-WhatsApp ingresado: ${clientePhone}
-${hasBought ? 'Estado: Ya compró el curso' : 'Estado: Aún no ha comprado'}`;
+  let doubtInfo = '';
+  if (mainDoubt && doubtLabels[mainDoubt as keyof typeof doubtLabels]) {
+    doubtInfo = `\n🎯 *Tipo de Consulta:*\n${doubtLabels[mainDoubt as keyof typeof doubtLabels]}\n`;
+  }
+
+  const messageText = `${headerEmoji} ${urgencyText} ${headerEmoji}
+
+${segmentacion.emoji} *TIPO:* ${segmentacion.descripcion}
+
+👤 *Cliente:* ${clienteName}
+📱 *WhatsApp:* ${clientePhone}
+${crmLabel ? `🏷️ *Etiqueta CRM:* \`${crmLabel}\`` : ''}
+${doubtInfo}
+⏰ *Recibido:* ${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}
+
+${segmentacion.prioridad === 'ALTA' ? '⚠️ *ACCIÓN INMEDIATA REQUERIDA* ⚠️' : ''}
+${segmentacion.tipo === 'PROSPECTO_CALIENTE' ? '💡 *OPORTUNIDAD DE CIERRE* - Lead caliente esperando' : ''}`;
+
+  // Botones dinámicos según el tipo de cliente
+  const buttons = [
+    [
+      {
+        text: segmentacion.prioridad === 'ALTA' ? "🚨 IR AL CHAT URGENTE" : "💬 IR AL CHAT",
+        url: `https://wa.me/${clientePhone}`
+      }
+    ],
+    [
+      {
+        text: "📊 REPORTAR EN SISTEMA", 
+        url: "https://sistema-cierres-ger.automscc.com/"
+      }
+    ]
+  ];
 
   return {
     chat_id: asesorTelegramId,
     text: messageText,
     parse_mode: 'Markdown',
     reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: "IR AL CHAT",
-            url: `https://wa.me/${clientePhone}`
-          },
-          {
-            text: "IR A REPORTAR", 
-            url: "https://sistema-cierres-ger.automscc.com/"
-          }
-        ]
-      ]
+      inline_keyboard: buttons
     }
   };
 }
@@ -97,26 +209,40 @@ router.post('/formulario-soporte', async (req, res) => {
     const whatsappOriginal = body.whatsapp;
     const haComprado = body.courseStatus === 'si';
     const whatsappLimpio = limpiarNumeroWhatsapp(whatsappOriginal);
+    
+    // Nuevos campos del formulario mejorado
+    const mainDoubt = body.mainDoubt || null; // Solo para no compradores
+    const doubtType = body.doubtType || null;
+    const crmLabel = body.crmLabel || null;
+
+    // Segmentar cliente según CRM
+    const segmentacion = segmentarCliente(haComprado, mainDoubt);
 
     logger.info('Datos procesados del formulario', {
       nombre,
       whatsappOriginal,
       whatsappLimpio,
       haComprado,
+      mainDoubt,
+      crmLabel,
+      segmentacion,
       timestamp: new Date().toISOString()
     });
 
     // Crear entrada inicial en webhook logs
     const initialLogEntry: WebhookLogEntry = {
       event_type: 'SUPPORT_FORM',
-      flujo: 'SOPORTE',
+      flujo: segmentacion.tipo, // Usar el tipo de segmentación como flujo
       status: 'received',
       buyer_name: nombre,
       buyer_phone: whatsappLimpio,
       raw_webhook_data: {
         ...body,
         source: 'support_form',
-        haComprado: haComprado
+        haComprado: haComprado,
+        segmentacion: segmentacion,
+        mainDoubt: mainDoubt,
+        crmLabel: crmLabel
       },
       received_at: new Date()
     };
@@ -313,7 +439,9 @@ router.post('/formulario-soporte', async (req, res) => {
           nombre,
           whatsappLimpio,
           asesorAsignado.ID_TG,
-          haComprado
+          segmentacion,
+          mainDoubt,
+          crmLabel
         );
 
         telegramChatId = asesorAsignado.ID_TG;
@@ -398,7 +526,13 @@ router.post('/formulario-soporte', async (req, res) => {
             redirectedToAcademy: false,
             configurationRequired: true,
             webhookLogId,
-            processingTimeMs: processingTime
+            processingTimeMs: processingTime,
+            crmSegmentation: {
+              tipo: segmentacion.tipo,
+              prioridad: segmentacion.prioridad,
+              descripcion: segmentacion.descripcion,
+              emoji: segmentacion.emoji
+            }
           },
           timestamp: new Date().toISOString()
         });
@@ -455,6 +589,15 @@ router.post('/formulario-soporte', async (req, res) => {
         redirectedToAcademy: false,
         webhookLogId,
         processingTimeMs: processingTime,
+        // Nueva información CRM
+        crmSegmentation: {
+          tipo: segmentacion.tipo,
+          prioridad: segmentacion.prioridad,
+          descripcion: segmentacion.descripcion,
+          emoji: segmentacion.emoji
+        },
+        mainDoubt,
+        crmLabel,
         integrationResults: {
           telegram: { 
             status: telegramStatus, 

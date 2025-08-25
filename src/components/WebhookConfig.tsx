@@ -925,6 +925,33 @@ const WebhookConfig: React.FC = () => {
                   {soporteSaving ? 'Guardando...' : 'Guardar Configuración de Soporte'}
                 </Button>
               </Box>
+
+              <Divider sx={{ my: 3 }} />
+
+              {/* Información del Endpoint */}
+              <Typography variant="h6" gutterBottom>
+                Información de Endpoint
+              </Typography>
+              <Typography variant="body2" color="text.secondary" paragraph>
+                URL del formulario de soporte para integrar en tu sitio web:
+              </Typography>
+              <Box
+                component="code"
+                sx={{
+                  display: 'block',
+                  p: 2,
+                  bgcolor: 'grey.100',
+                  borderRadius: 1,
+                  fontFamily: 'monospace',
+                  fontSize: '0.875rem',
+                  mb: 2
+                }}
+              >
+                {window.location.origin}/api/soporte/formulario-soporte
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
+                💡 <strong>Método:</strong> POST | <strong>Campos:</strong> name, whatsapp, courseStatus (opcional)
+              </Typography>
             </>
           ) : (
             <Alert severity="info">

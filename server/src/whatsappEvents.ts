@@ -1,5 +1,5 @@
 import { Socket } from 'socket.io-client';
-import { insertConversacion, getAsesores, getClienteByWhatsapp } from './dbClient';
+import { insertConversacion, getAsesores, getClienteByWhatsapp, updateMensajeEstado } from './dbClient';
 
 export interface WhatsAppMessage {
   key: {
@@ -50,7 +50,9 @@ let asesores: { ID: number; NOMBRE: string }[] = [];
 async function recargarAsesores() {
   try {
     asesores = await getAsesores();
+    console.log(`\x1b[36m👥 Asesores recargados: ${asesores.length}\x1b[0m`);
   } catch (err) {
+    console.error('\x1b[31m❌ Error recargando asesores:\x1b[0m', err);
   }
 }
 
@@ -59,6 +61,42 @@ recargarAsesores();
 setInterval(recargarAsesores, 5 * 60 * 1000);
 
 export function setupWhatsAppEventHandlers(socket: Socket) {
+  // Manejar actualizaciones de estado de mensajes
+  socket.on('messages.update', async (data: any) => {
+    try {
+      if (data && data.data && Array.isArray(data.data)) {
+        for (const update of data.data) {
+          if (update.key && update.key.fromMe && update.status) {
+            const messageId = update.key.id;
+            const status = update.status;
+            const instance = data.instance || 'desconocida';
+            
+            // Mapear status numérico a texto
+            let estadoTexto = 'enviado';
+            switch (status) {
+              case 1: estadoTexto = 'enviado'; break;
+              case 2: estadoTexto = 'entregado'; break;
+              case 3: estadoTexto = 'leido'; break;
+              default: estadoTexto = 'enviado';
+            }
+            
+            console.log(`\x1b[33m📊 [${instance}] Estado actualizado\x1b[0m`);
+            console.log(`ID: ${messageId}, Estado: ${estadoTexto} (${status})`);
+            
+            // Actualizar en base de datos si existe la función
+            try {
+              await updateMensajeEstado(messageId, estadoTexto);
+            } catch (err) {
+              console.error('Error actualizando estado de mensaje:', err);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error procesando actualización de estados:', error);
+    }
+  });
+
   socket.on('messages.upsert', async (data: any) => {
     if (data && data.data && data.data.key && data.data.message) {
       const message = {
@@ -101,10 +139,12 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       }
 
       // LOG BONITO (solo para mensajes que SÍ tienen asesor)
-      const header = message.key.fromMe
-        ? `\x1b[32m✅ [${eventData.instance}] Mensaje ENVIADO POR MÍ\x1b[0m`
-        : `\x1b[36m📥 [${eventData.instance}] Mensaje RECIBIDO\x1b[0m`;
-      const body = `De: ${eventData.from}\nTipo: ${eventData.tipo}\nTexto/Caption: ${eventData.text}\nID: ${eventData.messageId}\nFecha: ${eventData.timestamp}`;
+      if (message.key.fromMe) {
+        console.log(`\x1b[32m✅ [${eventData.instance}] Mensaje ENVIADO POR MÍ\x1b[0m`);
+      } else {
+        console.log(`\x1b[36m📥 [${eventData.instance}] Mensaje RECIBIDO\x1b[0m`);
+      }
+      console.log(`De: ${eventData.from}\nTipo: ${eventData.tipo}\nTexto/Caption: ${eventData.text}\nID: ${eventData.messageId}\nFecha: ${eventData.timestamp}`);
 
       // Determinar modo
       const modo = message.key.fromMe ? 'saliente' : 'entrante';
@@ -146,12 +186,45 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
           wha_cliente: eventData.from,
           modo,
           timestamp: Math.floor(Date.now() / 1000),
-          mensaje
+          mensaje,
+          mensaje_id: eventData.messageId,
+          estado: message.key.fromMe ? 'enviado' : undefined
         });
+        
+        console.log(`\x1b[32m✅ Mensaje guardado exitosamente\x1b[0m`);
+        
       } catch (err) {
+        console.error('\x1b[31m❌ Error guardando mensaje:\x1b[0m', err);
       }
     } else {
+      console.log('\x1b[31m❌ Datos de mensaje inválidos\x1b[0m');
     }
+  });
+  
+  // Manejar eventos de conexión
+  socket.on('connect', () => {
+    console.log('\x1b[32m🔗 Socket conectado a WhatsApp\x1b[0m');
+  });
+  
+  socket.on('disconnect', (reason) => {
+    console.log(`\x1b[31m🔌 Socket desconectado: ${reason}\x1b[0m`);
+  });
+  
+  socket.on('connect_error', (error) => {
+    console.log(`\x1b[31m❌ Error de conexión: ${error.message}\x1b[0m`);
+  });
+  
+  // Escuchar otros eventos útiles
+  socket.on('qr', (data) => {
+    console.log('\x1b[33m📱 QR Code recibido\x1b[0m');
+  });
+  
+  socket.on('connection.update', (data) => {
+    console.log(`\x1b[36m🔄 Estado de conexión actualizado:\x1b[0m`, data.connection);
+  });
+  
+  socket.on('creds.update', () => {
+    console.log('\x1b[36m🔑 Credenciales actualizadas\x1b[0m');
   });
 }
 

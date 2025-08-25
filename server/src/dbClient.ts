@@ -65,6 +65,8 @@ export async function insertConversacion(data: {
   modo: 'entrante' | 'saliente';
   timestamp: number;
   mensaje: string;
+  mensaje_id?: string;
+  estado?: string;
 }) {
   const response = await fetch(`${POSTGREST_URL}/conversaciones`, {
     method: 'POST',
@@ -79,6 +81,37 @@ export async function insertConversacion(data: {
     throw new Error(`Error al insertar conversación: ${response.status} - ${errorText}`);
   }
   return response.json();
+}
+
+export async function updateMensajeEstado(mensajeId: string, estado: string) {
+  try {
+    const response = await fetch(`${POSTGREST_URL}/conversaciones?mensaje_id=eq.${mensajeId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ estado })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error al actualizar estado de mensaje: ${response.status} - ${errorText}`);
+    }
+    
+    const responseText = await response.text();
+    if (!responseText || responseText.trim() === '') {
+      return { success: true };
+    }
+    
+    try {
+      return JSON.parse(responseText);
+    } catch (parseError) {
+      return { success: true };
+    }
+  } catch (error) {
+    console.error(`Error actualizando estado de mensaje ${mensajeId}:`, error);
+    throw error;
+  }
 }
 
 export async function getAsesores(): Promise<{ ID: number; NOMBRE: string }[]> {

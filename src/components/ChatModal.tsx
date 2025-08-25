@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, X, MessageSquare, Phone, FileText, Calendar, Activity } from 'lucide-react';
+import { Send, X, MessageSquare, Phone, FileText, Calendar, Activity, Check, CheckCheck, Clock, AlertCircle, RefreshCw } from 'lucide-react';
 import { apiClient } from '../lib/apiClient';
 import { Reporte, Registro } from '../types';
 
@@ -34,6 +34,8 @@ interface ChatModalProps {
   };
 }
 
+type EstadoMensaje = 'enviando' | 'enviado' | 'entregado' | 'leido' | 'error';
+
 interface Mensaje {
   id: number;
   id_asesor: number;
@@ -42,6 +44,14 @@ interface Mensaje {
   modo: 'entrante' | 'saliente';
   timestamp: number;
   mensaje: string;
+  estado?: EstadoMensaje;
+}
+
+interface MensajeTemporal extends Omit<Mensaje, 'id'> {
+  id: string;
+  temporal: true;
+  intentos?: number;
+  maxIntentos?: number;
 }
 
 // Tipo unificado para los elementos del timeline
@@ -49,19 +59,23 @@ type TimelineItem = {
   id: string;
   timestamp: number;
   tipo: 'mensaje' | 'reporte' | 'registro';
-  contenido: Mensaje | Reporte | Registro;
+  contenido: Mensaje | MensajeTemporal | Reporte | Registro;
 };
 
 export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModalProps) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [mensajesTemporales, setMensajesTemporales] = useState<MensajeTemporal[]>([]);
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
+  const reintentoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const evolutionApiUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
@@ -83,9 +97,17 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
   // Generar timeline unificado
   useEffect(() => {
     const items: TimelineItem[] = [
-      // Convertir mensajes a timeline items
+      // Convertir mensajes persistentes a timeline items
       ...mensajes.map((msg): TimelineItem => ({
         id: `msg-${msg.id}`,
+        timestamp: msg.timestamp,
+        tipo: 'mensaje',
+        contenido: msg
+      })),
+      
+      // Convertir mensajes temporales a timeline items
+      ...mensajesTemporales.map((msg): TimelineItem => ({
+        id: `temp-${msg.id}`,
         timestamp: msg.timestamp,
         tipo: 'mensaje',
         contenido: msg
@@ -112,7 +134,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     items.sort((a, b) => a.timestamp - b.timestamp);
     
     setTimeline(items);
-  }, [mensajes, reportes, registros]);
+  }, [mensajes, mensajesTemporales, reportes, registros]);
 
   useEffect(() => {
     if (isOpen) {
@@ -176,27 +198,79 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     }
   };
 
-  const enviarMensaje = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nuevoMensaje.trim()) return;
+  const reintentarMensaje = async (mensajeId: string, delay = 2000) => {
+    if (reintentoTimeoutRef.current) {
+      clearTimeout(reintentoTimeoutRef.current);
+    }
+    
+    reintentoTimeoutRef.current = setTimeout(async () => {
+      const mensaje = mensajesTemporales.find(m => m.id === mensajeId);
+      if (!mensaje || (mensaje.intentos || 0) >= (mensaje.maxIntentos || 3)) {
+        // Marcar como error permanente
+        setMensajesTemporales(prev => 
+          prev.map(m => m.id === mensajeId ? { ...m, estado: 'error' as EstadoMensaje } : m)
+        );
+        return;
+      }
+      
+      // Incrementar intentos y reintentar
+      setMensajesTemporales(prev => 
+        prev.map(m => m.id === mensajeId ? { 
+          ...m, 
+          estado: 'enviando' as EstadoMensaje,
+          intentos: (m.intentos || 0) + 1 
+        } : m)
+      );
+      
+      await enviarMensajeInterno(mensaje.mensaje, mensajeId);
+    }, delay);
+  };
 
+  const enviarMensajeInterno = async (texto: string, mensajeId?: string) => {
+    const id = mensajeId || `temp-${Date.now()}-${Math.random()}`;
+    const timestamp = Math.floor(Date.now() / 1000);
+    
     try {
+      // Si no es reintento, crear mensaje temporal
+      if (!mensajeId) {
+        const mensajeTemporal: MensajeTemporal = {
+          id,
+          id_asesor: asesor.ID,
+          id_cliente: cliente.ID,
+          wha_cliente: cliente.WHATSAPP,
+          modo: 'saliente',
+          timestamp,
+          mensaje: texto,
+          estado: 'enviando',
+          temporal: true,
+          intentos: 0,
+          maxIntentos: 3
+        };
+        
+        setMensajesTemporales(prev => [...prev, mensajeTemporal]);
+      }
+
       // 1. Guardar en la base de datos
       const mensajeData = {
         id_asesor: asesor.ID,
         id_cliente: cliente.ID,
         wha_cliente: cliente.WHATSAPP,
         modo: 'saliente' as const,
-        timestamp: Math.floor(Date.now() / 1000),
-        mensaje: nuevoMensaje.trim()
+        timestamp,
+        mensaje: texto
       };
+      
       await apiClient.request('/conversaciones', 'POST', mensajeData);
+      
+      // Actualizar estado a enviado
+      setMensajesTemporales(prev => 
+        prev.map(m => m.id === id ? { ...m, estado: 'enviado' as EstadoMensaje } : m)
+      );
 
       // 2. Enviar a Evolution API
       const instance = asesor.NOMBRE;
-      const number = cliente.WHATSAPP.replace(/\D/g, ''); // Solo dígitos
-      const text = nuevoMensaje.trim();
-
+      const number = cliente.WHATSAPP.replace(/\D/g, '');
+      
       const response = await fetch(
         `${evolutionApiUrl}/message/sendText/${encodeURIComponent(instance)}`,
         {
@@ -205,19 +279,90 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
             'Content-Type': 'application/json',
             'apikey': evolutionApiKey,
           },
-          body: JSON.stringify({ number, text }),
+          body: JSON.stringify({ number, text: texto }),
         }
       );
+      
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Error enviando mensaje a Evolution API: ${response.status} - ${errorText}`);
       }
-
-      setNuevoMensaje('');
-      await cargarDatos(true);
+      
+      // Actualizar estado a entregado
+      setMensajesTemporales(prev => 
+        prev.map(m => m.id === id ? { ...m, estado: 'entregado' as EstadoMensaje } : m)
+      );
+      
+      // Remover mensaje temporal después de un tiempo (se cargará desde BD)
+      setTimeout(() => {
+        setMensajesTemporales(prev => prev.filter(m => m.id !== id));
+        cargarDatos(true);
+      }, 2000);
+      
+      setError(null);
+      
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
-      // Aquí puedes mostrar un toast o alerta al usuario si quieres
+      const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+      setError(errorMsg);
+      
+      // Actualizar estado del mensaje temporal
+      setMensajesTemporales(prev => 
+        prev.map(m => m.id === id ? { ...m, estado: 'error' as EstadoMensaje } : m)
+      );
+      
+      // Programar reintento si no se han agotado los intentos
+      const mensaje = mensajesTemporales.find(m => m.id === id);
+      if (!mensaje || (mensaje.intentos || 0) < (mensaje.maxIntentos || 3)) {
+        reintentarMensaje(id, 3000);
+      }
+    }
+  };
+
+  const enviarMensaje = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nuevoMensaje.trim() || enviando) return;
+
+    setEnviando(true);
+    const texto = nuevoMensaje.trim();
+    setNuevoMensaje('');
+    
+    await enviarMensajeInterno(texto);
+    setEnviando(false);
+  };
+
+  const renderEstadoMensaje = (mensaje: Mensaje | MensajeTemporal) => {
+    if (mensaje.modo !== 'saliente') return null;
+    
+    const estado = mensaje.estado || 'enviado';
+    const esTemporal = 'temporal' in mensaje && mensaje.temporal;
+    
+    switch (estado) {
+      case 'enviando':
+        return <Clock className="h-3 w-3 text-blue-200 animate-pulse" />;
+      case 'enviado':
+        return <Check className="h-3 w-3 text-blue-200" />;
+      case 'entregado':
+        return <CheckCheck className="h-3 w-3 text-blue-200" />;
+      case 'leido':
+        return <CheckCheck className="h-3 w-3 text-green-200" />;
+      case 'error':
+        return (
+          <div className="flex items-center gap-1">
+            <AlertCircle className="h-3 w-3 text-red-300" />
+            {esTemporal && (
+              <button
+                onClick={() => reintentarMensaje(mensaje.id)}
+                className="hover:bg-red-500 hover:bg-opacity-20 rounded p-0.5"
+                title="Reintentar envío"
+              >
+                <RefreshCw className="h-3 w-3 text-red-300" />
+              </button>
+            )}
+          </div>
+        );
+      default:
+        return null;
     }
   };
 
@@ -225,23 +370,30 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
   const renderTimelineItem = (item: TimelineItem) => {
     switch (item.tipo) {
       case 'mensaje': {
-        const mensaje = item.contenido as Mensaje;
+        const mensaje = item.contenido as Mensaje | MensajeTemporal;
+        const esTemporal = 'temporal' in mensaje && mensaje.temporal;
+        const opacidad = esTemporal && mensaje.estado === 'enviando' ? 'opacity-70' : '';
+        
         return (
           <div
             key={item.id}
-            className={`flex ${mensaje.modo === 'saliente' ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${mensaje.modo === 'saliente' ? 'justify-end' : 'justify-start'} ${opacidad}`}
           >
             <div
               className={`relative max-w-[75%] px-4 py-2 rounded-2xl shadow-sm text-sm whitespace-pre-line break-words
                 ${mensaje.modo === 'saliente'
                   ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-br-md'
                   : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'}
+                ${mensaje.estado === 'error' ? 'border-red-300 bg-red-50' : ''}
               `}
             >
-              <span>{mensaje.mensaje}</span>
-              <span className={`block text-xs mt-1 text-right ${mensaje.modo === 'saliente' ? 'text-blue-100' : 'text-gray-400'}`}>
-                {formatChatDate(mensaje.timestamp)}
+              <span className={mensaje.estado === 'error' ? 'text-red-700' : ''}>
+                {mensaje.mensaje}
               </span>
+              <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${mensaje.modo === 'saliente' ? 'text-blue-100' : 'text-gray-400'}`}>
+                <span>{formatChatDate(mensaje.timestamp)}</span>
+                {renderEstadoMensaje(mensaje)}
+              </div>
             </div>
           </div>
         );
@@ -279,10 +431,10 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
                   {registro.TIPO_EVENTO || 'Actividad registrada'}
                 </span>
               </div>
-              <p className="text-gray-600 text-xs mb-1">{registro.DESCRIPCION}</p>
+              <p className="text-gray-600 text-xs mb-1">{registro.TIPO_EVENTO}</p>
               <div className="text-xs text-gray-500 flex items-center justify-center">
                 <Calendar className="h-3 w-3 mr-1" />
-                {formatChatDate(Number(registro.FECHA_EVENTO))}
+                {formatChatDate(new Date(registro.FECHA_EVENTO).getTime() / 1000)}
               </div>
             </div>
           </div>
@@ -350,6 +502,19 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
 
         {/* Input Form */}
         <form onSubmit={enviarMensaje} className="p-4 border-t bg-white sticky bottom-0">
+          {error && (
+            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4" />
+              <span>Error: {error}</span>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                className="ml-auto text-red-500 hover:text-red-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           <div className="flex space-x-2 items-center">
             <input
               type="text"
@@ -358,13 +523,18 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
               placeholder="Escribe un mensaje..."
               className="flex-1 p-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm text-base"
               autoFocus
+              disabled={enviando}
             />
             <button
               type="submit"
-              disabled={!nuevoMensaje.trim()}
-              className="p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
+              disabled={!nuevoMensaje.trim() || enviando}
+              className="p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg flex items-center justify-center"
             >
-              <Send className="h-5 w-5" />
+              {enviando ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
             </button>
           </div>
         </form>

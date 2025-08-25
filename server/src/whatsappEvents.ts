@@ -155,10 +155,24 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       for (const update of updates) {
         console.log(`\x1b[36m🔍 Procesando update:`, JSON.stringify(update, null, 2).substring(0, 400));
         
-        // Buscar información del mensaje
-        const messageKey = update.key || update.messageKey;
-        const messageId = messageKey?.id;
-        const fromMe = messageKey?.fromMe;
+        // Buscar información del mensaje - ESTRUCTURA EVOLUTION API
+        let messageKey = update.key || update.messageKey;
+        let messageId = messageKey?.id;
+        let fromMe = messageKey?.fromMe;
+        
+        // Si no hay key directamente, buscar en data (estructura Evolution)
+        if (!messageKey && update.data) {
+          messageId = update.data.keyId;
+          fromMe = update.data.fromMe;
+        }
+        
+        // Si aún no tenemos messageId, intentar usar keyId directamente
+        if (!messageId && update.keyId) {
+          messageId = update.keyId;
+        }
+        if (!messageId && update.data?.keyId) {
+          messageId = update.data.keyId;
+        }
         
         // Buscar estado en diferentes ubicaciones posibles
         let status = null;
@@ -168,23 +182,35 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         if (update.status !== undefined) {
           status = update.status;
         }
-        // Formato 2: update.message?.status
+        // Formato 2: update.data?.status (Evolution API)
+        else if (update.data?.status !== undefined) {
+          status = update.data.status;
+        }
+        // Formato 3: update.message?.status
         else if (update.message?.status !== undefined) {
           status = update.message.status;
         }
-        // Formato 3: update.update?.status
-        else if (update.update?.status !== undefined) {
-          status = update.update.status;
-        }
         
         if (status !== null && messageId && fromMe) {
-          // Mapear estado numérico a texto
-          switch (status) {
-            case 0: statusText = 'enviando'; break;
-            case 1: statusText = 'enviado'; break;
-            case 2: statusText = 'entregado'; break;
-            case 3: statusText = 'leido'; break;
-            default: statusText = 'enviado';
+          // Mapear estado - TANTO NUMÉRICO COMO STRING (Evolution API)
+          if (typeof status === 'string') {
+            // Estados como strings de Evolution API
+            switch (status.toUpperCase()) {
+              case 'PENDING': statusText = 'enviando'; break;
+              case 'SENT': statusText = 'enviado'; break;
+              case 'DELIVERY_ACK': statusText = 'entregado'; break;
+              case 'READ': statusText = 'leido'; break;
+              default: statusText = 'enviado';
+            }
+          } else {
+            // Estados numéricos tradicionales
+            switch (status) {
+              case 0: statusText = 'enviando'; break;
+              case 1: statusText = 'enviado'; break;
+              case 2: statusText = 'entregado'; break;
+              case 3: statusText = 'leido'; break;
+              default: statusText = 'enviado';
+            }
           }
           
           console.log(`\x1b[33m📊 Estado actualizado: ID ${messageId} = ${statusText} (${status})\x1b[0m`);

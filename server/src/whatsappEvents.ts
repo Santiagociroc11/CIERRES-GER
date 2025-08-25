@@ -46,6 +46,45 @@ export interface WhatsAppMessage {
 const processedMessages = new Set<string>();
 let asesores: { ID: number; NOMBRE: string }[] = [];
 
+// Función para obtener el estado actual de un mensaje
+async function getMensajeEstadoActual(messageId: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `${process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL}/conversaciones?mensaje_id=eq.${messageId}&select=estado`
+    );
+    
+    if (!response.ok) {
+      console.error(`Error obteniendo estado del mensaje ${messageId}: ${response.status}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    if (data && data.length > 0) {
+      return data[0].estado || null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error obteniendo estado del mensaje ${messageId}:`, error);
+    return null;
+  }
+}
+
+// Función para determinar si se debe actualizar el estado
+function debeActualizarEstado(estadoActual: string | null, nuevoEstado: string): boolean {
+  // Si no hay estado actual, siempre actualizar
+  if (!estadoActual) return true;
+  
+  // Definir jerarquía de estados (de menor a mayor prioridad)
+  const jerarquiaEstados = ['enviando', 'enviado', 'entregado', 'leido'];
+  
+  const indiceActual = jerarquiaEstados.indexOf(estadoActual);
+  const indiceNuevo = jerarquiaEstados.indexOf(nuevoEstado);
+  
+  // Solo actualizar si el nuevo estado es más avanzado
+  return indiceNuevo > indiceActual;
+}
+
 // Función para cargar asesores
 async function recargarAsesores() {
   try {
@@ -245,12 +284,19 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
           
           console.log(`\x1b[33m📊 Estado actualizado: ID ${messageId} = ${statusText} (${status})\x1b[0m`);
           
-          // Actualizar en base de datos
+          // Verificar si el estado actual es más avanzado antes de actualizar
           try {
-            await updateMensajeEstado(messageId, statusText);
-            console.log(`\x1b[32m✅ Estado actualizado en BD: ${messageId} = ${statusText}\x1b[0m`);
+            const estadoActual = await getMensajeEstadoActual(messageId);
+            
+            // Solo actualizar si el nuevo estado es más avanzado que el actual
+            if (debeActualizarEstado(estadoActual, statusText)) {
+              await updateMensajeEstado(messageId, statusText);
+              console.log(`\x1b[32m✅ Estado actualizado en BD: ${messageId} = ${statusText}\x1b[0m`);
+            } else {
+              console.log(`\x1b[33m⏭️  Estado no actualizado: ${messageId} ya tiene estado ${estadoActual} (nuevo: ${statusText})\x1b[0m`);
+            }
           } catch (err) {
-            console.error('Error actualizando estado en BD:', err);
+            console.error('Error verificando/actualizando estado en BD:', err);
           }
         } else {
           console.log(`\x1b[33m⚠️  Update sin datos válidos para estado:`, {

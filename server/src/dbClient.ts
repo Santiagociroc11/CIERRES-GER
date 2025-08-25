@@ -126,6 +126,22 @@ export async function getAsesorById(id: number): Promise<{ ID: number; NOMBRE: s
   return data && data.length > 0 ? data[0] : null;
 }
 
+export async function getClienteById(id: number): Promise<{ ID: number; NOMBRE: string; WHATSAPP: string; ESTADO: string; ID_ASESOR?: number; NOMBRE_ASESOR?: string } | null> {
+  const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?ID=eq.${id}&select=ID,NOMBRE,WHATSAPP,ESTADO,ID_ASESOR,NOMBRE_ASESOR&limit=1`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error fetching cliente by ID: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data && data.length > 0 ? data[0] : null;
+}
+
 export async function createCliente(clienteData: {
   NOMBRE: string;
   ESTADO: string;
@@ -170,6 +186,10 @@ export async function updateCliente(id: number, updates: Partial<{
   soporte_duda: string;
   soporte_descripcion: string;
   soporte_fecha_ultimo: number;
+  // Campos de asesor
+  ID_ASESOR: number;
+  NOMBRE_ASESOR: string;
+  WHA_ASESOR: string;
 }>) {
   const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?ID=eq.${id}`, {
     method: 'PATCH',

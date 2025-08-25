@@ -10,6 +10,7 @@ import path from 'path';
 import apiRoutes from './routes/api';
 import hotmartRoutes from './routes/hotmart';
 import soporteRoutes from './routes/soporte';
+import reasignacionRoutes from './routes/reasignacion';
 
 // Configurar variables de entorno
 dotenv.config();
@@ -87,6 +88,9 @@ app.use('/api/hotmart', hotmartRoutes);
 
 // Usar las rutas de Soporte
 app.use('/api/soporte', soporteRoutes);
+
+// Usar las rutas de Reasignación
+app.use('/api', reasignacionRoutes);
 
 // Ejemplo de ruta de API
 app.get('/api/status', (req, res) => {

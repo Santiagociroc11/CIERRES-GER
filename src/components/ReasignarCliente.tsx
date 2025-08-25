@@ -37,7 +37,7 @@ const ReasignarCliente = ({ clienteId, asesorActual, onReasignSuccess }: Reasign
   const avisoTG = async (clienteId, asesorViejoId, asesorNuevoId) => {
     try {
       const response = await fetch(
-        import.meta.env.VITE_ENDPOINT_REASIGNA,
+        "/api/reasigna-cierres",
         {
           method: "POST",
           headers: {

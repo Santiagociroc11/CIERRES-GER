@@ -51,6 +51,12 @@ export interface Cliente {
   DIAS_SIN_SEGUIMIENTO: number | null;
   DIAS_SIN_VENTA: number | null;
   WHATSAPP: string;
+  // Campos CRM de soporte
+  soporte_tipo?: string | null;
+  soporte_prioridad?: string | null;
+  soporte_duda?: string | null;
+  soporte_descripcion?: string | null;
+  soporte_fecha_ultimo?: number | null;
 }
 
 export interface Reporte {

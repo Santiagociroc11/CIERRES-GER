@@ -143,15 +143,18 @@ function createSoporteNotificationMessage(
     doubtInfo = `\n🎯 *Tipo de Consulta:*\n${doubtLabels[mainDoubt as keyof typeof doubtLabels]}\n`;
   }
 
-  const messageText = `${headerEmoji} ${urgencyText} ${headerEmoji}
+  const messageText = `${headerEmoji} *CLIENTE INGRESÓ SUS DATOS EN LINK DE SOPORTE* ${headerEmoji}
 
-${segmentacion.emoji} *TIPO:* ${segmentacion.descripcion}
+${segmentacion.emoji} *${urgencyText}*
+${segmentacion.descripcion}
 
 👤 *Cliente:* ${clienteName}
 📱 *WhatsApp:* ${clientePhone}
 ${crmLabel ? `🏷️ *Etiqueta CRM:* \`${crmLabel}\`` : ''}
 ${doubtInfo}
 ⏰ *Recibido:* ${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}
+
+💬 *Te debe llegar directamente a tu WhatsApp, si no llega, escríbele* 👇🏻
 
 ${segmentacion.prioridad === 'ALTA' ? '⚠️ *ACCIÓN INMEDIATA REQUERIDA* ⚠️' : ''}
 ${segmentacion.tipo === 'PROSPECTO_CALIENTE' ? '💡 *OPORTUNIDAD DE CIERRE* - Lead caliente esperando' : ''}`;
@@ -293,11 +296,16 @@ router.post('/formulario-soporte', async (req, res) => {
         shouldRedirectToAcademy = true;
         logger.info('Cliente ya había comprado, redirigir a academia', { clienteId });
       } else {
-        // Cliente existente pero no ha comprado, actualizar estado a LINK
+        // Cliente existente pero no ha comprado, actualizar estado a LINK con datos CRM
         await updateCliente(clienteId, {
           ESTADO: 'LINK',
           NOMBRE: nombre,
-          WHATSAPP: whatsappLimpio
+          WHATSAPP: whatsappLimpio,
+          soporte_tipo: segmentacion.tipo,
+          soporte_prioridad: segmentacion.prioridad,
+          soporte_duda: mainDoubt,
+          soporte_descripcion: segmentacion.descripcion,
+          soporte_fecha_ultimo: currentTimestamp
         });
 
         // Obtener asesor asignado
@@ -313,7 +321,7 @@ router.post('/formulario-soporte', async (req, res) => {
       if (nextAsesor?.ID) {
         asesorAsignado = await getAsesorById(nextAsesor.ID);
         
-        // Crear nuevo cliente con asesor asignado
+        // Crear nuevo cliente con asesor asignado y datos CRM
         const nuevoCliente = await createCliente({
           NOMBRE: nombre,
           ESTADO: 'LINK',
@@ -321,19 +329,29 @@ router.post('/formulario-soporte', async (req, res) => {
           ID_ASESOR: nextAsesor.ID,
           NOMBRE_ASESOR: asesorAsignado?.NOMBRE,
           WHA_ASESOR: asesorAsignado?.WHATSAPP,
-          FECHA_CREACION: currentTimestamp
+          FECHA_CREACION: currentTimestamp,
+          soporte_tipo: segmentacion.tipo,
+          soporte_prioridad: segmentacion.prioridad,
+          soporte_duda: mainDoubt,
+          soporte_descripcion: segmentacion.descripcion,
+          soporte_fecha_ultimo: currentTimestamp
         });
         clienteId = nuevoCliente[0].ID;
 
         // Incrementar contador LINK del asesor
         await updateAsesorCounter(nextAsesor.ID, 'LINK');
       } else {
-        // No hay asesores disponibles
+        // No hay asesores disponibles - crear cliente con datos CRM
         const nuevoCliente = await createCliente({
           NOMBRE: nombre,
           ESTADO: 'LINK',
           WHATSAPP: whatsappLimpio,
-          FECHA_CREACION: currentTimestamp
+          FECHA_CREACION: currentTimestamp,
+          soporte_tipo: segmentacion.tipo,
+          soporte_prioridad: segmentacion.prioridad,
+          soporte_duda: mainDoubt,
+          soporte_descripcion: segmentacion.descripcion,
+          soporte_fecha_ultimo: currentTimestamp
         });
         clienteId = nuevoCliente[0].ID;
       }

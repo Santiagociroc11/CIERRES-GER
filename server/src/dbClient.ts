@@ -136,6 +136,12 @@ export async function createCliente(clienteData: {
   FECHA_CREACION: number;
   FECHA_COMPRA?: number;
   MEDIO_COMPRA?: string;
+  // Campos CRM de soporte
+  soporte_tipo?: string;
+  soporte_prioridad?: string;
+  soporte_duda?: string;
+  soporte_descripcion?: string;
+  soporte_fecha_ultimo?: number;
 }) {
   const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES`, {
     method: 'POST',
@@ -158,6 +164,12 @@ export async function updateCliente(id: number, updates: Partial<{
   WHATSAPP: string;
   FECHA_COMPRA: number;
   MEDIO_COMPRA: string;
+  // Campos CRM de soporte
+  soporte_tipo: string;
+  soporte_prioridad: string;
+  soporte_duda: string;
+  soporte_descripcion: string;
+  soporte_fecha_ultimo: number;
 }>) {
   const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?ID=eq.${id}`, {
     method: 'PATCH',

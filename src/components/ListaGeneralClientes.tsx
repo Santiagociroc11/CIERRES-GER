@@ -355,6 +355,19 @@ export default function ListaGeneralClientes({
                     }`}>
                       {getEstadoTexto(cliente.ESTADO, cliente.ID)}
                     </span>
+                    {/* Badge CRM para clientes de soporte */}
+                    {cliente.ESTADO === 'LINK' && cliente.soporte_prioridad && (
+                      <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                        cliente.soporte_prioridad === 'ALTA' 
+                          ? 'bg-red-500 text-white' 
+                          : cliente.soporte_prioridad === 'MEDIA'
+                          ? 'bg-yellow-500 text-white'
+                          : 'bg-blue-500 text-white'
+                      }`}>
+                        {cliente.soporte_prioridad === 'ALTA' ? '🔥' : cliente.soporte_prioridad === 'MEDIA' ? '⚡' : '❄️'} 
+                        {cliente.soporte_prioridad}
+                      </span>
+                    )}
                     {!ultimoReporte && <AlertCircle className="h-4 w-4 text-red-500" aria-label="Sin reporte" />}
                     {tieneSeguimiento && <Clock className="h-4 w-4 text-blue-500" aria-label="Seguimiento pendiente" />}
                   </div>
@@ -485,13 +498,28 @@ export default function ListaGeneralClientes({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col items-start space-y-1">
-                      <span className={`px-2 py-1 text-xs leading-5 font-semibold rounded-full w-fit ${
-                        cliente.ESTADO === 'LINK' 
-                          ? 'bg-purple-200 text-purple-800 border-2 border-purple-400 font-bold' 
-                          : getEstadoColor(cliente.ESTADO, cliente.ID)
-                      }`}>
-                        {getEstadoTexto(cliente.ESTADO, cliente.ID)}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-1 text-xs leading-5 font-semibold rounded-full w-fit ${
+                          cliente.ESTADO === 'LINK' 
+                            ? 'bg-purple-200 text-purple-800 border-2 border-purple-400 font-bold' 
+                            : getEstadoColor(cliente.ESTADO, cliente.ID)
+                        }`}>
+                          {getEstadoTexto(cliente.ESTADO, cliente.ID)}
+                        </span>
+                        {/* Badge CRM para clientes de soporte */}
+                        {cliente.ESTADO === 'LINK' && cliente.soporte_prioridad && (
+                          <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                            cliente.soporte_prioridad === 'ALTA' 
+                              ? 'bg-red-500 text-white' 
+                              : cliente.soporte_prioridad === 'MEDIA'
+                              ? 'bg-yellow-500 text-white'
+                              : 'bg-blue-500 text-white'
+                          }`}>
+                            {cliente.soporte_prioridad === 'ALTA' ? '🔥' : cliente.soporte_prioridad === 'MEDIA' ? '⚡' : '❄️'} 
+                            {cliente.soporte_prioridad}
+                          </span>
+                        )}
+                      </div>
                       {(() => {
                         const ultimoRpt = obtenerUltimoReporte(cliente.ID);
                         if (

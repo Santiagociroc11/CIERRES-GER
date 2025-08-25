@@ -64,7 +64,6 @@ type TimelineItem = {
 
 export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModalProps) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
-  const [mensajesTemporales, setMensajesTemporales] = useState<MensajeTemporal[]>([]);
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
@@ -82,9 +81,11 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
   const [scheduledMessage, setScheduledMessage] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+  
+  // Estado para mensajes en proceso (sin agregar al timeline)
+  const [mensajesEnProceso, setMensajesEnProceso] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
-  const reintentoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const evolutionApiUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
@@ -114,14 +115,6 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         contenido: msg
       })),
       
-      // Convertir mensajes temporales a timeline items
-      ...mensajesTemporales.map((msg): TimelineItem => ({
-        id: `temp-${msg.id}`,
-        timestamp: msg.timestamp,
-        tipo: 'mensaje',
-        contenido: msg
-      })),
-      
       // Convertir reportes a timeline items
       ...reportes.map((rep): TimelineItem => ({
         id: `rep-${rep.ID}`,
@@ -144,7 +137,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     
     setTimeline(items);
     setFilteredTimeline(items); // Inicializar filtrado con todos los items
-  }, [mensajes, mensajesTemporales, reportes, registros]);
+  }, [mensajes, reportes, registros]);
 
   useEffect(() => {
     if (isOpen) {
@@ -243,67 +236,14 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     }
   };
 
-  const reintentarMensaje = async (mensajeId: string, delay = 2000) => {
-    if (reintentoTimeoutRef.current) {
-      clearTimeout(reintentoTimeoutRef.current);
-    }
-    
-    reintentoTimeoutRef.current = setTimeout(async () => {
-      const mensaje = mensajesTemporales.find(m => m.id === mensajeId);
-      if (!mensaje || (mensaje.intentos || 0) >= (mensaje.maxIntentos || 3)) {
-        // Marcar como error permanente
-        setMensajesTemporales(prev => 
-          prev.map(m => m.id === mensajeId ? { ...m, estado: 'error' as EstadoMensaje } : m)
-        );
-        return;
-      }
-      
-      // Incrementar intentos y reintentar
-      setMensajesTemporales(prev => 
-        prev.map(m => m.id === mensajeId ? { 
-          ...m, 
-          estado: 'enviando' as EstadoMensaje,
-          intentos: (m.intentos || 0) + 1 
-        } : m)
-      );
-      
-      await enviarMensajeInterno(mensaje.mensaje, mensajeId);
-    }, delay);
-  };
-
-  const enviarMensajeInterno = async (texto: string, mensajeId?: string) => {
-    const id = mensajeId || `temp-${Date.now()}-${Math.random()}`;
+  const enviarMensajeInterno = async (texto: string) => {
     const timestamp = Math.floor(Date.now() / 1000);
     
     try {
-      // Si no es reintento, crear mensaje temporal
-      if (!mensajeId) {
-        const mensajeTemporal: MensajeTemporal = {
-          id,
-          id_asesor: asesor.ID,
-          id_cliente: cliente.ID,
-          wha_cliente: cliente.WHATSAPP,
-          modo: 'saliente',
-          timestamp,
-          mensaje: texto,
-          estado: 'enviando',
-          temporal: true,
-          intentos: 0,
-          maxIntentos: 3
-        };
-        
-        setMensajesTemporales(prev => [...prev, mensajeTemporal]);
-      }
-
       // NOTA: Los mensajes salientes se guardan en BD desde whatsappEvents.ts
       // después de confirmar el envío exitoso desde Evolution API
       
-      // Actualizar estado a enviado
-      setMensajesTemporales(prev => 
-        prev.map(m => m.id === id ? { ...m, estado: 'enviado' as EstadoMensaje } : m)
-      );
-
-      // 2. Enviar a Evolution API
+      // Enviar a Evolution API
       const instance = asesor.NOMBRE;
       const number = cliente.WHATSAPP.replace(/\D/g, '');
       
@@ -324,34 +264,18 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         throw new Error(`Error enviando mensaje a Evolution API: ${response.status} - ${errorText}`);
       }
       
-      // Actualizar estado a entregado
-      setMensajesTemporales(prev => 
-        prev.map(m => m.id === id ? { ...m, estado: 'entregado' as EstadoMensaje } : m)
-      );
-      
-      // Remover mensaje temporal después de un tiempo (se cargará desde BD)
-      setTimeout(() => {
-        setMensajesTemporales(prev => prev.filter(m => m.id !== id));
-        cargarDatos(true);
-      }, 2000);
-      
+      // Mensaje enviado exitosamente - se guardará en BD desde whatsappEvents.ts
       setError(null);
+      
+      // Recargar datos para mostrar el mensaje enviado
+      setTimeout(() => {
+        cargarDatos(true);
+      }, 1000);
       
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
       const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
       setError(errorMsg);
-      
-      // Actualizar estado del mensaje temporal
-      setMensajesTemporales(prev => 
-        prev.map(m => m.id === id ? { ...m, estado: 'error' as EstadoMensaje } : m)
-      );
-      
-      // Programar reintento si no se han agotado los intentos
-      const mensaje = mensajesTemporales.find(m => m.id === id);
-      if (!mensaje || (mensaje.intentos || 0) < (mensaje.maxIntentos || 3)) {
-        reintentarMensaje(id, 3000);
-      }
     }
   };
 
@@ -406,11 +330,10 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
     }
   };
 
-  const renderEstadoMensaje = (mensaje: Mensaje | MensajeTemporal) => {
+  const renderEstadoMensaje = (mensaje: Mensaje) => {
     if (mensaje.modo !== 'saliente') return null;
     
     const estado = mensaje.estado || 'enviado';
-    const esTemporal = 'temporal' in mensaje && mensaje.temporal;
     
     switch (estado) {
       case 'enviando':
@@ -422,20 +345,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
       case 'leido':
         return <CheckCheck className="h-3 w-3 text-green-200" />;
       case 'error':
-        return (
-          <div className="flex items-center gap-1">
-            <AlertCircle className="h-3 w-3 text-red-300" />
-            {esTemporal && (
-              <button
-                onClick={() => reintentarMensaje(mensaje.id)}
-                className="hover:bg-red-500 hover:bg-opacity-20 rounded p-0.5"
-                title="Reintentar envío"
-              >
-                <RefreshCw className="h-3 w-3 text-red-300" />
-              </button>
-            )}
-          </div>
-        );
+        return <AlertCircle className="h-3 w-3 text-red-300" />;
       default:
         return null;
     }
@@ -445,14 +355,12 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
   const renderTimelineItem = (item: TimelineItem) => {
     switch (item.tipo) {
       case 'mensaje': {
-        const mensaje = item.contenido as Mensaje | MensajeTemporal;
-        const esTemporal = 'temporal' in mensaje && mensaje.temporal;
-        const opacidad = esTemporal && mensaje.estado === 'enviando' ? 'opacity-70' : '';
+        const mensaje = item.contenido as Mensaje;
         
         return (
           <div
             key={item.id}
-            className={`flex ${mensaje.modo === 'saliente' ? 'justify-end' : 'justify-start'} ${opacidad}`}
+            className={`flex ${mensaje.modo === 'saliente' ? 'justify-end' : 'justify-start'}`}
           >
             <div
               className={`relative max-w-[75%] px-4 py-2 rounded-2xl shadow-sm text-sm whitespace-pre-line break-words

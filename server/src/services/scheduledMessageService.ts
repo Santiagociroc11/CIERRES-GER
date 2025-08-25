@@ -37,11 +37,18 @@ export class ScheduledMessageService {
     
     this.isRunning = true;
     console.log('🚀 [SCHEDULED MESSAGES] Servicio iniciado');
+    console.log(`🔧 [SCHEDULED MESSAGES] POSTGREST_URL: ${POSTGREST_URL}`);
+    console.log(`🔧 [SCHEDULED MESSAGES] Evolution API URL: ${process.env.VITE_EVOLUTIONAPI_URL || process.env.EVOLUTIONAPI_URL}`);
+    console.log(`🔧 [SCHEDULED MESSAGES] Evolution API Token: ${process.env.VITE_EVOLUTIONAPI_TOKEN || process.env.EVOLUTIONAPI_TOKEN ? 'CONFIGURADO' : 'NO CONFIGURADO'}`);
     
     // Verificar cada minuto si hay mensajes para enviar
     this.intervalId = setInterval(() => {
       this.processScheduledMessages();
     }, 60000); // 1 minuto
+    
+    // Ejecutar inmediatamente para verificar que funciona
+    console.log('🔍 [SCHEDULED MESSAGES] Ejecutando verificación inicial...');
+    this.processScheduledMessages();
   }
 
   /**
@@ -65,9 +72,14 @@ export class ScheduledMessageService {
   private async processScheduledMessages(): Promise<void> {
     try {
       const now = new Date();
+      console.log(`🔍 [SCHEDULED MESSAGES] Verificando mensajes programados a las ${now.toISOString()}`);
+      
       const messages = await this.getPendingMessages(now);
       
-      if (messages.length === 0) return;
+      if (messages.length === 0) {
+        console.log(`📭 [SCHEDULED MESSAGES] No hay mensajes programados pendientes`);
+        return;
+      }
       
       console.log(`📅 [SCHEDULED MESSAGES] Procesando ${messages.length} mensajes programados`);
       
@@ -80,22 +92,26 @@ export class ScheduledMessageService {
   }
 
   /**
-   * Obtiene mensajes pendientes para la fecha/hora actual
+   * Obtiene mensajes programados pendientes para la fecha/hora actual
    */
   private async getPendingMessages(now: Date): Promise<ScheduledMessage[]> {
     try {
-      const response = await fetch(
-        `${POSTGREST_URL}/chat_scheduled_messages?estado=eq.pendiente&fecha_envio=lte.${now.toISOString()}&order=fecha_envio.asc`
-      );
+      const url = `${POSTGREST_URL}/chat_scheduled_messages?estado=eq.pendiente&fecha_envio=lte.${now.toISOString()}&order=fecha_envio.asc`;
+      console.log(`🔍 [SCHEDULED MESSAGES] Consultando: ${url}`);
+      
+      const response = await fetch(url);
       
       if (!response.ok) {
-        throw new Error(`Error obteniendo mensajes programados: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`❌ [SCHEDULED MESSAGES] Error HTTP ${response.status}: ${errorText}`);
+        throw new Error(`Error obteniendo mensajes programados: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
+      console.log(`📊 [SCHEDULED MESSAGES] Respuesta de BD: ${JSON.stringify(data, null, 2)}`);
       return data || [];
     } catch (error) {
-      console.error('Error obteniendo mensajes programados:', error);
+      console.error('❌ [SCHEDULED MESSAGES] Error obteniendo mensajes programados:', error);
       return [];
     }
   }

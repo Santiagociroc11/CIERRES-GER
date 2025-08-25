@@ -72,6 +72,40 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Ruta de prueba para mensajes programados
+app.get('/test-scheduled-messages', async (req, res) => {
+  try {
+    const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
+    
+    // Verificar conexión a BD
+    const response = await fetch(`${POSTGREST_URL}/chat_scheduled_messages?select=*&limit=5`);
+    
+    if (!response.ok) {
+      return res.status(500).json({
+        error: 'Error conectando a BD',
+        status: response.status,
+        statusText: response.statusText
+      });
+    }
+    
+    const messages = await response.json();
+    
+    res.json({
+      status: 'OK',
+      postgrest_url: POSTGREST_URL,
+      total_messages: messages.length,
+      messages: messages,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Error interno',
+      message: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Usar las rutas de la API
 app.use('/api', apiRoutes);
 

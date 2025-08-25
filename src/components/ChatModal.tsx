@@ -434,7 +434,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
               <p className="text-gray-600 text-xs mb-1">{registro.TIPO_EVENTO}</p>
               <div className="text-xs text-gray-500 flex items-center justify-center">
                 <Calendar className="h-3 w-3 mr-1" />
-                {formatChatDate(new Date(registro.FECHA_EVENTO).getTime() / 1000)}
+                {formatChatDate(Number(registro.FECHA_EVENTO))}
               </div>
             </div>
           </div>

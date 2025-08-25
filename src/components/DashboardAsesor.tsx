@@ -705,9 +705,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       const url = `${evolutionServerUrl}/chatwoot/set/${encodeURIComponent(instanceName)}`;
       const payload = {
         enabled: true,
-        accountId: "2",
+        accountId: "12",
         token: "A55c8HWKWZ9kJS9Tv5GVcXWu",
-        url: "https://n8n-chatwoot.wc2hpx.easypanel.host",
+        url: "https://chatwoot.automscc.com",
         signMsg: false,
         sign_delimiter: ":",
         reopenConversation: true,

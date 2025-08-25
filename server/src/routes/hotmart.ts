@@ -219,6 +219,8 @@ router.post('/webhook', async (req, res) => {
         }
 
         // Actualizar estado a PAGADO y datos de compra
+        const estadoAnterior = clienteExistente.ESTADO;
+        
         await updateCliente(clienteId, {
           ESTADO: 'PAGADO',
           NOMBRE: datosProcesados.nombre,
@@ -227,27 +229,32 @@ router.post('/webhook', async (req, res) => {
           MEDIO_COMPRA: 'HOTMART'
         });
 
-        // Si tiene asesor, incrementar contador de compras
+        // Para COMPRAS, sí incrementar contador porque es evento único
         if (clienteExistente.ID_ASESOR) {
           await updateAsesorCounter(clienteExistente.ID_ASESOR, 'COMPRAS');
           asesorAsignado = await getAsesorById(clienteExistente.ID_ASESOR);
+          logger.info(`Cliente existente COMPRÓ - contador COMPRAS incrementado`);
         }
       } else {
         // Para otros flujos, solo actualizar estado
+        const estadoAnterior = clienteExistente.ESTADO;
+        
         await updateCliente(clienteId, {
           ESTADO: flujo,
           NOMBRE: datosProcesados.nombre,
           WHATSAPP: datosProcesados.numero
         });
 
-        // Incrementar contador del asesor si existe
+        // Para clientes existentes, NO incrementar contadores, solo obtener asesor
         if (clienteExistente.ID_ASESOR) {
-          await updateAsesorCounter(clienteExistente.ID_ASESOR, flujo);
           asesorAsignado = await getAsesorById(clienteExistente.ID_ASESOR);
+          logger.info(`Cliente existente actualizado estado: ${estadoAnterior} -> ${flujo}, sin incrementar contador`);
+        }
 
-          // Verificar número de WhatsApp (como en N8N Evolution API)
+        // Verificar número de WhatsApp (como en N8N Evolution API)
+        if (asesorAsignado) {
           try {
-            const whatsappCheck = await checkWhatsAppNumber(asesorAsignado?.NOMBRE || 'default', datosProcesados.numero);
+            const whatsappCheck = await checkWhatsAppNumber(asesorAsignado.NOMBRE || 'default', datosProcesados.numero);
             if (whatsappCheck.success && whatsappCheck.data?.data?.[0]?.exists) {
               logger.info('Número WhatsApp verificado exitosamente', { 
                 numero: datosProcesados.numero,

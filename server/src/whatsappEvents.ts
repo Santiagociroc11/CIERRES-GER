@@ -61,39 +61,149 @@ recargarAsesores();
 setInterval(recargarAsesores, 5 * 60 * 1000);
 
 export function setupWhatsAppEventHandlers(socket: Socket) {
-  // Manejar actualizaciones de estado de mensajes
-  socket.on('messages.update', async (data: any) => {
+  // ===============================================
+  // 🔍 DEBUG: Escuchar TODOS los eventos para diagnosticar
+  // ===============================================
+  
+  // Interceptar todos los eventos para debugging
+  const originalOn = socket.on.bind(socket);
+  socket.on = function(event: string, listener: (...args: any[]) => void) {
+    return originalOn(event, (...args: any[]) => {
+      console.log(`\x1b[35m🔍 [DEBUG] Evento recibido: "${event}"\x1b[0m`);
+      console.log(`\x1b[35m📦 [DEBUG] Datos:`, JSON.stringify(args, null, 2).substring(0, 500) + '...\x1b[0m');
+      return listener(...args);
+    });
+  };
+
+  // Escuchar eventos CORRECTOS de Evolution API
+  console.log('🔍 [DEBUG] Configurando handlers de WhatsApp...');
+  
+  const evolutionEvents = [
+    'send.message',           // ✅ Mensaje enviado exitosamente
+    'messages.upsert',        // ✅ Nuevo mensaje (recibido/enviado)
+    'messages.update',        // ✅ Estado del mensaje (entregado, leído)
+    'messages.delete',        // ✅ Mensaje eliminado
+    'connection.update',      // ✅ Estado de conexión
+    'qrcode.updated',         // ✅ QR Code actualizado
+    'creds.update'            // ✅ Credenciales actualizadas
+  ];
+
+  evolutionEvents.forEach(eventName => {
+    socket.on(eventName, (data: any) => {
+      console.log(`\x1b[32m📨 [${eventName}] Evento Evolution específico recibido\x1b[0m`);
+    });
+  });
+
+  // Debug adicional: escuchar TODOS los eventos posibles
+  const allPossibleEvents = [
+    'send.message', 'messages.upsert', 'messages.update', 'messages.delete',
+    'connection.update', 'qrcode.updated', 'creds.update', 'qr', 'qr.updated',
+    'message', 'message.update', 'message.receipt', 'receipt', 'status',
+    'presence.update', 'chats.upsert', 'contacts.upsert', 'groups.upsert'
+  ];
+
+  allPossibleEvents.forEach(eventName => {
+    socket.on(eventName, (data: any) => {
+      console.log(`\x1b[35m🎯 [${eventName}] Evento capturado\x1b[0m`);
+      console.log(`\x1b[35m📦 Datos:`, JSON.stringify(data, null, 2).substring(0, 300));
+    });
+  });
+
+  // ===============================================
+  // 📤 EVENTO: Mensaje Enviado (CRUCIAL para estados)
+  // ===============================================
+  socket.on('send.message', async (data: any) => {
+    console.log(`\x1b[32m📤 [SEND_MESSAGE] Mensaje enviado exitosamente\x1b[0m`);
+    console.log(`\x1b[36m📋 Datos:`, JSON.stringify(data, null, 2).substring(0, 800));
+    
     try {
-      if (data && data.data && Array.isArray(data.data)) {
-        for (const update of data.data) {
-          if (update.key && update.key.fromMe && update.status) {
-            const messageId = update.key.id;
-            const status = update.status;
-            const instance = data.instance || 'desconocida';
-            
-            // Mapear status numérico a texto
-            let estadoTexto = 'enviado';
-            switch (status) {
-              case 1: estadoTexto = 'enviado'; break;
-              case 2: estadoTexto = 'entregado'; break;
-              case 3: estadoTexto = 'leido'; break;
-              default: estadoTexto = 'enviado';
-            }
-            
-            console.log(`\x1b[33m📊 [${instance}] Estado actualizado\x1b[0m`);
-            console.log(`ID: ${messageId}, Estado: ${estadoTexto} (${status})`);
-            
-            // Actualizar en base de datos si existe la función
-            try {
-              await updateMensajeEstado(messageId, estadoTexto);
-            } catch (err) {
-              console.error('Error actualizando estado de mensaje:', err);
-            }
+      const message = data.data || data;
+      const messageId = message.key?.id;
+      const instance = data.instance || 'desconocida';
+      
+      if (messageId) {
+        // Actualizar estado a "enviado" en BD
+        await updateMensajeEstado(messageId, 'enviado');
+        console.log(`\x1b[32m✅ Estado actualizado: mensaje ${messageId} = ENVIADO\x1b[0m`);
+      }
+    } catch (error) {
+      console.error('Error procesando send.message:', error);
+    }
+  });
+
+  // ===============================================
+  // 🔄 EVENTO: Actualización de Estados (Entregado, Leído) - CORREGIDO
+  // ===============================================
+  socket.on('messages.update', async (data: any) => {
+    console.log(`\x1b[36m🔄 [MESSAGES_UPDATE] Actualización de estado recibida\x1b[0m`);
+    console.log(`\x1b[36m📋 Datos:`, JSON.stringify(data, null, 2).substring(0, 800));
+    
+    try {
+      // Evolution API puede enviar múltiples formatos
+      let updates = [];
+      
+      if (data && Array.isArray(data)) {
+        updates = data;
+      } else if (data && data.data && Array.isArray(data.data)) {
+        updates = data.data;
+      } else if (data && typeof data === 'object') {
+        updates = [data];
+      }
+      
+      console.log(`\x1b[36m📊 Procesando ${updates.length} actualizaciones\x1b[0m`);
+      
+      for (const update of updates) {
+        console.log(`\x1b[36m🔍 Procesando update:`, JSON.stringify(update, null, 2).substring(0, 400));
+        
+        // Buscar información del mensaje
+        const messageKey = update.key || update.messageKey;
+        const messageId = messageKey?.id;
+        const fromMe = messageKey?.fromMe;
+        
+        // Buscar estado en diferentes ubicaciones posibles
+        let status = null;
+        let statusText = '';
+        
+        // Formato 1: update.status
+        if (update.status !== undefined) {
+          status = update.status;
+        }
+        // Formato 2: update.message?.status
+        else if (update.message?.status !== undefined) {
+          status = update.message.status;
+        }
+        // Formato 3: update.update?.status
+        else if (update.update?.status !== undefined) {
+          status = update.update.status;
+        }
+        
+        if (status !== null && messageId && fromMe) {
+          // Mapear estado numérico a texto
+          switch (status) {
+            case 0: statusText = 'enviando'; break;
+            case 1: statusText = 'enviado'; break;
+            case 2: statusText = 'entregado'; break;
+            case 3: statusText = 'leido'; break;
+            default: statusText = 'enviado';
           }
+          
+          console.log(`\x1b[33m📊 Estado actualizado: ID ${messageId} = ${statusText} (${status})\x1b[0m`);
+          
+          // Actualizar en base de datos
+          try {
+            await updateMensajeEstado(messageId, statusText);
+            console.log(`\x1b[32m✅ Estado actualizado en BD: ${messageId} = ${statusText}\x1b[0m`);
+          } catch (err) {
+            console.error('Error actualizando estado en BD:', err);
+          }
+        } else {
+          console.log(`\x1b[33m⚠️  Update sin datos válidos para estado:`, {
+            messageId, fromMe, status, hasKey: !!messageKey
+          });
         }
       }
     } catch (error) {
-      console.error('Error procesando actualización de estados:', error);
+      console.error('Error procesando messages.update:', error);
     }
   });
 
@@ -201,7 +311,9 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
     }
   });
   
-  // Manejar eventos de conexión
+  // ===============================================
+  // 🔗 EVENTOS DE CONEXIÓN (Socket.io eventos estándar)
+  // ===============================================
   socket.on('connect', () => {
     console.log('\x1b[32m🔗 Socket conectado a WhatsApp\x1b[0m');
   });
@@ -214,17 +326,15 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
     console.log(`\x1b[31m❌ Error de conexión: ${error.message}\x1b[0m`);
   });
   
-  // Escuchar otros eventos útiles
-  socket.on('qr', (data) => {
-    console.log('\x1b[33m📱 QR Code recibido\x1b[0m');
+  // ===============================================
+  // 📱 EVENTOS ESPECÍFICOS DE EVOLUTION API
+  // ===============================================
+  socket.on('qrcode.updated', (_data) => {
+    console.log('\x1b[33m📱 QR Code actualizado\x1b[0m');
   });
   
   socket.on('connection.update', (data) => {
-    console.log(`\x1b[36m🔄 Estado de conexión actualizado:\x1b[0m`, data.connection);
-  });
-  
-  socket.on('creds.update', () => {
-    console.log('\x1b[36m🔑 Credenciales actualizadas\x1b[0m');
+    console.log(`\x1b[36m🔄 Estado de conexión actualizado:\x1b[0m`, data?.connection || data);
   });
 }
 

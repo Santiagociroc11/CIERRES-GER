@@ -250,17 +250,8 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         setMensajesTemporales(prev => [...prev, mensajeTemporal]);
       }
 
-      // 1. Guardar en la base de datos
-      const mensajeData = {
-        id_asesor: asesor.ID,
-        id_cliente: cliente.ID,
-        wha_cliente: cliente.WHATSAPP,
-        modo: 'saliente' as const,
-        timestamp,
-        mensaje: texto
-      };
-      
-      await apiClient.request('/conversaciones', 'POST', mensajeData);
+      // NOTA: Los mensajes salientes se guardan en BD desde whatsappEvents.ts
+      // después de confirmar el envío exitoso desde Evolution API
       
       // Actualizar estado a enviado
       setMensajesTemporales(prev => 

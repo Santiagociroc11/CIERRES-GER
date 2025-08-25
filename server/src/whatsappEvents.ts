@@ -110,7 +110,7 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
   });
 
   // ===============================================
-  // 📤 EVENTO: Mensaje Enviado (CRUCIAL para estados)
+  // 📤 EVENTO: Mensaje Enviado (CRUCIAL para estados y guardado en BD)
   // ===============================================
   socket.on('send.message', async (data: any) => {
     console.log(`\x1b[32m📤 [SEND_MESSAGE] Mensaje enviado exitosamente\x1b[0m`);
@@ -126,6 +126,36 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         await updateMensajeEstado(messageId, 'enviado');
         console.log(`\x1b[32m✅ Estado actualizado: mensaje ${messageId} = ENVIADO\x1b[0m`);
       }
+      
+      // También guardar el mensaje en BD si no existe
+      try {
+        const asesor = asesores.find(a => a.NOMBRE.trim().toLowerCase() === instance.trim().toLowerCase());
+        if (asesor && message.key?.remoteJid) {
+          const messageData = {
+            id_asesor: asesor.ID,
+            id_cliente: null as number | null, // Se determinará por wha_cliente
+            wha_cliente: message.key.remoteJid,
+            modo: 'saliente' as const,
+            timestamp: Math.floor(Date.now() / 1000),
+            mensaje: message.message?.conversation || message.message?.caption || 'Mensaje enviado',
+            mensaje_id: messageId,
+            estado: 'enviado'
+          };
+          
+          // Buscar cliente por WhatsApp
+          const cliente = await getClienteByWhatsapp(messageData.wha_cliente);
+          if (cliente) {
+            messageData.id_cliente = cliente.ID;
+          }
+          
+          // Insertar en BD
+          await insertConversacion(messageData);
+          console.log(`\x1b[32m✅ Mensaje saliente guardado en BD desde send.message\x1b[0m`);
+        }
+      } catch (insertError) {
+        console.error('Error guardando mensaje saliente en BD:', insertError);
+      }
+      
     } catch (error) {
       console.error('Error procesando send.message:', error);
     }

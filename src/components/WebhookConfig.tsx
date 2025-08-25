@@ -47,6 +47,12 @@ interface HotmartConfig {
   };
 }
 
+interface SoporteConfig {
+  phoneNumbers: {
+    academySupport: string;
+  };
+}
+
 interface Advisor {
   id: number;
   nombre: string;
@@ -64,8 +70,11 @@ const FLUJO_LABELS = {
 const WebhookConfig: React.FC = () => {
   console.log('Componente WebhookConfig renderizando...');
   const [config, setConfig] = useState<HotmartConfig | null>(null);
+  const [soporteConfig, setSoporteConfig] = useState<SoporteConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [soporteLoading, setSoporteLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [soporteSaving, setSoporteSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -90,6 +99,7 @@ const WebhookConfig: React.FC = () => {
   // Cargar configuración al montar el componente
   useEffect(() => {
     loadConfig();
+    loadSoporteConfig();
   }, []);
 
   // Cargar asesores con Telegram cuando se muestren las secciones de test
@@ -117,6 +127,30 @@ const WebhookConfig: React.FC = () => {
       toast.error('Error cargando configuración');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSoporteConfig = async () => {
+    try {
+      setSoporteLoading(true);
+      const response = await fetch('/api/soporte/config');
+      const data = await response.json();
+      
+      if (data.success) {
+        setSoporteConfig(data.data);
+      } else {
+        throw new Error(data.error || 'Error cargando configuración de soporte');
+      }
+    } catch (error) {
+      console.error('Error cargando configuración de soporte:', error);
+      // Inicializar configuración vacía si no existe
+      setSoporteConfig({
+        phoneNumbers: {
+          academySupport: ''
+        }
+      });
+    } finally {
+      setSoporteLoading(false);
     }
   };
 
@@ -284,6 +318,53 @@ const WebhookConfig: React.FC = () => {
         [field]: value
       }
     });
+  };
+
+  const handleSoporteConfigChange = (field: string, value: string) => {
+    if (!soporteConfig) return;
+    
+    setSoporteConfig({
+      ...soporteConfig,
+      phoneNumbers: {
+        ...soporteConfig.phoneNumbers,
+        [field]: value
+      }
+    });
+  };
+
+  const saveSoporteConfig = async () => {
+    if (!soporteConfig) return;
+    
+    // Validar que el número de academia esté configurado
+    if (!soporteConfig.phoneNumbers.academySupport?.trim()) {
+      toast.error('El número de soporte academia es obligatorio');
+      return;
+    }
+    
+    try {
+      setSoporteSaving(true);
+      const response = await fetch('/api/soporte/config', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(soporteConfig)
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success('Configuración de soporte guardada exitosamente');
+        setSoporteConfig(data.data);
+      } else {
+        throw new Error(data.error || 'Error guardando configuración de soporte');
+      }
+    } catch (error) {
+      console.error('Error guardando configuración de soporte:', error);
+      toast.error('Error guardando configuración de soporte');
+    } finally {
+      setSoporteSaving(false);
+    }
   };
 
   const testConnections = async () => {
@@ -536,7 +617,7 @@ const WebhookConfig: React.FC = () => {
     }));
   };
 
-  if (loading) {
+  if (loading || soporteLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography>Cargando configuración...</Typography>
@@ -783,6 +864,73 @@ const WebhookConfig: React.FC = () => {
           >
             {window.location.origin}/api/hotmart/webhook
           </Box>
+        </CardContent>
+      </Card>
+
+      {/* Configuración de Soporte */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">
+              Configuración de Soporte
+            </Typography>
+            <Box>
+              <Tooltip title="Recargar configuración de soporte">
+                <IconButton onClick={loadSoporteConfig} disabled={soporteLoading}>
+                  <Refresh />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+            Configura los números de WhatsApp para redirigir clientes que ya compraron y necesitan soporte.
+          </Typography>
+
+          {soporteLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress />
+            </Box>
+          ) : soporteConfig ? (
+            <>
+              <Typography variant="h6" gutterBottom sx={{ mt: 3, mb: 2 }}>
+                <Chip label="WhatsApp" color="success" size="small" sx={{ mr: 1 }} />
+                Números de Soporte
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    required
+                    label="Soporte Academia (Clientes que ya compraron)"
+                    value={soporteConfig.phoneNumbers.academySupport || ''}
+                    onChange={(e) => handleSoporteConfigChange('academySupport', e.target.value)}
+                    size="small"
+                    helperText="Número de WhatsApp con código de país (ej: 573012904922) - OBLIGATORIO"
+                    placeholder="573012904922"
+                    error={!soporteConfig.phoneNumbers.academySupport?.trim()}
+                  />
+                </Grid>
+              </Grid>
+
+              <Box display="flex" justifyContent="flex-end" mt={3}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={saveSoporteConfig}
+                  disabled={soporteSaving}
+                  startIcon={soporteSaving ? <CircularProgress size={20} /> : <Save />}
+                >
+                  {soporteSaving ? 'Guardando...' : 'Guardar Configuración de Soporte'}
+                </Button>
+              </Box>
+            </>
+          ) : (
+            <Alert severity="info">
+              No se pudo cargar la configuración de soporte. Verifica la conexión.
+            </Alert>
+          )}
         </CardContent>
       </Card>
 

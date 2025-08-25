@@ -14,6 +14,7 @@ import {
   type WebhookLogEntry
 } from '../dbClient';
 import { sendTelegramMessage } from '../services/telegramService';
+import { getSoporteConfig, updateSoporteConfig } from '../config/webhookConfig';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -221,6 +222,54 @@ router.post('/formulario-soporte', async (req, res) => {
 
     // 3. Si debe ir a academia, responder inmediatamente
     if (shouldRedirectToAcademy) {
+      // Obtener número configurado para academia (obligatorio)
+      let academyPhoneNumber: string | null = null;
+      try {
+        const soporteConfig = await getSoporteConfig();
+        if (soporteConfig.phoneNumbers.academySupport) {
+          academyPhoneNumber = soporteConfig.phoneNumbers.academySupport;
+          logger.info('Usando número de soporte configurado:', academyPhoneNumber);
+        } else {
+          logger.error('Número de soporte academia no está configurado en BD');
+        }
+      } catch (configError) {
+        logger.error('Error obteniendo configuración de soporte:', configError);
+      }
+
+      if (!academyPhoneNumber) {
+        // Finalizar webhook log con error de configuración
+        const processingTime = Date.now() - startTime;
+        if (webhookLogId) {
+          try {
+            await updateWebhookLog({
+              id: webhookLogId,
+              status: 'error',
+              error_message: 'Número de soporte academia no configurado',
+              processing_time_ms: processingTime,
+              processed_at: new Date()
+            });
+          } catch (updateError) {
+            logger.error('Error actualizando webhook log con error de configuración:', updateError);
+          }
+        }
+
+        return res.status(500).json({
+          success: false,
+          error: 'Número de soporte academia no configurado',
+          message: 'Debe configurar el número de WhatsApp para soporte academia en el dashboard',
+          data: {
+            clienteId,
+            nombre,
+            whatsapp: whatsappLimpio,
+            redirectedToAcademy: false,
+            configurationRequired: true,
+            webhookLogId,
+            processingTimeMs: processingTime
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
       // Finalizar webhook log para redirección a academia
       const processingTime = Date.now() - startTime;
       if (webhookLogId) {
@@ -241,13 +290,14 @@ router.post('/formulario-soporte', async (req, res) => {
 
       return res.json({
         success: true,
-        url: "https://wa.me/573012904922?text=Ya+compre+y+necesito+ayuda.",
+        url: `https://wa.me/${academyPhoneNumber}?text=Ya+compre+y+necesito+ayuda.`,
         message: 'Cliente redirigido a academia',
         data: {
           clienteId,
           nombre,
           whatsapp: whatsappLimpio,
           redirectedToAcademy: true,
+          academyPhoneUsed: academyPhoneNumber,
           webhookLogId,
           processingTimeMs: processingTime
         },
@@ -303,8 +353,58 @@ router.post('/formulario-soporte', async (req, res) => {
       const mensajeCodificado = encodeURIComponent(mensajeCompleto);
       whatsappUrl = `https://wa.me/${asesorAsignado.WHATSAPP}?text=${mensajeCodificado}`;
     } else {
-      // Fallback si no hay asesor
-      whatsappUrl = "https://wa.me/573012904922?text=Necesito+ayuda+con+soporte";
+      // Fallback si no hay asesor - usar número configurado (obligatorio)
+      let fallbackPhoneNumber: string | null = null;
+      try {
+        const soporteConfig = await getSoporteConfig();
+        if (soporteConfig.phoneNumbers.academySupport) {
+          fallbackPhoneNumber = soporteConfig.phoneNumbers.academySupport;
+          logger.info('Usando número de soporte configurado para fallback:', fallbackPhoneNumber);
+        } else {
+          logger.error('Número de soporte academia no configurado para fallback');
+        }
+      } catch (configError) {
+        logger.error('Error obteniendo configuración de soporte para fallback:', configError);
+      }
+
+      if (!fallbackPhoneNumber) {
+        // Finalizar webhook log con error de configuración
+        const processingTime = Date.now() - startTime;
+        if (webhookLogId) {
+          try {
+            await updateWebhookLog({
+              id: webhookLogId,
+              status: 'error',
+              error_message: 'Número de soporte academia no configurado (fallback)',
+              processing_time_ms: processingTime,
+              processed_at: new Date()
+            });
+          } catch (updateError) {
+            logger.error('Error actualizando webhook log con error de configuración (fallback):', updateError);
+          }
+        }
+
+        return res.status(500).json({
+          success: false,
+          error: 'Número de soporte academia no configurado',
+          message: 'Debe configurar el número de WhatsApp para soporte academia en el dashboard',
+          data: {
+            clienteId,
+            nombre,
+            whatsapp: whatsappLimpio,
+            haComprado,
+            asesorAsignado: null,
+            telegramNotified: false,
+            redirectedToAcademy: false,
+            configurationRequired: true,
+            webhookLogId,
+            processingTimeMs: processingTime
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      whatsappUrl = `https://wa.me/${fallbackPhoneNumber}?text=Necesito+ayuda+con+soporte`;
     }
 
     // Finalizar webhook log con resultado exitoso
@@ -472,6 +572,87 @@ router.post('/test-soporte', async (req, res) => {
       success: false,
       error: 'Error interno del servidor',
       details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para obtener la configuración de soporte
+router.get('/config', async (_req, res) => {
+  try {
+    const config = await getSoporteConfig();
+    res.json({
+      success: true,
+      data: config,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo configuración de soporte', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para actualizar la configuración de soporte
+router.put('/config', async (req, res) => {
+  try {
+    const { body } = req;
+    
+    // Validar estructura de la configuración
+    if (!body || !body.phoneNumbers) {
+      return res.status(400).json({
+        success: false,
+        error: 'Estructura de configuración inválida. Debe incluir: phoneNumbers',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Actualizar configuración
+    const success = await updateSoporteConfig(body);
+    
+    if (success) {
+      logger.info('Configuración de Soporte actualizada', { 
+        updatedBy: req.ip,
+        timestamp: new Date().toISOString()
+      });
+      
+      res.json({
+        success: true,
+        message: 'Configuración de soporte actualizada exitosamente',
+        data: await getSoporteConfig(),
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Error guardando configuración de soporte',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error actualizando configuración de soporte', error);
+    
+    // Intentar obtener la configuración actual para verificar si algunos datos se guardaron
+    let currentConfig = null;
+    try {
+      currentConfig = await getSoporteConfig();
+    } catch (configError) {
+      logger.warn('No se pudo obtener configuración actual para verificación:', configError);
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: {
+        message: error instanceof Error ? error.message : 'Error desconocido',
+        stack: error instanceof Error ? error.stack : undefined,
+        note: 'Algunos cambios podrían haberse guardado parcialmente. Revisa la configuración actual.',
+        currentConfig: currentConfig || 'No disponible'
+      },
       timestamp: new Date().toISOString()
     });
   }

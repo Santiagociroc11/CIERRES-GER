@@ -31,6 +31,11 @@ export interface WebhookConfig {
       threadId?: string;
     };
   };
+  soporte: {
+    phoneNumbers: {
+      academySupport?: string; // Número para clientes que ya compraron
+    };
+  };
   // Aquí puedes agregar más plataformas en el futuro
   // stripe: { ... }
   // paypal: { ... }
@@ -46,19 +51,31 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
   try {
     console.log('Cargando configuración ÚNICAMENTE desde base de datos...');
     
-    // Cargar SOLO desde la base de datos
-    const dbConfig = await getWebhookConfigFromDB('hotmart');
+    // Cargar configuración desde la base de datos
+    const hotmartConfig = await getWebhookConfigFromDB('hotmart');
     
-    if (dbConfig && Object.keys(dbConfig).length > 0) {
+    // Intentar cargar configuración de soporte también
+    let soporteConfig;
+    try {
+      soporteConfig = await getWebhookConfigFromDB('soporte');
+    } catch (error) {
+      console.log('No hay configuración de soporte en BD, usando vacía');
+      soporteConfig = {};
+    }
+    
+    if (hotmartConfig && Object.keys(hotmartConfig).length > 0) {
       console.log('Configuración cargada exitosamente desde base de datos');
       
-      // Usar ÚNICAMENTE los valores de la base de datos, sin mezclar con defaults
+      // Usar valores de la base de datos
       const config: WebhookConfig = {
         hotmart: {
-          numericos: dbConfig.numericos || {},
-          flodesk: dbConfig.flodesk || {},
-          tokens: dbConfig.tokens || {},
-          telegram: dbConfig.telegram || {}
+          numericos: hotmartConfig.numericos || {},
+          flodesk: hotmartConfig.flodesk || {},
+          tokens: hotmartConfig.tokens || {},
+          telegram: hotmartConfig.telegram || {}
+        },
+        soporte: {
+          phoneNumbers: soporteConfig?.phoneNumbers || {}
         }
       };
       
@@ -72,6 +89,9 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
           flodesk: {},
           tokens: {},
           telegram: {}
+        },
+        soporte: {
+          phoneNumbers: {}
         }
       };
     }
@@ -192,6 +212,44 @@ export async function resetToDefault(): Promise<boolean> {
     return success;
   } catch (error) {
     console.error('Error reseteando configuración:', error);
+    return false;
+  }
+}
+
+// Función para obtener configuración específica de Soporte
+export async function getSoporteConfig() {
+  console.log('getSoporteConfig() llamado');
+  const config = await loadWebhookConfig();
+  console.log('Configuración de soporte cargada:', {
+    hasPhoneNumbers: !!config.soporte.phoneNumbers,
+    academySupport: config.soporte.phoneNumbers.academySupport ? '***configurado***' : 'no configurado'
+  });
+  return config.soporte;
+}
+
+// Función para actualizar configuración específica de Soporte
+export async function updateSoporteConfig(soporteConfig: WebhookConfig['soporte']): Promise<boolean> {
+  try {
+    console.log('Actualizando configuración de Soporte en BD...');
+    
+    // Actualizar configuración de soporte
+    let updateResult = false;
+    try {
+      updateResult = await updateWebhookConfigInDB('soporte', 'phoneNumbers', soporteConfig.phoneNumbers, 'system');
+      console.log('Sección phoneNumbers actualizada:', updateResult);
+    } catch (error) {
+      console.error('Error actualizando phoneNumbers:', error);
+    }
+    
+    if (updateResult) {
+      console.log('Configuración de Soporte actualizada exitosamente en BD');
+    } else {
+      console.error('Error actualizando configuración de Soporte');
+    }
+    
+    return updateResult;
+  } catch (error) {
+    console.error('Error actualizando configuración de Soporte:', error);
     return false;
   }
 }

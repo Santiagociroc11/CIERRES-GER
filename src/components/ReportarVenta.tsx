@@ -27,6 +27,7 @@ export default function ReportarVenta({
   const [correoInscripcion, setCorreoInscripcion] = useState('');
   const [telefono, setTelefono] = useState('');
   const [correoPago, setCorreoPago] = useState('');
+  const [correoRegistroInterno, setCorreoRegistroInterno] = useState('');
   const [imagenPago, setImagenPago] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -163,6 +164,15 @@ export default function ReportarVenta({
       return;
     }
 
+    if (tipoVenta === 'INTERNA') {
+      // Validación para ventas internas
+      if (!correoRegistroInterno.trim()) {
+        setError('❌ OBLIGATORIO: Para ventas internas, se requiere el correo con el que se registró.');
+        setLoading(false);
+        return;
+      }
+    }
+
     if (tipoVenta === 'EXTERNA') {
       // VALIDACIONES CRÍTICAS PARA MEDIOS DE PAGO - ESTAS SON OBLIGATORIAS
       if (!medioPago.trim()) {
@@ -249,7 +259,7 @@ export default function ReportarVenta({
         FECHA_REPORTE: getCurrentEpoch(),
         TIPO_VENTA: tipoVenta,
         PAIS_CLIENTE: tipoVenta === 'EXTERNA' ? pais : null,
-        CORREO_INSCRIPCION: tipoVenta === 'EXTERNA' ? correoInscripcion : null,
+        CORREO_INSCRIPCION: tipoVenta === 'EXTERNA' ? correoInscripcion : (tipoVenta === 'INTERNA' ? correoRegistroInterno : null),
         TELEFONO_CLIENTE: tipoVenta === 'EXTERNA' ? telefono : null,
         CORREO_PAGO: medioPago === 'STRIPE' ? correoPago : null,
         MEDIO_PAGO: tipoVenta === 'EXTERNA' ? (medioPago === 'OTRO' ? otroMedioPago : medioPago) : null,
@@ -388,6 +398,26 @@ export default function ReportarVenta({
                 disabled
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100 text-gray-700"
               />
+            </div>
+          )}
+
+          {/* Campo de correo para ventas INTERNAS */}
+          {tipoVenta === 'INTERNA' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Correo con el que se registró <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                value={correoRegistroInterno}
+                onChange={(e) => setCorreoRegistroInterno(e.target.value)}
+                className="mt-1 block w-full rounded-md border-red-300 shadow-sm focus:ring-red-500 focus:border-red-500"
+                placeholder="correo-registro@ejemplo.com"
+                required
+              />
+              <p className="text-xs text-red-600 mt-1 font-medium">
+                ⚠️ OBLIGATORIO para ventas internas por Hotmart
+              </p>
             </div>
           )}
 

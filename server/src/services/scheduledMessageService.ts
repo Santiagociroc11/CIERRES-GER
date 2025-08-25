@@ -1,4 +1,4 @@
-import { apiClient } from '../dbClient';
+const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
 
 export interface ScheduledMessage {
   id: number;
@@ -84,11 +84,16 @@ export class ScheduledMessageService {
    */
   private async getPendingMessages(now: Date): Promise<ScheduledMessage[]> {
     try {
-      const response = await apiClient.request<ScheduledMessage[]>(
-        `/chat_scheduled_messages?estado=eq.pendiente&fecha_envio=lte.${now.toISOString()}&order=fecha_envio.asc`
+      const response = await fetch(
+        `${POSTGREST_URL}/chat_scheduled_messages?estado=eq.pendiente&fecha_envio=lte.${now.toISOString()}&order=fecha_envio.asc`
       );
       
-      return response || [];
+      if (!response.ok) {
+        throw new Error(`Error obteniendo mensajes programados: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data || [];
     } catch (error) {
       console.error('Error obteniendo mensajes programados:', error);
       return [];
@@ -146,15 +151,20 @@ export class ScheduledMessageService {
       }
 
       // Obtener nombre del asesor para la instancia
-      const asesorResponse = await apiClient.request<any[]>(
-        `/GERSSON_ASESORES?ID=eq.${message.id_asesor}&select=NOMBRE`
+      const asesorResponse = await fetch(
+        `${POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${message.id_asesor}&select=NOMBRE`
       );
       
-      if (!asesorResponse || asesorResponse.length === 0) {
+      if (!asesorResponse.ok) {
+        throw new Error(`Error obteniendo asesor: ${asesorResponse.status}`);
+      }
+      
+      const asesorData = await asesorResponse.json();
+      if (!asesorData || asesorData.length === 0) {
         throw new Error('Asesor no encontrado');
       }
       
-      const instance = asesorResponse[0].NOMBRE;
+      const instance = asesorData[0].NOMBRE;
       const number = message.wha_cliente.replace(/\D/g, '');
       
       const response = await fetch(
@@ -204,11 +214,20 @@ export class ScheduledMessageService {
         updateData.error_message = error_message;
       }
       
-      await apiClient.request(
-        `/chat_scheduled_messages?id=eq.${id}`,
-        'PATCH',
-        updateData
+      const response = await fetch(
+        `${POSTGREST_URL}/chat_scheduled_messages?id=eq.${id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData)
+        }
       );
+      
+      if (!response.ok) {
+        throw new Error(`Error actualizando estado del mensaje: ${response.status}`);
+      }
     } catch (error) {
       console.error('Error actualizando estado del mensaje:', error);
     }
@@ -223,11 +242,20 @@ export class ScheduledMessageService {
     estado: string
   ): Promise<void> {
     try {
-      await apiClient.request(
-        `/chat_scheduled_messages?id=eq.${id}`,
-        'PATCH',
-        { intentos, estado }
+      const response = await fetch(
+        `${POSTGREST_URL}/chat_scheduled_messages?id=eq.${id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ intentos, estado })
+        }
       );
+      
+      if (!response.ok) {
+        throw new Error(`Error actualizando intentos del mensaje: ${response.status}`);
+      }
     } catch (error) {
       console.error('Error actualizando intentos del mensaje:', error);
     }
@@ -238,15 +266,26 @@ export class ScheduledMessageService {
    */
   public async scheduleMessage(messageData: Omit<ScheduledMessage, 'id' | 'created_at'>): Promise<number> {
     try {
-      const response = await apiClient.request(
-        '/chat_scheduled_messages',
-        'POST',
-        messageData
+      const response = await fetch(
+        `${POSTGREST_URL}/chat_scheduled_messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(messageData)
+        }
       );
       
-      if (response && response.id) {
-        console.log(`📅 [SCHEDULED MESSAGES] Mensaje programado ID: ${response.id}`);
-        return response.id;
+      if (!response.ok) {
+        throw new Error(`Error creando mensaje programado: ${response.status}`);
+      }
+      
+      const responseData = await response.json();
+      if (responseData && responseData.id) {
+        console.log(`📅 [SCHEDULED MESSAGES] Mensaje programado ID: ${responseData.id}`);
+        return responseData.id;
       }
       
       throw new Error('No se pudo crear el mensaje programado');

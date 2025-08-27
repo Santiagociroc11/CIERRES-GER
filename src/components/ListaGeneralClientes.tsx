@@ -40,8 +40,11 @@ export default function ListaGeneralClientes({
   onChat,
   admin,
   readOnly = false,
-  adminRole = 'admin'
+  adminRole = 'supervisor'
 }: ListaGeneralClientesProps) {
+  // 🐛 DEBUG: Verificar adminRole
+  console.log('🔍 ListaGeneralClientes adminRole:', adminRole);
+  
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<EstadoCliente | 'TODOS'>('TODOS');
   const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);

@@ -65,7 +65,7 @@ export default function DetalleAsesor({
   teamStatsByFuente,
   bestRateByFuente,
   onChat,
-  adminRole = 'admin'
+  adminRole = 'supervisor'
 }: DetalleAsesorProps) {
   const [vistaActual, setVistaActual] = useState<VistaDetalle>('general');
 

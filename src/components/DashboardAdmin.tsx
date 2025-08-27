@@ -65,6 +65,9 @@ interface DashboardAdminProps {
 }
 
 export default function DashboardAdmin({ asesor, adminRole, onLogout }: DashboardAdminProps) {
+  // 🐛 DEBUG: Verificar adminRole en DashboardAdmin
+  console.log('🔍 DashboardAdmin adminRole:', adminRole);
+  
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   const [estadisticas, setEstadisticas] = useState<Record<number, EstadisticasDetalladas>>({});
   const [clientes, setClientes] = useState<any[]>([]);
@@ -3500,6 +3503,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
                 onBack={() => setAsesorSeleccionado(null)}
                 onChat={setClienteParaChat}
+                adminRole={adminRole}
               />
             )}
           </div>

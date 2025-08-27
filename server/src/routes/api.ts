@@ -196,4 +196,65 @@ router.get('/search', (req, res) => {
   }
 });
 
+// Endpoints para el bot de Telegram
+router.get('/telegram/status', async (req, res) => {
+  try {
+    const telegramBot = (await import('../services/telegramBot')).default;
+    const status = telegramBot.getStatus();
+    
+    res.json({
+      success: true,
+      data: status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo estado del bot de Telegram:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.post('/telegram/restart', async (req, res) => {
+  try {
+    const telegramBot = (await import('../services/telegramBot')).default;
+    await telegramBot.restart();
+    
+    res.json({
+      success: true,
+      message: 'Bot de Telegram reiniciado exitosamente',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error reiniciando bot de Telegram:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.post('/telegram/force-restart', async (req, res) => {
+  try {
+    const telegramBot = (await import('../services/telegramBot')).default;
+    await telegramBot.forceRestart();
+    
+    res.json({
+      success: true,
+      message: 'Bot de Telegram forzado a reiniciar exitosamente',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error forzando reinicio del bot de Telegram:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 export default router;

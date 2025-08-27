@@ -48,6 +48,8 @@ class TelegramBot {
   private isRunning = false;
   private lastUpdateId = 0;
   private pollingInterval: NodeJS.Timeout | null = null;
+  private conflictDetected = false;
+  private conflictRetryCount = 0;
 
   constructor() {
     this.initializeBot();
@@ -66,6 +68,10 @@ class TelegramBot {
         return;
       }
 
+      // Resetear estado de conflictos
+      this.conflictDetected = false;
+      this.conflictRetryCount = 0;
+
       console.log('🤖 [TelegramBot] Bot inicializado correctamente');
       await this.startPolling();
     } catch (error) {
@@ -77,7 +83,7 @@ class TelegramBot {
    * Iniciar polling para recibir mensajes
    */
   async startPolling() {
-    if (this.isRunning || !this.botToken) {
+    if (this.isRunning || !this.botToken || this.conflictDetected) {
       return;
     }
 
@@ -152,7 +158,7 @@ class TelegramBot {
    * Hacer polling para obtener actualizaciones
    */
   private async pollUpdates() {
-    if (!this.botToken) return;
+    if (!this.botToken || this.conflictDetected) return;
 
     try {
       const response = await fetch(
@@ -164,16 +170,33 @@ class TelegramBot {
       if (!data.ok) {
         // Manejar error 409 específicamente (conflicto de instancias)
         if (data.error_code === 409) {
-          console.warn('⚠️ [TelegramBot] Conflicto de instancias detectado. Limpiando estado...');
+          this.conflictRetryCount++;
+          
+          if (this.conflictRetryCount >= 3) {
+            console.error('🚨 [TelegramBot] Máximo de reintentos alcanzado. Deteniendo bot por conflicto de instancias.');
+            this.conflictDetected = true;
+            this.stopPolling();
+            return;
+          }
+          
+          console.warn(`⚠️ [TelegramBot] Conflicto de instancias detectado (intento ${this.conflictRetryCount}/3). Limpiando estado...`);
           await this.clearBotState();
-          // Esperar 5 segundos antes de reintentar
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          // Esperar tiempo progresivo antes de reintentar
+          const waitTime = 5000 * this.conflictRetryCount;
+          console.log(`⏳ [TelegramBot] Esperando ${waitTime/1000} segundos antes de reintentar...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
           return;
         }
         
+        // Resetear contador de conflictos para otros errores
+        this.conflictRetryCount = 0;
         console.error('❌ [TelegramBot] Error en getUpdates:', data);
         return;
       }
+
+      // Resetear contador de conflictos si todo va bien
+      this.conflictRetryCount = 0;
 
       // Procesar cada actualización
       for (const update of data.result) {
@@ -338,6 +361,29 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
   async restart() {
     console.log('🔄 [TelegramBot] Reiniciando bot...');
     this.stopPolling();
+    
+    // Resetear estado de conflictos
+    this.conflictDetected = false;
+    this.conflictRetryCount = 0;
+    
+    await this.initializeBot();
+  }
+
+  /**
+   * Forzar reinicio del bot (útil para resolver conflictos persistentes)
+   */
+  async forceRestart() {
+    console.log('🔄 [TelegramBot] Forzando reinicio del bot...');
+    this.stopPolling();
+    
+    // Resetear completamente el estado
+    this.conflictDetected = false;
+    this.conflictRetryCount = 0;
+    this.lastUpdateId = 0;
+    
+    // Esperar un poco antes de reiniciar
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    
     await this.initializeBot();
   }
 
@@ -348,7 +394,9 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
     return {
       isRunning: this.isRunning,
       hasToken: !!this.botToken,
-      lastUpdateId: this.lastUpdateId
+      lastUpdateId: this.lastUpdateId,
+      conflictDetected: this.conflictDetected,
+      conflictRetryCount: this.conflictRetryCount
     };
   }
 }

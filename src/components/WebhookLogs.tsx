@@ -90,6 +90,9 @@ interface WebhookLog {
   received_at: string;
   processed_at?: string;
   raw_webhook_data?: any;
+  // Log de procesamiento detallado
+  processingSteps?: any[];
+  fullLog?: any;
 }
 
 interface WebhookStats {
@@ -842,6 +845,7 @@ const WebhookLogs: React.FC = () => {
                   <Tab label="Información General" />
                   <Tab label="Log de Procesamiento" />
                   <Tab label="Datos Raw" />
+                  <Tab label="Log Crudo" />
                 </Tabs>
               </Box>
 
@@ -1022,6 +1026,165 @@ const WebhookLogs: React.FC = () => {
                       No hay datos raw disponibles para este webhook
                     </Alert>
                   )}
+                </Box>
+              )}
+
+              {/* Contenido de la pestaña 3: Log Crudo */}
+              {detailTabValue === 3 && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Log Crudo del Procesamiento
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    Información completa y detallada del procesamiento del webhook, incluyendo todos los pasos, errores y datos internos
+                  </Typography>
+                  
+                  {/* Pasos de Procesamiento */}
+                  {selectedLog.processingSteps && selectedLog.processingSteps.length > 0 ? (
+                    <Box mb={3}>
+                      <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Timeline sx={{ mr: 1 }} />
+                        Pasos de Procesamiento Detallados
+                      </Typography>
+                      <Card variant="outlined" sx={{ p: 2, maxHeight: '300px', overflow: 'auto' }}>
+                        {selectedLog.processingSteps.map((step, index) => (
+                          <Box key={index} sx={{ mb: 2, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+                            <Typography variant="subtitle2" color="primary.main">
+                              Paso {index + 1}: {step.step || 'Paso sin nombre'}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 1 }}>
+                              <strong>Estado:</strong> {step.status || 'N/A'}
+                            </Typography>
+                            {step.action && (
+                              <Typography variant="body2">
+                                <strong>Acción:</strong> {step.action}
+                              </Typography>
+                            )}
+                            {step.input && (
+                              <Typography variant="body2">
+                                <strong>Input:</strong> {step.input}
+                              </Typography>
+                            )}
+                            {step.result && (
+                              <Typography variant="body2">
+                                <strong>Resultado:</strong> {step.result}
+                              </Typography>
+                            )}
+                            {step.timestamp && (
+                              <Typography variant="caption" color="textSecondary">
+                                {new Date(step.timestamp).toLocaleString()}
+                              </Typography>
+                            )}
+                          </Box>
+                        ))}
+                      </Card>
+                    </Box>
+                  ) : (
+                    <Alert severity="info" sx={{ mb: 3 }}>
+                      No hay pasos de procesamiento detallados disponibles
+                    </Alert>
+                  )}
+
+                  {/* Log Completo de la Base de Datos */}
+                  {selectedLog.fullLog && (
+                    <Box mb={3}>
+                      <Typography variant="subtitle1" gutterBottom>
+                        Log Completo de la Base de Datos
+                      </Typography>
+                      <TextField
+                        multiline
+                        fullWidth
+                        minRows={8}
+                        value={JSON.stringify(selectedLog.fullLog, null, 2)}
+                        variant="outlined"
+                        InputProps={{ readOnly: true }}
+                        sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}
+                      />
+                    </Box>
+                  )}
+
+                  {/* Información de Debugging */}
+                  <Box>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Información de Debugging
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined" sx={{ p: 2 }}>
+                          <Typography variant="subtitle2" gutterBottom>
+                            Detalles del Error (si aplica)
+                          </Typography>
+                          {selectedLog.error_message ? (
+                            <Box>
+                              <Typography variant="body2" color="error.main" sx={{ mb: 1 }}>
+                                <strong>Mensaje:</strong> {selectedLog.error_message}
+                              </Typography>
+                              {selectedLog.error_stack && (
+                                <Typography variant="caption" component="pre" sx={{ 
+                                  backgroundColor: 'grey.100', 
+                                  p: 1, 
+                                  borderRadius: 1, 
+                                  fontSize: '0.6rem',
+                                  overflow: 'auto',
+                                  maxHeight: '150px',
+                                  whiteSpace: 'pre-wrap'
+                                }}>
+                                  {selectedLog.error_stack}
+                                </Typography>
+                              )}
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="success.main">
+                              ✅ Sin errores
+                            </Typography>
+                          )}
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined" sx={{ p: 2 }}>
+                          <Typography variant="subtitle2" gutterBottom>
+                            Metadatos del Procesamiento
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>ID del Log:</strong> {selectedLog.id}
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>Estado Final:</strong> {selectedLog.status}
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>Tiempo Total:</strong> {selectedLog.processing_time_ms || 0}ms
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>Recibido:</strong> {new Date(selectedLog.received_at).toLocaleString()}
+                          </Typography>
+                          {selectedLog.processed_at && (
+                            <Typography variant="body2">
+                              <strong>Procesado:</strong> {new Date(selectedLog.processed_at).toLocaleString()}
+                            </Typography>
+                          )}
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </Box>
+
+                  {/* Log JSON Completo */}
+                  <Box mt={3}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Log JSON Completo (Todo el Objeto)
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                      Representación JSON completa de todos los datos del log, incluyendo campos calculados y derivados
+                    </Typography>
+                    <TextField
+                      multiline
+                      fullWidth
+                      minRows={20}
+                      value={JSON.stringify(selectedLog, null, 2)}
+                      variant="outlined"
+                      InputProps={{ readOnly: true }}
+                      sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}
+                    />
+                  </Box>
                 </Box>
               )}
             </Box>

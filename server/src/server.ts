@@ -6,6 +6,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { setupWhatsAppEventHandlers } from './whatsappEvents';
+import { scheduledMessageService } from './services/scheduledMessageService';
+import telegramBot from './services/telegramBot';
 import path from 'path';
 import apiRoutes from './routes/api';
 import hotmartRoutes from './routes/hotmart';
@@ -71,6 +73,23 @@ app.get('/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     service: 'CIERRES-GER API'
+  });
+});
+
+// Ruta para verificar estado del bot de Telegram
+app.get('/telegram-bot-status', (req, res) => {
+  const botStatus = telegramBot.getStatus();
+  res.json({
+    status: 'OK',
+    telegramBot: {
+      isRunning: botStatus.isRunning,
+      hasToken: botStatus.hasToken,
+      lastUpdateId: botStatus.lastUpdateId,
+      message: botStatus.hasToken 
+        ? (botStatus.isRunning ? 'Bot funcionando correctamente' : 'Bot detenido')
+        : 'Token no configurado - revisa webhookconfig'
+    },
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -184,6 +203,9 @@ socket.on('connect_error', (error) => {
 // Configurar manejadores de eventos de WhatsApp
 setupWhatsAppEventHandlers(socket);
 
+// Iniciar servicio de mensajes programados
+scheduledMessageService.start();
+
 // Iniciar servidor Express
 app.listen(PORT, () => {
   logger.info(`Servidor iniciado en puerto ${PORT}`);
@@ -195,12 +217,23 @@ app.listen(PORT, () => {
   if (process.env.NODE_ENV === 'production' && frontendPath) {
     console.log(`🌍 Frontend servido desde: ${frontendPath}`);
   }
+  
+  // Inicializar bot de Telegram para responder a /autoid
+  console.log('🤖 Inicializando bot de Telegram...');
+  const botStatus = telegramBot.getStatus();
+  if (botStatus.hasToken) {
+    console.log('✅ Bot de Telegram configurado correctamente');
+  } else {
+    console.log('⚠️ Bot de Telegram sin token configurado - revisa webhookconfig');
+  }
 });
 
 // Manejar señales de terminación
 process.on('SIGINT', () => {
   logger.info('Cerrando servidor...');
   console.log('🛑 Cerrando servidor...');
+  scheduledMessageService.stop();
+  telegramBot.stopPolling();
   socket.disconnect();
   process.exit(0);
 });
@@ -208,6 +241,8 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   logger.info('Cerrando servidor...');
   console.log('🛑 Cerrando servidor...');
+  scheduledMessageService.stop();
+  telegramBot.stopPolling();
   socket.disconnect();
   process.exit(0);
 });

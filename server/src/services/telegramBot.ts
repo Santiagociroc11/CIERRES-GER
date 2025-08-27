@@ -81,7 +81,6 @@ class TelegramBot {
     }
 
     this.isRunning = true;
-    console.log('🔄 [TelegramBot] Iniciando polling...');
 
     // Obtener información del bot
     try {
@@ -112,7 +111,7 @@ class TelegramBot {
       this.pollingInterval = null;
     }
     this.isRunning = false;
-    console.log('⏹️ [TelegramBot] Polling detenido');
+  
   }
 
   /**
@@ -165,8 +164,6 @@ class TelegramBot {
     const text = message.text.trim();
     const firstName = message.from.first_name;
     const username = message.from.username;
-
-    console.log(`📨 [TelegramBot] Mensaje de ${firstName} (@${username}): ${text}`);
 
     // Responder a comandos
     if (text.startsWith('/')) {
@@ -236,8 +233,6 @@ Con tu ID de Telegram podrás recibir notificaciones automáticas cuando tengas 
 💡 **Nota:** Este es tu ID único de Telegram que nunca cambia.`;
 
     await this.sendMessage(chatId, message, 'Markdown');
-    
-    console.log(`🆔 [TelegramBot] ID enviado a ${firstName}: ${userId}`);
   }
 
   /**

@@ -23,7 +23,7 @@ export interface WebhookLogEntry {
   flodesk_status?: 'success' | 'error' | 'skipped';
   flodesk_segment_id?: string;
   flodesk_error?: string;
-  telegram_status?: 'success' | 'error' | 'skipped';
+  telegram_status?: 'success' | 'error' | 'skipped' | 'queued';
   telegram_chat_id?: string;
   telegram_message_id?: string;
   telegram_error?: string;
@@ -49,7 +49,7 @@ export interface WebhookLogUpdate {
   flodesk_status?: 'success' | 'error' | 'skipped';
   flodesk_segment_id?: string;
   flodesk_error?: string;
-  telegram_status?: 'success' | 'error' | 'skipped';
+  telegram_status?: 'success' | 'error' | 'skipped' | 'queued';
   telegram_chat_id?: string;
   telegram_message_id?: string;
   telegram_error?: string;

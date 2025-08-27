@@ -80,7 +80,7 @@ interface WebhookLog {
   flodesk_status?: 'success' | 'error' | 'skipped';
   flodesk_segment_id?: string;
   flodesk_error?: string;
-  telegram_status?: 'success' | 'error' | 'skipped';
+  telegram_status?: 'success' | 'error' | 'skipped' | 'queued';
   telegram_chat_id?: string;
   telegram_message_id?: string;
   telegram_error?: string;
@@ -126,7 +126,8 @@ const STATUS_ICONS = {
 const INTEGRATION_COLORS = {
   success: 'success',
   error: 'error',
-  skipped: 'default'
+  skipped: 'default',
+  queued: 'warning'
 } as const;
 
 
@@ -140,6 +141,7 @@ const WebhookLogs: React.FC = () => {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(5000);
+  const [hasQueuedMessages, setHasQueuedMessages] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [filterStatus, setFilterStatus] = useState('');
@@ -164,6 +166,15 @@ const WebhookLogs: React.FC = () => {
       
       if (data.success) {
         setLogs(data.data);
+        
+        // Verificar si hay mensajes en cola para ajustar la frecuencia de refresh
+        const queuedMessages = data.data.filter((log: WebhookLog) => 
+          log.telegram_status === 'queued' || 
+          log.manychat_status === 'queued' || 
+          log.flodesk_status === 'queued'
+        );
+        setHasQueuedMessages(queuedMessages.length > 0);
+        
         setError(null);
       } else {
         throw new Error(data.error || 'Error cargando logs');
@@ -212,17 +223,20 @@ const WebhookLogs: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  // Auto-refresh
+  // Auto-refresh with dynamic interval
   useEffect(() => {
     if (!autoRefresh) return;
+
+    // Usar intervalo más frecuente si hay mensajes en cola
+    const dynamicInterval = hasQueuedMessages ? 2000 : refreshInterval; // 2s vs 5s
 
     const interval = setInterval(() => {
       loadLogs();
       loadStats();
-    }, refreshInterval);
+    }, dynamicInterval);
 
     return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, loadLogs, loadStats]);
+  }, [autoRefresh, refreshInterval, hasQueuedMessages, loadLogs, loadStats]);
 
   const handleRowExpand = (logId: number) => {
     setExpandedRow(expandedRow === logId ? null : logId);
@@ -265,7 +279,7 @@ const WebhookLogs: React.FC = () => {
     />
   );
 
-  const getIntegrationChip = (status?: 'success' | 'error' | 'skipped') => {
+  const getIntegrationChip = (status?: 'success' | 'error' | 'skipped' | 'queued') => {
     if (!status) return null;
     return (
       <Chip
@@ -474,6 +488,11 @@ const WebhookLogs: React.FC = () => {
                 Mensaje enviado correctamente
               </Alert>
             )}
+            {log.telegram_status === 'queued' && (
+              <Alert severity="warning" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                Mensaje en cola - se enviará respetando rate limit
+              </Alert>
+            )}
             {log.telegram_error && (
               <Alert severity="error" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
                 {log.telegram_error}
@@ -545,6 +564,14 @@ const WebhookLogs: React.FC = () => {
         </Alert>
       )}
 
+      {hasQueuedMessages && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <strong>⏳ Mensajes en cola:</strong> Hay mensajes de Telegram pendientes de envío. 
+          El sistema respeta el rate limit y los enviará automáticamente.
+          {autoRefresh && <> Actualizando cada 2 segundos.</>}
+        </Alert>
+      )}
+
       {/* Estadísticas generales */}
       <Grid container spacing={2} mb={3}>
         <Grid item xs={12} sm={3}>
@@ -592,6 +619,11 @@ const WebhookLogs: React.FC = () => {
               <Typography variant="h4" color={autoRefresh ? "success.main" : "text.secondary"}>
                 {autoRefresh ? 'LIVE' : 'PAUSADO'}
               </Typography>
+              {hasQueuedMessages && autoRefresh && (
+                <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1 }}>
+                  ⚡ Refresh rápido (cola activa)
+                </Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>

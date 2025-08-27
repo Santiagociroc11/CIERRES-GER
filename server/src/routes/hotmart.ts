@@ -17,6 +17,7 @@ import {
   getAsesores,
   type WebhookLogEntry
 } from '../dbClient';
+import telegramQueue from '../services/telegramQueueService';
 import { 
   findManyChatSubscriber, 
   createManyChatSubscriber, 
@@ -485,15 +486,30 @@ router.post('/webhook', async (req, res) => {
         const ventaMessage = await createVentaMessage(body.data, asesorAsignado?.NOMBRE);
         telegramChatId = ventaMessage.chat_id;
         
-        const telegramResult = await sendTelegramMessage(ventaMessage);
-        if (telegramResult.success) {
-          telegramStatus = 'success';
-          telegramMessageId = telegramResult.data?.result?.message_id?.toString() || '';
-          logger.info('Notificación de venta enviada', { asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR' });
-        } else {
+        try {
+          // Enviar a cola en lugar de directamente
+          const messageId = telegramQueue.enqueueMessage(
+            ventaMessage.chat_id,
+            ventaMessage.text,
+            webhookLogId,
+            { 
+              type: 'venta',
+              asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR',
+              flujo 
+            }
+          );
+          
+          telegramStatus = 'queued'; // Nuevo estado para indicar que está en cola
+          telegramMessageId = messageId;
+          logger.info('Notificación de venta agregada a cola', { 
+            asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR',
+            messageId,
+            queueStats: telegramQueue.getQueueStats()
+          });
+        } catch (error) {
           telegramStatus = 'error';
-          telegramError = telegramResult.error || 'Error enviando mensaje';
-          logger.error('Error enviando notificación de venta', telegramResult.error);
+          telegramError = error instanceof Error ? error.message : 'Error agregando a cola';
+          logger.error('Error agregando notificación de venta a cola', error);
         }
       } else {
         // Notificar al asesor asignado para eventos no-compra
@@ -507,19 +523,33 @@ router.post('/webhook', async (req, res) => {
           );
           telegramChatId = asesorMessage.chat_id;
           
-          const telegramResult = await sendTelegramMessage(asesorMessage);
-          if (telegramResult.success) {
-            telegramStatus = 'success';
-            telegramMessageId = telegramResult.data?.result?.message_id?.toString() || '';
-            logger.info('Notificación enviada al asesor', { 
+          try {
+            // Enviar a cola en lugar de directamente
+            const messageId = telegramQueue.enqueueMessage(
+              asesorMessage.chat_id,
+              asesorMessage.text,
+              webhookLogId,
+              { 
+                type: 'asesor_notification',
+                asesor: asesorAsignado.NOMBRE,
+                evento: flujo,
+                cliente: datosProcesados.nombre
+              }
+            );
+            
+            telegramStatus = 'queued';
+            telegramMessageId = messageId;
+            logger.info('Notificación agregada a cola para asesor', { 
               asesor: asesorAsignado.NOMBRE, 
               evento: flujo,
-              cliente: datosProcesados.nombre 
+              cliente: datosProcesados.nombre,
+              messageId,
+              queueStats: telegramQueue.getQueueStats()
             });
-          } else {
+          } catch (error) {
             telegramStatus = 'error';
-            telegramError = telegramResult.error || 'Error enviando mensaje al asesor';
-            logger.error('Error enviando notificación al asesor', telegramResult.error);
+            telegramError = error instanceof Error ? error.message : 'Error agregando a cola';
+            logger.error('Error agregando notificación de asesor a cola', error);
           }
         } else {
           telegramStatus = 'skipped';
@@ -874,6 +904,39 @@ router.post('/test-connections', async (_req, res) => {
   }
 });
 
+// Endpoint para obtener estadísticas de la cola de Telegram
+router.get('/telegram-queue-stats', async (_req, res) => {
+  try {
+    const stats = telegramQueue.getQueueStats();
+    const queue = telegramQueue.getQueue();
+    
+    res.json({
+      success: true,
+      data: {
+        stats,
+        queue: queue.map(msg => ({
+          id: msg.id,
+          chatId: msg.chatId,
+          text: msg.text.substring(0, 100) + (msg.text.length > 100 ? '...' : ''),
+          attempts: msg.attempts,
+          maxAttempts: msg.maxAttempts,
+          createdAt: msg.createdAt,
+          scheduledAt: msg.scheduledAt,
+          metadata: msg.metadata
+        }))
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo estadísticas de cola de Telegram', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Endpoint para obtener la configuración actual
 router.get('/config', async (_req, res) => {
   try {
@@ -1033,6 +1096,53 @@ router.get('/webhook-logs', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     }
+  }
+});
+
+// Endpoint para verificar actualizaciones de logs específicos
+router.post('/webhook-logs/check-updates', async (req, res) => {
+  try {
+    const { logIds } = req.body;
+    
+    if (!Array.isArray(logIds) || logIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere un array de IDs de logs',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const updates = [];
+    for (const logId of logIds) {
+      try {
+        const log = await getWebhookLogById(logId);
+        if (log) {
+          updates.push({
+            id: logId,
+            telegram_status: log.telegram_status,
+            telegram_message_id: log.telegram_message_id,
+            telegram_error: log.telegram_error,
+            processed_at: log.processed_at,
+            updated_at: log.updated_at
+          });
+        }
+      } catch (error) {
+        logger.warn(`Log ${logId} no encontrado o error obteniendo info`, error);
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: updates,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error verificando actualizaciones de logs', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -1342,7 +1452,18 @@ router.post('/test-telegram', async (req, res) => {
       );
     }
     
-    const result = await sendTelegramMessage(message);
+    // Usar cola en lugar de envío directo
+    const messageId = telegramQueue.enqueueMessage(
+      message.chat_id,
+      message.text,
+      undefined, // Sin webhookLogId para mensajes de prueba
+      { 
+        type: 'test',
+        advisorId,
+        advisorName: asesor.NOMBRE,
+        messageType
+      }
+    );
     
     res.json({
       success: true,
@@ -1352,8 +1473,9 @@ router.post('/test-telegram', async (req, res) => {
         advisorTelegramId: asesor.ID_TG,
         messageType,
         message: message,
-        result: result,
-        sentSuccessfully: result.success
+        messageId: messageId,
+        status: 'queued',
+        queueStats: telegramQueue.getQueueStats()
       },
       config: {
         token: config.tokens.telegram ? '***configurado***' : 'no configurado',

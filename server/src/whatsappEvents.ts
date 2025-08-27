@@ -89,9 +89,8 @@ function debeActualizarEstado(estadoActual: string | null, nuevoEstado: string):
 async function recargarAsesores() {
   try {
     asesores = await getAsesores();
-    console.log(`\x1b[36m👥 Asesores recargados: ${asesores.length}\x1b[0m`);
   } catch (err) {
-    console.error('\x1b[31m❌ Error recargando asesores:\x1b[0m', err);
+    console.error('Error recargando asesores:', err);
   }
 }
 
@@ -101,60 +100,9 @@ setInterval(recargarAsesores, 5 * 60 * 1000);
 
 export function setupWhatsAppEventHandlers(socket: Socket) {
   // ===============================================
-  // 🔍 DEBUG: Escuchar TODOS los eventos para diagnosticar
-  // ===============================================
-  
-  // Interceptar todos los eventos para debugging
-  const originalOn = socket.on.bind(socket);
-  socket.on = function(event: string, listener: (...args: any[]) => void) {
-    return originalOn(event, (...args: any[]) => {
-      console.log(`\x1b[35m🔍 [DEBUG] Evento recibido: "${event}"\x1b[0m`);
-      console.log(`\x1b[35m📦 [DEBUG] Datos:`, JSON.stringify(args, null, 2).substring(0, 500) + '...\x1b[0m');
-      return listener(...args);
-    });
-  };
-
-  // Escuchar eventos CORRECTOS de Evolution API
-  console.log('🔍 [DEBUG] Configurando handlers de WhatsApp...');
-  
-  const evolutionEvents = [
-    'send.message',           // ✅ Mensaje enviado exitosamente
-    'messages.upsert',        // ✅ Nuevo mensaje (recibido/enviado)
-    'messages.update',        // ✅ Estado del mensaje (entregado, leído)
-    'messages.delete',        // ✅ Mensaje eliminado
-    'connection.update',      // ✅ Estado de conexión
-    'qrcode.updated',         // ✅ QR Code actualizado
-    'creds.update'            // ✅ Credenciales actualizadas
-  ];
-
-  evolutionEvents.forEach(eventName => {
-    socket.on(eventName, (data: any) => {
-      console.log(`\x1b[32m📨 [${eventName}] Evento Evolution específico recibido\x1b[0m`);
-    });
-  });
-
-  // Debug adicional: escuchar TODOS los eventos posibles
-  const allPossibleEvents = [
-    'send.message', 'messages.upsert', 'messages.update', 'messages.delete',
-    'connection.update', 'qrcode.updated', 'creds.update', 'qr', 'qr.updated',
-    'message', 'message.update', 'message.receipt', 'receipt', 'status',
-    'presence.update', 'chats.upsert', 'contacts.upsert', 'groups.upsert'
-  ];
-
-  allPossibleEvents.forEach(eventName => {
-    socket.on(eventName, (data: any) => {
-      console.log(`\x1b[35m🎯 [${eventName}] Evento capturado\x1b[0m`);
-      console.log(`\x1b[35m📦 Datos:`, JSON.stringify(data, null, 2).substring(0, 300));
-    });
-  });
-
-  // ===============================================
   // 📤 EVENTO: Mensaje Enviado (CRUCIAL para estados y guardado en BD)
   // ===============================================
   socket.on('send.message', async (data: any) => {
-    console.log(`\x1b[32m📤 [SEND_MESSAGE] Mensaje enviado exitosamente\x1b[0m`);
-    console.log(`\x1b[36m📋 Datos:`, JSON.stringify(data, null, 2).substring(0, 800));
-    
     try {
       const message = data.data || data;
       const messageId = message.key?.id;
@@ -163,7 +111,6 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       if (messageId) {
         // Actualizar estado a "enviado" en BD
         await updateMensajeEstado(messageId, 'enviado');
-        console.log(`\x1b[32m✅ Estado actualizado: mensaje ${messageId} = ENVIADO\x1b[0m`);
       }
       
       // También guardar el mensaje en BD si no existe
@@ -189,7 +136,6 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
           
           // Insertar en BD
           await insertConversacion(messageData);
-          console.log(`\x1b[32m✅ Mensaje saliente guardado en BD desde send.message\x1b[0m`);
         }
       } catch (insertError) {
         console.error('Error guardando mensaje saliente en BD:', insertError);
@@ -204,9 +150,6 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
   // 🔄 EVENTO: Actualización de Estados (Entregado, Leído) - CORREGIDO
   // ===============================================
   socket.on('messages.update', async (data: any) => {
-    console.log(`\x1b[36m🔄 [MESSAGES_UPDATE] Actualización de estado recibida\x1b[0m`);
-    console.log(`\x1b[36m📋 Datos:`, JSON.stringify(data, null, 2).substring(0, 800));
-    
     try {
       // Evolution API puede enviar múltiples formatos
       let updates = [];
@@ -219,11 +162,7 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         updates = [data];
       }
       
-      console.log(`\x1b[36m📊 Procesando ${updates.length} actualizaciones\x1b[0m`);
-      
       for (const update of updates) {
-        console.log(`\x1b[36m🔍 Procesando update:`, JSON.stringify(update, null, 2).substring(0, 400));
-        
         // Buscar información del mensaje - ESTRUCTURA EVOLUTION API
         let messageKey = update.key || update.messageKey;
         let messageId = messageKey?.id;
@@ -282,8 +221,6 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
             }
           }
           
-          console.log(`\x1b[33m📊 Estado actualizado: ID ${messageId} = ${statusText} (${status})\x1b[0m`);
-          
           // Verificar si el estado actual es más avanzado antes de actualizar
           try {
             const estadoActual = await getMensajeEstadoActual(messageId);
@@ -291,17 +228,10 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
             // Solo actualizar si el nuevo estado es más avanzado que el actual
             if (debeActualizarEstado(estadoActual, statusText)) {
               await updateMensajeEstado(messageId, statusText);
-              console.log(`\x1b[32m✅ Estado actualizado en BD: ${messageId} = ${statusText}\x1b[0m`);
-            } else {
-              console.log(`\x1b[33m⏭️  Estado no actualizado: ${messageId} ya tiene estado ${estadoActual} (nuevo: ${statusText})\x1b[0m`);
             }
           } catch (err) {
             console.error('Error verificando/actualizando estado en BD:', err);
           }
-        } else {
-          console.log(`\x1b[33m⚠️  Update sin datos válidos para estado:`, {
-            messageId, fromMe, status, hasKey: !!messageKey
-          });
         }
       }
     } catch (error) {
@@ -350,14 +280,6 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         return; // Salir temprano - NO procesar mensajes de instancias sin asesor
       }
 
-      // LOG BONITO (solo para mensajes que SÍ tienen asesor)
-      if (message.key.fromMe) {
-        console.log(`\x1b[32m✅ [${eventData.instance}] Mensaje ENVIADO POR MÍ\x1b[0m`);
-      } else {
-        console.log(`\x1b[36m📥 [${eventData.instance}] Mensaje RECIBIDO\x1b[0m`);
-      }
-      console.log(`De: ${eventData.from}\nTipo: ${eventData.tipo}\nTexto/Caption: ${eventData.text}\nID: ${eventData.messageId}\nFecha: ${eventData.timestamp}`);
-
       // Determinar modo
       const modo = message.key.fromMe ? 'saliente' : 'entrante';
 
@@ -385,9 +307,9 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         const cliente = await getClienteByWhatsapp(eventData.from);
         if (cliente) {
           id_cliente = cliente.ID;
-        } else {
         }
       } catch (err) {
+        // Silenciar error de cliente no encontrado
       }
 
       // Insertar en la tabla conversaciones
@@ -403,13 +325,9 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
           estado: message.key.fromMe ? 'enviado' : undefined
         });
         
-        console.log(`\x1b[32m✅ Mensaje guardado exitosamente\x1b[0m`);
-        
       } catch (err) {
-        console.error('\x1b[31m❌ Error guardando mensaje:\x1b[0m', err);
+        console.error('Error guardando mensaje:', err);
       }
-    } else {
-      console.log('\x1b[31m❌ Datos de mensaje inválidos\x1b[0m');
     }
   });
   
@@ -417,26 +335,26 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
   // 🔗 EVENTOS DE CONEXIÓN (Socket.io eventos estándar)
   // ===============================================
   socket.on('connect', () => {
-    console.log('\x1b[32m🔗 Socket conectado a WhatsApp\x1b[0m');
+    // Conexión exitosa - sin log para no interferir
   });
   
   socket.on('disconnect', (reason) => {
-    console.log(`\x1b[31m🔌 Socket desconectado: ${reason}\x1b[0m`);
+    console.error(`Socket desconectado: ${reason}`);
   });
   
   socket.on('connect_error', (error) => {
-    console.log(`\x1b[31m❌ Error de conexión: ${error.message}\x1b[0m`);
+    console.error(`Error de conexión: ${error.message}`);
   });
   
   // ===============================================
   // 📱 EVENTOS ESPECÍFICOS DE EVOLUTION API
   // ===============================================
   socket.on('qrcode.updated', (_data) => {
-    console.log('\x1b[33m📱 QR Code actualizado\x1b[0m');
+    // QR Code actualizado - sin log para no interferir
   });
   
   socket.on('connection.update', (data) => {
-    console.log(`\x1b[36m🔄 Estado de conexión actualizado:\x1b[0m`, data?.connection || data);
+    // Estado de conexión actualizado - sin log para no interferir
   });
 }
 

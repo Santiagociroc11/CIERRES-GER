@@ -142,7 +142,18 @@ class TelegramQueueService {
    * Procesar cola de mensajes
    */
   private async startQueueProcessor(): Promise<void> {
+    logger.info('🚀 Iniciando procesador de cola de Telegram...');
+    
     setInterval(async () => {
+      // Añadir logging más detallado
+      if (this.queue.length > 0) {
+        logger.debug(`🔍 Cola de Telegram: ${this.queue.length} mensajes pendientes`, {
+          isProcessing: this.isProcessing,
+          messagesSentThisMinute: this.messagesSentInCurrentMinute,
+          rateLimit: this.RATE_LIMIT
+        });
+      }
+      
       if (!this.isProcessing && this.queue.length > 0) {
         await this.processQueue();
       }
@@ -158,6 +169,7 @@ class TelegramQueueService {
     }
 
     this.isProcessing = true;
+    logger.info(`🔄 Procesando cola de Telegram: ${this.queue.length} mensajes`);
 
     try {
       const now = Date.now();
@@ -167,13 +179,16 @@ class TelegramQueueService {
         msg.scheduledAt.getTime() <= now
       );
 
+      logger.info(`⏰ Mensajes listos para enviar: ${readyMessages.length}/${this.queue.length}`);
+
       for (const message of readyMessages) {
         if (this.messagesSentInCurrentMinute >= this.RATE_LIMIT) {
-          logger.debug('Rate limit alcanzado, esperando próximo minuto');
+          logger.warn(`🚫 Rate limit alcanzado (${this.messagesSentInCurrentMinute}/${this.RATE_LIMIT}), esperando próximo minuto`);
           break;
         }
 
         try {
+          logger.info(`📤 Enviando mensaje ${message.id} a chat ${message.chatId}`);
           await this.sendMessage(message);
           
           // Remover mensaje exitoso de la cola
@@ -183,21 +198,24 @@ class TelegramQueueService {
           this.messagesSentInCurrentMinute++;
           this.lastSentTime = Date.now();
           
-          logger.info('Mensaje de Telegram enviado exitosamente', {
+          logger.info('✅ Mensaje de Telegram enviado exitosamente', {
             messageId: message.id,
             chatId: message.chatId,
             attempts: message.attempts + 1,
-            webhookLogId: message.webhookLogId
+            webhookLogId: message.webhookLogId,
+            messagesSentThisMinute: this.messagesSentInCurrentMinute
           });
 
         } catch (error) {
+          logger.error(`❌ Error enviando mensaje ${message.id}:`, error);
           await this.handleMessageError(message, error);
         }
       }
     } catch (error) {
-      logger.error('Error en el procesador de cola de Telegram', error);
+      logger.error('💥 Error crítico en el procesador de cola de Telegram', error);
     } finally {
       this.isProcessing = false;
+      logger.debug('🏁 Procesamiento de cola finalizado');
     }
   }
 

@@ -929,6 +929,7 @@ router.get('/telegram-queue-stats', async (_req, res) => {
   try {
     const stats = telegramQueue.getQueueStats();
     const queue = telegramQueue.getQueue();
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
     
     res.json({
       success: true,
@@ -942,8 +943,16 @@ router.get('/telegram-queue-stats', async (_req, res) => {
           maxAttempts: msg.maxAttempts,
           createdAt: msg.createdAt,
           scheduledAt: msg.scheduledAt,
-          metadata: msg.metadata
-        }))
+          metadata: msg.metadata,
+          isReady: msg.scheduledAt.getTime() <= Date.now(),
+          waitingSeconds: Math.max(0, Math.ceil((msg.scheduledAt.getTime() - Date.now()) / 1000))
+        })),
+        config: {
+          botTokenConfigured: !!botToken,
+          botTokenLength: botToken ? botToken.length : 0,
+          rateLimit: 15,
+          messageInterval: 4000
+        }
       },
       timestamp: new Date().toISOString()
     });
@@ -953,6 +962,109 @@ router.get('/telegram-queue-stats', async (_req, res) => {
       success: false,
       error: 'Error interno del servidor',
       timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint de prueba para debugging de cola de Telegram
+router.post('/telegram-queue-test', async (req, res) => {
+  try {
+    const { chatId, text } = req.body;
+    
+    if (!chatId || !text) {
+      return res.status(400).json({
+        success: false,
+        error: 'chatId y text son requeridos'
+      });
+    }
+
+    // Agregar mensaje de prueba a la cola
+    const messageId = telegramQueue.enqueueMessage(
+      chatId,
+      `🧪 PRUEBA DE COLA: ${text} - ${new Date().toLocaleTimeString()}`,
+      undefined,
+      { type: 'test', timestamp: new Date() }
+    );
+
+    const stats = telegramQueue.getQueueStats();
+
+    res.json({
+      success: true,
+      data: {
+        messageId,
+        message: 'Mensaje de prueba agregado a la cola',
+        stats
+      }
+    });
+  } catch (error) {
+    logger.error('Error en prueba de cola de Telegram', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error en prueba de cola'
+    });
+  }
+});
+
+// Endpoint para diagnosticar el estado de la cola
+router.get('/telegram-queue-debug', async (_req, res) => {
+  try {
+    const stats = telegramQueue.getQueueStats();
+    const queue = telegramQueue.getQueue();
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const now = Date.now();
+    
+    const diagnosis = {
+      queueHealth: {
+        isHealthy: stats.totalPending === 0 || stats.readyToSend > 0,
+        issues: [] as string[]
+      },
+      processingInfo: {
+        isProcessing: stats.isProcessing,
+        totalPending: stats.totalPending,
+        readyToSend: stats.readyToSend,
+        waiting: stats.waiting,
+        messagesSentThisMinute: stats.messagesSentThisMinute,
+        rateLimit: stats.rateLimit
+      },
+      configuration: {
+        botTokenConfigured: !!botToken,
+        botTokenPreview: botToken ? `${botToken.substring(0, 10)}...` : 'NO CONFIGURADO'
+      },
+      messages: queue.map(msg => ({
+        id: msg.id,
+        chatId: msg.chatId,
+        attempts: msg.attempts,
+        isReady: msg.scheduledAt.getTime() <= now,
+        waitingSeconds: Math.max(0, Math.ceil((msg.scheduledAt.getTime() - now) / 1000)),
+        scheduledAt: msg.scheduledAt.toISOString(),
+        webhookLogId: msg.webhookLogId
+      }))
+    };
+
+    // Detectar posibles problemas
+    if (!botToken) {
+      diagnosis.queueHealth.issues.push('TELEGRAM_BOT_TOKEN no configurado');
+      diagnosis.queueHealth.isHealthy = false;
+    }
+    
+    if (stats.totalPending > 0 && stats.readyToSend === 0) {
+      diagnosis.queueHealth.issues.push('Hay mensajes en cola pero ninguno listo para enviar');
+    }
+    
+    if (stats.messagesSentThisMinute >= stats.rateLimit) {
+      diagnosis.queueHealth.issues.push('Rate limit alcanzado - esperando próximo minuto');
+    }
+
+    res.json({
+      success: true,
+      data: diagnosis,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error en diagnóstico de cola de Telegram', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error en diagnóstico'
     });
   }
 });

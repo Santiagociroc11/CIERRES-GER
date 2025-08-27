@@ -40,6 +40,7 @@ interface TelegramUpdate {
 interface TelegramApiResponse {
   ok: boolean;
   result: TelegramUpdate[];
+  error_code?: number; // Added for conflict handling
 }
 
 class TelegramBot {
@@ -129,26 +130,58 @@ class TelegramBot {
   }
 
   /**
+   * Limpiar estado del bot (útil para resolver conflictos)
+   */
+  private async clearBotState() {
+    if (!this.botToken) return;
+    
+    try {
+      // Hacer una llamada a getUpdates con offset muy alto para limpiar el estado
+      await fetch(
+        `https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.lastUpdateId + 1000}&timeout=1`
+      );
+      
+      // Resetear el lastUpdateId
+      this.lastUpdateId = 0;
+    } catch (error) {
+      // Ignorar errores en la limpieza
+    }
+  }
+
+  /**
    * Hacer polling para obtener actualizaciones
    */
   private async pollUpdates() {
     if (!this.botToken) return;
 
-    const response = await fetch(
-      `https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.lastUpdateId + 1}&timeout=10`
-    );
-    
-    const data: TelegramApiResponse = await response.json();
-    
-    if (!data.ok) {
-      console.error('❌ [TelegramBot] Error en getUpdates:', data);
-      return;
-    }
+    try {
+      const response = await fetch(
+        `https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.lastUpdateId + 1}&timeout=10`
+      );
+      
+      const data: TelegramApiResponse = await response.json();
+      
+      if (!data.ok) {
+        // Manejar error 409 específicamente (conflicto de instancias)
+        if (data.error_code === 409) {
+          console.warn('⚠️ [TelegramBot] Conflicto de instancias detectado. Limpiando estado...');
+          await this.clearBotState();
+          // Esperar 5 segundos antes de reintentar
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          return;
+        }
+        
+        console.error('❌ [TelegramBot] Error en getUpdates:', data);
+        return;
+      }
 
-    // Procesar cada actualización
-    for (const update of data.result) {
-      this.lastUpdateId = update.update_id;
-      await this.processUpdate(update);
+      // Procesar cada actualización
+      for (const update of data.result) {
+        this.lastUpdateId = update.update_id;
+        await this.processUpdate(update);
+      }
+    } catch (error) {
+      console.error('❌ [TelegramBot] Error en polling:', error);
     }
   }
 

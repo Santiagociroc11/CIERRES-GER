@@ -1,6 +1,18 @@
 import winston from 'winston';
 import { updateWebhookLog } from '../dbClient';
 
+export interface ProcessingStep {
+  step: string;
+  status: string;
+  timestamp?: Date;
+  message_id?: string;
+  chat_id?: string;
+  result?: string;
+  telegram_message_id?: string;
+  completed_at?: Date;
+  [key: string]: any; // For additional properties
+}
+
 // Configurar logger
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -227,7 +239,7 @@ class TelegramQueueService {
         
         // Actualizar processing_steps para marcar telegram como completed
         let updatedSteps = currentLog?.processing_steps || [];
-        const telegramStepIndex = updatedSteps.findIndex(step => 
+        const telegramStepIndex = updatedSteps.findIndex((step: ProcessingStep) => 
           step.step === 'telegram_integration' && step.message_id === message.id
         );
         

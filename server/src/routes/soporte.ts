@@ -14,6 +14,7 @@ import {
   type WebhookLogEntry
 } from '../dbClient';
 import { sendTelegramMessage } from '../services/telegramService';
+import telegramQueue from '../services/telegramQueueService';
 import { getSoporteConfig, updateSoporteConfig } from '../config/webhookConfig';
 
 const router = Router();
@@ -282,7 +283,7 @@ router.post('/formulario-soporte', async (req, res) => {
     let shouldRedirectToAcademy = false;
 
     // Variables para tracking de resultados de integraciones
-    let telegramStatus: 'success' | 'error' | 'skipped' = 'skipped';
+    let telegramStatus: 'success' | 'error' | 'skipped' | 'queued' = 'skipped';
     let telegramChatId = '';
     let telegramMessageId = '';
     let telegramError = '';
@@ -463,25 +464,37 @@ router.post('/formulario-soporte', async (req, res) => {
         );
 
         telegramChatId = asesorAsignado.ID_TG;
-        const telegramResult = await sendTelegramMessage(notificationMessage);
-        if (telegramResult.success) {
-          telegramStatus = 'success';
-          telegramMessageId = telegramResult.data?.result?.message_id?.toString() || '';
-          telegramNotified = true;
-          logger.info('Notificación de soporte enviada al asesor', {
+        
+        // Usar cola en lugar de envío directo
+        const messageId = telegramQueue.enqueueMessage(
+          asesorAsignado.ID_TG,
+          notificationMessage.text,
+          webhookLogId || undefined,
+          { 
+            type: 'soporte',
             asesor: asesorAsignado.NOMBRE,
             cliente: nombre,
-            telegramId: asesorAsignado.ID_TG
-          });
-        } else {
-          telegramStatus = 'error';
-          telegramError = telegramResult.error || 'Error enviando notificación';
-          logger.error('Error enviando notificación de soporte', telegramResult.error);
-        }
+            segmentacion: segmentacion.tipo,
+            prioridad: segmentacion.prioridad
+          }
+        );
+        
+        telegramStatus = 'queued'; // Estado inicial en cola
+        telegramMessageId = messageId;
+        telegramNotified = true;
+        
+        logger.info('Notificación de soporte agregada a cola', {
+          asesor: asesorAsignado.NOMBRE,
+          cliente: nombre,
+          telegramId: asesorAsignado.ID_TG,
+          messageId,
+          segmentacion: segmentacion.tipo,
+          queueStats: telegramQueue.getQueueStats()
+        });
       } catch (error) {
         telegramStatus = 'error';
-        telegramError = error instanceof Error ? error.message : 'Error desconocido';
-        logger.error('Error enviando notificación Telegram', error);
+        telegramError = error instanceof Error ? error.message : 'Error agregando a cola';
+        logger.error('Error agregando notificación de soporte a cola', error);
       }
     } else if (asesorAsignado) {
       telegramStatus = 'skipped';

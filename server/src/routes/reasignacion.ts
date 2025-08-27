@@ -6,6 +6,7 @@ import {
   getAsesorById 
 } from '../dbClient';
 import { sendTelegramMessage } from '../services/telegramService';
+import telegramQueue from '../services/telegramQueueService';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -80,56 +81,77 @@ router.post('/reasigna-cierres', async (req, res) => {
 
     if (asesorViejo.ID_TG) {
       try {
-        const mensajeViego = {
-          chat_id: asesorViejo.ID_TG,
-          text: `*CLIENTE DESASIGNADO* ⚠️ \n\nnombre: ${cliente.NOMBRE}\nWha: ${cliente.WHATSAPP}\n\nSe reasignó tu cliente por decisión de la gerencia 🚨`,
-          parse_mode: 'Markdown' as const
-        };
+        const textoMensajeViejo = `*CLIENTE DESASIGNADO* ⚠️ \n\nnombre: ${cliente.NOMBRE}\nWha: ${cliente.WHATSAPP}\n\nSe reasignó tu cliente por decisión de la gerencia 🚨`;
 
-        const resultadoViejo = await sendTelegramMessage(mensajeViego);
-        telegramViejoStatus = resultadoViejo.success ? 'success' : 'error';
+        // Usar cola en lugar de envío directo
+        const messageIdViejo = telegramQueue.enqueueMessage(
+          asesorViejo.ID_TG,
+          textoMensajeViejo,
+          undefined, // Sin webhookLogId para reasignaciones
+          { 
+            type: 'reasignacion_desasignado',
+            asesorViejo: asesorViejo.NOMBRE,
+            asesorNuevo: asesorNuevo.NOMBRE,
+            cliente: cliente.NOMBRE,
+            whatsapp: cliente.WHATSAPP
+          }
+        );
         
-        logger.info('Notificación enviada al asesor viejo', {
+        telegramViejoStatus = 'queued'; // Estado inicial en cola
+        
+        logger.info('Notificación de desasignación agregada a cola', {
           asesor: asesorViejo.NOMBRE,
           telegram_id: asesorViejo.ID_TG,
-          status: telegramViejoStatus
+          messageId: messageIdViejo,
+          cliente: cliente.NOMBRE,
+          queueStats: telegramQueue.getQueueStats()
         });
       } catch (error) {
         telegramViejoStatus = 'error';
-        logger.error('Error notificando al asesor viejo', error);
+        logger.error('Error agregando notificación de desasignación a cola', error);
       }
     }
 
     // Notificar al asesor nuevo (asignación)
     if (asesorNuevo.ID_TG) {
       try {
-        const mensajeNuevo = {
-          chat_id: asesorNuevo.ID_TG,
-          text: `*CLIENTE REASIGNADO A TI* ⚠️ \n\nnombre: ${cliente.NOMBRE}\nWha: ${cliente.WHATSAPP}\n\nSe reasignó este cliente a ti por decisión de la gerencia 🚨`,
-          parse_mode: 'Markdown' as const,
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: "IR AL CHAT",
-                  url: `https://wa.me/${cliente.WHATSAPP}`
-                }
-              ]
-            ]
-          }
-        };
+        // Nota: Los botones inline no son compatibles con la cola simplificada
+        // El mensaje incluirá el enlace de WhatsApp directamente
+        const textoMensajeNuevo = `*CLIENTE REASIGNADO A TI* ⚠️ 
 
-        const resultadoNuevo = await sendTelegramMessage(mensajeNuevo);
-        telegramNuevoStatus = resultadoNuevo.success ? 'success' : 'error';
+👤 Nombre: ${cliente.NOMBRE}
+📱 WhatsApp: ${cliente.WHATSAPP}
+
+Se reasignó este cliente a ti por decisión de la gerencia 🚨
+
+💬 Ve al chat: https://wa.me/${cliente.WHATSAPP}`;
+
+        // Usar cola en lugar de envío directo
+        const messageIdNuevo = telegramQueue.enqueueMessage(
+          asesorNuevo.ID_TG,
+          textoMensajeNuevo,
+          undefined, // Sin webhookLogId para reasignaciones
+          { 
+            type: 'reasignacion_asignado',
+            asesorViejo: asesorViejo.NOMBRE,
+            asesorNuevo: asesorNuevo.NOMBRE,
+            cliente: cliente.NOMBRE,
+            whatsapp: cliente.WHATSAPP
+          }
+        );
         
-        logger.info('Notificación enviada al asesor nuevo', {
+        telegramNuevoStatus = 'queued'; // Estado inicial en cola
+        
+        logger.info('Notificación de reasignación agregada a cola', {
           asesor: asesorNuevo.NOMBRE,
           telegram_id: asesorNuevo.ID_TG,
-          status: telegramNuevoStatus
+          messageId: messageIdNuevo,
+          cliente: cliente.NOMBRE,
+          queueStats: telegramQueue.getQueueStats()
         });
       } catch (error) {
         telegramNuevoStatus = 'error';
-        logger.error('Error notificando al asesor nuevo', error);
+        logger.error('Error agregando notificación de reasignación a cola', error);
       }
     }
 

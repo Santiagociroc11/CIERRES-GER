@@ -65,9 +65,6 @@ interface DashboardAdminProps {
 }
 
 export default function DashboardAdmin({ asesor, adminRole, onLogout }: DashboardAdminProps) {
-  // 🐛 DEBUG: Verificar adminRole en DashboardAdmin
-  console.log('🔍 DashboardAdmin adminRole:', adminRole);
-  
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   const [estadisticas, setEstadisticas] = useState<Record<number, EstadisticasDetalladas>>({});
   const [clientes, setClientes] = useState<any[]>([]);
@@ -1387,13 +1384,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   <span className="hidden lg:inline font-medium">Crear Asesor</span>
                 </button>
               )}
-              <button
-                onClick={exportarDatos}
-                className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-              >
-                <Download className="h-4 w-4" />
-                <span className="hidden lg:inline font-medium">Exportar</span>
-              </button>
+              {/* Exportar - Solo para admins completos */}
+              {adminRole === 'admin' && (
+                <button
+                  onClick={exportarDatos}
+                  className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden lg:inline font-medium">Exportar</span>
+                </button>
+              )}
               
               {/* Toggle Vista */}
               <div className="flex items-center bg-gray-100 rounded-lg p-1">
@@ -1422,13 +1422,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   <span className="hidden lg:inline ml-1">Tabla</span>
                 </button>
               </div>
-              <button
-                onClick={() => verificarEstadosConexion(asesores)}
-                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-              >
-                <RefreshCcw className="h-4 w-4" />
-                <span className="hidden lg:inline font-medium">Verificar Conexiones</span>
-              </button>
+              {/* Verificar Conexiones - Solo para admins completos */}
+              {adminRole === 'admin' && (
+                <button
+                  onClick={() => verificarEstadosConexion(asesores)}
+                  className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  <span className="hidden lg:inline font-medium">Verificar Conexiones</span>
+                </button>
+              )}
               <button
                 onClick={handleLogout}
                 className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
@@ -2864,15 +2867,17 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
           </>
         ) : vistaAdmin === 'clientes' ? (
           <div className="p-4 space-y-8">
-            {/* Botón para crear cliente */}
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => setMostrarModalCrearCliente(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-              >
-                Crear Cliente
-              </button>
-            </div>
+            {/* Botón para crear cliente - Solo para admins completos */}
+            {adminRole === 'admin' && (
+              <div className="flex justify-end mb-4">
+                <button
+                  onClick={() => setMostrarModalCrearCliente(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  Crear Cliente
+                </button>
+              </div>
+            )}
             {/* Filtros */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               {/* Buscador */}
@@ -3180,15 +3185,17 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
           </div>
         ) : (
           <div className="p-4 space-y-8">
-            {/* Botón para crear cliente */}
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => setMostrarModalCrearCliente(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-              >
-                Crear Cliente
-              </button>
-            </div>
+            {/* Botón para crear cliente - Solo para admins completos */}
+            {adminRole === 'admin' && (
+              <div className="flex justify-end mb-4">
+                <button
+                  onClick={() => setMostrarModalCrearCliente(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  Crear Cliente
+                </button>
+              </div>
+            )}
             {/* Filtros */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               {/* Buscador */}
@@ -3449,11 +3456,13 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
           reportes={reportes.filter((r) => r.ID_CLIENTE === clienteSeleccionado.ID)}
           asesor={asesores.find((a) => a.ID === clienteSeleccionado.ID_ASESOR)}
           admin={true}
+          adminRole={adminRole}
           onClose={() => setClienteSeleccionado(null)}
         />
       )}
 
-      {mostrarModalCrearCliente && (
+      {/* Modal Crear Cliente - Solo para admins completos */}
+      {mostrarModalCrearCliente && adminRole === 'admin' && (
         <CrearClienteModal
           asesores={asesores}
           onClose={() => setMostrarModalCrearCliente(false)}

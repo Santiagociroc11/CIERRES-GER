@@ -1923,6 +1923,8 @@ function AuditorDashboard() {
           <HistorialCliente
             cliente={clienteHistorial}
             reportes={reportes.filter(r => r.ID_CLIENTE === clienteHistorial.ID)}
+            admin={false}
+            adminRole={'supervisor'}
             onClose={() => setClienteHistorial(null)}
           />
         </Suspense>

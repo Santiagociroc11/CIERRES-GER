@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Cliente, Reporte, Registro } from '../types';
+import { Cliente, Reporte, Registro, AdminRole } from '../types';
 import { Clock, MessageSquare, DollarSign, AlertCircle, CheckCircle, X, Activity, FileVideo, Image as ImageIcon } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import { apiClient, eliminarReporte, eliminarRegistro } from '../lib/apiClient';
@@ -9,6 +9,7 @@ interface HistorialClienteProps {
   reportes: Reporte[];
   asesor?: any;
   admin?: boolean;
+  adminRole?: AdminRole;
   onClose: () => void;
 }
 
@@ -17,6 +18,7 @@ export default function HistorialCliente({
   reportes,
   asesor,
   admin = false,
+  adminRole = 'supervisor',
   onClose
 }: HistorialClienteProps) {
   const [registros, setRegistros] = useState<Registro[]>([]);
@@ -270,7 +272,7 @@ export default function HistorialCliente({
                                 <span className="text-sm text-gray-500">
                                   {formatDate(parseInt(item.data.FECHA_EVENTO))}
                                 </span>
-                                {admin && (
+                                {admin && adminRole === 'admin' && (
                                   <button
                                     onClick={() => handleEliminarRegistro(item.data.ID)}
                                     className="px-3 py-1 text-xs text-orange-700 bg-orange-100 rounded-md hover:bg-orange-200 transition-colors border border-orange-300"
@@ -304,7 +306,7 @@ export default function HistorialCliente({
                               <span className="text-sm text-gray-500 mt-1 sm:mt-0">
                                 {formatDate(item.data.FECHA_REPORTE)}
                               </span>
-                              {admin && (
+                              {admin && adminRole === 'admin' && (
                                 <button
                                   onClick={() => handleEliminarReporte(item.data.ID)}
                                   className="ml-4 px-3 py-1 text-xs text-red-700 bg-red-100 rounded-md hover:bg-red-200"

@@ -42,9 +42,6 @@ export default function ListaGeneralClientes({
   readOnly = false,
   adminRole = 'supervisor'
 }: ListaGeneralClientesProps) {
-  // 🐛 DEBUG: Verificar adminRole
-  console.log('🔍 ListaGeneralClientes adminRole:', adminRole);
-  
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<EstadoCliente | 'TODOS'>('TODOS');
   const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);
@@ -723,6 +720,7 @@ export default function ListaGeneralClientes({
           cliente={clienteHistorial}
           reportes={reportes.filter(r => r.ID_CLIENTE === clienteHistorial.ID)}
           admin={admin}
+          adminRole={adminRole}
           onClose={() => setClienteHistorial(null)}
         />
       )}

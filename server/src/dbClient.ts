@@ -33,6 +33,7 @@ export interface WebhookLogEntry {
   error_stack?: string;
   received_at?: Date;
   processed_at?: Date;
+  processing_steps?: any[];
 }
 
 export interface WebhookLogUpdate {
@@ -56,6 +57,7 @@ export interface WebhookLogUpdate {
   error_message?: string;
   error_stack?: string;
   processed_at?: Date;
+  processing_steps?: any[];
 }
 
 export async function insertConversacion(data: {

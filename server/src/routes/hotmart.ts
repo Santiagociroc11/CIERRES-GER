@@ -151,6 +151,7 @@ router.post('/webhook', async (req, res) => {
       purchase_amount: body.data?.purchase?.price ? parseFloat(body.data.purchase.price) : undefined,
       purchase_date: body.data?.purchase?.order_date ? new Date(body.data.purchase.order_date) : undefined,
       raw_webhook_data: body,
+      processing_steps: [], // Inicializar array vacío
       received_at: new Date()
     };
 
@@ -168,7 +169,8 @@ router.post('/webhook', async (req, res) => {
       try {
         await updateWebhookLog({
           id: webhookLogId,
-          status: 'processing'
+          status: 'processing',
+          processing_steps: processingSteps
         });
       } catch (updateError) {
         logger.error('Error actualizando webhook log a processing:', updateError);
@@ -553,6 +555,7 @@ router.post('/webhook', async (req, res) => {
           telegram_message_id: telegramMessageId || undefined,
           telegram_error: telegramError || undefined,
           processing_time_ms: processingTime,
+          processing_steps: processingSteps,
           processed_at: new Date()
         });
       } catch (updateError) {
@@ -621,6 +624,7 @@ router.post('/webhook', async (req, res) => {
           processing_time_ms: processingTime,
           error_message: error instanceof Error ? error.message : 'Error desconocido',
           error_stack: error instanceof Error ? error.stack : undefined,
+          processing_steps: processingSteps || [],
           processed_at: new Date()
         });
       } catch (updateError) {

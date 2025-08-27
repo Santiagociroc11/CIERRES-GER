@@ -91,7 +91,7 @@ interface WebhookLog {
   processed_at?: string;
   raw_webhook_data?: any;
   // Log de procesamiento detallado
-  processingSteps?: any[];
+  processing_steps?: any[];
   fullLog?: any;
 }
 
@@ -1040,14 +1040,14 @@ const WebhookLogs: React.FC = () => {
                   </Typography>
                   
                   {/* Pasos de Procesamiento */}
-                  {selectedLog.processingSteps && selectedLog.processingSteps.length > 0 ? (
+                  {selectedLog.processing_steps && selectedLog.processing_steps.length > 0 ? (
                     <Box mb={3}>
                       <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                         <Timeline sx={{ mr: 1 }} />
                         Pasos de Procesamiento Detallados
                       </Typography>
                       <Card variant="outlined" sx={{ p: 2, maxHeight: '300px', overflow: 'auto' }}>
-                        {selectedLog.processingSteps.map((step, index) => (
+                        {selectedLog.processing_steps.map((step, index) => (
                           <Box key={index} sx={{ mb: 2, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
                             <Typography variant="subtitle2" color="primary.main">
                               Paso {index + 1}: {step.step || 'Paso sin nombre'}

@@ -21,6 +21,16 @@ export interface Asesor {
   HISTORIAL?: string;
 }
 
+export type AdminRole = 'admin' | 'supervisor';
+
+export interface Admin {
+  id: string;
+  nombre: string;
+  whatsapp: string;
+  rol: AdminRole;
+  fecha_creacion?: string;
+}
+
 export interface AsesorStats {
   total_clientes: number;
   tasa_conversion: number;

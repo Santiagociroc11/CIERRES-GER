@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../lib/apiClient';
-import { Asesor } from '../types';
+import { Asesor, Admin, AdminRole } from '../types';
 import { UserCheck, Lock } from 'lucide-react';
 import AuditorLogin from './AuditorLogin';
 import { safeJsonParseObject } from '../utils/safeJsonParse';
 
 interface LoginProps {
-  onLogin: (asesor: Asesor, isAdmin: boolean) => void;
+  onLogin: (asesor: Asesor, isAdmin: boolean, adminRole?: AdminRole) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -19,9 +19,9 @@ export default function Login({ onLogin }: LoginProps) {
     const sessionData = localStorage.getItem('userSession');
     if (sessionData) {
       try {
-        const parsedSession = safeJsonParseObject<{ asesor: Asesor; isAdmin: boolean }>(sessionData);
+        const parsedSession = safeJsonParseObject<{ asesor: Asesor; isAdmin: boolean; adminRole?: AdminRole }>(sessionData);
         if (parsedSession.asesor && typeof parsedSession.isAdmin === 'boolean') {
-          onLogin(parsedSession.asesor, parsedSession.isAdmin);
+          onLogin(parsedSession.asesor, parsedSession.isAdmin, parsedSession.adminRole);
         } else {
           console.error('Datos de sesión inválidos');
           localStorage.removeItem('userSession');
@@ -39,7 +39,7 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
 
     try {
-      const admins = await apiClient.request<any[]>(
+      const admins = await apiClient.request<Admin[]>(
         `/gersson_admins?whatsapp=eq.${whatsapp}&select=*`
       );
 
@@ -55,8 +55,13 @@ export default function Login({ onLogin }: LoginProps) {
           TICKETS: 0,
           ES_ADMIN: true,
         };
-        localStorage.setItem('userSession', JSON.stringify({ asesor: adminUser, isAdmin: true }));
-        onLogin(adminUser, true);
+        const sessionData = { 
+          asesor: adminUser, 
+          isAdmin: true, 
+          adminRole: adminData.rol || 'admin' as AdminRole 
+        };
+        localStorage.setItem('userSession', JSON.stringify(sessionData));
+        onLogin(adminUser, true, adminData.rol || 'admin');
         return;
       }
 
@@ -100,8 +105,8 @@ export default function Login({ onLogin }: LoginProps) {
             ES_ADMIN: true,
             ES_REVISOR: true,
           };
-          localStorage.setItem('userSession', JSON.stringify({ asesor: auditorUser, isAdmin: true }));
-          onLogin(auditorUser, true);
+          localStorage.setItem('userSession', JSON.stringify({ asesor: auditorUser, isAdmin: true, adminRole: 'admin' }));
+          onLogin(auditorUser, true, 'admin');
         }}
       />
     );

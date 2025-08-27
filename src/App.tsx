@@ -3,17 +3,19 @@ import DashboardAsesor from './components/DashboardAsesor';
 import DashboardAdmin from './components/DashboardAdmin';
 import AuditorDashboard from './components/AuditorDashboard';
 import Login from './components/Login';
-import { Asesor } from './types';
+import { Asesor, AdminRole } from './types';
 import { apiClient } from './lib/apiClient';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
   const [asesorActual, setAsesorActual] = useState<Asesor | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<AdminRole>('admin');
 
-  const handleLogin = async (asesor: Asesor, isAdmin: boolean) => {
+  const handleLogin = async (asesor: Asesor, isAdmin: boolean, adminRole?: AdminRole) => {
     setAsesorActual(asesor);
     setIsAdmin(isAdmin);
+    setAdminRole(adminRole || 'admin');
   };
 
   return (
@@ -46,7 +48,7 @@ function App() {
       ) : asesorActual.ES_REVISOR ? (
         <AuditorDashboard />
       ) : isAdmin ? (
-        <DashboardAdmin asesor={asesorActual} onLogout={() => setAsesorActual(null)} />
+        <DashboardAdmin asesor={asesorActual} adminRole={adminRole} onLogout={() => setAsesorActual(null)} />
       ) : (
         <DashboardAsesor asesorInicial={asesorActual} onLogout={() => setAsesorActual(null)} />
       )}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
-import { Asesor, EstadisticasDetalladas, OrdenAsesor } from '../types';
+import { Asesor, EstadisticasDetalladas, OrdenAsesor, AdminRole } from '../types';
 import {
   BarChart,
   LogOut,
@@ -59,10 +59,12 @@ import WebhookConfig from './WebhookConfig';
 import WebhookLogs from './WebhookLogs';
 
 interface DashboardAdminProps {
+  asesor: Asesor;
+  adminRole: AdminRole;
   onLogout: () => void;
 }
 
-export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
+export default function DashboardAdmin({ asesor, adminRole, onLogout }: DashboardAdminProps) {
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   const [estadisticas, setEstadisticas] = useState<Record<number, EstadisticasDetalladas>>({});
   const [clientes, setClientes] = useState<any[]>([]);
@@ -1487,35 +1489,41 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                   </span>
                 </button>
                 
-                <button
-                  onClick={() => setVistaAdmin('gestion')}
-                  className={`
-                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
-                    ${vistaAdmin === 'gestion'
-                      ? 'bg-orange-600 text-white shadow-lg border-2 border-orange-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
-                    }
-                  `}
-                >
-                  <Settings className="h-5 w-5" />
-                  <span className="font-semibold">Gestión</span>
-                  <div className="text-xs opacity-75 hidden sm:block">Asignaciones</div>
-                </button>
+                {/* Gestión - Solo para admins completos */}
+                {adminRole === 'admin' && (
+                  <button
+                    onClick={() => setVistaAdmin('gestion')}
+                    className={`
+                      flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                      ${vistaAdmin === 'gestion'
+                        ? 'bg-orange-600 text-white shadow-lg border-2 border-orange-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
+                      }
+                    `}
+                  >
+                    <Settings className="h-5 w-5" />
+                    <span className="font-semibold">Gestión</span>
+                    <div className="text-xs opacity-75 hidden sm:block">Asignaciones</div>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setVistaAdmin('webhooks')}
-                  className={`
-                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
-                    ${vistaAdmin === 'webhooks'
-                      ? 'bg-teal-600 text-white shadow-lg border-2 border-teal-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
-                    }
-                  `}
-                >
-                  <Webhook className="h-5 w-5" />
-                  <span className="font-semibold">Webhooks</span>
-                  <div className="text-xs opacity-75 hidden sm:block">Configuración</div>
-                </button>
+                {/* Webhooks - Solo para admins completos */}
+                {adminRole === 'admin' && (
+                  <button
+                    onClick={() => setVistaAdmin('webhooks')}
+                    className={`
+                      flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                      ${vistaAdmin === 'webhooks'
+                        ? 'bg-teal-600 text-white shadow-lg border-2 border-teal-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
+                      }
+                    `}
+                  >
+                    <Webhook className="h-5 w-5" />
+                    <span className="font-semibold">Webhooks</span>
+                    <div className="text-xs opacity-75 hidden sm:block">Configuración</div>
+                  </button>
+                )}
               </div>
 
               {/* Métricas Rápidas */}
@@ -3047,7 +3055,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center space-x-1">
-                                  {asesorAsignado && (
+                                  {asesorAsignado && adminRole === 'admin' && (
                                     <div>
                                       <ReasignarCliente
                                         clienteId={cliente.ID}
@@ -3102,13 +3110,13 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
               })()}
             </div>
           </div>
-        ) : vistaAdmin === 'gestion' ? (
+        ) : vistaAdmin === 'gestion' && adminRole === 'admin' ? (
           <GestionAsignaciones 
             asesores={asesores} 
             onUpdate={cargarSoloAsesores}
             estadisticas={estadisticas}
           />
-        ) : vistaAdmin === 'webhooks' ? (
+        ) : vistaAdmin === 'webhooks' && adminRole === 'admin' ? (
           <div className="space-y-6">
             {/* Sub-navegación de Webhooks */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -3363,7 +3371,7 @@ export default function DashboardAdmin({ onLogout }: DashboardAdminProps) {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center space-x-1">
-                                  {asesorAsignado && (
+                                  {asesorAsignado && adminRole === 'admin' && (
                                     <div>
                                       <ReasignarCliente
                                         clienteId={cliente.ID}

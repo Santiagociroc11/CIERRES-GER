@@ -58,6 +58,11 @@ export interface WebhookLogUpdate {
   error_stack?: string;
   processed_at?: Date;
   processing_steps?: any[];
+  // Información de comprador para casos de soporte
+  buyer_status?: string;
+  buyer_previous_advisor?: string;
+  buyer_creation_date?: number;
+  redirect_reason?: string;
 }
 
 export async function insertConversacion(data: {

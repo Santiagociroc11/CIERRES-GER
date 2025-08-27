@@ -295,7 +295,25 @@ router.post('/formulario-soporte', async (req, res) => {
       // Verificar si ya compró (como en el flujo N8N)
       if (clienteExistente.ESTADO === 'PAGADO' || clienteExistente.ESTADO === 'VENTA CONSOLIDADA') {
         shouldRedirectToAcademy = true;
-        logger.info('Cliente ya había comprado, redirigir a academia', { clienteId });
+        
+        // Logging detallado para compradores
+        logger.warn('🛍️ COMPRADOR DETECTADO - Redirigir a academia', {
+          clienteId,
+          nombre: nombre,
+          whatsapp: whatsappLimpio,
+          estado: clienteExistente.ESTADO,
+          asesorAsignado: clienteExistente.NOMBRE_ASESOR || 'Sin asesor',
+          fechaCreacion: 'unknown',
+          segmentacion: {
+            tipo: segmentacion.tipo,
+            prioridad: segmentacion.prioridad,
+            emoji: segmentacion.emoji
+          },
+          mainDoubt,
+          crmLabel,
+          action: 'redirect_to_academy',
+          reason: 'buyer_status'
+        });
       } else {
         // Cliente existente pero no ha comprado, actualizar estado a LINK con datos CRM
         await updateCliente(clienteId, {
@@ -419,15 +437,19 @@ router.post('/formulario-soporte', async (req, res) => {
       const processingTime = Date.now() - startTime;
       if (webhookLogId) {
         try {
-          await updateWebhookLog({
-            id: webhookLogId,
-            status: 'success',
-            cliente_id: clienteId,
-            telegram_status: 'skipped',
-            telegram_error: 'Cliente redirigido a academia',
-            processing_time_ms: processingTime,
-            processed_at: new Date()
-          });
+                  await updateWebhookLog({
+          id: webhookLogId,
+          status: 'success',
+          cliente_id: clienteId,
+          telegram_status: 'skipped',
+          telegram_error: 'Cliente redirigido a academia - Ya es comprador',
+          processing_time_ms: processingTime,
+          processed_at: new Date(),
+          buyer_status: clienteExistente?.ESTADO || 'unknown',
+          buyer_previous_advisor: clienteExistente?.NOMBRE_ASESOR || undefined,
+          buyer_creation_date: undefined,
+          redirect_reason: 'buyer_status'
+        });
         } catch (updateError) {
           logger.error('Error finalizando webhook log (academia):', updateError);
         }

@@ -93,6 +93,11 @@ interface WebhookLog {
   // Log de procesamiento detallado
   processing_steps?: any[];
   fullLog?: any;
+  // Información de comprador para casos de soporte
+  buyer_status?: string;
+  buyer_previous_advisor?: string;
+  buyer_creation_date?: number;
+  redirect_reason?: string;
 }
 
 interface WebhookStats {
@@ -325,7 +330,7 @@ const WebhookLogs: React.FC = () => {
     if (log.telegram_status) {
       timeline.push({
         step: 'Procesamiento Telegram',
-        status: log.telegram_status === 'success' ? 'completed' : log.telegram_status === 'error' ? 'failed' : 'skipped',
+        status: log.telegram_status === 'success' ? 'completed' : log.telegram_status === 'error' ? 'failed' : log.redirect_reason === 'buyer_status' ? 'warning' : 'skipped',
         timestamp: log.processed_at || log.received_at,
         icon: <Telegram />
       });
@@ -345,6 +350,7 @@ const WebhookLogs: React.FC = () => {
       switch (status) {
         case 'completed': return 'success.main';
         case 'failed': return 'error.main';
+        case 'warning': return 'warning.main';
         case 'skipped': return 'grey.500';
         default: return 'info.main';
       }
@@ -364,7 +370,7 @@ const WebhookLogs: React.FC = () => {
               </Box>
               <Chip
                 label={item.status.toUpperCase()}
-                color={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'error' : 'default'}
+                color={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'error' : item.status === 'warning' ? 'warning' : 'default'}
                 size="small"
                 sx={{ mr: 1 }}
               />
@@ -499,8 +505,36 @@ const WebhookLogs: React.FC = () => {
               </Alert>
             )}
             {log.telegram_status === 'skipped' && (
-              <Alert severity="info" size="small" sx={{ mt: 1, fontSize: '0.75rem' }}>
-                No procesado (token no configurado o error de configuración)
+              <Alert 
+                severity={log.redirect_reason === 'buyer_status' ? 'warning' : 'info'} 
+                size="small" 
+                sx={{ mt: 1, fontSize: '0.75rem' }}
+              >
+                {log.redirect_reason === 'buyer_status' ? (
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                      🛍️ Cliente ya es comprador
+                    </Typography>
+                    <Typography variant="caption" component="div">
+                      Estado: <strong>{log.buyer_status}</strong>
+                    </Typography>
+                    {log.buyer_previous_advisor && (
+                      <Typography variant="caption" component="div">
+                        Asesor anterior: <strong>{log.buyer_previous_advisor}</strong>
+                      </Typography>
+                    )}
+                    {log.buyer_creation_date && (
+                      <Typography variant="caption" component="div">
+                        Cliente desde: <strong>{new Date(log.buyer_creation_date * 1000).toLocaleDateString()}</strong>
+                      </Typography>
+                    )}
+                    <Typography variant="caption" sx={{ fontStyle: 'italic' }}>
+                      Redirigido a soporte academia
+                    </Typography>
+                  </Box>
+                ) : (
+                  'No procesado (token no configurado o error de configuración)'
+                )}
               </Alert>
             )}
           </Card>

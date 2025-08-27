@@ -36,10 +36,6 @@ export class ScheduledMessageService {
     if (this.isRunning) return;
     
     this.isRunning = true;
-    console.log('🚀 [SCHEDULED MESSAGES] Servicio iniciado');
-    console.log(`🔧 [SCHEDULED MESSAGES] POSTGREST_URL: ${POSTGREST_URL}`);
-    console.log(`🔧 [SCHEDULED MESSAGES] Evolution API URL: ${process.env.VITE_EVOLUTIONAPI_URL || process.env.EVOLUTIONAPI_URL}`);
-    console.log(`🔧 [SCHEDULED MESSAGES] Evolution API Token: ${process.env.VITE_EVOLUTIONAPI_TOKEN || process.env.EVOLUTIONAPI_TOKEN ? 'CONFIGURADO' : 'NO CONFIGURADO'}`);
     
     // Verificar cada minuto si hay mensajes para enviar
     this.intervalId = setInterval(() => {
@@ -47,7 +43,6 @@ export class ScheduledMessageService {
     }, 60000); // 1 minuto
     
     // Ejecutar inmediatamente para verificar que funciona
-    console.log('🔍 [SCHEDULED MESSAGES] Ejecutando verificación inicial...');
     this.processScheduledMessages();
   }
 
@@ -62,8 +57,6 @@ export class ScheduledMessageService {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    
-    console.log('🛑 [SCHEDULED MESSAGES] Servicio detenido');
   }
 
   /**
@@ -72,16 +65,12 @@ export class ScheduledMessageService {
   private async processScheduledMessages(): Promise<void> {
     try {
       const now = new Date();
-      console.log(`🔍 [SCHEDULED MESSAGES] Verificando mensajes programados a las ${now.toISOString()}`);
       
       const messages = await this.getPendingMessages(now);
       
       if (messages.length === 0) {
-        console.log(`📭 [SCHEDULED MESSAGES] No hay mensajes programados pendientes`);
         return;
       }
-      
-      console.log(`📅 [SCHEDULED MESSAGES] Procesando ${messages.length} mensajes programados`);
       
       for (const message of messages) {
         await this.processMessage(message);
@@ -97,7 +86,6 @@ export class ScheduledMessageService {
   private async getPendingMessages(now: Date): Promise<ScheduledMessage[]> {
     try {
       const url = `${POSTGREST_URL}/chat_scheduled_messages?estado=eq.pendiente&fecha_envio=lte.${now.toISOString()}&order=fecha_envio.asc`;
-      console.log(`🔍 [SCHEDULED MESSAGES] Consultando: ${url}`);
       
       const response = await fetch(url);
       
@@ -108,7 +96,6 @@ export class ScheduledMessageService {
       }
       
       const data = await response.json();
-      console.log(`📊 [SCHEDULED MESSAGES] Respuesta de BD: ${JSON.stringify(data, null, 2)}`);
       return data || [];
     } catch (error) {
       console.error('❌ [SCHEDULED MESSAGES] Error obteniendo mensajes programados:', error);
@@ -121,8 +108,6 @@ export class ScheduledMessageService {
    */
   private async processMessage(message: ScheduledMessage): Promise<void> {
     try {
-      console.log(`📤 [SCHEDULED MESSAGES] Enviando mensaje programado ID: ${message.id}`);
-      
       // Marcar como procesando
       await this.updateMessageStatus(message.id, 'enviando');
       
@@ -132,19 +117,12 @@ export class ScheduledMessageService {
       if (success) {
         // Marcar como enviado
         await this.updateMessageStatus(message.id, 'enviado', new Date().toISOString());
-        console.log(`✅ [SCHEDULED MESSAGES] Mensaje ${message.id} enviado exitosamente`);
       } else {
         // Incrementar intentos
         const newAttempts = message.intentos + 1;
         const newStatus = newAttempts >= message.max_intentos ? 'error' : 'pendiente';
         
         await this.updateMessageAttempts(message.id, newAttempts, newStatus);
-        
-        if (newStatus === 'error') {
-          console.log(`❌ [SCHEDULED MESSAGES] Mensaje ${message.id} falló después de ${newAttempts} intentos`);
-        } else {
-          console.log(`🔄 [SCHEDULED MESSAGES] Mensaje ${message.id} reintentará (intento ${newAttempts}/${message.max_intentos})`);
-        }
       }
     } catch (error) {
       console.error(`❌ [SCHEDULED MESSAGES] Error procesando mensaje ${message.id}:`, error);
@@ -300,7 +278,6 @@ export class ScheduledMessageService {
       
       const responseData = await response.json();
       if (responseData && responseData.id) {
-        console.log(`📅 [SCHEDULED MESSAGES] Mensaje programado ID: ${responseData.id}`);
         return responseData.id;
       }
       
@@ -317,7 +294,6 @@ export class ScheduledMessageService {
   public async cancelMessage(id: number): Promise<void> {
     try {
       await this.updateMessageStatus(id, 'cancelado');
-      console.log(`❌ [SCHEDULED MESSAGES] Mensaje ${id} cancelado`);
     } catch (error) {
       console.error('Error cancelando mensaje:', error);
       throw error;

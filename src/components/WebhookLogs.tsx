@@ -26,7 +26,9 @@ import {
   MenuItem,
   Pagination,
   Tooltip,
-  LinearProgress
+  LinearProgress,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   ExpandMore,
@@ -139,6 +141,7 @@ const WebhookLogs: React.FC = () => {
   const [pageSize] = useState(50);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterFlujo, setFilterFlujo] = useState('');
+  const [detailTabValue, setDetailTabValue] = useState(0);
 
   const loadLogs = useCallback(async () => {
     try {
@@ -239,6 +242,7 @@ const WebhookLogs: React.FC = () => {
       
       if (data.success) {
         setSelectedLog(data.data);
+        setDetailTabValue(0); // Resetear a la primera pestaña
         setDetailDialogOpen(true);
       } else {
         toast.error('Error cargando detalle del log');
@@ -828,54 +832,196 @@ const WebhookLogs: React.FC = () => {
         <DialogContent>
           {selectedLog && (
             <Box>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>
-                    Información General
-                  </Typography>
-                  <Typography variant="body2"><strong>Evento:</strong> {selectedLog.event_type}</Typography>
-                  <Typography variant="body2"><strong>Flujo:</strong> {selectedLog.flujo}</Typography>
-                  <Typography variant="body2"><strong>Estado:</strong> {selectedLog.status}</Typography>
-                  <Typography variant="body2"><strong>Recibido:</strong> {new Date(selectedLog.received_at).toLocaleString()}</Typography>
-                  {selectedLog.processed_at && (
-                    <Typography variant="body2">
-                      <strong>Procesado:</strong> {new Date(selectedLog.processed_at).toLocaleString()}
+              {/* Pestañas del dialog */}
+              <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+                <Tabs 
+                  value={detailTabValue} 
+                  onChange={(_, newValue) => setDetailTabValue(newValue)}
+                  aria-label="detalles del webhook"
+                >
+                  <Tab label="Información General" />
+                  <Tab label="Log de Procesamiento" />
+                  <Tab label="Datos Raw" />
+                </Tabs>
+              </Box>
+
+              {/* Contenido de la pestaña 0: Información General */}
+              {detailTabValue === 0 && (
+                <Box>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="h6" gutterBottom>
+                        Información General
+                      </Typography>
+                      <Typography variant="body2"><strong>Evento:</strong> {selectedLog.event_type}</Typography>
+                      <Typography variant="body2"><strong>Flujo:</strong> {selectedLog.flujo}</Typography>
+                      <Typography variant="body2"><strong>Estado:</strong> {selectedLog.status}</Typography>
+                      <Typography variant="body2"><strong>Recibido:</strong> {new Date(selectedLog.received_at).toLocaleString()}</Typography>
+                      {selectedLog.processed_at && (
+                        <Typography variant="body2">
+                          <strong>Procesado:</strong> {new Date(selectedLog.processed_at).toLocaleString()}
+                        </Typography>
+                      )}
+                      <Typography variant="body2">
+                        <strong>Duración:</strong> {selectedLog.processing_time_ms || 0}ms
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="h6" gutterBottom>
+                        Estados de Integración
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>ManyChat:</strong> {getIntegrationChip(selectedLog.manychat_status)}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Flodesk:</strong> {getIntegrationChip(selectedLog.flodesk_status)}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Telegram:</strong> {getIntegrationChip(selectedLog.telegram_status)}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                  
+                  {/* Información del Comprador */}
+                  <Box mt={3}>
+                    <Typography variant="h6" gutterBottom>
+                      Información del Comprador
                     </Typography>
-                  )}
-                  <Typography variant="body2">
-                    <strong>Duración:</strong> {selectedLog.processing_time_ms || 0}ms
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} md={6}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="body2"><strong>Nombre:</strong> {selectedLog.buyer_name || 'N/A'}</Typography>
+                        <Typography variant="body2"><strong>Email:</strong> {selectedLog.buyer_email || 'N/A'}</Typography>
+                        <Typography variant="body2"><strong>WhatsApp:</strong> {selectedLog.buyer_phone || 'N/A'}</Typography>
+                        <Typography variant="body2"><strong>País:</strong> {selectedLog.buyer_country || 'N/A'}</Typography>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="body2"><strong>Producto:</strong> {selectedLog.product_name || 'N/A'}</Typography>
+                        <Typography variant="body2"><strong>Transacción:</strong> {selectedLog.transaction_id || 'N/A'}</Typography>
+                        {selectedLog.purchase_amount && (
+                          <Typography variant="body2"><strong>Monto:</strong> ${selectedLog.purchase_amount}</Typography>
+                        )}
+                        <Typography variant="body2"><strong>Fecha Compra:</strong> {selectedLog.purchase_date ? new Date(selectedLog.purchase_date).toLocaleString() : 'N/A'}</Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+
+                  {/* Información de Procesamiento */}
+                  <Box mt={3}>
+                    <Typography variant="h6" gutterBottom>
+                      Información de Procesamiento
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="body2"><strong>Cliente ID:</strong> {selectedLog.cliente_id || 'N/A'}</Typography>
+                        <Typography variant="body2"><strong>Asesor ID:</strong> {selectedLog.asesor_id || 'N/A'}</Typography>
+                        <Typography variant="body2"><strong>Asesor:</strong> {selectedLog.asesor_nombre || 'N/A'}</Typography>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        {selectedLog.error_message && (
+                          <Alert severity="error" sx={{ mb: 1 }}>
+                            <Typography variant="body2"><strong>Error:</strong> {selectedLog.error_message}</Typography>
+                          </Alert>
+                        )}
+                        {selectedLog.error_stack && (
+                          <Typography variant="caption" component="pre" sx={{ 
+                            backgroundColor: 'grey.100', 
+                            p: 1, 
+                            borderRadius: 1, 
+                            fontSize: '0.7rem',
+                            overflow: 'auto',
+                            maxHeight: '100px'
+                          }}>
+                            {selectedLog.error_stack}
+                          </Typography>
+                        )}
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Contenido de la pestaña 1: Log de Procesamiento */}
+              {detailTabValue === 1 && (
+                <Box>
                   <Typography variant="h6" gutterBottom>
-                    Estados de Integración
+                    Log de Procesamiento Completo
                   </Typography>
-                  <Typography variant="body2">
-                    <strong>ManyChat:</strong> {getIntegrationChip(selectedLog.manychat_status)}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Flodesk:</strong> {getIntegrationChip(selectedLog.flodesk_status)}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Telegram:</strong> {getIntegrationChip(selectedLog.telegram_status)}
-                  </Typography>
-                </Grid>
-              </Grid>
-              
-              {selectedLog.raw_webhook_data && (
-                <Box mt={3}>
+                  
+                  {/* Timeline de Procesamiento */}
+                  {renderProcessingTimeline(selectedLog)}
+                  
+                  {/* Detalles de Integraciones */}
+                  {renderIntegrationDetails(selectedLog)}
+                  
+                  {/* Información de Performance */}
+                  <Box mt={3}>
+                    <Typography variant="h6" gutterBottom>
+                      Métricas de Performance
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={4}>
+                        <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary.main">
+                            {selectedLog.processing_time_ms || 0}ms
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Tiempo Total
+                          </Typography>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="success.main">
+                            {selectedLog.status === 'success' ? '✅' : selectedLog.status === 'error' ? '❌' : '⏳'}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Estado Final
+                          </Typography>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="info.main">
+                            {[
+                              selectedLog.manychat_status,
+                              selectedLog.flodesk_status,
+                              selectedLog.telegram_status
+                            ].filter(s => s === 'success').length}/3
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Integraciones Exitosas
+                          </Typography>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Contenido de la pestaña 2: Datos Raw */}
+              {detailTabValue === 2 && (
+                <Box>
                   <Typography variant="h6" gutterBottom>
                     Datos Raw del Webhook
                   </Typography>
-                  <TextField
-                    multiline
-                    fullWidth
-                    minRows={10}
-                    value={JSON.stringify(selectedLog.raw_webhook_data, null, 2)}
-                    variant="outlined"
-                    InputProps={{ readOnly: true }}
-                    sx={{ fontFamily: 'monospace' }}
-                  />
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    Datos completos recibidos de Hotmart en formato JSON
+                  </Typography>
+                  {selectedLog.raw_webhook_data ? (
+                    <TextField
+                      multiline
+                      fullWidth
+                      minRows={15}
+                      value={JSON.stringify(selectedLog.raw_webhook_data, null, 2)}
+                      variant="outlined"
+                      InputProps={{ readOnly: true }}
+                      sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                    />
+                  ) : (
+                    <Alert severity="info">
+                      No hay datos raw disponibles para este webhook
+                    </Alert>
+                  )}
                 </Box>
               )}
             </Box>

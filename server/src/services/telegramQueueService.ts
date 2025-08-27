@@ -221,10 +221,31 @@ class TelegramQueueService {
     // Actualizar webhook log si existe
     if (message.webhookLogId) {
       try {
+        // Obtener log actual para actualizar processing_steps
+        const { getWebhookLogById } = await import('../dbClient');
+        const currentLog = await getWebhookLogById(message.webhookLogId);
+        
+        // Actualizar processing_steps para marcar telegram como completed
+        let updatedSteps = currentLog?.processing_steps || [];
+        const telegramStepIndex = updatedSteps.findIndex(step => 
+          step.step === 'telegram_integration' && step.message_id === message.id
+        );
+        
+        if (telegramStepIndex !== -1) {
+          updatedSteps[telegramStepIndex] = {
+            ...updatedSteps[telegramStepIndex],
+            status: 'completed',
+            result: 'message_sent',
+            telegram_message_id: result.result?.message_id?.toString(),
+            completed_at: new Date()
+          };
+        }
+        
         await updateWebhookLog({
           id: message.webhookLogId,
           telegram_status: 'success',
-          telegram_message_id: result.result?.message_id?.toString() || message.id
+          telegram_message_id: result.result?.message_id?.toString() || message.id,
+          processing_steps: updatedSteps
         });
         
         logger.info('Webhook log actualizado con éxito de Telegram', {

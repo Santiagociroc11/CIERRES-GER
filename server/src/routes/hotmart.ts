@@ -165,13 +165,13 @@ router.post('/webhook', async (req, res) => {
       // Continuar procesamiento aunque falle el logging
     }
 
-    // Actualizar status a processing
+    // Actualizar status a processing (después de agregar pasos iniciales)
     if (webhookLogId) {
       try {
         await updateWebhookLog({
           id: webhookLogId,
-          status: 'processing',
-          processing_steps: processingSteps
+          status: 'processing'
+          // No enviar processing_steps aquí - se actualizará al final
         });
       } catch (updateError) {
         logger.error('Error actualizando webhook log a processing:', updateError);
@@ -501,6 +501,16 @@ router.post('/webhook', async (req, res) => {
           
           telegramStatus = 'queued'; // Nuevo estado para indicar que está en cola
           telegramMessageId = messageId;
+          
+          // Agregar paso de procesamiento para Telegram
+          processingSteps.push({
+            step: 'telegram_integration',
+            status: 'queued',
+            message_id: messageId,
+            chat_id: ventaMessage.chat_id,
+            timestamp: new Date()
+          });
+          
           logger.info('Notificación de venta agregada a cola', { 
             asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR',
             messageId,
@@ -539,6 +549,16 @@ router.post('/webhook', async (req, res) => {
             
             telegramStatus = 'queued';
             telegramMessageId = messageId;
+            
+            // Agregar paso de procesamiento para Telegram
+            processingSteps.push({
+              step: 'telegram_integration',
+              status: 'queued',
+              message_id: messageId,
+              chat_id: asesorMessage.chat_id,
+              timestamp: new Date()
+            });
+            
             logger.info('Notificación agregada a cola para asesor', { 
               asesor: asesorAsignado.NOMBRE, 
               evento: flujo,

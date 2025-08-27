@@ -1374,13 +1374,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
             {/* Botones de Acción */}
             <div className="flex items-center space-x-2 lg:space-x-3">
-              <button
-                onClick={() => setMostrarModalCrearAsesor(true)}
-                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-              >
-                <UserCheck className="h-4 w-4" />
-                <span className="hidden lg:inline font-medium">Crear Asesor</span>
-              </button>
+              {/* Crear Asesor - Solo para admins completos */}
+              {adminRole === 'admin' && (
+                <button
+                  onClick={() => setMostrarModalCrearAsesor(true)}
+                  className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  <UserCheck className="h-4 w-4" />
+                  <span className="hidden lg:inline font-medium">Crear Asesor</span>
+                </button>
+              )}
               <button
                 onClick={exportarDatos}
                 className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
@@ -2668,14 +2671,17 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             )}
                           {/* Botones de acción */}
                           <div className="mt-4 flex justify-end space-x-2">
-                            <button
-                              onClick={() => setAsesorParaEditar(asesor)}
-                              className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200"
-                              title="Editar asesor"
-                            >
-                              <Edit className="h-4 w-4 mr-1" />
-                              Editar
-                            </button>
+                            {/* Editar Asesor - Solo para admins completos */}
+                            {adminRole === 'admin' && (
+                              <button
+                                onClick={() => setAsesorParaEditar(asesor)}
+                                className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200"
+                                title="Editar asesor"
+                              >
+                                <Edit className="h-4 w-4 mr-1" />
+                                Editar
+                              </button>
+                            )}
                             <button
                               onClick={() => setAsesorSeleccionado(asesor)}
                               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
@@ -2787,13 +2793,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                   <div className="flex justify-end space-x-2">
-                                    <button
-                                      onClick={() => setAsesorParaEditar(asesor)}
-                                      className="text-indigo-600 hover:text-indigo-900 p-1 rounded"
-                                      title="Editar"
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </button>
+                                    {/* Editar Asesor - Solo para admins completos */}
+                                    {adminRole === 'admin' && (
+                                      <button
+                                        onClick={() => setAsesorParaEditar(asesor)}
+                                        className="text-indigo-600 hover:text-indigo-900 p-1 rounded"
+                                        title="Editar"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => setAsesorSeleccionado(asesor)}
                                       className="text-blue-600 hover:text-blue-900 text-xs"
@@ -2843,6 +2852,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       bestRateByFuente={calculateBestRateByFuente(clientes, reportes, registros)}
                       onBack={() => setAsesorSeleccionado(null)}
                       onChat={setClienteParaChat}
+                      adminRole={adminRole}
                     />
                   )}
                 </div>
@@ -3448,13 +3458,14 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         />
       )}
 
-      {mostrarModalCrearAsesor && (
+      {/* Modales de gestión de asesores - Solo para admins completos */}
+      {mostrarModalCrearAsesor && adminRole === 'admin' && (
         <CrearAsesorModal
           onClose={() => setMostrarModalCrearAsesor(false)}
           onAsesorCreado={cargarDatos}
         />
       )}
-      {asesorParaEditar && (
+      {asesorParaEditar && adminRole === 'admin' && (
         <EditarAsesorModal
           asesor={asesorParaEditar}
           onClose={() => setAsesorParaEditar(null)}

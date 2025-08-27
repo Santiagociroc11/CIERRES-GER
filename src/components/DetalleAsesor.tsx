@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Cliente, Reporte, Asesor, EstadisticasDetalladas, Registro } from '../types';
+import { Cliente, Reporte, Asesor, EstadisticasDetalladas, Registro, AdminRole } from '../types';
 import {
   Users,
   TrendingUp,
@@ -47,6 +47,7 @@ interface DetalleAsesorProps {
   teamStatsByFuente: Record<string, number>;
   bestRateByFuente: Record<string, number>;
   onChat?: (cliente: Cliente) => void;
+  adminRole?: AdminRole;
 }
 
 type VistaDetalle = 'general' | 'clientes' | 'metricas' | 'fuentes';
@@ -63,7 +64,8 @@ export default function DetalleAsesor({
   onBack,
   teamStatsByFuente,
   bestRateByFuente,
-  onChat
+  onChat,
+  adminRole = 'admin'
 }: DetalleAsesorProps) {
   const [vistaActual, setVistaActual] = useState<VistaDetalle>('general');
 
@@ -290,6 +292,7 @@ export default function DetalleAsesor({
           onChat={onChat || (() => {})}
           readOnly
           admin={true}
+          adminRole={adminRole}
         />
       )}
 

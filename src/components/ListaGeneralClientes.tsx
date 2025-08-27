@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cliente, Reporte, Registro, EstadoCliente, esEstadoCritico, Asesor } from '../types';
+import { Cliente, Reporte, Registro, EstadoCliente, esEstadoCritico, Asesor, AdminRole } from '../types';
 import {
   Search,
   Phone,
@@ -29,6 +29,7 @@ interface ListaGeneralClientesProps {
   onChat: (cliente: Cliente) => void;
   admin: boolean;
   readOnly?: boolean;
+  adminRole?: AdminRole;
 }
 
 export default function ListaGeneralClientes({
@@ -39,6 +40,7 @@ export default function ListaGeneralClientes({
   onChat,
   admin,
   readOnly = false,
+  adminRole = 'admin'
 }: ListaGeneralClientesProps) {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<EstadoCliente | 'TODOS'>('TODOS');
@@ -430,7 +432,7 @@ export default function ListaGeneralClientes({
                       Consolidar Venta
                     </button>
                   )}
-                  {readOnly && (
+                  {readOnly && adminRole === 'admin' && (
                     <div className="mr-2">
                       <ReasignarCliente
                         clienteId={cliente.ID}
@@ -612,7 +614,7 @@ export default function ListaGeneralClientes({
                           <span>Consolidar</span>
                         </button>
                       )}
-                      {readOnly && (
+                      {readOnly && adminRole === 'admin' && (
                         <div>
                           <ReasignarCliente
                             clienteId={cliente.ID}

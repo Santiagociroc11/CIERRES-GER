@@ -474,7 +474,7 @@ router.post('/webhook', async (req, res) => {
     }
 
     // Variables para tracking de Telegram
-    let telegramStatus: 'success' | 'error' | 'skipped' = 'skipped';
+    let telegramStatus: 'success' | 'error' | 'skipped' | 'queued' = 'skipped';
     let telegramChatId = '';
     let telegramMessageId = '';
     let telegramError = '';
@@ -491,7 +491,7 @@ router.post('/webhook', async (req, res) => {
           const messageId = telegramQueue.enqueueMessage(
             ventaMessage.chat_id,
             ventaMessage.text,
-            webhookLogId,
+            webhookLogId || undefined,
             { 
               type: 'venta',
               asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR',
@@ -528,7 +528,7 @@ router.post('/webhook', async (req, res) => {
             const messageId = telegramQueue.enqueueMessage(
               asesorMessage.chat_id,
               asesorMessage.text,
-              webhookLogId,
+              webhookLogId || undefined,
               { 
                 type: 'asesor_notification',
                 asesor: asesorAsignado.NOMBRE,

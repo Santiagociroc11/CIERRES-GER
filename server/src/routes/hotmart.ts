@@ -929,7 +929,8 @@ router.get('/telegram-queue-stats', async (_req, res) => {
   try {
     const stats = telegramQueue.getQueueStats();
     const queue = telegramQueue.getQueue();
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const config = await getHotmartConfig();
+    const botToken = config.tokens.telegram;
     
     res.json({
       success: true,
@@ -1010,7 +1011,8 @@ router.get('/telegram-queue-debug', async (_req, res) => {
   try {
     const stats = telegramQueue.getQueueStats();
     const queue = telegramQueue.getQueue();
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const config = await getHotmartConfig();
+    const botToken = config.tokens.telegram;
     const now = Date.now();
     
     const diagnosis = {
@@ -1065,6 +1067,52 @@ router.get('/telegram-queue-debug', async (_req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error en diagnóstico'
+    });
+  }
+});
+
+// Endpoint para forzar la lectura del token desde configuración
+router.post('/telegram-queue-reload-config', async (_req, res) => {
+  try {
+    // Solo forzar verificación de configuración
+    const config = await getHotmartConfig();
+    const botToken = config.tokens.telegram;
+    
+    if (!botToken) {
+      return res.json({
+        success: false,
+        error: 'Token de Telegram no configurado en el sistema',
+        message: 'Ve a Configuración → Tokens API → Telegram Bot Token'
+      });
+    }
+
+    // Probar el token
+    const testResponse = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+    const testData = await testResponse.json();
+
+    if (testData.ok) {
+      res.json({
+        success: true,
+        message: 'Configuración recargada exitosamente. La cola debería funcionar ahora.',
+        data: {
+          botUsername: testData.result.username,
+          botName: testData.result.first_name,
+          tokenConfigured: true,
+          queueStats: telegramQueue.getQueueStats()
+        }
+      });
+    } else {
+      res.json({
+        success: false,
+        error: 'Token de Telegram inválido',
+        details: testData.description
+      });
+    }
+  } catch (error) {
+    logger.error('Error recargando configuración de Telegram', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error verificando configuración'
     });
   }
 });

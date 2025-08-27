@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Cliente, Asesor, Reporte, EstadisticasAsesor, EstadoCliente } from '../types';
-import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send, User, Smartphone, LogOut, Plus, Search, MessageCircle, Phone, Edit, CheckCircle, ShoppingCart } from 'lucide-react';
+import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send, User, Smartphone, LogOut } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
 import ClientesPendientes from './ClientesPendientes';
 import ActualizarEstadoCliente from './ActualizarEstadoCliente';
@@ -36,17 +36,7 @@ const getActiveClasses = (color?: 'red' | 'yellow' | 'blue') => {
   }
 };
 
-const getHoverClasses = (color?: 'red' | 'yellow' | 'blue') => {
-  switch (color) {
-    case 'red':
-      return 'hover:border-red-300 hover:text-red-500 hover:bg-red-25';
-    case 'yellow':
-      return 'hover:border-yellow-300 hover:text-yellow-500 hover:bg-yellow-25';
-    case 'blue':
-    default:
-      return 'hover:border-blue-300 hover:text-blue-500 hover:bg-blue-25';
-  }
-};
+
 
 interface WhatsAppModalProps {
   isOpen: boolean;
@@ -372,6 +362,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     ventasRealizadas: 0,
     ventasPrincipal: 0,
     ventasDownsell: 0,
+    ventasReportadas: 0,
+    ventasSinReportar: 0,
     seguimientosPendientes: 0,
     seguimientosCompletados: 0,
     porcentajeCierre: 0,
@@ -408,39 +400,18 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   }, [asesor.ID]);
 
   useEffect(() => {
-    // ⚡ MEJORA UX: Permitir que la plataforma cargue primero antes de verificar WhatsApp
-    // Esto evita que el modal de "WhatsApp no conectado" aparezca inmediatamente,
-    // proporcionando una mejor experiencia de usuario donde el dashboard se carga
-    // normalmente y la verificación ocurre en segundo plano
+    // ⚡ MEJORA: Verificación inicial optimizada sin reintentos innecesarios
     const verificarConexionInicial = async () => {
       console.log('🔍 [WhatsApp] Iniciando verificación de conexión para:', asesor.NOMBRE);
       console.log('🔍 [WhatsApp] Tipo de dispositivo:', /Mobi|Android/i.test(navigator.userAgent) ? 'MÓVIL' : 'DESKTOP');
       
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 segundos de retraso
+      // Delay inicial para permitir que el dashboard cargue
+      await new Promise(resolve => setTimeout(resolve, 1500));
       setVerificandoWhatsApp(true);
       
       try {
-        console.log('🔍 [WhatsApp] Ejecutando primera verificación...');
-        await refreshConnection();
-        
-        // 🚀 MEJORA MÓVIL: Si no obtuvimos información válida, reintentar
-        if (!instanceInfo || instanceInfo.connectionStatus !== "open") {
-          console.log('⚠️ [WhatsApp] Primera verificación sin éxito, reintentando en 3 segundos...');
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          console.log('🔍 [WhatsApp] Ejecutando segundo intento...');
-          await refreshConnection();
-          
-          // Tercer intento si es necesario
-          if (!instanceInfo || instanceInfo.connectionStatus !== "open") {
-            console.log('⚠️ [WhatsApp] Segundo intento sin éxito, último intento en 5 segundos...');
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            
-            console.log('🔍 [WhatsApp] Ejecutando tercer y último intento...');
-            await refreshConnection();
-          }
-        }
-        
+        console.log('🔍 [WhatsApp] Verificando estado de conexión...');
+        await refreshConnectionOptimized();
         console.log('✅ [WhatsApp] Verificación completada. Estado final:', instanceInfo?.connectionStatus || 'SIN_INFO');
       } catch (error) {
         console.error('❌ [WhatsApp] Error en verificación inicial:', error);
@@ -454,19 +425,47 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
   useEffect(() => {
     if (showWhatsAppModal) {
-      refreshConnection();
+      refreshConnectionOptimized();
     }
   }, [showWhatsAppModal, asesor.NOMBRE]);
 
   useEffect(() => {
     let pollingInterval: NodeJS.Timeout | undefined;
+    let pollingAttempts = 0;
+    const maxAttempts = 10; // Máximo 10 intentos = ~5 minutos
+    
     if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
-      pollingInterval = setInterval(() => {
-        refreshConnection();
-      }, 30000);
+      const poll = () => {
+        if (pollingAttempts >= maxAttempts) {
+          console.log('⏹️ [WhatsApp] Polling detenido: máximo de intentos alcanzado');
+          return;
+        }
+        
+        pollingAttempts++;
+        const delay = Math.min(30000, 10000 * Math.pow(1.5, pollingAttempts - 1)); // Backoff exponencial
+        console.log(`🔄 [WhatsApp] Polling intento ${pollingAttempts}/${maxAttempts} en ${delay/1000}s`);
+        
+        pollingInterval = setTimeout(async () => {
+          try {
+            await refreshConnectionOptimized();
+            if (instanceInfo?.connectionStatus === "open") {
+              console.log('✅ [WhatsApp] Conectado! Deteniendo polling');
+              return; // Detener polling si se conectó
+            }
+            poll(); // Continuar polling si no está conectado
+          } catch (error) {
+            console.error('❌ [WhatsApp] Error en polling:', error);
+            poll(); // Continuar polling incluso con errores
+          }
+        }, delay);
+      };
+      
+      // Iniciar polling después de 15 segundos
+      setTimeout(poll, 15000);
     }
+    
     return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
+      if (pollingInterval) clearTimeout(pollingInterval);
     };
   }, [showWhatsAppModal, instanceInfo]);
 
@@ -482,7 +481,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     return clientes.filter(cliente => {
       const ultimoReporte = reportes
         .filter(r => r.ID_CLIENTE === cliente.ID)
-        .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
+        .sort((a, b) => parseInt(b.FECHA_REPORTE) - parseInt(a.FECHA_REPORTE))[0];
       
       if (!ultimoReporte || ultimoReporte.ESTADO_NUEVO === 'PAGADO' || ultimoReporte.ESTADO_NUEVO === 'VENTA CONSOLIDADA') {
         return false;
@@ -588,7 +587,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             if (!tieneReporteVenta) {
               const ultimoReporte = reportesData
                 .filter(r => r.ID_CLIENTE === cliente.ID)
-                .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
+                .sort((a, b) => parseInt(b.FECHA_REPORTE) - parseInt(a.FECHA_REPORTE))[0];
               if (ultimoReporte) return { ...cliente, ESTADO: ultimoReporte.ESTADO_NUEVO as EstadoCliente };
             }
           }
@@ -621,22 +620,24 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         const seguimientosPendientes = reportesData.filter(r =>
           r.FECHA_SEGUIMIENTO &&
           !r.COMPLETADO &&
-          r.FECHA_SEGUIMIENTO >= Math.floor(Date.now() / 1000)
+          parseInt(r.FECHA_SEGUIMIENTO) >= Math.floor(Date.now() / 1000)
         ).length;
         const seguimientosCompletados = reportesData.filter(r => r.COMPLETADO).length;
         const totalSeguimientos = seguimientosPendientes + seguimientosCompletados;
 
-        const ventasConFecha = reportesData.filter(r =>
-          (r.ESTADO_NUEVO === 'PAGADO' || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA') &&
-          r.cliente?.FECHA_CREACION &&
-          r.FECHA_REPORTE
-        );
+        const ventasConFecha = reportesData.filter(r => {
+          const cliente = clientesData.find(c => c.ID === r.ID_CLIENTE);
+          return (r.ESTADO_NUEVO === 'PAGADO' || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA') &&
+                 cliente?.FECHA_CREACION &&
+                 r.FECHA_REPORTE;
+        });
         const tiempoPromedioConversion = ventasConFecha.length > 0
           ? ventasConFecha.reduce((acc, venta) => {
-              const tiempoConversion = venta.FECHA_REPORTE -
-                (typeof venta.cliente?.FECHA_CREACION === 'string'
-                  ? parseInt(venta.cliente.FECHA_CREACION)
-                  : venta.cliente?.FECHA_CREACION || 0);
+              const cliente = clientesData.find(c => c.ID === venta.ID_CLIENTE);
+              const fechaCreacion = typeof cliente?.FECHA_CREACION === 'string'
+                ? parseInt(cliente.FECHA_CREACION)
+                : cliente?.FECHA_CREACION || 0;
+              const tiempoConversion = parseInt(venta.FECHA_REPORTE) - fechaCreacion;
               return acc + tiempoConversion;
             }, 0) / ventasConFecha.length / (24 * 60 * 60)
           : 0;
@@ -648,6 +649,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           ventasRealizadas,
           ventasPrincipal,
           ventasDownsell,
+          ventasReportadas: ventasRealizadas,
+          ventasSinReportar: clientesProcesados.length - ventasRealizadas,
           seguimientosPendientes,
           seguimientosCompletados,
           porcentajeCierre: clientesProcesados.length ? (ventasRealizadas / clientesProcesados.length) * 100 : 0,
@@ -675,32 +678,49 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       readStatus: false,
       syncFullHistory: false,
     };
+    
     try {
       setIsLoadingWhatsApp(true);
       setShowWhatsAppModal(true);
-      const response = await fetch(`${evolutionServerUrl}/instance/create`, {
+      console.log("🆕 Creando nueva instancia WhatsApp...");
+      
+      const response = await fetchWithTimeout(`${evolutionServerUrl}/instance/create`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "apikey": evolutionApiKey,
         },
         body: JSON.stringify(payload),
-      });
-      if (!response.ok) throw new Error("No se pudo crear la instancia");
+      }, 15000); // Timeout de 15 segundos para creación
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error creando instancia: ${response.status} - ${errorText}`);
+      }
+      
       await response.json();
-      await setChatwootIntegration(asesor.NOMBRE);
-      await refreshConnection();
+      console.log("✅ Instancia creada exitosamente");
+      
+      // Configurar Chatwoot
+      try {
+        await setChatwootIntegration(asesor.NOMBRE);
+      } catch (chatwootError) {
+        console.warn("⚠️ Error configurando Chatwoot (no crítico):", chatwootError);
+      }
+      
+      // Verificar estado y obtener QR
+      setTimeout(() => refreshConnectionOptimized(), 2000);
       setWhatsappStatus("Desconectado");
       showToast("Instancia creada, escanea el QR para conectar", "success");
     } catch (error) {
-      console.error("Error creando instancia:", error);
+      console.error("❌ Error creando instancia:", error);
       showToast("Error al crear la instancia de WhatsApp", "error");
     } finally {
       setIsLoadingWhatsApp(false);
     }
   };
 
-  const setChatwootIntegration = async (instanceName) => {
+  const setChatwootIntegration = async (instanceName: string) => {
     try {
       const url = `${evolutionServerUrl}/chatwoot/set/${encodeURIComponent(instanceName)}`;
       const payload = {
@@ -718,167 +738,164 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         daysLimitImportMessages: 1,
         autoCreate: true
       };
-      const response = await fetch(url, {
+      
+      console.log("🔗 Configurando integración Chatwoot...");
+      const response = await fetchWithTimeout(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "apikey": evolutionApiKey,
         },
         body: JSON.stringify(payload)
-      });
+      }, 10000); // Timeout de 10 segundos
+      
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Error al configurar Chatwoot: ${response.status} - ${errorText}`);
+        throw new Error(`Error configurando Chatwoot: ${response.status} - ${errorText}`);
       }
+      
       const data = await response.json();
-      console.log("Chatwoot integration set:", data);
+      console.log("✅ Chatwoot configurado exitosamente");
       return data;
     } catch (error) {
-      console.error("Error in setChatwootIntegration:", error);
-      showToast("Error al configurar Chatwoot", "error");
+      console.error("❌ Error configurando Chatwoot:", error);
+      // No mostrar toast aquí ya que es manejado desde handleCreateInstance
+      throw error;
     }
   };
 
-  const handleInstanceConnect = async () => {
+  // Versión optimizada con timeout y detección QR simplificada
+  const handleInstanceConnectOptimized = async () => {
     try {
       setIsLoadingWhatsApp(true);
       const url = `${evolutionServerUrl}/instance/connect/${encodeURIComponent(asesor.NOMBRE)}`;
-      console.log("🔗 Fetching QR from:", url);
-      console.log("🔑 API Key:", evolutionApiKey ? "✅ Present" : "❌ Missing");
-      console.log("🏠 Server URL:", evolutionServerUrl);
+      console.log("🔗 Obteniendo QR desde:", url);
       
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           "apikey": evolutionApiKey,
         },
-      });
-      
-      console.log("📡 Response status:", response.status);
-      console.log("📡 Response ok:", response.ok);
+      }, 10000); // Timeout de 10 segundos para QR
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("❌ Response error text:", errorText);
-        throw new Error(`Error al obtener el QR de conexión: ${response.status} - ${errorText}`);
+        throw new Error(`Error al obtener QR: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
-      console.log("📦 Full response data:", data);
-      console.log("📦 Data keys:", Object.keys(data));
+      console.log("📦 Respuesta QR recibida");
       
-      // Verificar todas las posibles ubicaciones del QR
-      if (data.instance) {
-        console.log("🔍 data.instance exists:", data.instance);
-        console.log("🔍 data.instance keys:", Object.keys(data.instance));
-        if (data.instance.base64) {
-          console.log("✅ QR found in data.instance.base64");
-          console.log("📸 QR preview:", data.instance.base64.substring(0, 50) + "...");
-          setQrCode(data.instance.base64);
-        } else {
-          console.log("❌ No base64 in data.instance");
-        }
+      // Detección simplificada de QR en orden de prioridad
+      const qrCode = data.instance?.base64 || data.base64 || data.qr || data.qrcode || null;
+      
+      if (qrCode) {
+        console.log("✅ QR encontrado exitosamente");
+        setQrCode(qrCode);
       } else {
-        console.log("❌ data.instance does not exist");
-      }
-      
-      if (data.base64) {
-        console.log("✅ QR found in data.base64");
-        console.log("📸 QR preview:", data.base64.substring(0, 50) + "...");
-        setQrCode(data.base64);
-      } else {
-        console.log("❌ No data.base64 found");
-      }
-      
-      // Verificar otras posibles ubicaciones
-      if (data.qr) {
-        console.log("✅ QR found in data.qr:", data.qr);
-        setQrCode(data.qr);
-      }
-      
-      if (data.qrcode) {
-        console.log("✅ QR found in data.qrcode:", data.qrcode);
-        setQrCode(data.qrcode);
-      }
-      
-      // Si no se encontró en ningún lugar
-      if (!data.instance?.base64 && !data.base64 && !data.qr && !data.qrcode) {
-        console.log("❌ No QR found anywhere in response");
+        console.log("❌ No se encontró código QR en la respuesta");
         setQrCode(null);
       }
       
     } catch (error) {
-      console.error("💥 Error in handleInstanceConnect:", error);
+      console.error("❌ Error obteniendo QR:", error);
+      setQrCode(null);
     } finally {
       setIsLoadingWhatsApp(false);
     }
   };
 
-  const refreshConnection = async () => {
-    console.log('🔄 [WhatsApp] Refrescando conexión...');
+
+
+  // Función helper para crear fetch con timeout
+  const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number = 8000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
     try {
-      await handleInstanceConnect();
-      await handleFetchInstanceInfo();
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Timeout después de ${timeoutMs}ms`);
+      }
+      throw error;
+    }
+  };
+
+  // Versión optimizada de refresh connection
+  const refreshConnectionOptimized = async () => {
+    console.log('🔄 [WhatsApp] Refrescando conexión (optimizado)...');
+    try {
+      // Primero verificar si la instancia existe
+      await handleFetchInstanceInfoOptimized();
+      
+      // Solo obtener QR si no está conectado y no tenemos QR
+      if (instanceInfo?.connectionStatus !== "open" && !qrCode) {
+        await handleInstanceConnectOptimized();
+      }
+      
       console.log('✅ [WhatsApp] Conexión refrescada exitosamente');
     } catch (error) {
       console.error('❌ [WhatsApp] Error refrescando conexión:', error);
     }
   };
 
-  const handleFetchInstanceInfo = async () => {
+  // Función de compatibilidad (mantener para no romper código existente)
+  const refreshConnection = async () => {
+    await refreshConnectionOptimized();
+  };
+
+  // Versión optimizada con timeout
+  const handleFetchInstanceInfoOptimized = async () => {
     try {
       setIsLoadingWhatsApp(true);
       const instanceName = encodeURIComponent(asesor.NOMBRE);
       const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${instanceName}`;
       
-      console.log('📡 [WhatsApp] Obteniendo info de instancia:', url);
-      console.log('📡 [WhatsApp] Usuario:', asesor.NOMBRE);
+      console.log('📡 [WhatsApp] Verificando estado de instancia...');
     
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           "apikey": evolutionApiKey,
         },
-      });
-      
-      console.log('📡 [WhatsApp] Response status:', response.status);
+      }, 8000); // Timeout de 8 segundos
       
       if (!response.ok) {
-        console.error('❌ [WhatsApp] Error en response:', response.status);
-        throw new Error("Error al obtener la información de la instancia");
+        throw new Error(`Error al obtener información de instancia: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log('📦 [WhatsApp] Response data:', data);
       
       if (Array.isArray(data) && data.length > 0) {
         const instance = data[0];
         console.log('✅ [WhatsApp] Instancia encontrada:', {
-          connectionStatus: instance.connectionStatus,
-          profileName: instance.profileName,
-          ownerJid: instance.ownerJid
+          status: instance.connectionStatus,
+          profile: instance.profileName || 'Sin nombre'
         });
         
         setInstanceInfo(instance);
-        if (instance.connectionStatus === "open") {
-          setWhatsappStatus("Conectado");
-          console.log('🎉 [WhatsApp] Estado: CONECTADO');
-        } else if (instance.connectionStatus === "connecting") {
-          setWhatsappStatus("Desconectado");
-          console.log('⏳ [WhatsApp] Estado: CONECTANDO');
-        } else {
-          setWhatsappStatus("Desconectado");
-          console.log('❌ [WhatsApp] Estado: DESCONECTADO');
-        }
+        
+        // Actualizar estado basado en conexión
+        const newStatus = instance.connectionStatus === "open" ? "Conectado" : "Desconectado";
+        setWhatsappStatus(newStatus);
+        
+        console.log(`🔗 [WhatsApp] Estado actualizado: ${newStatus}`);
       } else {
-        console.log('❌ [WhatsApp] No se encontró instancia');
+        console.log('❌ [WhatsApp] Instancia no encontrada');
         setInstanceInfo(null);
         setWhatsappStatus("Desconectado");
       }
     } catch (error) {
-      console.error("❌ [WhatsApp] Error in handleFetchInstanceInfo:", error);
+      console.error("❌ [WhatsApp] Error obteniendo info de instancia:", error);
       setInstanceInfo(null);
       setWhatsappStatus("Desconectado");
     } finally {
@@ -886,28 +903,34 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
+
+
   const handleDisconnectInstance = async () => {
     try {
       setIsLoadingWhatsApp(true);
       const url = `${evolutionServerUrl}/instance/logout/${encodeURIComponent(asesor.NOMBRE)}`;
-      console.log("Disconnect URL:", url);
-      const response = await fetch(url, {
+      console.log("🔌 Desconectando WhatsApp...");
+      
+      const response = await fetchWithTimeout(url, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
           "apikey": evolutionApiKey,
         },
-      });
+      }, 10000); // Timeout de 10 segundos
+      
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Error al desconectar la instancia: ${response.status} - ${errorText}`);
+        throw new Error(`Error al desconectar: ${response.status} - ${errorText}`);
       }
+      
       setWhatsappStatus("Desconectado");
       setInstanceInfo(null);
+      setQrCode(null);
       showToast("WhatsApp desconectado", "success");
-      await refreshConnection();
+      console.log("✅ WhatsApp desconectado exitosamente");
     } catch (error) {
-      console.error("Error desconectando instancia:", error);
+      console.error("❌ Error desconectando instancia:", error);
       showToast("Error al desconectar WhatsApp", "error");
     } finally {
       setIsLoadingWhatsApp(false);
@@ -918,25 +941,31 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     try {
       setIsLoadingWhatsApp(true);
       const url = `${evolutionServerUrl}/instance/delete/${encodeURIComponent(asesor.NOMBRE)}`;
-      console.log("Delete URL:", url);
-      const response = await fetch(url, {
+      console.log("🗑️ Eliminando instancia WhatsApp...");
+      
+      const response = await fetchWithTimeout(url, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
           "apikey": evolutionApiKey,
         },
-      });
+      }, 10000); // Timeout de 10 segundos
+      
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Error al eliminar la instancia: ${response.status} - ${errorText}`);
+        throw new Error(`Error al eliminar instancia: ${response.status} - ${errorText}`);
       }
+      
       setWhatsappStatus("Desconectado");
       setInstanceInfo(null);
       setQrCode(null);
       showToast("Instancia eliminada correctamente", "success");
-      await refreshConnection();
+      console.log("✅ Instancia eliminada exitosamente");
+      
+      // Pequeño delay antes de verificar estado
+      setTimeout(() => refreshConnectionOptimized(), 1000);
     } catch (error) {
-      console.error("Error eliminando instancia:", error);
+      console.error("❌ Error eliminando instancia:", error);
       showToast("Error al eliminar la instancia", "error");
     } finally {
       setIsLoadingWhatsApp(false);
@@ -952,7 +981,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     try {
       setIsLoadingTelegram(true);
       
-      const response = await apiClient.request(`/GERSSON_ASESORES?ID=eq.${asesor.ID}`, 'PATCH', {
+      await apiClient.request(`/GERSSON_ASESORES?ID=eq.${asesor.ID}`, 'PATCH', {
         ID_TG: telegramId.trim()
       });
 
@@ -1265,7 +1294,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         qrCode={qrCode}
         isLoadingWhatsApp={isLoadingWhatsApp}
         onCreateInstance={handleCreateInstance}
-        onRefreshInstance={refreshConnection}
+        onRefreshInstance={refreshConnectionOptimized}
         onDisconnect={handleDisconnectInstance}
         onDeleteInstance={handleDeleteInstance}
       />

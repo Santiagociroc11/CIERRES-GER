@@ -409,17 +409,11 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         processedMessages.clear();
       }
 
-      // ⚡ OPTIMIZACIÓN: Verificar asesor PRIMERO antes de procesar el mensaje
-      console.log('👥 Asesores disponibles:', asesores.map(a => ({ ID: a.ID, NOMBRE: a.NOMBRE })));
-      console.log('🔍 Buscando asesor para instance:', eventData.instance);
       
       const asesor = asesores.find(a => a.NOMBRE.trim().toLowerCase() === (eventData.instance || '').trim().toLowerCase());
       console.log('✅ Asesor encontrado:', asesor);
       
       if (!asesor) {
-        console.log('❌ No se procesa: asesor no encontrado para instance:', eventData.instance);
-        console.log('   - Instance recibida:', eventData.instance);
-        console.log('   - Asesores disponibles:', asesores.map(a => a.NOMBRE));
         return; // Salir temprano - NO procesar mensajes de instancias sin asesor
       }
 
@@ -505,11 +499,6 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         console.error('❌ Error guardando mensaje:', err);
       }
     } else {
-      console.log('❌ Estructura de data inválida para messages.upsert');
-      console.log('   - data existe:', !!data);
-      console.log('   - data.data existe:', !!(data && data.data));
-      console.log('   - data.data.key existe:', !!(data && data.data && data.data.key));
-      console.log('   - data.data.message existe:', !!(data && data.data && data.data.message));
     }
   });
   

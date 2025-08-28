@@ -171,13 +171,6 @@ router.post('/webhook', async (req, res) => {
     let datosProcesados = await asignarValores(datosComprador);
     
     // Si falta el teléfono, intentar obtenerlo de la API de Hotmart
-    logger.info('DEBUG: Verificando si falta teléfono', {
-      numero: datosProcesados.numero,
-      hasTransaction: !!body.data?.purchase?.transaction,
-      transaction: body.data?.purchase?.transaction,
-      conditionResult: !datosProcesados.numero && body.data?.purchase?.transaction
-    });
-    
     if (!datosProcesados.numero && body.data?.purchase?.transaction) {
       logger.info('Teléfono faltante, consultando API de Hotmart', {
         transactionId: body.data.purchase.transaction
@@ -196,23 +189,9 @@ router.post('/webhook', async (req, res) => {
         datosProcesados
       );
       
-      logger.info('DEBUG: Resultado de consulta API', {
-        success: apiResult.success,
-        hasData: !!apiResult.data,
-        error: apiResult.error,
-        source: apiResult.source
-      });
-      
       if (apiResult.success && apiResult.data) {
         // Actualizar datos con información de la API
-        const datosAnteriores = { ...datosProcesados };
         datosProcesados = { ...datosProcesados, ...apiResult.data };
-        
-        logger.info('DEBUG: Datos actualizados con API', {
-          numeroAnterior: datosAnteriores.numero,
-          numeroNuevo: datosProcesados.numero,
-          datosAPI: apiResult.data
-        });
         
         processingSteps.push({
           step: 'hotmart_api_lookup',
@@ -233,6 +212,25 @@ router.post('/webhook', async (req, res) => {
           phoneObtained: !!apiResult.data.numero,
           source: apiResult.source
         });
+
+        // ✅ IMPORTANTE: Actualizar webhook log con número obtenido de API
+        if (webhookLogId && apiResult.data.numero) {
+          try {
+            await updateWebhookLog({
+              id: webhookLogId,
+              buyer_phone: apiResult.data.numero,
+              buyer_name: apiResult.data.nombre || undefined,
+              buyer_email: apiResult.data.correo || undefined,
+              buyer_country: apiResult.data.pais || undefined
+            });
+            logger.info('Webhook log actualizado con datos de API', {
+              webhookLogId,
+              phoneUpdated: !!apiResult.data.numero
+            });
+          } catch (updateError) {
+            logger.error('Error actualizando webhook log con datos de API:', updateError);
+          }
+        }
       } else {
         processingSteps.push({
           step: 'hotmart_api_lookup',

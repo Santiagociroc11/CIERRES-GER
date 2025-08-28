@@ -61,6 +61,11 @@ export interface WebhookLogUpdate {
   // Información de comprador para casos de soporte
   buyer_status?: string;
   buyer_previous_advisor?: string;
+  // Campos de comprador que pueden actualizarse desde API de Hotmart
+  buyer_phone?: string;
+  buyer_name?: string;
+  buyer_email?: string;
+  buyer_country?: string;
   buyer_creation_date?: number;
   redirect_reason?: string;
 }

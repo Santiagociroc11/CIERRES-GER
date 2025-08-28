@@ -76,7 +76,8 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
           numericos: hotmartConfig.numericos || {},
           flodesk: hotmartConfig.flodesk || {},
           tokens: hotmartConfig.tokens || {},
-          telegram: hotmartConfig.telegram || {}
+          telegram: hotmartConfig.telegram || {},
+          api: hotmartConfig.api || {}
         },
         soporte: {
           phoneNumbers: soporteConfig?.phoneNumbers || {}
@@ -92,7 +93,8 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
           numericos: {},
           flodesk: {},
           tokens: {},
-          telegram: {}
+          telegram: {},
+          api: {}
         },
         soporte: {
           phoneNumbers: {}
@@ -146,7 +148,8 @@ export async function updateHotmartConfig(hotmartConfig: WebhookConfig['hotmart'
       numericos: false,
       flodesk: false,
       tokens: false,
-      telegram: false
+      telegram: false,
+      api: false
     };
 
     // Intentar actualizar numericos
@@ -180,9 +183,17 @@ export async function updateHotmartConfig(hotmartConfig: WebhookConfig['hotmart'
     } catch (error) {
       console.error('Error actualizando telegram:', error);
     }
+
+    // Intentar actualizar api
+    try {
+      updateResults.api = await updateWebhookConfigInDB('hotmart', 'api', hotmartConfig.api, 'system');
+      console.log('Sección api actualizada:', updateResults.api);
+    } catch (error) {
+      console.error('Error actualizando api:', error);
+    }
     
-    const allSuccess = updateResults.numericos && updateResults.flodesk && updateResults.tokens && updateResults.telegram;
-    const someSuccess = updateResults.numericos || updateResults.flodesk || updateResults.tokens || updateResults.telegram;
+    const allSuccess = updateResults.numericos && updateResults.flodesk && updateResults.tokens && updateResults.telegram && updateResults.api;
+    const someSuccess = updateResults.numericos || updateResults.flodesk || updateResults.tokens || updateResults.telegram || updateResults.api;
     
     if (allSuccess) {
       console.log('Configuración de Hotmart actualizada exitosamente en BD');

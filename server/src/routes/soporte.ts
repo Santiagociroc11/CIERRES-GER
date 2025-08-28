@@ -275,12 +275,32 @@ router.post('/formulario-soporte', async (req, res) => {
 
     // 1. Buscar cliente existente (usando los últimos 6 dígitos como en N8N)
     const ultimosSeis = whatsappLimpio.slice(-6);
-    const clienteExistente = await getClienteByWhatsapp(`%${ultimosSeis}`);
+    let clienteExistente = await getClienteByWhatsapp(`%${ultimosSeis}`);
+    
+    // Si no encuentra por WhatsApp, log para debugging
+    if (!clienteExistente && nombre) {
+      logger.info('Cliente no encontrado por WhatsApp en soporte', {
+        nombre,
+        whatsappBuscado: ultimosSeis,
+        whatsappCompleto: whatsappLimpio
+      });
+    }
     
     const currentTimestamp = Math.floor(Date.now() / 1000);
     let clienteId: number;
     let asesorAsignado = null;
     let shouldRedirectToAcademy = false;
+    
+    // Si dice que ya compró (VIP_POST_VENTA) pero no está en BD, dirigir a academia
+    if (segmentacion.tipo === 'VIP_POST_VENTA' && !clienteExistente) {
+      shouldRedirectToAcademy = true;
+      logger.warn('🚨 VIP_POST_VENTA sin registro en BD - Redirigir a academia', {
+        nombre,
+        whatsapp: whatsappLimpio,
+        ultimosSeis,
+        reason: 'client_claims_purchased_but_not_in_db'
+      });
+    }
 
     // Variables para tracking de resultados de integraciones
     let telegramStatus: 'success' | 'error' | 'skipped' | 'queued' = 'skipped';

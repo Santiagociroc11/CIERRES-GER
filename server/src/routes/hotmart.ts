@@ -605,9 +605,22 @@ router.post('/webhook', async (req, res) => {
           telegramError = error instanceof Error ? error.message : 'Error agregando a cola';
           logger.error('Error agregando notificación de venta a cola', error);
         }
-      } else {
-        // Notificar al asesor asignado para eventos no-compra
-        if (asesorAsignado?.ID_TG) {
+              } else {
+         // Verificar si el cliente ya compró (VIP post venta) - NO notificar asesor
+         const esVipPostVenta = clienteExistente && 
+           (clienteExistente.ESTADO === 'PAGADO' || clienteExistente.ESTADO === 'VENTA CONSOLIDADA');
+         
+         if (esVipPostVenta) {
+           telegramStatus = 'skipped';
+           telegramError = 'Cliente VIP post venta - no se notifica asesor';
+           logger.info('Cliente VIP post venta detectado - no se envía notificación a asesor', { 
+             flujo, 
+             cliente: datosProcesados.nombre,
+             estado: clienteExistente.ESTADO
+           });
+         }
+         // Notificar al asesor asignado solo para prospectos (no VIP post venta)
+         else if (asesorAsignado?.ID_TG) {
           const asesorMessage = createAsesorNotificationMessage(
             flujo,
             datosProcesados.nombre,

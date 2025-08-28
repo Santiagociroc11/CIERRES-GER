@@ -10,7 +10,7 @@ import { scheduledMessageService } from './services/scheduledMessageService';
 import telegramBot from './services/telegramBot';
 import apiRoutes from './routes/api';
 import hotmartRoutes from './routes/hotmart';
-import { getLIDsSinMapear } from './dbClient';
+import { getLIDsSinMapear, getConversacionesPorAsesor, getMensajesConversacion } from './dbClient';
 
 // Configurar variables de entorno
 dotenv.config();
@@ -98,6 +98,40 @@ app.get('/api/lids-sin-mapear', async (req, res) => {
     res.json(lids);
   } catch (error) {
     console.error('❌ Error obteniendo LIDs sin mapear:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 🆕 Ruta para obtener conversaciones de un asesor
+app.get('/api/conversaciones/:asesorId', async (req, res) => {
+  try {
+    const asesorId = parseInt(req.params.asesorId);
+    if (isNaN(asesorId)) {
+      return res.status(400).json({ error: 'ID de asesor inválido' });
+    }
+    
+    const conversaciones = await getConversacionesPorAsesor(asesorId);
+    res.json(conversaciones);
+  } catch (error) {
+    console.error('❌ Error obteniendo conversaciones por asesor:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 🆕 Ruta para obtener mensajes de una conversación específica
+app.get('/api/mensajes/:asesorId/:clienteKey', async (req, res) => {
+  try {
+    const asesorId = parseInt(req.params.asesorId);
+    const clienteKey = req.params.clienteKey;
+    
+    if (isNaN(asesorId)) {
+      return res.status(400).json({ error: 'ID de asesor inválido' });
+    }
+    
+    const mensajes = await getMensajesConversacion(asesorId, clienteKey);
+    res.json(mensajes);
+  } catch (error) {
+    console.error('❌ Error obteniendo mensajes de conversación:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

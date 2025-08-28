@@ -72,6 +72,15 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [conversaciones, setConversaciones] = useState<any[]>([]);
   const [lidsSinMapear, setLidsSinMapear] = useState<any[]>([]);
   const [cargandoLids, setCargandoLids] = useState(false);
+  
+  // 🆕 Estados para Chat Global
+  const [asesorSeleccionadoChat, setAsesorSeleccionadoChat] = useState<Asesor | null>(null);
+  const [conversacionesChat, setConversacionesChat] = useState<any[]>([]);
+  const [conversacionActivaChat, setConversacionActivaChat] = useState<any>(null);
+  const [mensajesChat, setMensajesChat] = useState<any[]>([]);
+  const [cargandoConversacionesChat, setCargandoConversacionesChat] = useState(false);
+  const [cargandoMensajesChat, setCargandoMensajesChat] = useState(false);
+  
   const [conexionesEstado, setConexionesEstado] = useState<Record<number, {
     whatsapp: 'conectado' | 'desconectado' | 'conectando' | 'verificando';
     telegram: boolean;
@@ -104,7 +113,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [vistaAsesores, setVistaAsesores] = useState<'cards' | 'tabla'>('cards');
 
   // Estado para alternar entre vista de Asesores y Clientes
-  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks' | 'lids'>('asesores');
+  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks' | 'lids' | 'chat-global'>('asesores');
   
   // Estado para alternar entre modo admin y asesor
   const [modoAsesor, setModoAsesor] = useState(false);
@@ -474,6 +483,65 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       console.error("❌ Error cargando LIDs sin mapear:", error);
     } finally {
       setCargandoLids(false);
+    }
+  };
+
+  // 🆕 Funciones para Chat Global
+  const cargarConversacionesChat = async (asesorId: number) => {
+    console.log("🔄 Cargando conversaciones para asesor:", asesorId);
+    setCargandoConversacionesChat(true);
+    try {
+      const response = await fetch(`/api/conversaciones/${asesorId}`);
+      if (response.ok) {
+        const conversaciones = await response.json();
+        setConversacionesChat(conversaciones);
+        console.log("✅ Conversaciones cargadas:", conversaciones.length);
+        
+        // Seleccionar automáticamente la primera conversación si existe
+        if (conversaciones.length > 0 && !conversacionActivaChat) {
+          setConversacionActivaChat(conversaciones[0]);
+        }
+      } else {
+        console.error("❌ Error cargando conversaciones:", response.status);
+      }
+    } catch (error) {
+      console.error("❌ Error cargando conversaciones:", error);
+    } finally {
+      setCargandoConversacionesChat(false);
+    }
+  };
+
+  const cargarMensajesChat = async (asesorId: number, clienteKey: string) => {
+    console.log("🔄 Cargando mensajes para:", clienteKey);
+    setCargandoMensajesChat(true);
+    try {
+      const response = await fetch(`/api/mensajes/${asesorId}/${encodeURIComponent(clienteKey)}`);
+      if (response.ok) {
+        const mensajes = await response.json();
+        setMensajesChat(mensajes);
+        console.log("✅ Mensajes cargados:", mensajes.length);
+      } else {
+        console.error("❌ Error cargando mensajes:", response.status);
+      }
+    } catch (error) {
+      console.error("❌ Error cargando mensajes:", error);
+    } finally {
+      setCargandoMensajesChat(false);
+    }
+  };
+
+  const seleccionarAsesorChat = (asesor: Asesor) => {
+    setAsesorSeleccionadoChat(asesor);
+    setConversacionActivaChat(null);
+    setMensajesChat([]);
+    cargarConversacionesChat(asesor.ID);
+  };
+
+  const seleccionarConversacionChat = (conversacion: any) => {
+    setConversacionActivaChat(conversacion);
+    if (asesorSeleccionadoChat) {
+      const clienteKey = conversacion.id_cliente || conversacion.wha_cliente;
+      cargarMensajesChat(asesorSeleccionadoChat.ID, clienteKey);
     }
   };
 
@@ -1631,6 +1699,22 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </span>
                   </button>
                 )}
+
+                {/* Chat Global */}
+                <button
+                  onClick={() => setVistaAdmin('chat-global')}
+                  className={`
+                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                    ${vistaAdmin === 'chat-global'
+                      ? 'bg-indigo-600 text-white shadow-lg border-2 border-indigo-600'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
+                    }
+                  `}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  <span className="font-semibold">Chat Global</span>
+                  <div className="text-xs opacity-75 hidden sm:block">Supervisión</div>
+                </button>
               </div>
 
               {/* Métricas Rápidas */}
@@ -3463,6 +3547,260 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   <div className="text-center py-12">
                     <RefreshCcw className="mx-auto h-8 w-8 text-gray-400 animate-spin" />
                     <p className="mt-2 text-sm text-gray-500">Cargando LIDs sin mapear...</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : vistaAdmin === 'chat-global' ? (
+          <div className="h-screen flex flex-col bg-gray-100">
+            {/* Header del Chat Global */}
+            <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <MessageSquare className="mr-3 h-8 w-8 text-indigo-600" />
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Chat Global</h2>
+                    <p className="text-gray-600">Supervisión de conversaciones en tiempo real</p>
+                  </div>
+                </div>
+                {asesorSeleccionadoChat && (
+                  <div className="flex items-center space-x-4">
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">{asesorSeleccionadoChat.NOMBRE}</p>
+                      <p className="text-xs text-gray-500">{conversacionesChat.length} conversaciones</p>
+                    </div>
+                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                      <Users className="h-5 w-5 text-indigo-600" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 flex overflow-hidden">
+              {/* Sidebar - Selección de Asesor */}
+              <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+                {/* Selector de Asesor */}
+                <div className="p-4 border-b border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Seleccionar Asesor
+                  </label>
+                  <select
+                    value={asesorSeleccionadoChat?.ID || ''}
+                    onChange={(e) => {
+                      const asesorId = parseInt(e.target.value);
+                      const asesor = asesores.find(a => a.ID === asesorId);
+                      if (asesor) seleccionarAsesorChat(asesor);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Seleccionar asesor...</option>
+                    {asesores.map(asesor => (
+                      <option key={asesor.ID} value={asesor.ID}>
+                        {asesor.NOMBRE}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Lista de Conversaciones */}
+                <div className="flex-1 overflow-y-auto">
+                  {cargandoConversacionesChat ? (
+                    <div className="flex items-center justify-center p-8">
+                      <RefreshCcw className="h-6 w-6 text-gray-400 animate-spin" />
+                      <span className="ml-2 text-gray-500">Cargando conversaciones...</span>
+                    </div>
+                  ) : conversacionesChat.length > 0 ? (
+                    <div className="divide-y divide-gray-200">
+                      {conversacionesChat.map((conversacion, index) => (
+                        <div
+                          key={index}
+                          onClick={() => seleccionarConversacionChat(conversacion)}
+                          className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
+                            conversacionActivaChat === conversacion ? 'bg-indigo-50 border-r-2 border-indigo-500' : ''
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center">
+                                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3">
+                                  <Users className="h-5 w-5 text-gray-500" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">
+                                    {conversacion.nombre_cliente || 'Cliente sin nombre'}
+                                  </p>
+                                  <p className="text-xs text-gray-500 truncate">
+                                    {conversacion.wha_cliente?.includes('@lid') 
+                                      ? `LID: ${conversacion.wha_cliente.substring(0, 12)}...`
+                                      : conversacion.wha_cliente
+                                    }
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                <p className="text-sm text-gray-600 truncate">
+                                  <span className={conversacion.ultimo_modo === 'entrante' ? 'text-blue-600' : 'text-green-600'}>
+                                    {conversacion.ultimo_modo === 'entrante' ? '👤 ' : '👨‍💼 '}
+                                  </span>
+                                  {conversacion.ultimo_mensaje}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="ml-2 flex flex-col items-end">
+                              <span className="text-xs text-gray-400">
+                                {formatDistanceToNow(new Date(conversacion.ultimo_timestamp * 1000), { 
+                                  addSuffix: true, 
+                                  locale: es 
+                                })}
+                              </span>
+                              {conversacion.total_mensajes > 0 && (
+                                <span className="mt-1 bg-indigo-100 text-indigo-800 text-xs font-medium px-2 py-1 rounded-full">
+                                  {conversacion.total_mensajes}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : asesorSeleccionadoChat ? (
+                    <div className="flex items-center justify-center p-8">
+                      <MessageSquare className="h-12 w-12 text-gray-400 mb-2" />
+                      <p className="text-gray-500 text-center">
+                        No hay conversaciones para este asesor
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center p-8">
+                      <Users className="h-12 w-12 text-gray-400 mb-2" />
+                      <p className="text-gray-500 text-center">
+                        Selecciona un asesor para ver sus conversaciones
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Área Principal - Mensajes */}
+              <div className="flex-1 flex flex-col">
+                {conversacionActivaChat ? (
+                  <>
+                    {/* Header de la conversación */}
+                    <div className="bg-white border-b border-gray-200 px-6 py-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mr-4">
+                            <Users className="h-6 w-6 text-gray-500" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {conversacionActivaChat.nombre_cliente || 'Cliente sin nombre'}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              {conversacionActivaChat.wha_cliente?.includes('@lid') 
+                                ? `LID: ${conversacionActivaChat.wha_cliente}`
+                                : conversacionActivaChat.wha_cliente
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
+                            {conversacionActivaChat.total_mensajes} mensajes
+                          </span>
+                          <button
+                            onClick={() => {
+                              if (asesorSeleccionadoChat && conversacionActivaChat) {
+                                const clienteKey = conversacionActivaChat.id_cliente || conversacionActivaChat.wha_cliente;
+                                cargarMensajesChat(asesorSeleccionadoChat.ID, clienteKey);
+                              }
+                            }}
+                            className="p-2 text-gray-400 hover:text-gray-600"
+                          >
+                            <RefreshCcw className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Área de mensajes */}
+                    <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+                      {cargandoMensajesChat ? (
+                        <div className="flex items-center justify-center h-full">
+                          <RefreshCcw className="h-8 w-8 text-gray-400 animate-spin" />
+                          <span className="ml-2 text-gray-500">Cargando mensajes...</span>
+                        </div>
+                      ) : mensajesChat.length > 0 ? (
+                        <div className="space-y-4">
+                          {mensajesChat.map((mensaje, index) => (
+                            <div
+                              key={index}
+                              className={`flex ${
+                                mensaje.modo === 'saliente' ? 'justify-end' : 'justify-start'
+                              }`}
+                            >
+                              <div
+                                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg shadow-sm ${
+                                  mensaje.modo === 'saliente'
+                                    ? 'bg-indigo-500 text-white'
+                                    : 'bg-white text-gray-900 border border-gray-200'
+                                }`}
+                              >
+                                <p className="text-sm">{mensaje.mensaje}</p>
+                                <p className={`text-xs mt-1 ${
+                                  mensaje.modo === 'saliente' ? 'text-indigo-100' : 'text-gray-500'
+                                }`}>
+                                  {new Date(mensaje.timestamp * 1000).toLocaleTimeString('es-ES', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                  {mensaje.estado && (
+                                    <span className="ml-2">
+                                      {mensaje.estado === 'leido' && '✓✓'}
+                                      {mensaje.estado === 'entregado' && '✓'}
+                                      {mensaje.estado === 'enviado' && '○'}
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <MessageSquare className="h-12 w-12 text-gray-400 mb-2" />
+                          <p className="text-gray-500 text-center">
+                            No hay mensajes en esta conversación
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Área de envío de mensajes (solo lectura por ahora) */}
+                    <div className="bg-white border-t border-gray-200 px-6 py-4">
+                      <div className="bg-gray-100 text-gray-500 px-4 py-3 rounded-lg text-center">
+                        <MessageSquare className="h-5 w-5 mx-auto mb-1" />
+                        <p className="text-sm">Modo supervisión - Solo lectura</p>
+                        <p className="text-xs">Para enviar mensajes, usa el chat modal individual</p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center bg-gray-50">
+                    <div className="text-center">
+                      <MessageSquare className="h-24 w-24 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        {asesorSeleccionadoChat ? 'Selecciona una conversación' : 'Bienvenido al Chat Global'}
+                      </h3>
+                      <p className="text-gray-500 max-w-sm">
+                        {asesorSeleccionadoChat 
+                          ? 'Elige una conversación de la lista para ver los mensajes'
+                          : 'Selecciona un asesor y luego una conversación para comenzar la supervisión'
+                        }
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

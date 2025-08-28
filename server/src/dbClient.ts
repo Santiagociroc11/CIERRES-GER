@@ -230,6 +230,99 @@ export async function actualizarMapeoLID(lid: string): Promise<void> {
   }
 }
 
+// 🆕 FUNCIÓN PARA OBTENER CONVERSACIONES AGRUPADAS POR CLIENTE PARA UN ASESOR
+export async function getConversacionesPorAsesor(asesorId: number): Promise<any[]> {
+  try {
+    console.log(`🔍 Obteniendo conversaciones para asesor ID: ${asesorId}`);
+    
+    // Obtener conversaciones del asesor agrupadas por cliente/whatsapp
+    const url = `${POSTGREST_URL}/conversaciones?id_asesor=eq.${asesorId}&select=*&order=timestamp.desc&limit=1000`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Error HTTP ${response.status} obteniendo conversaciones: ${errorText}`);
+      return [];
+    }
+    
+    const conversaciones = await response.json();
+    
+    // Agrupar por cliente/whatsapp y obtener la información más reciente
+    const conversacionesAgrupadas = conversaciones.reduce((acc: any, conv: any) => {
+      const key = conv.id_cliente || conv.wha_cliente; // Usar id_cliente si existe, sino wha_cliente
+      
+      if (!acc[key]) {
+        acc[key] = {
+          id_cliente: conv.id_cliente,
+          wha_cliente: conv.wha_cliente,
+          nombre_cliente: conv.nombre_cliente || 'Sin nombre',
+          ultimo_mensaje: conv.mensaje,
+          ultimo_timestamp: conv.timestamp,
+          total_mensajes: 0,
+          mensajes_no_leidos: 0,
+          ultimo_modo: conv.modo
+        };
+      }
+      
+      acc[key].total_mensajes++;
+      
+      // Actualizar con el mensaje más reciente
+      if (conv.timestamp > acc[key].ultimo_timestamp) {
+        acc[key].ultimo_mensaje = conv.mensaje;
+        acc[key].ultimo_timestamp = conv.timestamp;
+        acc[key].ultimo_modo = conv.modo;
+      }
+      
+      return acc;
+    }, {});
+    
+    // Convertir a array y ordenar por último mensaje
+    const resultado = Object.values(conversacionesAgrupadas)
+      .sort((a: any, b: any) => b.ultimo_timestamp - a.ultimo_timestamp);
+    
+    console.log(`✅ Encontradas ${resultado.length} conversaciones agrupadas para asesor ${asesorId}`);
+    return resultado;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo conversaciones por asesor:', error);
+    return [];
+  }
+}
+
+// 🆕 FUNCIÓN PARA OBTENER MENSAJES DE UNA CONVERSACIÓN ESPECÍFICA
+export async function getMensajesConversacion(asesorId: number, clienteKey: string): Promise<any[]> {
+  try {
+    console.log(`🔍 Obteniendo mensajes para asesor ${asesorId}, cliente: ${clienteKey}`);
+    
+    // Determinar si es un ID de cliente o WhatsApp
+    const isClienteId = !isNaN(Number(clienteKey)) && !clienteKey.includes('@');
+    
+    let url = `${POSTGREST_URL}/conversaciones?id_asesor=eq.${asesorId}&order=timestamp.asc&limit=500`;
+    
+    if (isClienteId) {
+      url += `&id_cliente=eq.${clienteKey}`;
+    } else {
+      url += `&wha_cliente=eq.${encodeURIComponent(clienteKey)}`;
+    }
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Error HTTP ${response.status} obteniendo mensajes: ${errorText}`);
+      return [];
+    }
+    
+    const mensajes = await response.json();
+    console.log(`✅ Encontrados ${mensajes.length} mensajes para la conversación`);
+    return mensajes;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo mensajes de conversación:', error);
+    return [];
+  }
+}
+
 // 🆕 FUNCIÓN PARA OBTENER LIDs SIN MAPEAR
 export async function getLIDsSinMapear(): Promise<any[]> {
   try {

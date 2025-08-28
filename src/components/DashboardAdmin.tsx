@@ -81,6 +81,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [cargandoConversacionesChat, setCargandoConversacionesChat] = useState(false);
   const [cargandoMensajesChat, setCargandoMensajesChat] = useState(false);
   const [filtroChatGlobal, setFiltroChatGlobal] = useState<'todos' | 'mapeados' | 'lids' | 'pendientes'>('todos');
+  const [anchoListaChat, setAnchoListaChat] = useState(350); // Ancho inicial de la lista de chats
+  const [redimensionando, setRedimensionando] = useState(false);
   
   // 🆕 Función para obtener nombre del cliente
   const obtenerNombreCliente = (conversacion: any) => {
@@ -96,7 +98,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     if (conversacion.wha_cliente) {
       // Verificar si es un LID sin mapear
       if (conversacion.wha_cliente.includes('@lid')) {
-        return `LID Sin Mapear: ${conversacion.wha_cliente.substring(0, 12)}...`;
+        return `LID Sin Mapear: ${conversacion.wha_cliente}`;
       }
       
       // Buscar por WhatsApp en la base de clientes
@@ -106,7 +108,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       }
       
       // Si no se encuentra, mostrar como desconocido
-      return `Cliente Desconocido: ${conversacion.wha_cliente.substring(0, 12)}...`;
+      return `Cliente Desconocido: ${conversacion.wha_cliente}`;
     }
     
     // Fallback
@@ -158,6 +160,42 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     }
     return conversacionesChat;
   }, [conversacionesChat, filtroChatGlobal]);
+
+  // 🆕 Funciones para redimensionar la lista de chats
+  const iniciarRedimensionamiento = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setRedimensionando(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const redimensionar = (e: MouseEvent) => {
+    if (!redimensionando) return;
+    
+    const nuevoAncho = e.clientX;
+    if (nuevoAncho >= 250 && nuevoAncho <= 600) { // Límites mínimo y máximo
+      setAnchoListaChat(nuevoAncho);
+    }
+  };
+
+  const detenerRedimensionamiento = () => {
+    setRedimensionando(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+
+  // 🆕 Event listeners para el redimensionamiento
+  useEffect(() => {
+    if (redimensionando) {
+      document.addEventListener('mousemove', redimensionar);
+      document.addEventListener('mouseup', detenerRedimensionamiento);
+      
+      return () => {
+        document.removeEventListener('mousemove', redimensionar);
+        document.removeEventListener('mouseup', detenerRedimensionamiento);
+      };
+    }
+  }, [redimensionando]);
   
   const [conexionesEstado, setConexionesEstado] = useState<Record<number, {
     whatsapp: 'conectado' | 'desconectado' | 'conectando' | 'verificando';
@@ -3341,12 +3379,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           return (
                             <tr key={cliente.ID} className="hover:bg-gray-50">
                               <td className={`px-4 py-3 text-sm text-gray-800 ${borderClass}`}>
-                                <div className="truncate max-w-[150px]">
+                                <div className="break-words max-w-[150px]">
                                   {cliente.NOMBRE}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-700">
-                                <div className="truncate max-w-[120px]">
+                                <div className="break-all max-w-[120px]">
                                   {cliente.WHATSAPP}
                                 </div>
                               </td>
@@ -3362,14 +3400,14 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-700">
-                                <div className="truncate max-w-[100px]">
+                                <div className="break-words max-w-[100px]">
                                   {ultimoReporte ? ultimoReporte.PRODUCTO : 'Sin definir'}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-sm">
                                 {ultimoReporte ? (
                                   <div className="flex flex-col">
-                                    <span className="text-gray-700 truncate">
+                                    <span className="text-gray-700 break-words">
                                       {formatDate(ultimoReporte.FECHA_REPORTE)}
                                     </span>
                                     <span className="text-xs text-gray-500">
@@ -3384,7 +3422,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                               </td>
                               <td className="px-4 py-3 text-sm">
                                 {asesorAsignado ? (
-                                  <span className={`truncate max-w-[120px] inline-block ${!ultimoReporte ? "text-red-700 font-bold" : "text-gray-800"}`}>
+                                  <span className={`break-words max-w-[120px] inline-block ${!ultimoReporte ? "text-red-700 font-bold" : "text-gray-800"}`}>
                                     {asesorAsignado.NOMBRE}
                                   </span>
                                 ) : (
@@ -3599,10 +3637,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       return (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900 font-mono">
-                              {lid.lid.substring(0, 15)}...
-                            </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-sm font-medium text-gray-900 font-mono break-all">
                               {lid.lid}
                             </div>
                           </td>
@@ -3623,7 +3658,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             {formatDistanceToNow(new Date(lid.ultima_conversacion * 1000), { addSuffix: true, locale: es })}
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-sm text-gray-900 max-w-xs truncate">
+                            <div className="text-sm text-gray-900 max-w-xs break-words">
                               {lid.ultimo_mensaje || 'Sin mensaje'}
                             </div>
                           </td>
@@ -3657,9 +3692,18 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     <p className="mt-2 text-sm text-gray-500">Cargando LIDs sin mapear...</p>
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
+                                  </div>
+                  </div>
+                  
+                  {/* 🆕 Resizer para redimensionar la lista de chats */}
+                  <div
+                    className="w-1 bg-gray-300 hover:bg-indigo-400 cursor-col-resize transition-colors duration-200 flex-shrink-0"
+                    onMouseDown={iniciarRedimensionamiento}
+                    title="Arrastra para redimensionar"
+                  >
+                    <div className="w-1 h-full bg-transparent hover:bg-indigo-500 transition-colors duration-200" />
+                  </div>
+                </div>
         ) : vistaAdmin === 'chat-global' ? (
           <div className="h-screen flex flex-col bg-gray-100">
             {/* Header del Chat Global */}
@@ -3702,7 +3746,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
             <div className="flex-1 flex overflow-hidden">
               {/* Sidebar - Selección de Asesor */}
-              <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+              <div 
+                className="bg-white border-r border-gray-200 flex flex-col"
+                style={{ width: `${anchoListaChat}px` }}
+              >
                 {/* Selector de Asesor */}
                 <div className="p-4 border-b border-gray-200">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -3728,7 +3775,21 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   {/* Estadísticas de conversaciones */}
                   {asesorSeleccionadoChat && conversacionesChat.length > 0 && (
                     <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                      <div className="text-xs font-medium text-gray-700 mb-2">Resumen de Conversaciones</div>
+                                              <div className="flex items-center justify-between mb-2">
+                          <div className="text-xs font-medium text-gray-700">Resumen de Conversaciones</div>
+                          <div className="flex items-center space-x-2">
+                            <div className="text-xs text-indigo-600 font-mono">
+                              {anchoListaChat}px
+                            </div>
+                            <button
+                              onClick={() => setAnchoListaChat(350)}
+                              className="text-xs text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 px-1 py-0.5 rounded"
+                              title="Resetear ancho"
+                            >
+                              ↺
+                            </button>
+                          </div>
+                        </div>
                       <div className="space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-600">Mostrando:</span>
@@ -3841,7 +3902,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center space-x-2 mb-1">
-                                    <p className={`text-sm font-medium truncate ${
+                                    <p className={`text-sm font-medium break-words ${
                                       obtenerTipoCliente(conversacion) === 'lid-sin-mapear' 
                                         ? 'text-red-700' 
                                         : 'text-gray-900'
@@ -3865,7 +3926,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-xs text-gray-500 truncate">
+                                  <p className="text-xs text-gray-500 break-all">
                                     {conversacion.wha_cliente?.includes('@lid') 
                                       ? `LID: ${conversacion.wha_cliente}`
                                       : conversacion.wha_cliente
@@ -3879,7 +3940,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                 </div>
                               </div>
                               <div className="mt-2">
-                                <p className="text-sm text-gray-600 truncate">
+                                <p className="text-sm text-gray-600 break-words">
                                   <span className={conversacion.ultimo_modo === 'entrante' ? 'text-blue-600' : 'text-green-600'}>
                                     {conversacion.ultimo_modo === 'entrante' ? '👤 ' : '👨‍💼 '}
                                   </span>
@@ -3939,6 +4000,31 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* 🆕 Resizer para redimensionar la lista de chats */}
+              <div
+                className={`w-1 cursor-col-resize transition-colors duration-200 flex-shrink-0 relative group ${
+                  redimensionando 
+                    ? 'bg-indigo-500' 
+                    : 'bg-gray-300 hover:bg-indigo-400'
+                }`}
+                onMouseDown={iniciarRedimensionamiento}
+                title="Arrastra para redimensionar"
+              >
+                <div className={`w-1 h-full transition-colors duration-200 ${
+                  redimensionando ? 'bg-indigo-600' : 'bg-transparent hover:bg-indigo-500'
+                }`} />
+                {/* Indicador visual de redimensionamiento */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <div className="w-0.5 h-8 bg-indigo-400 rounded-full"></div>
+                </div>
+                {/* Indicador de redimensionamiento activo */}
+                {redimensionando && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-0.5 h-12 bg-indigo-600 rounded-full animate-pulse"></div>
+                  </div>
+                )}
               </div>
 
               {/* Área Principal - Mensajes */}
@@ -4316,12 +4402,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           return (
                             <tr key={cliente.ID} className="hover:bg-gray-50">
                               <td className={`px-4 py-3 text-sm text-gray-800 ${borderClass}`}>
-                                <div className="truncate max-w-[150px]">
+                                <div className="break-words max-w-[150px]">
                                   {cliente.NOMBRE}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-700">
-                                <div className="truncate max-w-[120px]">
+                                <div className="break-all max-w-[120px]">
                                   {cliente.WHATSAPP}
                                 </div>
                               </td>
@@ -4337,14 +4423,14 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-700">
-                                <div className="truncate max-w-[100px]">
+                                <div className="break-words max-w-[100px]">
                                   {ultimoReporte ? ultimoReporte.PRODUCTO : 'Sin definir'}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-sm">
                                 {ultimoReporte ? (
                                   <div className="flex flex-col">
-                                    <span className="text-gray-700 truncate">
+                                    <span className="text-gray-700 break-words">
                                       {formatDate(ultimoReporte.FECHA_REPORTE)}
                                     </span>
                                     <span className="text-xs text-gray-500">
@@ -4359,7 +4445,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                               </td>
                               <td className="px-4 py-3 text-sm">
                                 {asesorAsignado ? (
-                                  <span className={`truncate max-w-[120px] inline-block ${!ultimoReporte ? "text-red-700 font-bold" : "text-gray-800"}`}>
+                                  <span className={`break-words max-w-[120px] inline-block ${!ultimoReporte ? "text-red-700 font-bold" : "text-gray-800"}`}>
                                     {asesorAsignado.NOMBRE}
                                   </span>
                                 ) : (

@@ -473,18 +473,47 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
   useEffect(() => {
     if (showWhatsAppModal) {
-      refreshConnection();
+      // ✅ CORREGIDO: Solo refrescar si la instancia existe
+      const checkAndRefresh = async () => {
+        try {
+          const instanceExists = await checkInstanceExists();
+          if (instanceExists) {
+            console.log('✅ [WhatsApp] Modal abierto, instancia existe, refrescando...');
+            await refreshConnection();
+          } else {
+            console.log('ℹ️ [WhatsApp] Modal abierto, no hay instancia, saltando refresh');
+            setWhatsappStatus("Sin Configurar");
+          }
+        } catch (error) {
+          console.log('⚠️ [WhatsApp] Error verificando instancia en modal:', error);
+          setWhatsappStatus("Error de Verificación");
+        }
+      };
+      
+      checkAndRefresh();
     }
   }, [showWhatsAppModal, asesor.NOMBRE]);
 
   useEffect(() => {
     let pollingInterval: NodeJS.Timeout | undefined;
     
-    // ✅ CORREGIDO: Solo hacer polling si no hay auto-refresh activo
+    // ✅ CORREGIDO: Solo hacer polling si hay instancia y no hay auto-refresh activo
     if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open" && refreshAttempts === 0) {
       console.log('🔄 [WhatsApp] Iniciando polling automático cada 30s...');
-      pollingInterval = setInterval(() => {
-        refreshConnection();
+      pollingInterval = setInterval(async () => {
+        try {
+          // Verificar que la instancia siga existiendo antes de hacer polling
+          const instanceExists = await checkInstanceExists();
+          if (instanceExists) {
+            await refreshConnection();
+          } else {
+            console.log('ℹ️ [WhatsApp] Instancia ya no existe, deteniendo polling');
+            clearInterval(pollingInterval);
+          }
+        } catch (error) {
+          console.log('⚠️ [WhatsApp] Error en polling, deteniendo:', error);
+          clearInterval(pollingInterval);
+        }
       }, 30000);
     }
     
@@ -981,7 +1010,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setInstanceInfo(null);
       setRefreshAttempts(0); // ✅ CORREGIDO: Resetear contador de reintentos
       showToast("WhatsApp desconectado", "success");
-      await refreshConnection();
+      // ✅ CORREGIDO: No refrescar después de desconectar (no tiene sentido)
     } catch (error) {
       console.error("Error desconectando instancia:", error);
       showToast("Error al desconectar WhatsApp", "error");
@@ -1037,12 +1066,12 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         const errorText = await response.text();
         throw new Error(`Error al eliminar la instancia: ${response.status} - ${errorText}`);
       }
-      setWhatsappStatus("Desconectado");
+      setWhatsappStatus("Sin Configurar");
       setInstanceInfo(null);
       setQrCode(null);
       setRefreshAttempts(0); // ✅ CORREGIDO: Resetear contador de reintentos
       showToast("Instancia eliminada correctamente", "success");
-      await refreshConnection();
+      // ✅ CORREGIDO: No refrescar después de eliminar (no tiene sentido)
     } catch (error) {
       console.error("Error eliminando instancia:", error);
       showToast("Error al eliminar la instancia", "error");
@@ -1135,7 +1164,14 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                     setVerificandoWhatsApp(true);
                     console.log('🔄 [WhatsApp] Actualización manual solicitada');
                     try {
-                      await refreshConnection();
+                      // ✅ CORREGIDO: Verificar si la instancia existe antes de refrescar
+                      const instanceExists = await checkInstanceExists();
+                      if (instanceExists) {
+                        await refreshConnection();
+                      } else {
+                        console.log('ℹ️ [WhatsApp] No hay instancia para actualizar');
+                        setWhatsappStatus("Sin Configurar");
+                      }
                     } finally {
                       setVerificandoWhatsApp(false);
                     }

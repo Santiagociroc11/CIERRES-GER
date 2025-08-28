@@ -124,21 +124,7 @@ router.post('/webhook', async (req, res) => {
     // Extraer datos del comprador
     const datosComprador = extraerDatosComprador(body, flujo);
     
-    // Validar que tengamos un número de teléfono
-    if (!datosComprador.numero) {
-      logger.warn('Webhook sin número de teléfono', { 
-        flujo, 
-        event: body.event,
-        buyer: body.data?.buyer 
-      });
-      
-      return res.status(200).json({
-        success: true,
-        message: 'Webhook procesado (sin número de teléfono)',
-        flujo,
-        timestamp: new Date().toISOString()
-      });
-    }
+    // NOTA: Validación de teléfono movida DESPUÉS de consulta API
 
     // Crear entrada inicial en webhook logs
     const initialLogEntry: WebhookLogEntry = {
@@ -185,6 +171,13 @@ router.post('/webhook', async (req, res) => {
     let datosProcesados = await asignarValores(datosComprador);
     
     // Si falta el teléfono, intentar obtenerlo de la API de Hotmart
+    logger.info('DEBUG: Verificando si falta teléfono', {
+      numero: datosProcesados.numero,
+      hasTransaction: !!body.data?.purchase?.transaction,
+      transaction: body.data?.purchase?.transaction,
+      conditionResult: !datosProcesados.numero && body.data?.purchase?.transaction
+    });
+    
     if (!datosProcesados.numero && body.data?.purchase?.transaction) {
       logger.info('Teléfono faltante, consultando API de Hotmart', {
         transactionId: body.data.purchase.transaction
@@ -203,9 +196,23 @@ router.post('/webhook', async (req, res) => {
         datosProcesados
       );
       
+      logger.info('DEBUG: Resultado de consulta API', {
+        success: apiResult.success,
+        hasData: !!apiResult.data,
+        error: apiResult.error,
+        source: apiResult.source
+      });
+      
       if (apiResult.success && apiResult.data) {
         // Actualizar datos con información de la API
+        const datosAnteriores = { ...datosProcesados };
         datosProcesados = { ...datosProcesados, ...apiResult.data };
+        
+        logger.info('DEBUG: Datos actualizados con API', {
+          numeroAnterior: datosAnteriores.numero,
+          numeroNuevo: datosProcesados.numero,
+          datosAPI: apiResult.data
+        });
         
         processingSteps.push({
           step: 'hotmart_api_lookup',
@@ -240,6 +247,23 @@ router.post('/webhook', async (req, res) => {
           error: apiResult.error
         });
       }
+    }
+
+    // AHORA validar que tengamos un número de teléfono (después de intentar API)
+    if (!datosProcesados.numero) {
+      logger.warn('Webhook sin número de teléfono (incluso después de consultar API)', { 
+        flujo, 
+        event: body.event,
+        buyer: body.data?.buyer,
+        transactionId: body.data?.purchase?.transaction
+      });
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Webhook procesado (sin número de teléfono)',
+        flujo,
+        timestamp: new Date().toISOString()
+      });
     }
 
     logger.info('Datos procesados del webhook', {

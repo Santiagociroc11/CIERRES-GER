@@ -302,6 +302,16 @@ router.post('/formulario-soporte', async (req, res) => {
       });
     }
 
+    // IMPORTANTE: Si debe ir a academia, NO asignar asesor
+    if (shouldRedirectToAcademy) {
+      asesorAsignado = null; // Limpiar asesor para evitar notificaciones
+      logger.info('🧹 Asesor limpiado para cliente VIP_POST_VENTA', {
+        nombre,
+        whatsapp: whatsappLimpio,
+        reason: 'redirect_to_academy'
+      });
+    }
+
     // Variables para tracking de resultados de integraciones
     let telegramStatus: 'success' | 'error' | 'skipped' | 'queued' = 'skipped';
     let telegramChatId = '';
@@ -492,9 +502,9 @@ router.post('/formulario-soporte', async (req, res) => {
       });
     }
 
-    // 4. Enviar notificación por Telegram si tiene asesor
+    // 4. Enviar notificación por Telegram si tiene asesor (NO para VIPs)
     let telegramNotified = false;
-    if (asesorAsignado?.ID_TG) {
+    if (asesorAsignado?.ID_TG && !shouldRedirectToAcademy) {
       try {
         const notificationMessage = createSoporteNotificationMessage(
           nombre,
@@ -539,14 +549,31 @@ router.post('/formulario-soporte', async (req, res) => {
         telegramError = error instanceof Error ? error.message : 'Error agregando a cola';
         logger.error('Error agregando notificación de soporte a cola', error);
       }
-    } else if (asesorAsignado) {
+    } else if (asesorAsignado && !shouldRedirectToAcademy) {
       telegramStatus = 'skipped';
       telegramError = 'Asesor sin ID_TG configurado';
+    } else if (shouldRedirectToAcademy) {
+      telegramStatus = 'skipped';
+      telegramError = 'Cliente VIP_POST_VENTA - No se notifica asesor';
+      logger.info('📱 Notificación de Telegram saltada para VIP_POST_VENTA', {
+        nombre,
+        whatsapp: whatsappLimpio,
+        reason: 'vip_post_venta'
+      });
     }
 
     // 5. Preparar mensaje de WhatsApp personalizado según tipo de lead
     let whatsappUrl;
-    if (asesorAsignado?.WHATSAPP) {
+    
+    // Si debe ir a academia, NO generar URL de asesor
+    if (shouldRedirectToAcademy) {
+      whatsappUrl = null; // Se maneja en la respuesta de academia
+      logger.info('🎓 URL de WhatsApp saltada para VIP_POST_VENTA', {
+        nombre,
+        whatsapp: whatsappLimpio,
+        reason: 'redirect_to_academy'
+      });
+    } else if (asesorAsignado?.WHATSAPP) {
       let mensajePersonalizado = '';
 
       if (haComprado) {
@@ -580,8 +607,8 @@ router.post('/formulario-soporte', async (req, res) => {
       
       const mensajeCodificado = encodeURIComponent(mensajePersonalizado);
       whatsappUrl = `https://wa.me/${asesorAsignado.WHATSAPP}?text=${mensajeCodificado}`;
-    } else {
-      // Fallback si no hay asesor - usar número configurado (obligatorio)
+    } else if (!shouldRedirectToAcademy) {
+      // Fallback si no hay asesor Y NO es VIP - usar número configurado (obligatorio)
       let fallbackPhoneNumber: string | null = null;
       try {
         const soporteConfig = await getSoporteConfig();
@@ -683,10 +710,10 @@ router.post('/formulario-soporte', async (req, res) => {
         nombre,
         whatsapp: whatsappLimpio,
         haComprado,
-        asesorAsignado: asesorAsignado?.NOMBRE || null,
-        asesorWhatsapp: asesorAsignado?.WHATSAPP || null,
-        telegramNotified,
-        redirectedToAcademy: false,
+        asesorAsignado: shouldRedirectToAcademy ? null : asesorAsignado?.NOMBRE || null,
+        asesorWhatsapp: shouldRedirectToAcademy ? null : asesorAsignado?.WHATSAPP || null,
+        telegramNotified: shouldRedirectToAcademy ? false : telegramNotified,
+        redirectedToAcademy: shouldRedirectToAcademy,
         webhookLogId,
         processingTimeMs: processingTime,
         // Nueva información CRM

@@ -390,6 +390,38 @@ export async function getRecentWebhookLogs(limit: number = 100, offset: number =
   return response.json();
 }
 
+export async function getWebhookLogsCount() {
+  if (!POSTGREST_URL) {
+    throw new Error('POSTGREST_URL no está configurada');
+  }
+  
+  // Hacer request con header Prefer: count=exact para obtener solo el conteo
+  const response = await fetch(`${POSTGREST_URL}/webhook_logs?select=id`, {
+    headers: {
+      'Prefer': 'count=exact'
+    }
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error al obtener conteo de webhook logs: ${response.status} - ${errorText}`);
+  }
+  
+  // PostgREST devuelve el count en el header Content-Range
+  const contentRange = response.headers.get('Content-Range');
+  if (contentRange) {
+    // Format: "0-24/3573" donde 3573 es el total
+    const match = contentRange.match(/\/(\d+)$/);
+    if (match) {
+      return parseInt(match[1], 10);
+    }
+  }
+  
+  // Fallback: contar los resultados devueltos
+  const data = await response.json();
+  return Array.isArray(data) ? data.length : 0;
+}
+
 export async function getWebhookStats(days: number = 7) {
   if (!POSTGREST_URL) {
     throw new Error('POSTGREST_URL no está configurada');

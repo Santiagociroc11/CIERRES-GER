@@ -40,10 +40,6 @@ import {
   Pending,
   Schedule,
   Info,
-  PlayArrow,
-  Done,
-  Close,
-  SkipNext,
   Timeline,
   Person,
   ShoppingCart,
@@ -175,7 +171,9 @@ const WebhookLogs: React.FC = () => {
   const [refreshInterval, setRefreshInterval] = useState(5000);
   const [hasQueuedMessages, setHasQueuedMessages] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterFlujo, setFilterFlujo] = useState('');
   const [detailTabValue, setDetailTabValue] = useState(0);
@@ -199,11 +197,17 @@ const WebhookLogs: React.FC = () => {
       if (data.success) {
         setLogs(data.data);
         
+        // Actualizar información de paginado
+        if (data.pagination) {
+          setTotalRecords(data.pagination.total);
+          setTotalPages(data.pagination.totalPages);
+        }
+        
         // Verificar si hay mensajes en cola para ajustar la frecuencia de refresh
         const queuedMessages = data.data.filter((log: WebhookLog) => 
-          log.telegram_status === 'queued' || 
-          log.manychat_status === 'queued' || 
-          log.flodesk_status === 'queued'
+          (log.telegram_status as string) === 'queued' || 
+          (log.manychat_status as string) === 'queued' || 
+          (log.flodesk_status as string) === 'queued'
         );
         setHasQueuedMessages(queuedMessages.length > 0);
         
@@ -577,8 +581,8 @@ const WebhookLogs: React.FC = () => {
   });
 
   // Calcular estadísticas resumidas
-  const totalLogs = logs.length;
-  const successRate = totalLogs > 0 ? (logs.filter(l => l.status === 'success').length / totalLogs * 100).toFixed(1) : '0';
+  const currentPageLogs = logs.length;
+  const successRate = currentPageLogs > 0 ? (logs.filter(l => l.status === 'success').length / currentPageLogs * 100).toFixed(1) : '0';
   const avgProcessingTime = logs.length > 0 
     ? (logs.filter(l => l.processing_time_ms).reduce((acc, l) => acc + (l.processing_time_ms || 0), 0) / logs.filter(l => l.processing_time_ms).length).toFixed(0)
     : '0';
@@ -642,7 +646,10 @@ const WebhookLogs: React.FC = () => {
                 Total Webhooks
               </Typography>
               <Typography variant="h4">
-                {totalLogs}
+                {totalRecords}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Mostrando {currentPageLogs} de {totalRecords}
               </Typography>
             </CardContent>
           </Card>
@@ -905,11 +912,36 @@ const WebhookLogs: React.FC = () => {
             </Table>
           </TableContainer>
           
-          <Box display="flex" justifyContent="center" mt={2}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Typography variant="body2" color="textSecondary">
+                Registros por página:
+              </Typography>
+              <TextField
+                select
+                size="small"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1); // Reset to first page when changing page size
+                }}
+                sx={{ minWidth: 80 }}
+              >
+                <MenuItem value={25}>25</MenuItem>
+                <MenuItem value={50}>50</MenuItem>
+                <MenuItem value={100}>100</MenuItem>
+                <MenuItem value={200}>200</MenuItem>
+              </TextField>
+              <Typography variant="body2" color="textSecondary">
+                Página {page} de {totalPages} | Total: {totalRecords} registros
+              </Typography>
+            </Box>
             <Pagination
-              count={Math.ceil(totalLogs / pageSize)}
+              count={totalPages}
               page={page}
               onChange={(_, newPage) => setPage(newPage)}
+              color="primary"
+              size="medium"
             />
           </Box>
         </CardContent>

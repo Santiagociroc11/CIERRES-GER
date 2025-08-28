@@ -12,6 +12,7 @@ import {
   insertWebhookLog,
   updateWebhookLog,
   getRecentWebhookLogs,
+  getWebhookLogsCount,
   getWebhookStats,
   getWebhookLogById,
   getAsesores,
@@ -1243,7 +1244,11 @@ router.get('/webhook-logs', async (req, res) => {
   const offset = parseInt(req.query.offset as string) || 0;
   
   try {
-    const logs = await getRecentWebhookLogs(limit, offset);
+    // Obtener logs y total en paralelo para mejor rendimiento
+    const [logs, totalCount] = await Promise.all([
+      getRecentWebhookLogs(limit, offset),
+      getWebhookLogsCount()
+    ]);
     
     res.json({
       success: true,
@@ -1251,7 +1256,11 @@ router.get('/webhook-logs', async (req, res) => {
       pagination: {
         limit,
         offset,
-        total: logs.length
+        total: totalCount,
+        currentPage: Math.floor(offset / limit) + 1,
+        totalPages: Math.ceil(totalCount / limit),
+        hasNextPage: offset + limit < totalCount,
+        hasPrevPage: offset > 0
       },
       timestamp: new Date().toISOString()
     });

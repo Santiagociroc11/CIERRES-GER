@@ -101,27 +101,56 @@ function WhatsAppModal({
 }: WhatsAppModalProps) {
   const [qrLoading, setQrLoading] = useState(false);
   const [connectionStep, setConnectionStep] = useState<'initial' | 'generating' | 'scanning' | 'connected'>('initial');
+  const [currentQrCode, setCurrentQrCode] = useState<string | null>(null);
+  const [nextQrCode, setNextQrCode] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Update connection step based on state
   useEffect(() => {
     if (!instanceInfo && !qrCode && !isLoadingWhatsApp) {
       setConnectionStep('initial');
-    } else if (isLoadingWhatsApp || qrLoading) {
+    } else if (isLoadingWhatsApp) {
       setConnectionStep('generating');
     } else if (instanceInfo && instanceInfo.connectionStatus !== "open" && qrCode) {
       setConnectionStep('scanning');
     } else if (instanceInfo && instanceInfo.connectionStatus === "open") {
       setConnectionStep('connected');
     }
-  }, [instanceInfo, qrCode, isLoadingWhatsApp, qrLoading]);
+  }, [instanceInfo, qrCode, isLoadingWhatsApp]); // ✅ Removido qrLoading
+
+  // Smooth QR transition effect
+  useEffect(() => {
+    if (qrCode && qrCode !== currentQrCode) {
+      if (currentQrCode) {
+        // Preload new QR image
+        const img = new Image();
+        img.onload = () => {
+          setNextQrCode(qrCode);
+          setIsTransitioning(true);
+          
+          // Ultra smooth transition - keep everything synchronized
+          setTimeout(() => {
+            // Update current QR first
+            setCurrentQrCode(qrCode);
+          }, 700);
+          
+          // Clean up exactly when CSS transition finishes
+          setTimeout(() => {
+            setIsTransitioning(false);
+            setNextQrCode(null);
+          }, 1400); // Exactly 700ms * 2 = 1400ms total transition time
+        };
+        img.src = qrCode;
+      } else {
+        // First time loading
+        setCurrentQrCode(qrCode);
+      }
+    }
+  }, [qrCode]);
 
   const handleRefreshWithAnimation = async () => {
-    setQrLoading(true);
-    try {
-      await onRefreshInstance();
-    } finally {
-      setTimeout(() => setQrLoading(false), 1000); // Slight delay for smooth UX
-    }
+    // No need for loading state anymore since transitions are smooth
+    await onRefreshInstance();
   };
 
   if (!isOpen) return null;
@@ -206,28 +235,47 @@ function WhatsAppModal({
 
               {qrCode ? (
                 <div className="relative mb-6">
-                  {qrLoading && (
-                    <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10 rounded-xl">
-                      <div className="text-center">
-                        <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                        <p className="text-sm text-gray-600 font-medium">Actualizando...</p>
-                      </div>
+                  <div className="bg-white border-2 border-gray-200 rounded-xl p-6 shadow-lg relative overflow-hidden">
+                    {/* Main QR container with cross-fade effect */}
+                    <div className="relative w-64 h-64 mx-auto">
+                      {/* Base QR - always visible */}
+                      <img 
+                        src={currentQrCode || qrCode || ''} 
+                        alt="Código QR de WhatsApp" 
+                        className="w-full h-full object-contain"
+                        style={{
+                          imageRendering: 'pixelated',
+                          filter: 'contrast(1.1)',
+                          opacity: isTransitioning ? 0 : 1,
+                          transform: isTransitioning ? 'scale(0.98)' : 'scale(1)',
+                          transition: 'opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1), transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+                        }}
+                      />
+                      
+                      {/* Transition QR - appears on top during change */}
+                      {nextQrCode && (
+                        <img 
+                          src={nextQrCode} 
+                          alt="Nuevo código QR de WhatsApp" 
+                          className="w-full h-full object-contain absolute top-0 left-0"
+                          style={{
+                            imageRendering: 'pixelated',
+                            filter: 'contrast(1.1)',
+                            opacity: isTransitioning ? 1 : 0,
+                            transform: isTransitioning ? 'scale(1)' : 'scale(1.02)',
+                            transition: 'opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1), transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+                          }}
+                        />
+                      )}
                     </div>
-                  )}
-                  <div className="bg-white border-2 border-gray-200 rounded-xl p-6 shadow-lg">
-                    <img 
-                      src={qrCode} 
-                      alt="Código QR de WhatsApp" 
-                      className={`w-64 h-64 mx-auto transition-all duration-300 ${qrLoading ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}`}
-                      style={{
-                        imageRendering: 'pixelated',
-                        filter: 'contrast(1.1)',
-                      }}
-                    />
+                    
                   </div>
-                  <p className="text-xs text-gray-500 mt-3">
-                    Se actualiza automáticamente cada 25 segundos
-                  </p>
+                  <div className="flex items-center justify-center mt-3">
+                    <div className="flex items-center space-x-2 text-xs text-gray-500">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse opacity-60"></div>
+                      <span>Actualización automática activa</span>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl p-8 mb-6">
@@ -245,22 +293,14 @@ function WhatsAppModal({
               <div className="space-y-3">
                 <button
                   onClick={handleRefreshWithAnimation}
-                  disabled={qrLoading}
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50"
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg"
                 >
-                  {qrLoading ? (
-                    <div className="flex items-center justify-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Actualizando...</span>
-                    </div>
-                  ) : (
-                    'Generar Nuevo QR'
-                  )}
+                  Generar Nuevo QR
                 </button>
                 
                 <button
                   onClick={onDeleteInstance}
-                  disabled={isLoadingWhatsApp || qrLoading}
+                  disabled={isLoadingWhatsApp}
                   className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
                 >
                   Eliminar Instancia
@@ -502,15 +542,16 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     
     // ✅ SIMPLIFICADO: Polling básico solo cuando modal está abierto
     if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
-      console.log('🔄 [WhatsApp] Iniciando polling cada 10s (solo verificación de estado)...');
+      console.log('🔄 [WhatsApp] Iniciando polling cada 30s (con regeneración de QR)...');
       pollingInterval = setInterval(async () => {
         try {
-          console.log('🔄 [WhatsApp] Polling: verificando estado...');
-          await handleFetchInstanceInfo();
+          console.log('🔄 [WhatsApp] Polling: regenerando QR...');
+          // ✅ CORREGIDO: Regenerar QR silenciosamente cada 30 segundos
+          await handleSilentQRRefresh();
         } catch (error) {
           console.log('⚠️ [WhatsApp] Error en polling:', error);
         }
-      }, 10000); // Cada 10 segundos, solo verificación
+      }, 30000); // Cada 30 segundos, solo verificación
     }
     
     return () => {
@@ -947,16 +988,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         const statusConfig = getEvolutionStatusConfig(instance.connectionStatus);
         setWhatsappStatus(statusConfig.displayText);
         
-        // ✅ CORREGIDO: Resetear contador de reintentos cuando el estado es estable
-        if (!isTransitoryStatus(instance.connectionStatus)) {
-          setRefreshAttempts(0);
-          setIsAutoRefreshing(false);
-        }
-        
         console.log(`${statusConfig.icon} [WhatsApp] Estado: ${instance.connectionStatus.toUpperCase()} -> ${statusConfig.displayText}`);
-        
-        // ✅ SOLUCION RADICAL: ELIMINAR AUTO-REFRESH PROBLEMÁTICO
-        // Solo logear el estado, NO hacer auto-refresh automático
         console.log(`📊 [WhatsApp] Estado detectado: ${instance.connectionStatus} -> ${statusConfig.displayText}`);
         
         if (isTransitoryStatus(instance.connectionStatus)) {
@@ -971,10 +1003,47 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       console.error("❌ [WhatsApp] Error in handleFetchInstanceInfo:", error);
       setInstanceInfo(null);
       setWhatsappStatus("Error de Conexión");
-      setRefreshAttempts(0); // ✅ CORREGIDO: Resetear contador en caso de error
-      setIsAutoRefreshing(false);
     } finally {
       setIsLoadingWhatsApp(false);
+    }
+  };
+
+  // ✅ NUEVA FUNCIÓN: Regenerar QR silenciosamente sin afectar UI
+  const handleSilentQRRefresh = async () => {
+    try {
+      const url = `${evolutionServerUrl}/instance/connect/${encodeURIComponent(asesor.NOMBRE)}`;
+      console.log("🔄 [WhatsApp] Regenerando QR silenciosamente...");
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Buscar el QR en las posibles ubicaciones
+        let newQrCode = null;
+        if (data.instance?.base64) {
+          newQrCode = data.instance.base64;
+        } else if (data.base64) {
+          newQrCode = data.base64;
+        } else if (data.qr) {
+          newQrCode = data.qr;
+        } else if (data.qrcode) {
+          newQrCode = data.qrcode;
+        }
+        
+        if (newQrCode && newQrCode !== qrCode) {
+          console.log("✨ [WhatsApp] Nuevo QR obtenido silenciosamente");
+          setQrCode(newQrCode);
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ [WhatsApp] Error en regeneración silenciosa de QR:', error);
     }
   };
 
@@ -1405,14 +1474,17 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         onDeleteInstance={handleDeleteInstance}
       />
 
-      <WhatsAppWarningModal
-        isOpen={showWhatsAppWarning && (!instanceInfo || instanceInfo.connectionStatus !== "open")}
-        onClose={() => setShowWhatsAppWarning(false)}
-        onConnect={() => {
-          setShowWhatsAppModal(true);
-          setShowWhatsAppWarning(false);
-        }}
-      />
+      {/* WhatsAppWarningModal deshabilitado */}
+      {false && (
+        <WhatsAppWarningModal
+          isOpen={showWhatsAppWarning && (!instanceInfo || instanceInfo.connectionStatus !== "open")}
+          onClose={() => setShowWhatsAppWarning(false)}
+          onConnect={() => {
+            setShowWhatsAppModal(true);
+            setShowWhatsAppWarning(false);
+          }}
+        />
+      )}
 
       {/* Modal de Telegram */}
       {showTelegramModal && (

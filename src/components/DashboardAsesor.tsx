@@ -705,16 +705,16 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       const url = `${evolutionServerUrl}/chatwoot/set/${encodeURIComponent(instanceName)}`;
       const payload = {
         enabled: true,
-        accountId: "12",
-        token: "A55c8HWKWZ9kJS9Tv5GVcXWu",
-        url: "https://chatwoot.automscc.com",
+        accountId: "133139",
+        token: "rq2xgmNeim1bs84hArp39L2x",
+        url: "https://app.chatwoot.com",
         signMsg: false,
         sign_delimiter: ":",
         reopenConversation: true,
         conversationPending: false,
         nameInbox: instanceName,
-        importContacts: false,
-        importMessages: false,
+        importContacts: true,
+        importMessages: true,
         daysLimitImportMessages: 1,
         autoCreate: true
       };

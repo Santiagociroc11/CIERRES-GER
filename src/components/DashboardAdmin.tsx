@@ -78,7 +78,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   // 🆕 Estados de carga y rendimiento
   const [, setCargandoDatos] = useState(false);
   const [, setCargandoConexiones] = useState(false);
-  const [, setCargandoClientes] = useState(false);
+  const [cargandoClientes, setCargandoClientes] = useState(false);
   const [, setTiempoCarga] = useState<number | null>(null);
   
   const itemsPerPage = 20;

@@ -416,6 +416,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [isLoadingTelegram, setIsLoadingTelegram] = useState(false);
   const [verificandoWhatsApp, setVerificandoWhatsApp] = useState(false);
   const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const MAX_REFRESH_ATTEMPTS = 10;
 
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
@@ -498,7 +499,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     let pollingInterval: NodeJS.Timeout | undefined;
     
     // ✅ CORREGIDO: Solo hacer polling si hay instancia y no hay auto-refresh activo
-    if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open" && refreshAttempts === 0) {
+    if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open" && refreshAttempts === 0 && !isAutoRefreshing) {
       console.log('🔄 [WhatsApp] Iniciando polling automático cada 30s...');
       pollingInterval = setInterval(async () => {
         try {
@@ -523,7 +524,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         clearInterval(pollingInterval);
       }
     };
-  }, [showWhatsAppModal, instanceInfo, refreshAttempts]);
+  }, [showWhatsAppModal, instanceInfo, refreshAttempts, isAutoRefreshing]);
 
   useEffect(() => {
     if (instanceInfo?.connectionStatus === "open") {
@@ -959,21 +960,25 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         // ✅ CORREGIDO: Resetear contador de reintentos cuando el estado es estable
         if (!isTransitoryStatus(instance.connectionStatus)) {
           setRefreshAttempts(0);
+          setIsAutoRefreshing(false);
         }
         
         console.log(`${statusConfig.icon} [WhatsApp] Estado: ${instance.connectionStatus.toUpperCase()} -> ${statusConfig.displayText}`);
         
-        // ✅ CORREGIDO: Limitar auto-refresh para evitar loops infinitos
-        if (isTransitoryStatus(instance.connectionStatus) && refreshAttempts < MAX_REFRESH_ATTEMPTS) {
+        // ✅ CORREGIDO: Evitar múltiples auto-refresh paralelos
+        if (isTransitoryStatus(instance.connectionStatus) && refreshAttempts < MAX_REFRESH_ATTEMPTS && !isAutoRefreshing) {
           console.log(`🔄 [WhatsApp] Estado transitorio detectado, refresco ${refreshAttempts + 1}/${MAX_REFRESH_ATTEMPTS}...`);
           setRefreshAttempts(prev => prev + 1);
+          setIsAutoRefreshing(true);
           
           setTimeout(() => {
+            setIsAutoRefreshing(false);
             handleFetchInstanceInfo();
           }, 3000); // Refresca cada 3 segundos para estados transitorios
         } else if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
           console.log('⚠️ [WhatsApp] Límite de reintentos alcanzado, deteniendo auto-refresh');
           setWhatsappStatus("Error de Conexión");
+          setIsAutoRefreshing(false);
         }
       } else {
         console.log('❌ [WhatsApp] No se encontró instancia');
@@ -985,6 +990,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setInstanceInfo(null);
       setWhatsappStatus("Error de Conexión");
       setRefreshAttempts(0); // ✅ CORREGIDO: Resetear contador en caso de error
+      setIsAutoRefreshing(false);
     } finally {
       setIsLoadingWhatsApp(false);
     }
@@ -1009,6 +1015,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setWhatsappStatus("Desconectado");
       setInstanceInfo(null);
       setRefreshAttempts(0); // ✅ CORREGIDO: Resetear contador de reintentos
+      setIsAutoRefreshing(false);
       showToast("WhatsApp desconectado", "success");
       // ✅ CORREGIDO: No refrescar después de desconectar (no tiene sentido)
     } catch (error) {
@@ -1070,6 +1077,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setInstanceInfo(null);
       setQrCode(null);
       setRefreshAttempts(0); // ✅ CORREGIDO: Resetear contador de reintentos
+      setIsAutoRefreshing(false);
       showToast("Instancia eliminada correctamente", "success");
       // ✅ CORREGIDO: No refrescar después de eliminar (no tiene sentido)
     } catch (error) {

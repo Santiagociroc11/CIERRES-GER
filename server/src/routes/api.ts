@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import winston from 'winston';
+import { getLIDsSinMapear, getConversacionesPorAsesor, getMensajesConversacion } from '../dbClient';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -232,6 +233,79 @@ router.post('/telegram/restart', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error reiniciando bot de Telegram',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 🆕 Ruta para obtener LIDs sin mapear
+router.get('/lids-sin-mapear', async (req, res) => {
+  try {
+    const lids = await getLIDsSinMapear();
+    res.json(lids);
+  } catch (error) {
+    logger.error('❌ Error obteniendo LIDs sin mapear:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 🆕 Ruta para obtener conversaciones de un asesor
+router.get('/conversaciones/:asesorId', async (req, res) => {
+  try {
+    const asesorId = parseInt(req.params.asesorId);
+    if (isNaN(asesorId)) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'ID de asesor inválido',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const conversaciones = await getConversacionesPorAsesor(asesorId);
+    res.json({
+      success: true,
+      data: conversaciones,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('❌ Error obteniendo conversaciones:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 🆕 Ruta para obtener mensajes de una conversación
+router.get('/mensajes/:asesorId/:clienteKey', async (req, res) => {
+  try {
+    const asesorId = parseInt(req.params.asesorId);
+    const clienteKey = req.params.clienteKey;
+    
+    if (isNaN(asesorId)) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'ID de asesor inválido',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const mensajes = await getMensajesConversacion(asesorId, clienteKey);
+    res.json({
+      success: true,
+      data: mensajes,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('❌ Error obteniendo mensajes:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error interno del servidor',
       timestamp: new Date().toISOString()
     });
   }

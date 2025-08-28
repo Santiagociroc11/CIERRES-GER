@@ -1,0 +1,10 @@
+[33m879f041[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Enhance LID handling in DashboardAdmin and dbClient
+[33m563dd03[m Add chat functionality for advisors in DashboardAdmin
+[33mef23c2a[m Add functionality to retrieve and display unmapped LIDs in DashboardAdmin
+[33mf0654f5[m Add phone number format guidance in ReportarVenta component
+[33m2c02b49[m Update WhatsApp event handling to correctly process outgoing messages for LID mapping
+[33me53ef83[m Refactor WhatsApp event handling to streamline logging and improve message processing
+[33m088a4b5[m Refactor WhatsApp event handling to reduce logging and improve clarity
+[33maf2959d[m Add LID mapping functionality to dbClient and WhatsApp event handling
+[33m8900b32[m Update loading state management in DashboardAdmin component
+[33m06e48c3[m Enhance WhatsApp event handling with detailed logging for better debugging and error tracking

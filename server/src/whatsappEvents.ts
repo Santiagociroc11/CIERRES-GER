@@ -104,18 +104,35 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
   // ===============================================
   socket.on('send.message', async (data: any) => {
     try {
+      console.log('🔍 [DEBUG] Evento send.message recibido:');
+      console.log('📦 Data completa:', JSON.stringify(data, null, 2));
+      console.log('🏷️ Tipo de data:', typeof data);
+      console.log('🔑 Keys disponibles:', Object.keys(data));
+      
       const message = data.data || data;
       const messageId = message.key?.id;
       const instance = data.instance || 'desconocida';
       
+      console.log('📨 Mensaje extraído:', JSON.stringify(message, null, 2));
+      console.log('🆔 Message ID:', messageId);
+      console.log('🏢 Instance:', instance);
+      console.log('📱 Remote JID:', message.key?.remoteJid);
+      console.log('💬 Contenido del mensaje:', message.message?.conversation || message.message?.caption);
+      
       if (messageId) {
         // Actualizar estado a "enviado" en BD
+        console.log('✅ Actualizando estado en BD para mensaje:', messageId);
         await updateMensajeEstado(messageId, 'enviado');
+        console.log('✅ Estado actualizado exitosamente');
       }
       
       // También guardar el mensaje en BD si no existe
       try {
         const asesor = asesores.find(a => a.NOMBRE.trim().toLowerCase() === instance.trim().toLowerCase());
+        console.log('👥 Asesores disponibles:', asesores.map(a => ({ ID: a.ID, NOMBRE: a.NOMBRE })));
+        console.log('🔍 Buscando asesor para instance:', instance);
+        console.log('✅ Asesor encontrado:', asesor);
+        
         if (asesor && message.key?.remoteJid) {
           const messageData = {
             id_asesor: asesor.ID,
@@ -128,21 +145,30 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
             estado: 'enviado'
           };
           
+          console.log('💾 Datos del mensaje a guardar:', JSON.stringify(messageData, null, 2));
+          
           // Buscar cliente por WhatsApp
           const cliente = await getClienteByWhatsapp(messageData.wha_cliente);
+          console.log('👤 Cliente encontrado:', cliente);
           if (cliente) {
             messageData.id_cliente = cliente.ID;
           }
           
           // Insertar en BD
+          console.log('💾 Insertando mensaje en BD...');
           await insertConversacion(messageData);
+          console.log('✅ Mensaje insertado exitosamente en BD');
+        } else {
+          console.log('❌ No se pudo procesar: asesor no encontrado o remoteJid faltante');
+          console.log('   - Asesor encontrado:', !!asesor);
+          console.log('   - Remote JID:', message.key?.remoteJid);
         }
       } catch (insertError) {
-        console.error('Error guardando mensaje saliente en BD:', insertError);
+        console.error('❌ Error guardando mensaje saliente en BD:', insertError);
       }
       
     } catch (error) {
-      console.error('Error procesando send.message:', error);
+      console.error('❌ Error procesando send.message:', error);
     }
   });
 
@@ -151,53 +177,79 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
   // ===============================================
   socket.on('messages.update', async (data: any) => {
     try {
+      console.log('🔍 [DEBUG] Evento messages.update recibido:');
+      console.log('📦 Data completa:', JSON.stringify(data, null, 2));
+      console.log('🏷️ Tipo de data:', typeof data);
+      console.log('🔑 Keys disponibles:', Object.keys(data));
+      
       // Evolution API puede enviar múltiples formatos
       let updates = [];
       
       if (data && Array.isArray(data)) {
         updates = data;
+        console.log('📋 Data es array con', updates.length, 'elementos');
       } else if (data && data.data && Array.isArray(data.data)) {
         updates = data.data;
+        console.log('📋 Data.data es array con', updates.length, 'elementos');
       } else if (data && typeof data === 'object') {
         updates = [data];
+        console.log('📋 Data es objeto, convertido a array de 1 elemento');
       }
       
+      console.log('🔄 Procesando', updates.length, 'actualizaciones...');
+      
       for (const update of updates) {
+        console.log('📝 Procesando update:', JSON.stringify(update, null, 2));
+        
         // Buscar información del mensaje - ESTRUCTURA EVOLUTION API
         let messageKey = update.key || update.messageKey;
         let messageId = messageKey?.id;
         let fromMe = messageKey?.fromMe;
         
+        console.log('🔑 MessageKey encontrado:', messageKey);
+        console.log('🆔 Message ID:', messageId);
+        console.log('👤 FromMe:', fromMe);
+        
         // Si no hay key directamente, buscar en data (estructura Evolution)
         if (!messageKey && update.data) {
           messageId = update.data.keyId;
           fromMe = update.data.fromMe;
+          console.log('🔍 Buscando en update.data - keyId:', messageId, 'fromMe:', fromMe);
         }
         
         // Si aún no tenemos messageId, intentar usar keyId directamente
         if (!messageId && update.keyId) {
           messageId = update.keyId;
+          console.log('🔍 Usando update.keyId directamente:', messageId);
         }
         if (!messageId && update.data?.keyId) {
           messageId = update.data.keyId;
+          console.log('🔍 Usando update.data.keyId:', messageId);
         }
         
         // Buscar estado en diferentes ubicaciones posibles
         let status = null;
         let statusText = '';
         
+        console.log('🔍 Buscando status en diferentes ubicaciones...');
+        
         // Formato 1: update.status
         if (update.status !== undefined) {
           status = update.status;
+          console.log('✅ Status encontrado en update.status:', status);
         }
         // Formato 2: update.data?.status (Evolution API)
         else if (update.data?.status !== undefined) {
           status = update.data.status;
+          console.log('✅ Status encontrado en update.data.status:', status);
         }
         // Formato 3: update.message?.status
         else if (update.message?.status !== undefined) {
           status = update.message.status;
+          console.log('✅ Status encontrado en update.message.status:', status);
         }
+        
+        console.log('📊 Status final:', status, 'MessageId:', messageId, 'FromMe:', fromMe);
         
         if (status !== null && messageId && fromMe) {
           // Mapear estado - TANTO NUMÉRICO COMO STRING (Evolution API)
@@ -210,6 +262,7 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
               case 'READ': statusText = 'leido'; break;
               default: statusText = 'enviado';
             }
+            console.log('🔤 Status string mapeado:', status, '→', statusText);
           } else {
             // Estados numéricos tradicionales
             switch (status) {
@@ -219,28 +272,47 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
               case 3: statusText = 'leido'; break;
               default: statusText = 'enviado';
             }
+            console.log('🔢 Status numérico mapeado:', status, '→', statusText);
           }
           
           // Verificar si el estado actual es más avanzado antes de actualizar
           try {
+            console.log('🔍 Verificando estado actual en BD para mensaje:', messageId);
             const estadoActual = await getMensajeEstadoActual(messageId);
+            console.log('📊 Estado actual en BD:', estadoActual, 'Nuevo estado:', statusText);
             
             // Solo actualizar si el nuevo estado es más avanzado que el actual
             if (debeActualizarEstado(estadoActual, statusText)) {
+              console.log('✅ Actualizando estado en BD:', messageId, '→', statusText);
               await updateMensajeEstado(messageId, statusText);
+              console.log('✅ Estado actualizado exitosamente');
+            } else {
+              console.log('⏸️ No se actualiza: estado actual es más avanzado');
             }
           } catch (err) {
-            console.error('Error verificando/actualizando estado en BD:', err);
+            console.error('❌ Error verificando/actualizando estado en BD:', err);
           }
+        } else {
+          console.log('⚠️ No se puede procesar: faltan datos requeridos');
+          console.log('   - Status:', status);
+          console.log('   - MessageId:', messageId);
+          console.log('   - FromMe:', fromMe);
         }
       }
     } catch (error) {
-      console.error('Error procesando messages.update:', error);
+      console.error('❌ Error procesando messages.update:', error);
     }
   });
 
   socket.on('messages.upsert', async (data: any) => {
+    console.log('🔍 [DEBUG] Evento messages.upsert recibido:');
+    console.log('📦 Data completa:', JSON.stringify(data, null, 2));
+    console.log('🏷️ Tipo de data:', typeof data);
+    console.log('🔑 Keys disponibles:', Object.keys(data));
+    
     if (data && data.data && data.data.key && data.data.message) {
+      console.log('✅ Estructura de data válida detectada');
+      
       const message = {
         key: data.data.key,
         message: data.data.message,
@@ -248,9 +320,18 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         status: data.data.status,
       } as WhatsAppMessage;
 
+      console.log('📨 Mensaje estructurado:', JSON.stringify(message, null, 2));
+      console.log('🔑 Key del mensaje:', message.key);
+      console.log('💬 Contenido del mensaje:', message.message);
+      console.log('⏰ Timestamp:', message.messageTimestamp);
+      console.log('📊 Status:', message.status);
+
       // IGNORAR reactionMessage
       const tipo = getMessageType(message);
+      console.log('🏷️ Tipo de mensaje detectado:', tipo);
+      
       if (tipo === 'reactionMessage') {
+        console.log('⏭️ Ignorando reactionMessage');
         return;
       }
 
@@ -264,24 +345,48 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         tipo
       };
 
+      console.log('📋 EventData extraído:', JSON.stringify(eventData, null, 2));
+      console.log('📱 From:', eventData.from);
+      console.log('💬 Text:', eventData.text);
+      console.log('⏰ Timestamp:', eventData.timestamp);
+      console.log('🆔 MessageId:', eventData.messageId);
+      console.log('👤 FromMe:', eventData.fromMe);
+      console.log('🏢 Instance:', eventData.instance);
+      console.log('🏷️ Tipo:', eventData.tipo);
+
       // FILTRO DE DUPLICADOS
       const uniqueKey = `${eventData.instance}:${eventData.messageId}`;
+      console.log('🔑 Unique key generada:', uniqueKey);
+      
       if (processedMessages.has(uniqueKey)) {
+        console.log('⏭️ Mensaje duplicado, ignorando');
         return; // Ya lo procesamos
       }
       processedMessages.add(uniqueKey);
+      console.log('✅ Mensaje agregado a processedMessages');
+      
       if (processedMessages.size > 1000) {
+        console.log('🧹 Limpiando processedMessages (más de 1000)');
         processedMessages.clear();
       }
 
       // ⚡ OPTIMIZACIÓN: Verificar asesor PRIMERO antes de procesar el mensaje
+      console.log('👥 Asesores disponibles:', asesores.map(a => ({ ID: a.ID, NOMBRE: a.NOMBRE })));
+      console.log('🔍 Buscando asesor para instance:', eventData.instance);
+      
       const asesor = asesores.find(a => a.NOMBRE.trim().toLowerCase() === (eventData.instance || '').trim().toLowerCase());
+      console.log('✅ Asesor encontrado:', asesor);
+      
       if (!asesor) {
+        console.log('❌ No se procesa: asesor no encontrado para instance:', eventData.instance);
+        console.log('   - Instance recibida:', eventData.instance);
+        console.log('   - Asesores disponibles:', asesores.map(a => a.NOMBRE));
         return; // Salir temprano - NO procesar mensajes de instancias sin asesor
       }
 
       // Determinar modo
-      const modo = message.key.fromMe ? 'saliente' : 'entrante';
+      const modo: 'saliente' | 'entrante' = message.key.fromMe ? 'saliente' : 'entrante';
+      console.log('📤 Modo del mensaje:', modo);
 
       // Determinar mensaje para la BD
       let mensaje = '';
@@ -300,21 +405,26 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       } else {
         mensaje = message.key.fromMe ? `📦 (${tipo}) enviado` : `📦 (${tipo}) recibido`;
       }
+      
+      console.log('💬 Mensaje para BD:', mensaje);
 
       // Buscar id_cliente por wha_cliente
       let id_cliente: number | null = null;
       try {
+        console.log('🔍 Buscando cliente por WhatsApp:', eventData.from);
         const cliente = await getClienteByWhatsapp(eventData.from);
+        console.log('👤 Cliente encontrado:', cliente);
         if (cliente) {
           id_cliente = cliente.ID;
         }
       } catch (err) {
+        console.log('⚠️ Error buscando cliente (continuando):', err);
         // Silenciar error de cliente no encontrado
       }
 
       // Insertar en la tabla conversaciones
       try {
-        await insertConversacion({
+        const conversacionData = {
           id_asesor: asesor.ID,
           id_cliente,
           wha_cliente: eventData.from,
@@ -323,11 +433,23 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
           mensaje,
           mensaje_id: eventData.messageId,
           estado: message.key.fromMe ? 'enviado' : undefined
-        });
+        };
+        
+        console.log('💾 Datos de conversación a insertar:', JSON.stringify(conversacionData, null, 2));
+        console.log('💾 Insertando conversación en BD...');
+        
+        await insertConversacion(conversacionData);
+        console.log('✅ Conversación insertada exitosamente en BD');
         
       } catch (err) {
-        console.error('Error guardando mensaje:', err);
+        console.error('❌ Error guardando mensaje:', err);
       }
+    } else {
+      console.log('❌ Estructura de data inválida para messages.upsert');
+      console.log('   - data existe:', !!data);
+      console.log('   - data.data existe:', !!(data && data.data));
+      console.log('   - data.data.key existe:', !!(data && data.data && data.data.key));
+      console.log('   - data.data.message existe:', !!(data && data.data && data.data.message));
     }
   });
   

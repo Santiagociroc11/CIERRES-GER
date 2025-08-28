@@ -14,6 +14,7 @@ export type EvolutionConnectionStatus =
 export type WhatsAppDisplayStatus = 
   | 'Conectado'
   | 'Conectando' 
+  | 'Esperando Escaneo'
   | 'Desconectado'
   | 'Esperando QR'
   | 'Inicializando'
@@ -43,11 +44,11 @@ export const EVOLUTION_STATUS_MAP: Record<EvolutionConnectionStatus, EvolutionSt
     isStable: true
   },
   connecting: {
-    displayText: 'Conectando',
-    color: 'text-yellow-800', 
-    bgColor: 'bg-yellow-100',
-    icon: '🔄',
-    description: 'Estableciendo conexión con WhatsApp',
+    displayText: 'Esperando Escaneo',
+    color: 'text-blue-800', 
+    bgColor: 'bg-blue-100',
+    icon: '📱',
+    description: 'Esperando que escanees el código QR',
     isStable: false
   },
   close: {

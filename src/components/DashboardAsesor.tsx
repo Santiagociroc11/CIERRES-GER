@@ -292,13 +292,6 @@ function WhatsAppModal({
 
               <div className="space-y-3">
                 <button
-                  onClick={handleRefreshWithAnimation}
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg"
-                >
-                  Generar Nuevo QR
-                </button>
-                
-                <button
                   onClick={onDeleteInstance}
                   disabled={isLoadingWhatsApp}
                   className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
@@ -387,26 +380,32 @@ function WhatsAppWarningModal({ isOpen, onClose, onConnect }: WhatsAppWarningMod
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+      <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full mx-4 border border-yellow-200">
         <div className="flex flex-col items-center text-center">
-          <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">WhatsApp No Conectado</h2>
-          <p className="text-gray-600 mb-6">
-            Para poder recibir clientes y trabajar en la plataforma, necesitas escanear y conectar tu sesión de WhatsApp.
-          </p>
-          <div className="flex gap-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-full flex items-center justify-center mb-4">
+            <AlertTriangle className="h-10 w-10 text-yellow-600" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-3">⚠️ WhatsApp Requerido</h2>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-left">
+            <p className="text-sm font-semibold text-yellow-800 mb-2">🚨 ¡Atención!</p>
+            <p className="text-sm text-yellow-700 leading-relaxed">
+              <strong>Sin WhatsApp conectado NO te llegarán clientes.</strong><br/>
+              Necesitas conectar tu WhatsApp para recibir leads y trabajar en la plataforma.
+            </p>
+          </div>
+          <div className="flex gap-3 w-full">
             <button
               onClick={onConnect}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition duration-300"
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md hover:shadow-lg"
             >
-              Escanear Sesión
+              📱 Conectar WhatsApp
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition duration-300"
+              className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200 font-medium"
             >
-              Cerrar
+              Más tarde
             </button>
           </div>
         </div>
@@ -457,6 +456,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [verificandoWhatsApp, setVerificandoWhatsApp] = useState(false);
   const [refreshAttempts, setRefreshAttempts] = useState(0);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
+  const [hasShownInitialWarning, setHasShownInitialWarning] = useState(false);
   const MAX_REFRESH_ATTEMPTS = 10;
 
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
@@ -495,16 +495,102 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           // ✅ CORREGIDO: Solo verificar estado inicial, no obtener QR
           await refreshConnection(false);
         } else {
-          console.log('ℹ️ [WhatsApp] No hay instancia configurada, saltando verificación');
+          console.log('ℹ️ [WhatsApp] No hay instancia configurada, mostrando advertencia inicial');
           setWhatsappStatus("Sin Configurar");
           setVerificandoWhatsApp(false);
-          return; // Salir temprano si no hay instancia
+          // Mostrar advertencia solo una vez al cargar la página
+          if (!hasShownInitialWarning) {
+            setShowWhatsAppWarning(true);
+            setHasShownInitialWarning(true);
+          }
+          return;
         }
+
+  // ✅ NUEVO: useEffect separado para mostrar advertencia después de verificación
+  useEffect(() => {
+    // Esperar a que la verificación inicial termine y verificar si mostrar advertencia
+    if (!verificandoWhatsApp && !hasShownInitialWarning) {
+      const shouldShowWarning = !instanceInfo || instanceInfo.connectionStatus !== "open";
+      if (shouldShowWarning) {
+        console.log('⚠️ [WhatsApp] Mostrando advertencia inicial - Estado:', whatsappStatus);
+        setShowWhatsAppWarning(true);
+        setHasShownInitialWarning(true);
+      }
+    }
+  }, [verificandoWhatsApp, instanceInfo, hasShownInitialWarning, whatsappStatus]);
+
+  useEffect(() => {
+    if (showWhatsAppModal) {
+      // ✅ CORREGIDO: Solo refrescar si la instancia existe
+      const checkAndRefresh = async () => {
+        try {
+          const instanceExists = await checkInstanceExists();
+          if (instanceExists) {
+            console.log('✅ [WhatsApp] Modal abierto, instancia existe, obteniendo QR...');
+            // ✅ CORREGIDO: Modal SÍ necesita QR para mostrar al usuario
+            await refreshConnection(true);
+          } else {
+            console.log('ℹ️ [WhatsApp] Modal abierto, no hay instancia, saltando refresh');
+            setWhatsappStatus("Sin Configurar");
+          }
+        } catch (error) {
+          console.log('⚠️ [WhatsApp] Error verificando instancia en modal:', error);
+          setWhatsappStatus("Error de Verificación");
+        }
+      };
+      
+      checkAndRefresh();
+    }
+  }, [showWhatsAppModal, asesor.NOMBRE]);
+
+  useEffect(() => {
+    let pollingInterval: NodeJS.Timeout | undefined;
+    
+    // ✅ SIMPLIFICADO: Polling básico solo cuando modal está abierto
+    if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
+      console.log('🔄 [WhatsApp] Iniciando polling cada 30s (con regeneración de QR)...');
+      pollingInterval = setInterval(async () => {
+        try {
+          console.log('🔄 [WhatsApp] Polling: regenerando QR y verificando estado...');
+          // ✅ CORREGIDO: Regenerar QR Y verificar estado cada 30 segundos
+          await Promise.all([
+            handleSilentQRRefresh(),
+            handleSilentInstanceCheck()
+          ]);
+        } catch (error) {
+          console.log('⚠️ [WhatsApp] Error en polling:', error);
+        }
+      }, 30000); // Cada 30 segundos, regeneración + verificación
+    }
+    
+    return () => {
+      if (pollingInterval) {
+        console.log('🔄 [WhatsApp] Deteniendo polling...');
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [showWhatsAppModal, instanceInfo]);
+
+  useEffect(() => {
+    if (instanceInfo?.connectionStatus === "open") {
+      setShowWhatsAppWarning(false);
+      console.log('✅ [WhatsApp] WhatsApp conectado, ocultando advertencia');
+      // Reset flag cuando se conecta, por si se desconecta después
+      setHasShownInitialWarning(false);
+    }
+    // ✅ CORREGIDO: NO mostrar advertencia en cada polling, solo al inicio
+    // La advertencia solo se muestra en verificarConexionInicial()
+  }, [instanceInfo]);
         
         console.log('✅ [WhatsApp] Verificación completada. Estado final:', instanceInfo?.connectionStatus || 'SIN_INFO');
       } catch (error) {
         console.error('❌ [WhatsApp] Error en verificación inicial:', error);
         setWhatsappStatus("Error de Verificación");
+        // Mostrar advertencia en caso de error también
+        if (!hasShownInitialWarning) {
+          setShowWhatsAppWarning(true);
+          setHasShownInitialWarning(true);
+        }
       } finally {
         setVerificandoWhatsApp(false);
       }
@@ -545,13 +631,16 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       console.log('🔄 [WhatsApp] Iniciando polling cada 30s (con regeneración de QR)...');
       pollingInterval = setInterval(async () => {
         try {
-          console.log('🔄 [WhatsApp] Polling: regenerando QR...');
-          // ✅ CORREGIDO: Regenerar QR silenciosamente cada 30 segundos
-          await handleSilentQRRefresh();
+          console.log('🔄 [WhatsApp] Polling: regenerando QR y verificando estado...');
+          // ✅ CORREGIDO: Regenerar QR Y verificar estado cada 30 segundos
+          await Promise.all([
+            handleSilentQRRefresh(),
+            handleSilentInstanceCheck()
+          ]);
         } catch (error) {
           console.log('⚠️ [WhatsApp] Error en polling:', error);
         }
-      }, 30000); // Cada 30 segundos, solo verificación
+      }, 30000); // Cada 30 segundos, regeneración + verificación
     }
     
     return () => {
@@ -565,9 +654,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   useEffect(() => {
     if (instanceInfo?.connectionStatus === "open") {
       setShowWhatsAppWarning(false);
-    } else if (instanceInfo && instanceInfo.connectionStatus !== "open") {
-      setShowWhatsAppWarning(true);
     }
+    // ✅ CORREGIDO: NO mostrar advertencia en cada polling, solo al inicio
+    // La advertencia solo se muestra en verificarConexionInicial()
   }, [instanceInfo]);
 
   const getClientesEstadoPendiente = () => {
@@ -1005,6 +1094,44 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setWhatsappStatus("Error de Conexión");
     } finally {
       setIsLoadingWhatsApp(false);
+    }
+  };
+
+  // ✅ NUEVA FUNCIÓN: Solo verificar estado sin afectar UI
+  const handleSilentInstanceCheck = async () => {
+    try {
+      const instanceName = encodeURIComponent(asesor.NOMBRE);
+      const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${instanceName}`;
+      
+      console.log('🔍 [WhatsApp] Verificación silenciosa de estado...');
+    
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (Array.isArray(data) && data.length > 0) {
+          const instance = data[0];
+          console.log('🔍 [WhatsApp] Estado actual:', instance.connectionStatus);
+          
+          // Solo actualizar info de instancia y status
+          setInstanceInfo(instance);
+          const statusConfig = getEvolutionStatusConfig(instance.connectionStatus);
+          setWhatsappStatus(statusConfig.displayText);
+        } else {
+          console.log('🔍 [WhatsApp] No se encontró instancia');
+          setInstanceInfo(null);
+          setWhatsappStatus("Desconectado");
+        }
+      }
+    } catch (error) {
+      console.log('🔍 [WhatsApp] Error en verificación silenciosa:', error);
     }
   };
 
@@ -1474,17 +1601,14 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         onDeleteInstance={handleDeleteInstance}
       />
 
-      {/* WhatsAppWarningModal deshabilitado */}
-      {false && (
-        <WhatsAppWarningModal
-          isOpen={showWhatsAppWarning && (!instanceInfo || instanceInfo.connectionStatus !== "open")}
-          onClose={() => setShowWhatsAppWarning(false)}
-          onConnect={() => {
-            setShowWhatsAppModal(true);
-            setShowWhatsAppWarning(false);
-          }}
-        />
-      )}
+      <WhatsAppWarningModal
+        isOpen={showWhatsAppWarning && (!instanceInfo || instanceInfo.connectionStatus !== "open")}
+        onClose={() => setShowWhatsAppWarning(false)}
+        onConnect={() => {
+          setShowWhatsAppModal(true);
+          setShowWhatsAppWarning(false);
+        }}
+      />
 
       {/* Modal de Telegram */}
       {showTelegramModal && (

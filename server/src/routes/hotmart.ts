@@ -294,7 +294,27 @@ router.post('/webhook', async (req, res) => {
 
     // 1. Buscar en la base de datos si el cliente existe
     processingSteps.push({ step: 'database_lookup', status: 'starting', timestamp: new Date() });
+    
+    logger.info('🔍 Iniciando búsqueda de cliente por WhatsApp', { 
+      numero: datosProcesados.numero,
+      flujo 
+    });
+    
     const clienteExistente = await getClienteByWhatsapp(datosProcesados.numero);
+    
+    if (clienteExistente) {
+      logger.info('✅ Cliente encontrado en BD', { 
+        clienteId: clienteExistente.ID,
+        estado: clienteExistente.ESTADO,
+        numero: datosProcesados.numero
+      });
+    } else {
+      logger.info('⚠️ Cliente NO encontrado en BD', { 
+        numero: datosProcesados.numero,
+        flujo 
+      });
+    }
+    
     processingSteps.push({ 
       step: 'database_lookup', 
       status: 'completed', 
@@ -311,18 +331,23 @@ router.post('/webhook', async (req, res) => {
       logger.info('Cliente existente encontrado', { clienteId: clienteExistente.ID });
       clienteId = clienteExistente.ID;
 
-      // Verificar si es una compra
-      if (flujo === 'COMPRAS') {
-        // Si el cliente tiene un asesor asignado y ya había comprado, no hacer nada más
-        if (clienteExistente.ESTADO === 'PAGADO' || clienteExistente.ESTADO === 'VENTA CONSOLIDADA') {
-          logger.info('Cliente ya había comprado, no se procesa', { clienteId });
-          return res.status(200).json({
-            success: true,
-            message: 'Cliente ya había comprado anteriormente',
-            timestamp: new Date().toISOString()
-          });
-        }
+      // Verificar si el cliente ya está en estado PAGADO o VENTA CONSOLIDADA (como en N8N)
+      if (clienteExistente.ESTADO === 'PAGADO' || clienteExistente.ESTADO === 'VENTA CONSOLIDADA') {
+        logger.info('Cliente ya está en estado PAGADO o VENTA CONSOLIDADA, no se procesa ningún flujo', { 
+          clienteId, 
+          estado: clienteExistente.ESTADO,
+          flujo 
+        });
+        return res.status(200).json({
+          success: true,
+          message: 'Cliente ya está en estado PAGADO o VENTA CONSOLIDADA, no se procesa',
+          estado: clienteExistente.ESTADO,
+          timestamp: new Date().toISOString()
+        });
+      }
 
+      // Si el cliente existe pero NO está pagado, procesar según el flujo
+      if (flujo === 'COMPRAS') {
         // Actualizar estado a PAGADO y datos de compra
         const estadoAnterior = clienteExistente.ESTADO;
         
@@ -626,21 +651,8 @@ router.post('/webhook', async (req, res) => {
           logger.error('Error agregando notificación de venta a cola', error);
         }
               } else {
-         // Verificar si el cliente ya compró (VIP post venta) - NO notificar asesor
-         const esVipPostVenta = clienteExistente && 
-           (clienteExistente.ESTADO === 'PAGADO' || clienteExistente.ESTADO === 'VENTA CONSOLIDADA');
-         
-         if (esVipPostVenta) {
-           telegramStatus = 'skipped';
-           telegramError = 'Cliente VIP post venta - no se notifica asesor';
-           logger.info('Cliente VIP post venta detectado - no se envía notificación a asesor', { 
-             flujo, 
-             cliente: datosProcesados.nombre,
-             estado: clienteExistente.ESTADO
-           });
-         }
-         // Notificar al asesor asignado solo para prospectos (no VIP post venta)
-         else if (asesorAsignado?.ID_TG) {
+         // Notificar al asesor asignado (ya no hay clientes VIP post venta aquí)
+         if (asesorAsignado?.ID_TG) {
           const asesorMessage = createAsesorNotificationMessage(
             flujo,
             datosProcesados.nombre,

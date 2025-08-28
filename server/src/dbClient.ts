@@ -136,15 +136,68 @@ export async function getAsesores(): Promise<{ ID: number; NOMBRE: string }[]> {
 }
 
 export async function getClienteByWhatsapp(wha: string): Promise<{ ID: number; ESTADO: string; ID_ASESOR?: number; NOMBRE_ASESOR?: string } | null> {
-  // Limpiar el número (solo dígitos)
-  const soloNumeros = wha.replace(/\D/g, '');
-  const ultimos7 = soloNumeros.slice(-7);
-  if (!ultimos7) return null;
-  // Buscar clientes cuyo whatsapp contenga los últimos 7 dígitos
-  const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?WHATSAPP=ilike.*${ultimos7}*&select=ID,ESTADO,ID_ASESOR,NOMBRE_ASESOR&limit=1`);
-  if (!response.ok) return null;
-  const data = await response.json();
-  return data && data.length > 0 ? data[0] : null;
+  try {
+    if (!wha || typeof wha !== 'string') {
+      console.log('❌ getClienteByWhatsapp: Número inválido o vacío', { wha });
+      return null;
+    }
+
+    // Limpiar el número (solo dígitos)
+    const soloNumeros = wha.replace(/\D/g, '');
+    
+    if (soloNumeros.length < 7) {
+      console.log('❌ getClienteByWhatsapp: Número muy corto para búsqueda', { 
+        original: wha, 
+        soloNumeros, 
+        longitud: soloNumeros.length 
+      });
+      return null;
+    }
+
+    const ultimos7 = soloNumeros.slice(-7);
+    console.log('🔍 getClienteByWhatsapp: Buscando por últimos 7 dígitos', { 
+      original: wha, 
+      soloNumeros, 
+      ultimos7 
+    });
+
+    // Buscar clientes cuyo whatsapp contenga los últimos 7 dígitos
+    const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?WHATSAPP=ilike.*${ultimos7}*&select=ID,ESTADO,ID_ASESOR,NOMBRE_ASESOR&limit=1`);
+    
+    if (!response.ok) {
+      console.error('❌ getClienteByWhatsapp: Error en respuesta HTTP', { 
+        status: response.status, 
+        statusText: response.statusText,
+        ultimos7 
+      });
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      console.log('✅ getClienteByWhatsapp: Cliente encontrado', { 
+        clienteId: data[0].ID,
+        estado: data[0].ESTADO,
+        ultimos7,
+        whatsappBD: data[0].WHATSAPP || 'no disponible'
+      });
+      return data[0];
+    } else {
+      console.log('⚠️ getClienteByWhatsapp: No se encontraron clientes', { 
+        ultimos7,
+        numeroOriginal: wha 
+      });
+      return null;
+    }
+
+  } catch (error) {
+    console.error('❌ getClienteByWhatsapp: Error inesperado', { 
+      error: error instanceof Error ? error.message : 'Error desconocido',
+      numero: wha 
+    });
+    return null;
+  }
 }
 
 // 🆕 FUNCIONES PARA MAPEO LID

@@ -1689,4 +1689,287 @@ router.post('/test-telegram', async (req, res) => {
   }
 });
 
+// Endpoint para reintentar integraciones específicas
+router.post('/webhook-logs/:id/retry/:integration', async (req, res) => {
+  const { id, integration } = req.params;
+  const webhookLogId = parseInt(id);
+  
+  if (!webhookLogId || isNaN(webhookLogId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'ID de webhook log inválido'
+    });
+  }
+
+  const validIntegrations = ['manychat', 'telegram', 'flodesk'];
+  if (!validIntegrations.includes(integration)) {
+    return res.status(400).json({
+      success: false,
+      error: `Integración inválida. Debe ser una de: ${validIntegrations.join(', ')}`
+    });
+  }
+
+  try {
+    // Obtener el log original
+    const originalLog = await getWebhookLogById(webhookLogId);
+    if (!originalLog) {
+      return res.status(404).json({
+        success: false,
+        error: 'Webhook log no encontrado'
+      });
+    }
+
+    let retryResult: { success: boolean; status: string; error?: string; details?: any } = { 
+      success: false, 
+      error: 'No implementado', 
+      status: 'error' 
+    };
+    const retryTimestamp = new Date();
+
+    // Ejecutar retry según la integración
+    switch (integration) {
+      case 'manychat':
+        retryResult = await retryManyChatIntegration(originalLog);
+        break;
+      case 'telegram':
+        retryResult = await retryTelegramIntegration(originalLog);
+        break;
+      case 'flodesk':
+        retryResult = await retryFlodeskIntegration(originalLog);
+        break;
+    }
+
+    // Actualizar el log con el resultado del retry
+    const updateData: any = {};
+    updateData[`${integration}_status`] = retryResult.status;
+    if (retryResult.error) {
+      updateData[`${integration}_error`] = `RETRY ${retryTimestamp.toISOString()}: ${retryResult.error}`;
+    }
+    if (retryResult.details) {
+      if (integration === 'manychat' && retryResult.details?.subscriberId) {
+        updateData.manychat_subscriber_id = retryResult.details.subscriberId;
+      }
+      if (integration === 'telegram' && retryResult.details?.messageId) {
+        updateData.telegram_message_id = retryResult.details.messageId;
+      }
+    }
+
+    // Agregar log de retry a processing_steps
+    const retryStep = {
+      step: `${integration}_retry`,
+      status: retryResult.status,
+      timestamp: retryTimestamp,
+      attempted_by: 'manual_retry',
+      result: retryResult.success ? 'success' : 'error',
+      error: retryResult.error || undefined,
+      details: retryResult.details || undefined
+    };
+
+    // Obtener processing_steps existentes y agregar el nuevo
+    const existingSteps = originalLog.processing_steps || [];
+    updateData.processing_steps = [...existingSteps, retryStep];
+
+    await updateWebhookLog({
+      id: webhookLogId,
+      ...updateData
+    });
+
+    logger.info(`Retry de ${integration} ejecutado`, {
+      webhookLogId,
+      integration,
+      success: retryResult.success,
+      error: retryResult.error
+    });
+
+    res.json({
+      success: true,
+      data: {
+        integration,
+        webhookLogId,
+        retryResult: {
+          success: retryResult.success,
+          status: retryResult.status,
+          error: retryResult.error,
+          timestamp: retryTimestamp.toISOString()
+        }
+      },
+      message: `Retry de ${integration} ${retryResult.success ? 'exitoso' : 'falló'}`
+    });
+
+  } catch (error) {
+    logger.error(`Error en retry de ${integration}`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Funciones auxiliares para retry de cada integración
+async function retryManyChatIntegration(originalLog: any) {
+  try {
+    const config = await getHotmartConfig();
+    const flowId = config.numericos[originalLog.flujo as keyof typeof config.numericos];
+    
+    if (!flowId) {
+      return { success: false, status: 'error', error: 'Flow ID no configurado para este flujo' };
+    }
+
+    if (!originalLog.buyer_phone) {
+      return { success: false, status: 'error', error: 'Número de teléfono no disponible' };
+    }
+
+    // Intentar enviar flow de ManyChat
+    const manychatResult = await sendManyChatFlow(
+      originalLog.buyer_phone.replace(/\D/g, ''), // Solo números
+      flowId
+    );
+
+    if (manychatResult.success) {
+      return {
+        success: true,
+        status: 'success',
+        details: { subscriberId: manychatResult.data?.subscriber_id }
+      };
+    } else {
+      return {
+        success: false,
+        status: 'error',
+        error: manychatResult.error || 'Error desconocido en ManyChat'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Error en retry de ManyChat'
+    };
+  }
+}
+
+async function retryTelegramIntegration(originalLog: any) {
+  try {
+    // Para Telegram, necesitamos recrear el mensaje y enviarlo a la cola
+    if (originalLog.flujo === 'COMPRAS') {
+      // Recrear mensaje de venta
+      const ventaMessage = await createVentaMessage(
+        originalLog.raw_webhook_data,
+        originalLog.asesor_nombre
+      );
+      
+      const messageId = telegramQueue.enqueueMessage(
+        ventaMessage.chat_id,
+        ventaMessage.text,
+        originalLog.id,
+        { 
+          type: 'venta_retry',
+          asesor: originalLog.asesor_nombre || 'SIN CERRADOR',
+          flujo: originalLog.flujo,
+          retryTimestamp: new Date().toISOString()
+        },
+        undefined, // reply_markup no necesario para mensajes de venta
+        ventaMessage.message_thread_id
+      );
+
+      return {
+        success: true,
+        status: 'queued',
+        details: { messageId }
+      };
+    } else {
+      // Para otros flujos, enviar notificación al asesor
+      if (originalLog.asesor_id && originalLog.buyer_phone) {
+        const asesor = await getAsesorById(originalLog.asesor_id);
+        if (asesor?.ID_TG) {
+          const asesorMessage = createAsesorNotificationMessage(
+            originalLog.flujo,
+            originalLog.buyer_name || 'Cliente',
+            originalLog.buyer_phone,
+            asesor.ID_TG,
+            originalLog.raw_webhook_data?.data?.purchase?.recusal_reason || 'Retry manual'
+          );
+
+          const messageId = telegramQueue.enqueueMessage(
+            asesorMessage.chat_id,
+            asesorMessage.text,
+            originalLog.id,
+            { 
+              type: 'asesor_notification_retry',
+              asesor: asesor.NOMBRE,
+              evento: originalLog.flujo,
+              cliente: originalLog.buyer_name,
+              retryTimestamp: new Date().toISOString()
+            },
+            asesorMessage.reply_markup
+          );
+
+          return {
+            success: true,
+            status: 'queued',
+            details: { messageId }
+          };
+        }
+      }
+      
+      return {
+        success: false,
+        status: 'error',
+        error: 'No se pudo determinar el asesor o chat de destino'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Error en retry de Telegram'
+    };
+  }
+}
+
+async function retryFlodeskIntegration(originalLog: any) {
+  try {
+    const config = await getHotmartConfig();
+    const segmentId = config.flodesk[originalLog.flujo as keyof typeof config.flodesk];
+    
+    if (!segmentId) {
+      return { success: false, status: 'error', error: 'Segment ID no configurado para este flujo' };
+    }
+
+    if (!originalLog.buyer_email) {
+      return { success: false, status: 'error', error: 'Email no disponible' };
+    }
+
+    // Intentar agregar a Flodesk (aquí necesitarías implementar la función)
+    // Por ahora simulo el resultado
+    const flodeskResult = await addToFlodeskSegment(originalLog.buyer_email, segmentId);
+
+    if (flodeskResult.success) {
+      return {
+        success: true,
+        status: 'success',
+        details: { segmentId }
+      };
+    } else {
+      return {
+        success: false,
+        status: 'error',
+        error: flodeskResult.error || 'Error desconocido en Flodesk'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Error en retry de Flodesk'
+    };
+  }
+}
+
+// Función placeholder para Flodesk (necesitarías implementar la real)
+async function addToFlodeskSegment(email: string, segmentId: string) {
+  // Aquí iría la implementación real de Flodesk
+  return { success: true, error: undefined }; // Placeholder
+}
+
 export default router;

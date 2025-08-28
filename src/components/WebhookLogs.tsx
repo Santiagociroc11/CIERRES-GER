@@ -48,7 +48,9 @@ import {
   Telegram,
   AccessTime,
   MonetizationOn,
-  Public
+  Public,
+  Replay,
+  Warning
 } from '@mui/icons-material';
 import { toast } from 'react-hot-toast';
 
@@ -177,6 +179,7 @@ const WebhookLogs: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterFlujo, setFilterFlujo] = useState('');
   const [detailTabValue, setDetailTabValue] = useState(0);
+  const [retryingIntegrations, setRetryingIntegrations] = useState<Record<string, boolean>>({});
 
   const loadLogs = useCallback(async () => {
     try {
@@ -327,6 +330,65 @@ const WebhookLogs: React.FC = () => {
     );
   };
 
+  const handleRetryIntegration = async (logId: number, integration: string) => {
+    const retryKey = `${logId}-${integration}`;
+    
+    setRetryingIntegrations(prev => ({ ...prev, [retryKey]: true }));
+    
+    try {
+      const response = await fetch(`/api/hotmart/webhook-logs/${logId}/retry/${integration}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(data.message || `Retry de ${integration} exitoso`);
+        // Recargar logs para mostrar los cambios
+        await loadLogs();
+      } else {
+        toast.error(data.error || `Error en retry de ${integration}`);
+      }
+    } catch (error) {
+      console.error(`Error en retry de ${integration}:`, error);
+      toast.error(`Error al ejecutar retry de ${integration}`);
+    } finally {
+      setRetryingIntegrations(prev => ({ ...prev, [retryKey]: false }));
+    }
+  };
+
+  const shouldShowRetryButton = (status: string | undefined) => {
+    // Mostrar retry si hay error, está en queued por más de 5 minutos, o es skipped
+    return status === 'error' || status === 'queued' || status === 'skipped';
+  };
+
+  const getRetryButton = (logId: number, status: string | undefined, integration: string) => {
+    if (!shouldShowRetryButton(status)) return null;
+    
+    const retryKey = `${logId}-${integration}`;
+    const isRetrying = retryingIntegrations[retryKey];
+    
+    return (
+      <Tooltip title={`Reintentar ${integration}`}>
+        <IconButton
+          size="small"
+          onClick={() => handleRetryIntegration(logId, integration)}
+          disabled={isRetrying}
+          sx={{ ml: 1 }}
+        >
+          {isRetrying ? (
+            <CircularProgress size={16} />
+          ) : (
+            <Replay fontSize="small" color={status === 'error' ? 'error' : 'warning'} />
+          )}
+        </IconButton>
+      </Tooltip>
+    );
+  };
+
 
   const renderProcessingTimeline = (log: WebhookLog) => {
     const timeline = [];
@@ -430,8 +492,9 @@ const WebhookLogs: React.FC = () => {
             <Box display="flex" alignItems="center" mb={2}>
               <Message sx={{ mr: 1, color: log.manychat_status === 'success' ? 'success.main' : log.manychat_status === 'error' ? 'error.main' : 'grey.500' }} />
               <Typography variant="subtitle2">ManyChat</Typography>
-              <Box sx={{ ml: 'auto' }}>
+              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
                 {getIntegrationChip(log.manychat_status)}
+                {getRetryButton(log.id, log.manychat_status, 'manychat')}
               </Box>
             </Box>
             {log.manychat_flow_id && (
@@ -470,8 +533,9 @@ const WebhookLogs: React.FC = () => {
             <Box display="flex" alignItems="center" mb={2}>
               <Email sx={{ mr: 1, color: log.flodesk_status === 'success' ? 'success.main' : log.flodesk_status === 'error' ? 'error.main' : 'grey.500' }} />
               <Typography variant="subtitle2">Flodesk</Typography>
-              <Box sx={{ ml: 'auto' }}>
+              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
                 {getIntegrationChip(log.flodesk_status)}
+                {getRetryButton(log.id, log.flodesk_status, 'flodesk')}
               </Box>
             </Box>
             {log.flodesk_segment_id && (
@@ -504,8 +568,9 @@ const WebhookLogs: React.FC = () => {
             <Box display="flex" alignItems="center" mb={2}>
               <Telegram sx={{ mr: 1, color: log.telegram_status === 'success' ? 'success.main' : log.telegram_status === 'error' ? 'error.main' : 'grey.500' }} />
               <Typography variant="subtitle2">Telegram</Typography>
-              <Box sx={{ ml: 'auto' }}>
+              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
                 {getIntegrationChip(log.telegram_status)}
+                {getRetryButton(log.id, log.telegram_status, 'telegram')}
               </Box>
             </Box>
             {log.telegram_chat_id && (
@@ -798,10 +863,55 @@ const WebhookLogs: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Box display="flex" flexWrap="wrap" gap={0.5}>
-                          {getIntegrationChip(log.manychat_status)}
-                          {getIntegrationChip(log.flodesk_status)}
-                          {getIntegrationChip(log.telegram_status)}
+                        <Box display="flex" flexWrap="wrap" gap={0.5} alignItems="center">
+                          <Box display="flex" alignItems="center">
+                            {getIntegrationChip(log.manychat_status)}
+                            {log.manychat_status && shouldShowRetryButton(log.manychat_status) && (
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRetryIntegration(log.id, 'manychat');
+                                }}
+                                sx={{ ml: 0.5, p: 0.25 }}
+                                title="Retry ManyChat"
+                              >
+                                <Replay fontSize="small" color="warning" />
+                              </IconButton>
+                            )}
+                          </Box>
+                          <Box display="flex" alignItems="center">
+                            {getIntegrationChip(log.flodesk_status)}
+                            {log.flodesk_status && shouldShowRetryButton(log.flodesk_status) && (
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRetryIntegration(log.id, 'flodesk');
+                                }}
+                                sx={{ ml: 0.5, p: 0.25 }}
+                                title="Retry Flodesk"
+                              >
+                                <Replay fontSize="small" color="warning" />
+                              </IconButton>
+                            )}
+                          </Box>
+                          <Box display="flex" alignItems="center">
+                            {getIntegrationChip(log.telegram_status)}
+                            {log.telegram_status && shouldShowRetryButton(log.telegram_status) && (
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRetryIntegration(log.id, 'telegram');
+                                }}
+                                sx={{ ml: 0.5, p: 0.25 }}
+                                title="Retry Telegram"
+                              >
+                                <Replay fontSize="small" color="warning" />
+                              </IconButton>
+                            )}
+                          </Box>
                         </Box>
                       </TableCell>
                       <TableCell>

@@ -560,6 +560,12 @@ export default function ReportarVenta({
                   placeholder="Número de teléfono"
                   required
                 />
+                <p className="text-xs text-blue-600 mt-1 font-medium">
+                  📱 Formato: Número con indicativo tal como aparece en WhatsApp (ej: +573001234567)
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Sin espacios, paréntesis ni guiones
+                </p>
               </div>
 
               {/* Campo específico para Stripe */}

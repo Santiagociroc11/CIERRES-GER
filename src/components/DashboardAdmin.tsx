@@ -80,7 +80,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [mensajesChat, setMensajesChat] = useState<any[]>([]);
   const [cargandoConversacionesChat, setCargandoConversacionesChat] = useState(false);
   const [cargandoMensajesChat, setCargandoMensajesChat] = useState(false);
-  const [filtroChatGlobal, setFiltroChatGlobal] = useState<'todos' | 'mapeados' | 'lids'>('todos');
+  const [filtroChatGlobal, setFiltroChatGlobal] = useState<'todos' | 'mapeados' | 'lids' | 'pendientes'>('todos');
   
   // 🆕 Función para obtener nombre del cliente
   const obtenerNombreCliente = (conversacion: any) => {
@@ -153,6 +153,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       return conversacionesChat.filter(c => obtenerTipoCliente(c) === 'cliente-mapeado');
     } else if (filtroChatGlobal === 'lids') {
       return conversacionesChat.filter(c => obtenerTipoCliente(c) === 'lid-sin-mapear');
+    } else if (filtroChatGlobal === 'pendientes') {
+      return conversacionesChat.filter(c => c.ultimo_modo === 'entrante');
     }
     return conversacionesChat;
   }, [conversacionesChat, filtroChatGlobal]);
@@ -3680,9 +3682,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
                             filtroChatGlobal === 'mapeados' 
                               ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
+                              : filtroChatGlobal === 'lids'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-orange-100 text-orange-700'
                           }`}>
-                            {filtroChatGlobal === 'mapeados' ? 'Solo Mapeados' : 'Solo LIDs'}
+                            {filtroChatGlobal === 'mapeados' ? 'Solo Mapeados' : 
+                             filtroChatGlobal === 'lids' ? 'Solo LIDs' : 'Solo Pendientes'}
                           </span>
                         )}
                       </p>
@@ -3741,6 +3746,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             {conversacionesChat.filter(c => obtenerTipoCliente(c) === 'lid-sin-mapear').length}
                           </span>
                         </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-orange-600">Pendientes de respuesta:</span>
+                          <span className="font-medium text-orange-700">
+                            {conversacionesChat.filter(c => c.ultimo_modo === 'entrante').length}
+                          </span>
+                        </div>
                       </div>
                       
                       {/* Filtro de conversaciones */}
@@ -3776,6 +3787,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             }`}
                           >
                             LIDs
+                          </button>
+                          <button
+                            onClick={() => setFiltroChatGlobal('pendientes')}
+                            className={`px-2 py-1 text-xs rounded ${
+                              filtroChatGlobal === 'pendientes'
+                                ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                                : 'bg-gray-200 text-orange-600 hover:bg-orange-100'
+                            }`}
+                          >
+                            Pendientes
                           </button>
                         </div>
                       </div>
@@ -3867,12 +3888,28 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                               </div>
                             </div>
                             <div className="ml-2 flex flex-col items-end">
+                              {/* Indicador de último mensaje */}
+                              <div className="flex items-center space-x-2 mb-1">
+                                {conversacion.ultimo_modo === 'entrante' ? (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                                    <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
+                                    Cliente
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                                    <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                                    Asesor
+                                  </span>
+                                )}
+                              </div>
+                              
                               <span className="text-xs text-gray-400">
                                 {formatDistanceToNow(new Date(conversacion.ultimo_timestamp * 1000), { 
                                   addSuffix: true, 
                                   locale: es 
                                 })}
                               </span>
+                              
                               {conversacion.total_mensajes > 0 && (
                                 <span className="mt-1 bg-indigo-100 text-indigo-800 text-xs font-medium px-2 py-1 rounded-full">
                                   {conversacion.total_mensajes}
@@ -3955,6 +3992,21 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
+                          {/* Estado del último mensaje */}
+                          <div className="flex items-center space-x-2">
+                            {conversacionActivaChat.ultimo_modo === 'entrante' ? (
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700 border-2 border-red-300">
+                                <span className="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>
+                                ⚠️ Último mensaje del CLIENTE
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700 border-2 border-green-300">
+                                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                                ✅ Último mensaje del ASESOR
+                              </span>
+                            )}
+                          </div>
+                          
                           <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
                             {conversacionActivaChat.total_mensajes} mensajes
                           </span>
@@ -3975,6 +4027,37 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
                     {/* Área de mensajes */}
                     <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+                      {/* Banner de estado de la conversación */}
+                      <div className={`mb-4 p-3 rounded-lg border-2 ${
+                        conversacionActivaChat.ultimo_modo === 'entrante'
+                          ? 'bg-red-50 border-red-200'
+                          : 'bg-green-50 border-green-200'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            {conversacionActivaChat.ultimo_modo === 'entrante' ? (
+                              <>
+                                <span className="text-red-600">⚠️</span>
+                                <span className="text-red-800 font-medium">Conversación pendiente de respuesta</span>
+                                <span className="text-red-600 text-sm">El cliente envió el último mensaje</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-green-600">✅</span>
+                                <span className="text-green-800 font-medium">Conversación al día</span>
+                                <span className="text-green-600 text-sm">El asesor envió el último mensaje</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatDistanceToNow(new Date(conversacionActivaChat.ultimo_timestamp * 1000), { 
+                              addSuffix: true, 
+                              locale: es 
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                      
                       {cargandoMensajesChat ? (
                         <div className="flex items-center justify-center h-full">
                           <RefreshCcw className="h-8 w-8 text-gray-400 animate-spin" />
@@ -4028,10 +4111,33 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
                     {/* Área de envío de mensajes (solo lectura por ahora) */}
                     <div className="bg-white border-t border-gray-200 px-6 py-4">
-                      <div className="bg-gray-100 text-gray-500 px-4 py-3 rounded-lg text-center">
-                        <MessageSquare className="h-5 w-5 mx-auto mb-1" />
-                        <p className="text-sm">Modo supervisión - Solo lectura</p>
-                        <p className="text-xs">Para enviar mensajes, usa el chat modal individual</p>
+                      <div className={`px-4 py-3 rounded-lg text-center border-2 ${
+                        conversacionActivaChat.ultimo_modo === 'entrante'
+                          ? 'bg-red-50 border-red-200 text-red-700'
+                          : 'bg-green-50 border-green-200 text-green-700'
+                      }`}>
+                        <div className="flex items-center justify-center space-x-2 mb-2">
+                          {conversacionActivaChat.ultimo_modo === 'entrante' ? (
+                            <>
+                              <AlertTriangle className="h-5 w-5 text-red-500" />
+                              <span className="font-medium">⚠️ ATENCIÓN REQUERIDA</span>
+                            </>
+                          ) : (
+                            <>
+                              <MessageSquare className="h-5 w-5 text-green-500" />
+                              <span className="font-medium">✅ CONVERSACIÓN AL DÍA</span>
+                            </>
+                          )}
+                        </div>
+                        <p className="text-sm">
+                          {conversacionActivaChat.ultimo_modo === 'entrante'
+                            ? 'El cliente envió el último mensaje - El asesor debe responder'
+                            : 'El asesor envió el último mensaje - Esperando respuesta del cliente'
+                          }
+                        </p>
+                        <p className="text-xs mt-1 opacity-75">
+                          Modo supervisión - Solo lectura. Para enviar mensajes, usa el chat modal individual
+                        </p>
                       </div>
                     </div>
                   </>

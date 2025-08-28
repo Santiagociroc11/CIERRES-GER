@@ -1820,17 +1820,49 @@ async function retryManyChatIntegration(originalLog: any) {
       return { success: false, status: 'error', error: 'Número de teléfono no disponible' };
     }
 
-    // Intentar enviar flow de ManyChat
-    const manychatResult = await sendManyChatFlow(
-      originalLog.buyer_phone.replace(/\D/g, ''), // Solo números
-      flowId
-    );
+    // Primero buscar o crear subscriber (igual que en webhook principal)
+    const cleanPhone = originalLog.buyer_phone.replace(/\D/g, '');
+    
+    // Paso 1: Buscar subscriber existente
+    const subscriberResult = await findManyChatSubscriber(cleanPhone);
+    let subscriberId = null;
+
+    if (subscriberResult.success && subscriberResult.data?.data?.length > 0) {
+      subscriberId = subscriberResult.data.data[0].id;
+    } else {
+      // Paso 2: Crear nuevo subscriber si no existe
+      const createResult = await createManyChatSubscriber(
+        originalLog.buyer_name || 'Cliente',
+        cleanPhone
+      );
+      
+      if (createResult.success && createResult.data?.data) {
+        subscriberId = createResult.data.data.id;
+      } else if (createResult.error && createResult.error.includes('already exists')) {
+        // Si ya existe pero no lo encontramos, intentar búsqueda nuevamente
+        const retrySearch = await findManyChatSubscriber(cleanPhone);
+        if (retrySearch.success && retrySearch.data?.data?.length > 0) {
+          subscriberId = retrySearch.data.data[0].id;
+        }
+      }
+      
+      if (!subscriberId) {
+        return {
+          success: false,
+          status: 'error',
+          error: createResult.error || 'No se pudo crear o encontrar subscriber'
+        };
+      }
+    }
+
+    // Paso 3: Enviar flow al subscriber ID
+    const manychatResult = await sendManyChatFlow(subscriberId, flowId);
 
     if (manychatResult.success) {
       return {
         success: true,
         status: 'success',
-        details: { subscriberId: manychatResult.data?.subscriber_id }
+        details: { subscriberId }
       };
     } else {
       return {
@@ -1852,9 +1884,32 @@ async function retryTelegramIntegration(originalLog: any) {
   try {
     // Para Telegram, necesitamos recrear el mensaje y enviarlo a la cola
     if (originalLog.flujo === 'COMPRAS') {
-      // Recrear mensaje de venta
+      // Reconstruir estructura de datos desde el log si raw_webhook_data está incompleto
+      let hotmartData = originalLog.raw_webhook_data;
+      
+      // Si raw_webhook_data está vacío o incompleto, reconstruir desde los campos del log
+      if (!hotmartData || !hotmartData.buyer || !hotmartData.purchase || !hotmartData.product) {
+        hotmartData = {
+          buyer: {
+            name: originalLog.buyer_name || 'N/A',
+            email: originalLog.buyer_email || 'N/A',
+            address: {
+              country: originalLog.buyer_country || 'N/A'
+            }
+          },
+          purchase: {
+            transaction: originalLog.transaction_id || 'N/A',
+            order_date: originalLog.purchase_date || new Date().toISOString()
+          },
+          product: {
+            name: originalLog.product_name || 'N/A'
+          }
+        };
+      }
+      
+      // Recrear mensaje de venta con datos completos
       const ventaMessage = await createVentaMessage(
-        originalLog.raw_webhook_data,
+        hotmartData,
         originalLog.asesor_nombre
       );
       

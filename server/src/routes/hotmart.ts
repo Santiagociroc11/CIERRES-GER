@@ -2148,7 +2148,7 @@ router.post('/admin/migrate-processing-webhooks', async (req, res) => {
     
     // Obtener todos los webhooks en processing
     const processingLogs = await getRecentWebhookLogs(500, 0); // Buscar más registros
-    const processingOnly = processingLogs.filter(log => log.status === 'processing');
+    const processingOnly = processingLogs.filter((log: WebhookLogEntry) => log.status === 'processing');
     
     logger.info(`Encontrados ${processingOnly.length} webhooks en processing`);
     

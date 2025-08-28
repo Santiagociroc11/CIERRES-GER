@@ -30,6 +30,7 @@ import {
   createVentaMessage, 
   createAsesorNotificationMessage 
 } from '../services/telegramService';
+import { getCompleteBuyerData } from '../services/hotmartApiService';
 import { checkWhatsAppNumber } from '../services/evolutionService';
 
 const router = Router();
@@ -181,7 +182,65 @@ router.post('/webhook', async (req, res) => {
     }
 
     // Asignar valores según el flujo
-    const datosProcesados = await asignarValores(datosComprador);
+    let datosProcesados = await asignarValores(datosComprador);
+    
+    // Si falta el teléfono, intentar obtenerlo de la API de Hotmart
+    if (!datosProcesados.numero && body.data?.purchase?.transaction) {
+      logger.info('Teléfono faltante, consultando API de Hotmart', {
+        transactionId: body.data.purchase.transaction
+      });
+      
+      processingSteps.push({
+        step: 'hotmart_api_lookup',
+        status: 'started',
+        transaction_id: body.data.purchase.transaction,
+        reason: 'missing_phone',
+        timestamp: new Date()
+      });
+      
+      const apiResult = await getCompleteBuyerData(
+        body.data.purchase.transaction,
+        datosProcesados
+      );
+      
+      if (apiResult.success && apiResult.data) {
+        // Actualizar datos con información de la API
+        datosProcesados = { ...datosProcesados, ...apiResult.data };
+        
+        processingSteps.push({
+          step: 'hotmart_api_lookup',
+          status: 'completed',
+          result: 'success',
+          source: apiResult.source,
+          data_obtained: {
+            phone: !!apiResult.data.numero,
+            name: !!apiResult.data.nombre,
+            email: !!apiResult.data.correo,
+            country: !!apiResult.data.pais
+          },
+          timestamp: new Date()
+        });
+        
+        logger.info('Datos obtenidos de API de Hotmart', {
+          transactionId: body.data.purchase.transaction,
+          phoneObtained: !!apiResult.data.numero,
+          source: apiResult.source
+        });
+      } else {
+        processingSteps.push({
+          step: 'hotmart_api_lookup',
+          status: 'completed',
+          result: 'error',
+          error: apiResult.error,
+          timestamp: new Date()
+        });
+        
+        logger.warn('No se pudieron obtener datos de API de Hotmart', {
+          transactionId: body.data.purchase.transaction,
+          error: apiResult.error
+        });
+      }
+    }
 
     logger.info('Datos procesados del webhook', {
       flujo,

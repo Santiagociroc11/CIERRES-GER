@@ -45,6 +45,10 @@ interface HotmartConfig {
     groupChatId: string;
     threadId: string;
   };
+  api?: {
+    client_id: string;
+    client_secret: string;
+  };
 }
 
 interface SoporteConfig {
@@ -315,6 +319,18 @@ const WebhookConfig: React.FC = () => {
       ...config,
       telegram: {
         ...config.telegram,
+        [field]: value
+      }
+    });
+  };
+
+  const handleApiChange = (field: string, value: string) => {
+    if (!config) return;
+    
+    setConfig({
+      ...config,
+      api: {
+        ...config.api,
         [field]: value
       }
     });
@@ -789,6 +805,44 @@ const WebhookConfig: React.FC = () => {
                 helperText="ID del hilo/tema específico dentro del grupo (ej: 807)"
                 placeholder="807"
                 type="number"
+              />
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ my: 3 }} />
+
+          {/* Configuración de API de Hotmart */}
+          <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+            <Chip label="Hotmart API" color="warning" size="small" sx={{ mr: 1 }} />
+            Configuración de API de Hotmart
+          </Typography>
+          
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            Credenciales para consultar datos faltantes cuando los webhooks no incluyen información completa (ej: teléfono).
+          </Typography>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Client ID"
+                value={config.api?.client_id || ''}
+                onChange={(e) => handleApiChange('client_id', e.target.value)}
+                size="small"
+                helperText="Client ID de tu aplicación en Hotmart"
+                placeholder="50ecdbd5-4e79-4861-992f-64bd60c93c6e"
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Client Secret"
+                value={config.api?.client_secret || ''}
+                onChange={(e) => handleApiChange('client_secret', e.target.value)}
+                size="small"
+                type="password"
+                helperText="Client Secret de tu aplicación en Hotmart"
+                placeholder="f162814b-5591-47e4-b69f-b89db8ff6229"
               />
             </Grid>
           </Grid>

@@ -30,6 +30,10 @@ export interface WebhookConfig {
       groupChatId?: string;
       threadId?: string;
     };
+    api?: {
+      client_id?: string;
+      client_secret?: string;
+    };
   };
   soporte: {
     phoneNumbers: {

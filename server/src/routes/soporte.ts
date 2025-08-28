@@ -498,7 +498,8 @@ router.post('/formulario-soporte', async (req, res) => {
             cliente: nombre,
             segmentacion: segmentacion.tipo,
             prioridad: segmentacion.prioridad
-          }
+          },
+          notificationMessage.reply_markup
         );
         
         telegramStatus = 'queued'; // Estado inicial en cola

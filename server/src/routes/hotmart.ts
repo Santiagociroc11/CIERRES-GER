@@ -544,7 +544,8 @@ router.post('/webhook', async (req, res) => {
                 asesor: asesorAsignado.NOMBRE,
                 evento: flujo,
                 cliente: datosProcesados.nombre
-              }
+              },
+              asesorMessage.reply_markup
             );
             
             telegramStatus = 'queued';
@@ -1642,7 +1643,8 @@ router.post('/test-telegram', async (req, res) => {
         advisorId,
         advisorName: asesor.NOMBRE,
         messageType
-      }
+      },
+      message.reply_markup
     );
     
     res.json({

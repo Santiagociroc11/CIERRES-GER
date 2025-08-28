@@ -36,6 +36,13 @@ interface TelegramMessage {
   createdAt: Date;
   scheduledAt: Date;
   metadata?: any;
+  reply_markup?: {
+    inline_keyboard: Array<Array<{
+      text: string;
+      url?: string;
+      callback_data?: string;
+    }>>;
+  };
 }
 
 class TelegramQueueService {
@@ -70,7 +77,14 @@ class TelegramQueueService {
     chatId: string, 
     text: string, 
     webhookLogId?: number, 
-    metadata?: any
+    metadata?: any,
+    reply_markup?: {
+      inline_keyboard: Array<Array<{
+        text: string;
+        url?: string;
+        callback_data?: string;
+      }>>;
+    }
   ): string {
     const messageId = this.generateMessageId();
     const now = new Date();
@@ -84,7 +98,8 @@ class TelegramQueueService {
       maxAttempts: 3,
       createdAt: now,
       scheduledAt: this.calculateNextAvailableSlot(),
-      metadata
+      metadata,
+      reply_markup
     };
 
     this.queue.push(message);
@@ -214,16 +229,23 @@ class TelegramQueueService {
       throw new Error('Token de Telegram no configurado en la configuración del sistema');
     }
 
+    const requestBody: any = {
+      chat_id: message.chatId,
+      text: message.text,
+      parse_mode: 'HTML'
+    };
+
+    // Incluir reply_markup si está presente
+    if (message.reply_markup) {
+      requestBody.reply_markup = message.reply_markup;
+    }
+
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        chat_id: message.chatId,
-        text: message.text,
-        parse_mode: 'HTML'
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {

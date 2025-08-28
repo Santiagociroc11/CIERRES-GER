@@ -2141,4 +2141,91 @@ async function addToFlodeskSegment(email: string, segmentId: string) {
   return { success: true, error: undefined }; // Placeholder
 }
 
+// Endpoint administrativo para migrar webhooks en processing sin teléfono
+router.post('/admin/migrate-processing-webhooks', async (req, res) => {
+  try {
+    logger.info('Iniciando migración de webhooks en processing sin teléfono');
+    
+    // Obtener todos los webhooks en processing
+    const processingLogs = await getRecentWebhookLogs(500, 0); // Buscar más registros
+    const processingOnly = processingLogs.filter(log => log.status === 'processing');
+    
+    logger.info(`Encontrados ${processingOnly.length} webhooks en processing`);
+    
+    let migrated = 0;
+    let skipped = 0;
+    const results = [];
+    
+    for (const log of processingOnly) {
+      try {
+        // Verificar si realmente no tiene teléfono
+        const hasPhone = log.buyer_phone && log.buyer_phone.trim() !== '';
+        
+        if (!hasPhone) {
+          // Actualizar a success con error_message
+          await updateWebhookLog({
+            id: log.id,
+            status: 'success',
+            error_message: 'Sin número de teléfono disponible',
+            processed_at: new Date(),
+            processing_time_ms: log.processing_time_ms || 0
+          });
+          
+          migrated++;
+          results.push({
+            id: log.id,
+            action: 'migrated',
+            flujo: log.flujo,
+            buyer_name: log.buyer_name || 'N/A',
+            reason: 'no_phone'
+          });
+          
+          logger.info(`Migrado webhook ${log.id}: ${log.flujo} - ${log.buyer_name || 'N/A'}`);
+        } else {
+          // Tiene teléfono, probablemente quedó colgado por otro motivo
+          skipped++;
+          results.push({
+            id: log.id,
+            action: 'skipped',
+            flujo: log.flujo,
+            buyer_name: log.buyer_name || 'N/A',
+            buyer_phone: log.buyer_phone,
+            reason: 'has_phone'
+          });
+        }
+      } catch (updateError) {
+        logger.error(`Error migrando webhook ${log.id}:`, updateError);
+        results.push({
+          id: log.id,
+          action: 'error',
+          error: updateError instanceof Error ? updateError.message : 'Error desconocido'
+        });
+      }
+    }
+    
+    logger.info(`Migración completada: ${migrated} migrados, ${skipped} omitidos`);
+    
+    res.json({
+      success: true,
+      message: 'Migración de webhooks completada',
+      data: {
+        total_processing: processingOnly.length,
+        migrated,
+        skipped,
+        results
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error en migración de webhooks:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno en migración',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 export default router;

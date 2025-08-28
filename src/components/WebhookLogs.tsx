@@ -347,6 +347,30 @@ const WebhookLogs: React.FC = () => {
     );
   };
 
+  const handleMigrateProcessingWebhooks = async () => {
+    try {
+      const response = await fetch('/api/hotmart/admin/migrate-processing-webhooks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(`Migración completada: ${data.data.migrated} webhooks actualizados`);
+        await loadLogs(); // Recargar logs para ver los cambios
+      } else {
+        toast.error(`Error en migración: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error en migración:', error);
+      toast.error('Error ejecutando migración');
+    }
+  };
+
   const handleRetryIntegration = async (logId: number, integration: string) => {
     const retryKey = `${logId}-${integration}`;
     
@@ -699,6 +723,17 @@ const WebhookLogs: React.FC = () => {
             size="small"
           >
             Actualizar
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={handleMigrateProcessingWebhooks}
+            disabled={loading}
+            startIcon={<PhoneDisabled />}
+            size="small"
+            sx={{ ml: 1 }}
+          >
+            Migrar "Processing" sin Teléfono
           </Button>
         </Box>
       </Box>

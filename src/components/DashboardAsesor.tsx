@@ -12,6 +12,7 @@ import EstadisticasAvanzadas from './EstadisticasAvanzadas';
 import { useToast } from '../hooks/useToast';
 import Toast from './Toast';
 import ChatModal from './ChatModal';
+import { getEvolutionStatusConfig, isTransitoryStatus } from '../types/evolutionApi';
 
 type Vista = 'general' | 'seguimientos' | 'estadisticas' | 'pendientes' | 'sin-reporte';
 
@@ -59,6 +60,22 @@ interface WhatsAppModalProps {
   onDisconnect: () => Promise<void>;
   onRefreshInstance: () => Promise<void>;
   onDeleteInstance: () => Promise<void>;
+}
+
+interface WhatsAppStatusBadgeProps {
+  status?: string;
+  displayText: string;
+}
+
+function WhatsAppStatusBadge({ status, displayText }: WhatsAppStatusBadgeProps) {
+  const statusConfig = getEvolutionStatusConfig(status);
+  
+  return (
+    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}>
+      <span className="mr-1" role="img" aria-label="status-icon">{statusConfig.icon}</span>
+      {displayText}
+    </span>
+  );
 }
 
 function WhatsAppModal({
@@ -276,9 +293,7 @@ function WhatsAppModal({
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3 text-left mb-6">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Estado:</span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    {whatsappStatus}
-                  </span>
+                  <WhatsAppStatusBadge status={instanceInfo?.connectionStatus} displayText={whatsappStatus || 'Desconectado'} />
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Perfil:</span>
@@ -862,15 +877,17 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         });
         
         setInstanceInfo(instance);
-        if (instance.connectionStatus === "open") {
-          setWhatsappStatus("Conectado");
-          console.log('🎉 [WhatsApp] Estado: CONECTADO');
-        } else if (instance.connectionStatus === "connecting") {
-          setWhatsappStatus("Desconectado");
-          console.log('⏳ [WhatsApp] Estado: CONECTANDO');
-        } else {
-          setWhatsappStatus("Desconectado");
-          console.log('❌ [WhatsApp] Estado: DESCONECTADO');
+        const statusConfig = getEvolutionStatusConfig(instance.connectionStatus);
+        setWhatsappStatus(statusConfig.displayText);
+        
+        console.log(`${statusConfig.icon} [WhatsApp] Estado: ${instance.connectionStatus.toUpperCase()} -> ${statusConfig.displayText}`);
+        
+        // Si es un estado transitorio, programar refrescado automático
+        if (isTransitoryStatus(instance.connectionStatus)) {
+          console.log('🔄 [WhatsApp] Estado transitorio detectado, programando refresco automático...');
+          setTimeout(() => {
+            handleFetchInstanceInfo();
+          }, 3000); // Refresca cada 3 segundos para estados transitorios
         }
       } else {
         console.log('❌ [WhatsApp] No se encontró instancia');

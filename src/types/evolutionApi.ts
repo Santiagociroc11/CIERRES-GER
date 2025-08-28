@@ -1,0 +1,143 @@
+// Tipos para Evolution API
+export type EvolutionConnectionStatus = 
+  | 'open'           // Conectado y funcionando
+  | 'connecting'     // En proceso de conexión
+  | 'close'          // Cerrado/Desconectado
+  | 'disconnected'   // Desconectado
+  | 'qr'             // Esperando escanear QR
+  | 'loading'        // Cargando/Inicializando
+  | 'timeout'        // Timeout de conexión
+  | 'authFailure'    // Fallo de autenticación
+  | 'clientDestroyed' // Cliente destruido
+  | 'unknown';       // Estado desconocido
+
+export type WhatsAppDisplayStatus = 
+  | 'Conectado'
+  | 'Conectando' 
+  | 'Desconectado'
+  | 'Esperando QR'
+  | 'Inicializando'
+  | 'Error de Conexión'
+  | 'Error de Autenticación';
+
+export interface EvolutionStatusConfig {
+  displayText: WhatsAppDisplayStatus;
+  color: string;
+  bgColor: string;
+  icon: string;
+  description: string;
+  isStable: boolean; // Si es un estado estable o transitorio
+}
+
+export const EVOLUTION_STATUS_MAP: Record<EvolutionConnectionStatus, EvolutionStatusConfig> = {
+  open: {
+    displayText: 'Conectado',
+    color: 'text-green-800',
+    bgColor: 'bg-green-100',
+    icon: '✅',
+    description: 'WhatsApp conectado y funcionando',
+    isStable: true
+  },
+  connecting: {
+    displayText: 'Conectando',
+    color: 'text-yellow-800', 
+    bgColor: 'bg-yellow-100',
+    icon: '🔄',
+    description: 'Estableciendo conexión con WhatsApp',
+    isStable: false
+  },
+  close: {
+    displayText: 'Desconectado',
+    color: 'text-red-800',
+    bgColor: 'bg-red-100', 
+    icon: '❌',
+    description: 'WhatsApp desconectado',
+    isStable: true
+  },
+  disconnected: {
+    displayText: 'Desconectado',
+    color: 'text-red-800',
+    bgColor: 'bg-red-100',
+    icon: '❌', 
+    description: 'WhatsApp desconectado',
+    isStable: true
+  },
+  qr: {
+    displayText: 'Esperando QR',
+    color: 'text-blue-800',
+    bgColor: 'bg-blue-100',
+    icon: '📱',
+    description: 'Escanea el código QR para conectar',
+    isStable: false
+  },
+  loading: {
+    displayText: 'Inicializando',
+    color: 'text-purple-800',
+    bgColor: 'bg-purple-100', 
+    icon: '⏳',
+    description: 'Inicializando instancia de WhatsApp',
+    isStable: false
+  },
+  timeout: {
+    displayText: 'Error de Conexión',
+    color: 'text-orange-800',
+    bgColor: 'bg-orange-100',
+    icon: '⏰',
+    description: 'Timeout en la conexión',
+    isStable: true
+  },
+  authFailure: {
+    displayText: 'Error de Autenticación',
+    color: 'text-red-800',
+    bgColor: 'bg-red-100',
+    icon: '🚫',
+    description: 'Error de autenticación con WhatsApp',
+    isStable: true
+  },
+  clientDestroyed: {
+    displayText: 'Desconectado',
+    color: 'text-gray-800',
+    bgColor: 'bg-gray-100',
+    icon: '💀',
+    description: 'Cliente WhatsApp destruido',
+    isStable: true
+  },
+  unknown: {
+    displayText: 'Desconectado',
+    color: 'text-gray-800',
+    bgColor: 'bg-gray-100',
+    icon: '❓',
+    description: 'Estado desconocido',
+    isStable: true
+  }
+};
+
+/**
+ * Helper para obtener la configuración de estado de Evolution API
+ */
+export function getEvolutionStatusConfig(status: string | undefined): EvolutionStatusConfig {
+  const normalizedStatus = (status || 'unknown').toLowerCase() as EvolutionConnectionStatus;
+  return EVOLUTION_STATUS_MAP[normalizedStatus] || EVOLUTION_STATUS_MAP.unknown;
+}
+
+/**
+ * Helper para determinar si una instancia está disponible para enviar mensajes
+ */
+export function isInstanceAvailable(status: string | undefined): boolean {
+  return status === 'open';
+}
+
+/**
+ * Helper para determinar si debemos mostrar QR
+ */
+export function shouldShowQR(status: string | undefined): boolean {
+  return status === 'qr' || status === 'connecting';
+}
+
+/**
+ * Helper para determinar si el estado es transitorio (necesita polling)
+ */
+export function isTransitoryStatus(status: string | undefined): boolean {
+  const config = getEvolutionStatusConfig(status);
+  return !config.isStable;
+}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Asesor, EstadisticasDetalladas, OrdenAsesor, AdminRole } from '../types';
+import { getEvolutionStatusConfig } from '../types/evolutionApi';
 import {
   BarChart,
   LogOut,
@@ -72,7 +73,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [registros, setRegistros] = useState<any[]>([]);
   const [conversaciones, setConversaciones] = useState<any[]>([]);
   const [conexionesEstado, setConexionesEstado] = useState<Record<number, {
-    whatsapp: 'conectado' | 'desconectado' | 'verificando';
+    whatsapp: 'conectado' | 'desconectado' | 'conectando' | 'verificando';
     telegram: boolean;
   }>>({});
   
@@ -136,7 +137,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   };
 
   // Función para verificar estado de WhatsApp de un asesor
-  const verificarEstadoWhatsApp = async (nombreAsesor: string): Promise<'conectado' | 'desconectado'> => {
+  const verificarEstadoWhatsApp = async (nombreAsesor: string): Promise<'conectado' | 'desconectado' | 'conectando'> => {
     try {
       if (!evolutionServerUrl || !evolutionApiKey) {
         return 'desconectado';
@@ -167,7 +168,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
         const instance = data[0];
-        return instance.connectionStatus === "open" ? 'conectado' : 'desconectado';
+        const statusConfig = getEvolutionStatusConfig(instance.connectionStatus);
+        
+        // Mapear a los estados simplificados que usa el admin
+        if (instance.connectionStatus === "open") {
+          return 'conectado';
+        } else if (instance.connectionStatus === "connecting") {
+          return 'conectando';
+        } else {
+          return 'desconectado';
+        }
       }
       
       return 'desconectado';
@@ -186,7 +196,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     console.log(`🔍 Iniciando verificaciones de conexión para ${asesoresData.length} asesores (en background)...`);
     
     const nuevosEstados: Record<number, {
-      whatsapp: 'conectado' | 'desconectado' | 'verificando';
+      whatsapp: 'conectado' | 'desconectado' | 'conectando' | 'verificando';
       telegram: boolean;
     }> = {};
 
@@ -998,16 +1008,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       case 'conexiones_desconectadas': {
         const estadoA = conexionesEstado[a.ID];
         const estadoB = conexionesEstado[b.ID];
-        const desconectadosA = (estadoA?.whatsapp !== 'conectado' ? 1 : 0) + (estadoA?.telegram ? 0 : 1);
-        const desconectadosB = (estadoB?.whatsapp !== 'conectado' ? 1 : 0) + (estadoB?.telegram ? 0 : 1);
+        const desconectadosA = (estadoA?.whatsapp === 'desconectado' ? 1 : 0) + (estadoA?.telegram ? 0 : 1);
+        const desconectadosB = (estadoB?.whatsapp === 'desconectado' ? 1 : 0) + (estadoB?.telegram ? 0 : 1);
         resultado = desconectadosB - desconectadosA;
         break;
       }
       case 'whatsapp_desconectado': {
         const estadoA = conexionesEstado[a.ID];
         const estadoB = conexionesEstado[b.ID];
-        const desconectadoA = estadoA?.whatsapp !== 'conectado' ? 1 : 0;
-        const desconectadoB = estadoB?.whatsapp !== 'conectado' ? 1 : 0;
+        const desconectadoA = estadoA?.whatsapp === 'desconectado' ? 1 : 0;
+        const desconectadoB = estadoB?.whatsapp === 'desconectado' ? 1 : 0;
         resultado = desconectadoB - desconectadoA;
         break;
       }
@@ -1360,7 +1370,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                    getAsesoresBajaCierre().length +
                    asesores.filter(asesor => {
                      const estado = conexionesEstado[asesor.ID];
-                     return estado?.whatsapp !== 'conectado' || !estado?.telegram;
+                     return estado?.whatsapp === 'desconectado' || !estado?.telegram;
                    }).length} alertas
                 </span>
               </div>
@@ -1826,10 +1836,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 {/* Conexiones Desconectadas */}
                 {asesores.filter(asesor => {
                   const estado = conexionesEstado[asesor.ID];
-                  return estado?.whatsapp !== 'conectado' || !estado?.telegram;
+                  return estado?.whatsapp === 'desconectado' || !estado?.telegram;
                 }).map((asesor) => {
                   const estado = conexionesEstado[asesor.ID];
-                  const whatsappDesconectado = estado?.whatsapp !== 'conectado';
+                  const whatsappDesconectado = estado?.whatsapp === 'desconectado';
                   const telegramSinConfigurar = !estado?.telegram;
                   
                   return (
@@ -2061,7 +2071,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                         </span>
                         <span className="text-xs text-gray-500">/</span>
                         <span className="text-sm font-medium text-red-600">
-                          {Object.values(conexionesEstado).filter(c => c.whatsapp !== 'conectado').length}
+                          {Object.values(conexionesEstado).filter(c => c.whatsapp === 'desconectado').length}
                         </span>
                       </div>
                     </div>
@@ -2358,14 +2368,19 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                         <div className={`w-2 h-2 rounded-full ${
                                           estadoConexion?.whatsapp === 'conectado' 
                                             ? 'bg-green-500' 
+                                            : estadoConexion?.whatsapp === 'conectando'
+                                            ? 'bg-yellow-500'
                                             : 'bg-red-500'
                                         }`}></div>
                                         <span className={`text-xs font-medium ${
                                           estadoConexion?.whatsapp === 'conectado' 
                                             ? 'text-green-600' 
+                                            : estadoConexion?.whatsapp === 'conectando'
+                                            ? 'text-yellow-600'
                                             : 'text-red-600'
                                         }`}>
-                                          {estadoConexion?.whatsapp === 'conectado' ? 'Conectado' : 'Desconectado'}
+                                          {estadoConexion?.whatsapp === 'conectado' ? 'Conectado' : 
+                                           estadoConexion?.whatsapp === 'conectando' ? 'Conectando' : 'Desconectado'}
                                         </span>
                                       </div>
                                     )}
@@ -2757,7 +2772,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                   <div className="flex flex-col space-y-1">
                                     <div className="flex items-center space-x-2">
                                       <div className={`w-2 h-2 rounded-full ${
-                                        estadoConexion?.whatsapp === 'conectado' ? 'bg-green-500' : 'bg-red-500'
+                                        estadoConexion?.whatsapp === 'conectado' ? 'bg-green-500' : 
+                                        estadoConexion?.whatsapp === 'conectando' ? 'bg-yellow-500' : 'bg-red-500'
                                       }`}></div>
                                       <span className="text-xs">WhatsApp</span>
                                     </div>

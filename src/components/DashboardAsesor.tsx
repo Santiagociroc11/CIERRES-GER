@@ -12,7 +12,7 @@ import EstadisticasAvanzadas from './EstadisticasAvanzadas';
 import { useToast } from '../hooks/useToast';
 import Toast from './Toast';
 import ChatModal from './ChatModal';
-import { getEvolutionStatusConfig, isTransitoryStatus } from '../types/evolutionApi';
+import { getEvolutionStatusConfig, isTransitoryStatus, getSpecialStatusConfig } from '../types/evolutionApi';
 
 type Vista = 'general' | 'seguimientos' | 'estadisticas' | 'pendientes' | 'sin-reporte';
 
@@ -68,7 +68,16 @@ interface WhatsAppStatusBadgeProps {
 }
 
 function WhatsAppStatusBadge({ status, displayText }: WhatsAppStatusBadgeProps) {
-  const statusConfig = getEvolutionStatusConfig(status);
+  // ✅ CORREGIDO: Manejar estados especiales y normales
+  let statusConfig = getEvolutionStatusConfig(status);
+  
+  // Si es un estado especial, usar su configuración
+  if (displayText === 'Sin Configurar' || displayText === 'Error de Verificación') {
+    const specialConfig = getSpecialStatusConfig(displayText);
+    if (specialConfig) {
+      statusConfig = specialConfig;
+    }
+  }
   
   return (
     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}>
@@ -433,37 +442,27 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       console.log('🔍 [WhatsApp] Iniciando verificación de conexión para:', asesor.NOMBRE);
       console.log('🔍 [WhatsApp] Tipo de dispositivo:', /Mobi|Android/i.test(navigator.userAgent) ? 'MÓVIL' : 'DESKTOP');
       
-      // ✅ CORREGIDO: Backoff adaptativo basado en la respuesta de la red
-      const initialDelay = 1000; // Empezar con 1 segundo
-      setVerificandoWhatsApp(true);
-      
+      // ✅ CORREGIDO: Solo verificar si ya existe una instancia
       try {
-        console.log('🔍 [WhatsApp] Ejecutando primera verificación...');
-        await refreshConnection();
+        console.log('🔍 [WhatsApp] Verificando si existe instancia...');
         
-        // 🚀 MEJORA: Backoff adaptativo inteligente
-        if (!instanceInfo || instanceInfo.connectionStatus !== "open") {
-          const delay1 = Math.min(initialDelay * 2, 3000); // Máximo 3s
-          console.log(`⚠️ [WhatsApp] Primera verificación sin éxito, reintentando en ${delay1}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay1));
-          
-          console.log('🔍 [WhatsApp] Ejecutando segundo intento...');
+        // Primero verificar si la instancia existe (sin intentar conectar)
+        const instanceExists = await checkInstanceExists();
+        
+        if (instanceExists) {
+          console.log('✅ [WhatsApp] Instancia existe, verificando estado...');
           await refreshConnection();
-          
-          // Tercer intento con delay adaptativo
-          if (!instanceInfo || instanceInfo.connectionStatus !== "open") {
-            const delay2 = Math.min(delay1 * 1.5, 5000); // Máximo 5s
-            console.log(`⚠️ [WhatsApp] Segundo intento sin éxito, último intento en ${delay2}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay2));
-            
-            console.log('🔍 [WhatsApp] Ejecutando tercer y último intento...');
-            await refreshConnection();
-          }
+        } else {
+          console.log('ℹ️ [WhatsApp] No hay instancia configurada, saltando verificación');
+          setWhatsappStatus("Sin Configurar");
+          setVerificandoWhatsApp(false);
+          return; // Salir temprano si no hay instancia
         }
         
         console.log('✅ [WhatsApp] Verificación completada. Estado final:', instanceInfo?.connectionStatus || 'SIN_INFO');
       } catch (error) {
         console.error('❌ [WhatsApp] Error en verificación inicial:', error);
+        setWhatsappStatus("Error de Verificación");
       } finally {
         setVerificandoWhatsApp(false);
       }
@@ -988,6 +987,37 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       showToast("Error al desconectar WhatsApp", "error");
     } finally {
       setIsLoadingWhatsApp(false);
+    }
+  };
+
+  // ✅ NUEVA FUNCIÓN: Verificar si la instancia existe sin intentar conectar
+  const checkInstanceExists = async (): Promise<boolean> => {
+    try {
+      const instanceName = encodeURIComponent(asesor.NOMBRE);
+      const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${instanceName}`;
+      
+      console.log('🔍 [WhatsApp] Verificando existencia de instancia:', url);
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const exists = Array.isArray(data) && data.length > 0;
+        console.log(`✅ [WhatsApp] Instancia existe: ${exists}`);
+        return exists;
+      } else {
+        console.log(`❌ [WhatsApp] Error verificando instancia: ${response.status}`);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ [WhatsApp] Error en checkInstanceExists:', error);
+      return false;
     }
   };
 

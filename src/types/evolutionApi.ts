@@ -20,7 +20,9 @@ export type WhatsAppDisplayStatus =
   | 'Error de Conexión'
   | 'Error de Autenticación'
   | 'Cliente Destruido'
-  | 'Estado Desconocido';
+  | 'Estado Desconocido'
+  | 'Sin Configurar'
+  | 'Error de Verificación';
 
 export interface EvolutionStatusConfig {
   displayText: WhatsAppDisplayStatus;
@@ -114,12 +116,39 @@ export const EVOLUTION_STATUS_MAP: Record<EvolutionConnectionStatus, EvolutionSt
   }
 };
 
+// ✅ NUEVOS ESTADOS PARA CASOS ESPECIALES
+export const SPECIAL_STATUS_CONFIG: Record<string, EvolutionStatusConfig> = {
+  'Sin Configurar': {
+    displayText: 'Sin Configurar',
+    color: 'text-gray-800',
+    bgColor: 'bg-gray-100',
+    icon: '⚙️',
+    description: 'WhatsApp no está configurado para este asesor',
+    isStable: true
+  },
+  'Error de Verificación': {
+    displayText: 'Error de Verificación',
+    color: 'text-red-800',
+    bgColor: 'bg-red-100',
+    icon: '🔍',
+    description: 'Error al verificar el estado de WhatsApp',
+    isStable: true
+  }
+};
+
 /**
  * Helper para obtener la configuración de estado de Evolution API
  */
 export function getEvolutionStatusConfig(status: string | undefined): EvolutionStatusConfig {
   const normalizedStatus = (status || 'unknown').toLowerCase() as EvolutionConnectionStatus;
   return EVOLUTION_STATUS_MAP[normalizedStatus] || EVOLUTION_STATUS_MAP.unknown;
+}
+
+/**
+ * Helper para obtener configuración de estados especiales
+ */
+export function getSpecialStatusConfig(displayText: string): EvolutionStatusConfig | null {
+  return SPECIAL_STATUS_CONFIG[displayText] || null;
 }
 
 /**

@@ -43,6 +43,7 @@ interface TelegramMessage {
       callback_data?: string;
     }>>;
   };
+  message_thread_id?: number;
 }
 
 class TelegramQueueService {
@@ -84,7 +85,8 @@ class TelegramQueueService {
         url?: string;
         callback_data?: string;
       }>>;
-    }
+    },
+    message_thread_id?: number
   ): string {
     const messageId = this.generateMessageId();
     const now = new Date();
@@ -99,7 +101,8 @@ class TelegramQueueService {
       createdAt: now,
       scheduledAt: this.calculateNextAvailableSlot(),
       metadata,
-      reply_markup
+      reply_markup,
+      message_thread_id
     };
 
     this.queue.push(message);
@@ -238,6 +241,11 @@ class TelegramQueueService {
     // Incluir reply_markup si está presente
     if (message.reply_markup) {
       requestBody.reply_markup = message.reply_markup;
+    }
+
+    // Incluir message_thread_id si está presente (para mensajes en hilos de grupos)
+    if (message.message_thread_id) {
+      requestBody.message_thread_id = message.message_thread_id;
     }
 
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {

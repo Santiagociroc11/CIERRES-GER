@@ -496,7 +496,9 @@ router.post('/webhook', async (req, res) => {
               type: 'venta',
               asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR',
               flujo 
-            }
+            },
+            undefined, // reply_markup no necesario para mensajes de venta
+            ventaMessage.message_thread_id
           );
           
           telegramStatus = 'queued'; // Nuevo estado para indicar que está en cola

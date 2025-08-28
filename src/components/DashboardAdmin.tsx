@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Asesor, EstadisticasDetalladas, OrdenAsesor, AdminRole } from '../types';
 import { getEvolutionStatusConfig } from '../types/evolutionApi';
@@ -6,7 +6,6 @@ import {
   BarChart,
   LogOut,
   Users,
-  Calendar,
   Target,
   Clock,
   Download,
@@ -14,7 +13,6 @@ import {
   AlertTriangle,
   Bell,
   Search,
-  Filter,
   RefreshCcw,
   MessageSquare,
   Shield,
@@ -28,7 +26,6 @@ import {
   DollarSign,
   Webhook,
   Edit,
-  Trash2,
   Grid3X3,
   List,
 } from 'lucide-react';
@@ -79,10 +76,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   }>>({});
   
   // 🆕 Estados de carga y rendimiento
-  const [cargandoDatos, setCargandoDatos] = useState(false);
-  const [cargandoConexiones, setCargandoConexiones] = useState(false);
-  const [cargandoClientes, setCargandoClientes] = useState(false);
-  const [tiempoCarga, setTiempoCarga] = useState<number | null>(null);
+  const [, setCargandoDatos] = useState(false);
+  const [, setCargandoConexiones] = useState(false);
+  const [, setCargandoClientes] = useState(false);
+  const [, setTiempoCarga] = useState<number | null>(null);
   
   const itemsPerPage = 20;
   const [currentPage, setCurrentPage] = useState(1);
@@ -93,10 +90,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [ordenarPor, setOrdenarPor] = useState<OrdenAsesor>('ventas');
   const [ordenDireccion, setOrdenDireccion] = useState<'asc' | 'desc'>('desc');
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [, setMostrarFiltros] = useState(false);
   const [asesorSeleccionado, setAsesorSeleccionado] = useState<Asesor | null>(null);
   const [filtroEstado, setFiltroEstado] = useState('');
-  const [tick, setTick] = useState(0);
+  // const [, setTick] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [mostrarModalCrearCliente, setMostrarModalCrearCliente] = useState(false);
   const [clienteParaChat, setClienteParaChat] = useState<any | null>(null);
@@ -124,22 +121,22 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   };
 
   // Función para refrescar manualmente
-  const handleRefresh = async () => {
-    await cargarDatos();
-  };
+  // const handleRefresh = async () => {
+  //   await cargarDatos();
+  // };
 
-  // 🆕 Nueva función para refrescar solo las conexiones (más rápida)
-  const refrescarSoloConexiones = async () => {
-    if (asesores.length > 0) {
-      setCargandoConexiones(true);
-      console.log("🔄 Refrescando solo estados de conexión...");
-      try {
-        await verificarEstadosConexion(asesores);
-      } finally {
-        setCargandoConexiones(false);
-      }
-    }
-  };
+  // // 🆕 Nueva función para refrescar solo las conexiones (más rápida)
+  // const refrescarSoloConexiones = async () => {
+  //   if (asesores.length > 0) {
+  //     setCargandoConexiones(true);
+  //     console.log("🔄 Refrescando solo estados de conexión...");
+  //     try {
+  //       await verificarEstadosConexion(asesores);
+  //     } finally {
+  //       setCargandoConexiones(false);
+  //     }
+  //   }
+  // };
 
   // Función para verificar estado de WhatsApp de un asesor
   const verificarEstadoWhatsApp = async (nombreAsesor: string): Promise<'conectado' | 'desconectado' | 'conectando'> => {
@@ -173,7 +170,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
         const instance = data[0];
-        const statusConfig = getEvolutionStatusConfig(instance.connectionStatus);
+        // const statusConfig = getEvolutionStatusConfig(instance.connectionStatus);
         
         // Mapear a los estados simplificados que usa el admin
         if (instance.connectionStatus === "open") {
@@ -1335,15 +1332,15 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   };
 
   // Función para obtener color según el tiempo transcurrido
-  const getColorTiempo = (minutos: number | null, limite: number = 60) => {
-    if (minutos === null) return 'text-gray-400';
-    if (minutos <= limite) return 'text-green-600';
-    if (minutos <= limite * 2) return 'text-yellow-600';
-    return 'text-red-600';
-  };
+  // const getColorTiempo = (minutos: number | null, limite: number = 60) => {
+  //   if (minutos === null) return 'text-gray-400';
+  //   if (minutos <= limite) return 'text-green-600';
+  //   if (minutos <= limite * 2) return 'text-yellow-600';
+  //   return 'text-red-600';
+  // };
 
   // Si estamos en modo asesor, renderizar el DashboardAsesor con banner
-  if (modoAsesor) {
+  if (modoAsesor && (asesorModoActivo || asesor)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         {/* Banner para volver al modo admin */}
@@ -1368,7 +1365,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         
         {/* Renderizar DashboardAsesor */}
         <DashboardAsesor 
-          asesor={asesorModoActivo || asesor} 
+          asesorInicial={asesorModoActivo || asesor} 
           onLogout={() => {
             setModoAsesor(false);
             setAsesorModoActivo(null);

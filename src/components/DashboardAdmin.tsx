@@ -80,6 +80,82 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [mensajesChat, setMensajesChat] = useState<any[]>([]);
   const [cargandoConversacionesChat, setCargandoConversacionesChat] = useState(false);
   const [cargandoMensajesChat, setCargandoMensajesChat] = useState(false);
+  const [filtroChatGlobal, setFiltroChatGlobal] = useState<'todos' | 'mapeados' | 'lids'>('todos');
+  
+  // 🆕 Función para obtener nombre del cliente
+  const obtenerNombreCliente = (conversacion: any) => {
+    // Si tiene id_cliente, buscar en la base de clientes
+    if (conversacion.id_cliente) {
+      const cliente = clientes.find(c => c.ID === conversacion.id_cliente);
+      if (cliente) {
+        return cliente.NOMBRE;
+      }
+    }
+    
+    // Si no tiene id_cliente pero tiene wha_cliente
+    if (conversacion.wha_cliente) {
+      // Verificar si es un LID sin mapear
+      if (conversacion.wha_cliente.includes('@lid')) {
+        return `LID Sin Mapear: ${conversacion.wha_cliente.substring(0, 12)}...`;
+      }
+      
+      // Buscar por WhatsApp en la base de clientes
+      const cliente = clientes.find(c => c.WHATSAPP === conversacion.wha_cliente);
+      if (cliente) {
+        return cliente.NOMBRE;
+      }
+      
+      // Si no se encuentra, mostrar como desconocido
+      return `Cliente Desconocido: ${conversacion.wha_cliente.substring(0, 12)}...`;
+    }
+    
+    // Fallback
+    return 'Cliente Sin Identificar';
+  };
+  
+  // 🆕 Función para obtener estado del cliente
+  const obtenerEstadoCliente = (conversacion: any) => {
+    if (conversacion.id_cliente) {
+      const cliente = clientes.find(c => c.ID === conversacion.id_cliente);
+      if (cliente) {
+        return cliente.ESTADO;
+      }
+    }
+    
+    if (conversacion.wha_cliente && !conversacion.wha_cliente.includes('@lid')) {
+      const cliente = clientes.find(c => c.WHATSAPP === conversacion.wha_cliente);
+      if (cliente) {
+        return cliente.ESTADO;
+      }
+    }
+    
+    return null;
+  };
+  
+  // 🆕 Función para obtener tipo de cliente
+  const obtenerTipoCliente = (conversacion: any) => {
+    if (conversacion.wha_cliente && conversacion.wha_cliente.includes('@lid')) {
+      return 'lid-sin-mapear';
+    }
+    
+    if (conversacion.id_cliente || (conversacion.wha_cliente && !conversacion.wha_cliente.includes('@lid'))) {
+      return 'cliente-mapeado';
+    }
+    
+    return 'desconocido';
+  };
+  
+  // 🆕 Función para filtrar conversaciones según el filtro seleccionado
+  const conversacionesFiltradas = useMemo(() => {
+    if (filtroChatGlobal === 'todos') {
+      return conversacionesChat;
+    } else if (filtroChatGlobal === 'mapeados') {
+      return conversacionesChat.filter(c => obtenerTipoCliente(c) === 'cliente-mapeado');
+    } else if (filtroChatGlobal === 'lids') {
+      return conversacionesChat.filter(c => obtenerTipoCliente(c) === 'lid-sin-mapear');
+    }
+    return conversacionesChat;
+  }, [conversacionesChat, filtroChatGlobal]);
   
   const [conexionesEstado, setConexionesEstado] = useState<Record<number, {
     whatsapp: 'conectado' | 'desconectado' | 'conectando' | 'verificando';
@@ -3598,7 +3674,18 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   <div className="flex items-center space-x-4">
                     <div className="text-right">
                       <p className="text-sm font-medium text-gray-900">{asesorSeleccionadoChat.NOMBRE}</p>
-                      <p className="text-xs text-gray-500">{conversacionesChat.length} conversaciones</p>
+                      <p className="text-xs text-gray-500">
+                        {conversacionesFiltradas.length} de {conversacionesChat.length} conversaciones
+                        {filtroChatGlobal !== 'todos' && (
+                          <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                            filtroChatGlobal === 'mapeados' 
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {filtroChatGlobal === 'mapeados' ? 'Solo Mapeados' : 'Solo LIDs'}
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
                       <Users className="h-5 w-5 text-indigo-600" />
@@ -3632,6 +3719,68 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       </option>
                     ))}
                   </select>
+                  
+                  {/* Estadísticas de conversaciones */}
+                  {asesorSeleccionadoChat && conversacionesChat.length > 0 && (
+                    <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="text-xs font-medium text-gray-700 mb-2">Resumen de Conversaciones</div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-600">Mostrando:</span>
+                          <span className="font-medium">{conversacionesFiltradas.length} de {conversacionesChat.length}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-green-600">Clientes mapeados:</span>
+                          <span className="font-medium text-green-700">
+                            {conversacionesChat.filter(c => obtenerTipoCliente(c) === 'cliente-mapeado').length}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-red-600">LIDs sin mapear:</span>
+                          <span className="font-medium text-red-700">
+                            {conversacionesChat.filter(c => obtenerTipoCliente(c) === 'lid-sin-mapear').length}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Filtro de conversaciones */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="text-xs font-medium text-gray-700 mb-2">Filtrar por tipo:</div>
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => setFiltroChatGlobal('todos')}
+                            className={`px-2 py-1 text-xs rounded ${
+                              filtroChatGlobal === 'todos'
+                                ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            Todos
+                          </button>
+                          <button
+                            onClick={() => setFiltroChatGlobal('mapeados')}
+                            className={`px-2 py-1 text-xs rounded ${
+                              filtroChatGlobal === 'mapeados'
+                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            Mapeados
+                          </button>
+                          <button
+                            onClick={() => setFiltroChatGlobal('lids')}
+                            className={`px-2 py-1 text-xs rounded ${
+                              filtroChatGlobal === 'lids'
+                                ? 'bg-red-100 text-red-700 border border-red-200'
+                                : 'bg-gray-200 text-red-600 hover:bg-red-100'
+                            }`}
+                          >
+                            LIDs
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Lista de Conversaciones */}
@@ -3641,9 +3790,9 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       <RefreshCcw className="h-6 w-6 text-gray-400 animate-spin" />
                       <span className="ml-2 text-gray-500">Cargando conversaciones...</span>
                     </div>
-                  ) : conversacionesChat.length > 0 ? (
+                  ) : conversacionesFiltradas.length > 0 ? (
                     <div className="divide-y divide-gray-200">
-                      {conversacionesChat.map((conversacion, index) => (
+                      {conversacionesFiltradas.map((conversacion, index) => (
                         <div
                           key={index}
                           onClick={() => seleccionarConversacionChat(conversacion)}
@@ -3654,19 +3803,58 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center">
-                                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-                                  <Users className="h-5 w-5 text-gray-500" />
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${
+                                  obtenerTipoCliente(conversacion) === 'lid-sin-mapear' 
+                                    ? 'bg-red-100' 
+                                    : obtenerTipoCliente(conversacion) === 'cliente-mapeado'
+                                    ? 'bg-green-100'
+                                    : 'bg-gray-200'
+                                }`}>
+                                  {obtenerTipoCliente(conversacion) === 'lid-sin-mapear' ? (
+                                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                                  ) : obtenerTipoCliente(conversacion) === 'cliente-mapeado' ? (
+                                    <Users className="h-5 w-5 text-green-500" />
+                                  ) : (
+                                    <Users className="h-5 w-5 text-gray-500" />
+                                  )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-900 truncate">
-                                    {conversacion.nombre_cliente || 'Cliente sin nombre'}
-                                  </p>
+                                  <div className="flex items-center space-x-2 mb-1">
+                                    <p className={`text-sm font-medium truncate ${
+                                      obtenerTipoCliente(conversacion) === 'lid-sin-mapear' 
+                                        ? 'text-red-700' 
+                                        : 'text-gray-900'
+                                    }`}>
+                                      {obtenerNombreCliente(conversacion)}
+                                    </p>
+                                    {obtenerTipoCliente(conversacion) === 'lid-sin-mapear' && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        LID
+                                      </span>
+                                    )}
+                                    {obtenerEstadoCliente(conversacion) && (
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        obtenerEstadoCliente(conversacion) === 'PAGADO' 
+                                          ? 'bg-green-100 text-green-800'
+                                          : obtenerEstadoCliente(conversacion) === 'SEGUIMIENTO'
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {obtenerEstadoCliente(conversacion)}
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-gray-500 truncate">
                                     {conversacion.wha_cliente?.includes('@lid') 
-                                      ? `LID: ${conversacion.wha_cliente.substring(0, 12)}...`
+                                      ? `LID: ${conversacion.wha_cliente}`
                                       : conversacion.wha_cliente
                                     }
                                   </p>
+                                  {conversacion.id_cliente && (
+                                    <p className="text-xs text-green-600 font-medium">
+                                      ID: {conversacion.id_cliente}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               <div className="mt-2">
@@ -3699,7 +3887,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     <div className="flex items-center justify-center p-8">
                       <MessageSquare className="h-12 w-12 text-gray-400 mb-2" />
                       <p className="text-gray-500 text-center">
-                        No hay conversaciones para este asesor
+                        {conversacionesChat.length > 0 
+                          ? `No hay conversaciones que coincidan con el filtro "${filtroChatGlobal}"`
+                          : 'No hay conversaciones para este asesor'
+                        }
                       </p>
                     </div>
                   ) : (
@@ -3725,15 +3916,42 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             <Users className="h-6 w-6 text-gray-500" />
                           </div>
                           <div>
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              {conversacionActivaChat.nombre_cliente || 'Cliente sin nombre'}
-                            </h3>
+                            <div className="flex items-center space-x-3 mb-1">
+                              <h3 className={`text-lg font-semibold ${
+                                obtenerTipoCliente(conversacionActivaChat) === 'lid-sin-mapear' 
+                                  ? 'text-red-700' 
+                                  : 'text-gray-900'
+                              }`}>
+                                {obtenerNombreCliente(conversacionActivaChat)}
+                              </h3>
+                              {obtenerTipoCliente(conversacionActivaChat) === 'lid-sin-mapear' && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  LID Sin Mapear
+                                </span>
+                              )}
+                              {obtenerEstadoCliente(conversacionActivaChat) && (
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  obtenerEstadoCliente(conversacionActivaChat) === 'PAGADO' 
+                                    ? 'bg-green-100 text-green-800'
+                                    : obtenerEstadoCliente(conversacionActivaChat) === 'SEGUIMIENTO'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {obtenerEstadoCliente(conversacionActivaChat)}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-sm text-gray-500">
                               {conversacionActivaChat.wha_cliente?.includes('@lid') 
                                 ? `LID: ${conversacionActivaChat.wha_cliente}`
                                 : conversacionActivaChat.wha_cliente
                               }
                             </p>
+                            {conversacionActivaChat.id_cliente && (
+                              <p className="text-xs text-green-600 font-medium">
+                                Cliente ID: {conversacionActivaChat.id_cliente}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">

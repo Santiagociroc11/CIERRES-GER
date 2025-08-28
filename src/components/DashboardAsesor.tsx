@@ -406,6 +406,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [currentTelegramId, setCurrentTelegramId] = useState<string | null>(null);
   const [isLoadingTelegram, setIsLoadingTelegram] = useState(false);
   const [verificandoWhatsApp, setVerificandoWhatsApp] = useState(false);
+  const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const MAX_REFRESH_ATTEMPTS = 10;
 
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
@@ -431,25 +433,28 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       console.log('🔍 [WhatsApp] Iniciando verificación de conexión para:', asesor.NOMBRE);
       console.log('🔍 [WhatsApp] Tipo de dispositivo:', /Mobi|Android/i.test(navigator.userAgent) ? 'MÓVIL' : 'DESKTOP');
       
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 segundos de retraso
+      // ✅ CORREGIDO: Backoff adaptativo basado en la respuesta de la red
+      const initialDelay = 1000; // Empezar con 1 segundo
       setVerificandoWhatsApp(true);
       
       try {
         console.log('🔍 [WhatsApp] Ejecutando primera verificación...');
         await refreshConnection();
         
-        // 🚀 MEJORA MÓVIL: Si no obtuvimos información válida, reintentar
+        // 🚀 MEJORA: Backoff adaptativo inteligente
         if (!instanceInfo || instanceInfo.connectionStatus !== "open") {
-          console.log('⚠️ [WhatsApp] Primera verificación sin éxito, reintentando en 3 segundos...');
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          const delay1 = Math.min(initialDelay * 2, 3000); // Máximo 3s
+          console.log(`⚠️ [WhatsApp] Primera verificación sin éxito, reintentando en ${delay1}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay1));
           
           console.log('🔍 [WhatsApp] Ejecutando segundo intento...');
           await refreshConnection();
           
-          // Tercer intento si es necesario
+          // Tercer intento con delay adaptativo
           if (!instanceInfo || instanceInfo.connectionStatus !== "open") {
-            console.log('⚠️ [WhatsApp] Segundo intento sin éxito, último intento en 5 segundos...');
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            const delay2 = Math.min(delay1 * 1.5, 5000); // Máximo 5s
+            console.log(`⚠️ [WhatsApp] Segundo intento sin éxito, último intento en ${delay2}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay2));
             
             console.log('🔍 [WhatsApp] Ejecutando tercer y último intento...');
             await refreshConnection();
@@ -475,15 +480,22 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
   useEffect(() => {
     let pollingInterval: NodeJS.Timeout | undefined;
-    if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
+    
+    // ✅ CORREGIDO: Solo hacer polling si no hay auto-refresh activo
+    if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open" && refreshAttempts === 0) {
+      console.log('🔄 [WhatsApp] Iniciando polling automático cada 30s...');
       pollingInterval = setInterval(() => {
         refreshConnection();
       }, 30000);
     }
+    
     return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
+      if (pollingInterval) {
+        console.log('🔄 [WhatsApp] Deteniendo polling automático...');
+        clearInterval(pollingInterval);
+      }
     };
-  }, [showWhatsAppModal, instanceInfo]);
+  }, [showWhatsAppModal, instanceInfo, refreshAttempts]);
 
   useEffect(() => {
     if (instanceInfo?.connectionStatus === "open") {
@@ -704,8 +716,44 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       if (!response.ok) throw new Error("No se pudo crear la instancia");
       await response.json();
       await setChatwootIntegration(asesor.NOMBRE);
-      await refreshConnection();
-      setWhatsappStatus("Desconectado");
+      
+      // ✅ CORREGIDO: Lógica inteligente para estado post-creación
+      try {
+        await refreshConnection();
+        
+        // Verificar si obtuvimos información válida de la instancia
+        if (!instanceInfo || !instanceInfo.connectionStatus) {
+          // Si no hay info, la instancia está en proceso de inicialización
+          setWhatsappStatus("Inicializando");
+          console.log('🔄 [WhatsApp] Instancia creada, estado inicial: Inicializando');
+          
+          // Programar verificación adicional en 2 segundos
+          setTimeout(async () => {
+            try {
+              await refreshConnection();
+              console.log('🔍 [WhatsApp] Verificación post-creación completada');
+            } catch (error) {
+              console.log('⚠️ [WhatsApp] Verificación post-creación falló, manteniendo estado');
+            }
+          }, 2000);
+        } else {
+          // Si tenemos info, el estado ya se estableció correctamente
+          console.log('✅ [WhatsApp] Estado de instancia obtenido correctamente:', instanceInfo.connectionStatus);
+        }
+      } catch (error) {
+        console.log('⚠️ [WhatsApp] Error en refreshConnection post-creación, estableciendo estado por defecto');
+        setWhatsappStatus("Inicializando");
+        
+        // Programar verificación de recuperación
+        setTimeout(async () => {
+          try {
+            await refreshConnection();
+          } catch (error) {
+            console.log('⚠️ [WhatsApp] Verificación de recuperación falló');
+          }
+        }, 3000);
+      }
+      
       showToast("Instancia creada, escanea el QR para conectar", "success");
     } catch (error) {
       console.error("Error creando instancia:", error);
@@ -728,8 +776,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         reopenConversation: true,
         conversationPending: false,
         nameInbox: instanceName,
-        importContacts: true,
-        importMessages: true,
+        importContacts: false,
+        importMessages: false,
         daysLimitImportMessages: 1,
         autoCreate: true
       };
@@ -880,14 +928,24 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         const statusConfig = getEvolutionStatusConfig(instance.connectionStatus);
         setWhatsappStatus(statusConfig.displayText);
         
+        // ✅ CORREGIDO: Resetear contador de reintentos cuando el estado es estable
+        if (!isTransitoryStatus(instance.connectionStatus)) {
+          setRefreshAttempts(0);
+        }
+        
         console.log(`${statusConfig.icon} [WhatsApp] Estado: ${instance.connectionStatus.toUpperCase()} -> ${statusConfig.displayText}`);
         
-        // Si es un estado transitorio, programar refrescado automático
-        if (isTransitoryStatus(instance.connectionStatus)) {
-          console.log('🔄 [WhatsApp] Estado transitorio detectado, programando refresco automático...');
+        // ✅ CORREGIDO: Limitar auto-refresh para evitar loops infinitos
+        if (isTransitoryStatus(instance.connectionStatus) && refreshAttempts < MAX_REFRESH_ATTEMPTS) {
+          console.log(`🔄 [WhatsApp] Estado transitorio detectado, refresco ${refreshAttempts + 1}/${MAX_REFRESH_ATTEMPTS}...`);
+          setRefreshAttempts(prev => prev + 1);
+          
           setTimeout(() => {
             handleFetchInstanceInfo();
           }, 3000); // Refresca cada 3 segundos para estados transitorios
+        } else if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+          console.log('⚠️ [WhatsApp] Límite de reintentos alcanzado, deteniendo auto-refresh');
+          setWhatsappStatus("Error de Conexión");
         }
       } else {
         console.log('❌ [WhatsApp] No se encontró instancia');
@@ -897,7 +955,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     } catch (error) {
       console.error("❌ [WhatsApp] Error in handleFetchInstanceInfo:", error);
       setInstanceInfo(null);
-      setWhatsappStatus("Desconectado");
+      setWhatsappStatus("Error de Conexión");
+      setRefreshAttempts(0); // ✅ CORREGIDO: Resetear contador en caso de error
     } finally {
       setIsLoadingWhatsApp(false);
     }
@@ -921,6 +980,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       }
       setWhatsappStatus("Desconectado");
       setInstanceInfo(null);
+      setRefreshAttempts(0); // ✅ CORREGIDO: Resetear contador de reintentos
       showToast("WhatsApp desconectado", "success");
       await refreshConnection();
     } catch (error) {
@@ -950,6 +1010,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setWhatsappStatus("Desconectado");
       setInstanceInfo(null);
       setQrCode(null);
+      setRefreshAttempts(0); // ✅ CORREGIDO: Resetear contador de reintentos
       showToast("Instancia eliminada correctamente", "success");
       await refreshConnection();
     } catch (error) {

@@ -18,7 +18,9 @@ export type WhatsAppDisplayStatus =
   | 'Esperando QR'
   | 'Inicializando'
   | 'Error de Conexión'
-  | 'Error de Autenticación';
+  | 'Error de Autenticación'
+  | 'Cliente Destruido'
+  | 'Estado Desconocido';
 
 export interface EvolutionStatusConfig {
   displayText: WhatsAppDisplayStatus;
@@ -95,7 +97,7 @@ export const EVOLUTION_STATUS_MAP: Record<EvolutionConnectionStatus, EvolutionSt
     isStable: true
   },
   clientDestroyed: {
-    displayText: 'Desconectado',
+    displayText: 'Cliente Destruido',
     color: 'text-gray-800',
     bgColor: 'bg-gray-100',
     icon: '💀',
@@ -103,11 +105,11 @@ export const EVOLUTION_STATUS_MAP: Record<EvolutionConnectionStatus, EvolutionSt
     isStable: true
   },
   unknown: {
-    displayText: 'Desconectado',
+    displayText: 'Estado Desconocido',
     color: 'text-gray-800',
     bgColor: 'bg-gray-100',
     icon: '❓',
-    description: 'Estado desconocido',
+    description: 'Estado desconocido o no reconocido',
     isStable: true
   }
 };

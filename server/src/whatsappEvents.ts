@@ -103,8 +103,8 @@ setInterval(recargarAsesores, 5 * 60 * 1000);
 // Función para detectar patrones de soporte y mapear LIDs automáticamente
 async function detectarYMapearLID(eventData: any, asesor: any) {
   try {
-    // Solo procesar mensajes entrantes (del cliente)
-    if (eventData.fromMe) return;
+    // Solo procesar mensajes SALIENTES (del asesor) para detectar patrones de mapeo
+    if (!eventData.fromMe) return;
     
     // Solo procesar si es un LID
     if (!eventData.from.includes('@lid')) return;

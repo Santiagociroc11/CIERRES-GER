@@ -1,5 +1,5 @@
 import { Socket } from 'socket.io-client';
-import { insertConversacion, getAsesores, getClienteByWhatsapp, updateMensajeEstado } from './dbClient';
+import { insertConversacion, getAsesores, getClienteByWhatsapp, updateMensajeEstado, buscarClientePorUltimosDigitos, crearMapeoLID, buscarMapeoLID, actualizarMapeoLID, actualizarConversacionesHistoricasLID } from './dbClient';
 
 export interface WhatsAppMessage {
   key: {
@@ -97,6 +97,119 @@ async function recargarAsesores() {
 // Cargar asesores al iniciar y recargar cada 5 minutos
 recargarAsesores();
 setInterval(recargarAsesores, 5 * 60 * 1000);
+
+// 🆕 FUNCIONES PARA MANEJO DE LID
+
+// Función para detectar patrones de soporte y mapear LIDs automáticamente
+async function detectarYMapearLID(eventData: any, asesor: any) {
+  try {
+    // Solo procesar mensajes entrantes (del cliente)
+    if (eventData.fromMe) return;
+    
+    // Solo procesar si es un LID
+    if (!eventData.from.includes('@lid')) return;
+    
+    console.log('🔍 LID detectado, analizando mensaje para mapeo...');
+    console.log('📱 LID:', eventData.from);
+    console.log('💬 Texto del mensaje:', eventData.text);
+    
+    // Buscar patrón: "caso de soporte: XXXXXX" o variaciones
+    const patronesSoporte = [
+      /caso de soporte[:\s]*(\d{6,})/i,
+      /soporte[:\s]*(\d{6,})/i,
+      /caso[:\s]*(\d{6,})/i,
+      /ticket[:\s]*(\d{6,})/i,
+      /cliente[:\s]*(\d{6,})/i
+    ];
+    
+    let ultimosDigitos = null;
+    
+    for (const patron of patronesSoporte) {
+      const match = eventData.text.match(patron);
+      if (match) {
+        ultimosDigitos = match[1];
+        console.log(`✅ Patrón encontrado: "${match[0]}" → dígitos: ${ultimosDigitos}`);
+        break;
+      }
+    }
+    
+    if (ultimosDigitos) {
+      console.log('🔍 Buscando cliente con dígitos:', ultimosDigitos);
+      
+      // Buscar cliente por últimos dígitos
+      const cliente = await buscarClientePorUltimosDigitos(ultimosDigitos);
+      
+      if (cliente) {
+        console.log('✅ Cliente encontrado:', cliente.NOMBRE, cliente.WHATSAPP);
+        
+        // Crear mapeo LID → WhatsApp
+        const mapeoCreado = await crearMapeoLID(eventData.from, cliente.WHATSAPP, cliente.ID, asesor.ID);
+        
+        if (mapeoCreado) {
+          console.log('✅ Mapeo LID creado exitosamente:', eventData.from, '→', cliente.WHATSAPP);
+          
+          // 🆕 ACTUALIZAR CONVERSACIONES HISTÓRICAS
+          console.log(`🔄 Actualizando conversaciones históricas para LID: ${eventData.from}`);
+          const conversacionesActualizadas = await actualizarConversacionesHistoricasLID(
+            eventData.from,
+            cliente.ID,
+            asesor.ID
+          );
+          
+          if (conversacionesActualizadas > 0) {
+            console.log(`✅ Se actualizaron ${conversacionesActualizadas} conversaciones históricas con el cliente ${cliente.NOMBRE}`);
+          } else {
+            console.log(`ℹ️ No se encontraron conversaciones históricas para actualizar`);
+          }
+          
+          // Opcional: Enviar confirmación automática (comentado por ahora)
+          // await enviarConfirmacionMapeo(eventData.from, cliente.NOMBRE, ultimosDigitos);
+        } else {
+          console.log('❌ Error creando mapeo LID');
+        }
+      } else {
+        console.log('⚠️ Cliente no encontrado para dígitos:', ultimosDigitos);
+      }
+    } else {
+      console.log('⚠️ No se encontró patrón de soporte en el mensaje');
+    }
+  } catch (error) {
+    console.error('❌ Error detectando mapeo LID:', error);
+  }
+}
+
+// Función para buscar cliente por LID (usando mapeos existentes)
+async function buscarClientePorLID(lid: string): Promise<{ ID: number; ESTADO: string; ID_ASESOR?: number; NOMBRE_ASESOR?: string } | null> {
+  try {
+    console.log('🔍 Buscando mapeo para LID:', lid);
+    
+    // Buscar mapeo existente
+    const mapeo = await buscarMapeoLID(lid);
+    
+    if (mapeo) {
+      console.log('✅ Mapeo encontrado:', mapeo.whatsapp_number);
+      
+      // Actualizar última vez visto
+      await actualizarMapeoLID(lid);
+      
+      // Buscar cliente por el número mapeado
+      const cliente = await getClienteByWhatsapp(mapeo.whatsapp_number);
+      if (cliente) {
+        console.log('✅ Cliente encontrado por mapeo LID:', cliente);
+        return cliente;
+      } else {
+        console.log('⚠️ Cliente no encontrado para número mapeado:', mapeo.whatsapp_number);
+      }
+    } else {
+      console.log('⚠️ No hay mapeo para este LID:', lid);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Error buscando cliente por LID:', error);
+    return null;
+  }
+}
 
 export function setupWhatsAppEventHandlers(socket: Socket) {
   // ===============================================
@@ -384,6 +497,9 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         return; // Salir temprano - NO procesar mensajes de instancias sin asesor
       }
 
+      // 🆕 DETECTAR Y MAPEAR LID AUTOMÁTICAMENTE
+      await detectarYMapearLID(eventData, asesor);
+
       // Determinar modo
       const modo: 'saliente' | 'entrante' = message.key.fromMe ? 'saliente' : 'entrante';
       console.log('📤 Modo del mensaje:', modo);
@@ -408,15 +524,33 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
       
       console.log('💬 Mensaje para BD:', mensaje);
 
-      // Buscar id_cliente por wha_cliente
+      // 🆕 BÚSQUEDA INTELIGENTE: LID o WhatsApp tradicional
       let id_cliente: number | null = null;
       try {
-        console.log('🔍 Buscando cliente por WhatsApp:', eventData.from);
-        const cliente = await getClienteByWhatsapp(eventData.from);
-        console.log('👤 Cliente encontrado:', cliente);
-        if (cliente) {
-          id_cliente = cliente.ID;
+        console.log('🔍 Buscando cliente por WhatsApp/LID:', eventData.from);
+        
+        // Si es un LID, buscar en mapeos
+        if (eventData.from.includes('@lid')) {
+          console.log('📱 LID detectado, buscando en mapeos...');
+          const cliente = await buscarClientePorLID(eventData.from);
+          
+          if (cliente) {
+            id_cliente = cliente.ID;
+            console.log('✅ Cliente encontrado por mapeo LID:', cliente);
+          } else {
+            console.log('⚠️ No hay mapeo para este LID. El cliente debe escribir: "caso de soporte: [últimos 6 dígitos]"');
+          }
+        } else {
+          // Método original para números reales
+          console.log('📞 Número tradicional, buscando por WhatsApp...');
+          const cliente = await getClienteByWhatsapp(eventData.from);
+          if (cliente) {
+            id_cliente = cliente.ID;
+            console.log('✅ Cliente encontrado por WhatsApp tradicional:', cliente);
+          }
         }
+        
+        console.log('�� ID Cliente final:', id_cliente);
       } catch (err) {
         console.log('⚠️ Error buscando cliente (continuando):', err);
         // Silenciar error de cliente no encontrado

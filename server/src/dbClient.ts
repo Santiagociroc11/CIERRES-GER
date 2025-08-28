@@ -147,6 +147,132 @@ export async function getClienteByWhatsapp(wha: string): Promise<{ ID: number; E
   return data && data.length > 0 ? data[0] : null;
 }
 
+// 🆕 FUNCIONES PARA MAPEO LID
+
+// Función para buscar cliente por últimos dígitos del WhatsApp
+export async function buscarClientePorUltimosDigitos(ultimosDigitos: string): Promise<{ ID: number; NOMBRE: string; WHATSAPP: string; ID_ASESOR?: number } | null> {
+  try {
+    const response = await fetch(
+      `${POSTGREST_URL}/GERSSON_CLIENTES?WHATSAPP=ilike.*${ultimosDigitos}&select=ID,NOMBRE,WHATSAPP,ID_ASESOR&limit=1`
+    );
+    
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data && data.length > 0 ? data[0] : null;
+  } catch (error) {
+    console.error('Error buscando cliente por últimos dígitos:', error);
+    return null;
+  }
+}
+
+// Función para crear mapeo LID → WhatsApp
+export async function crearMapeoLID(lid: string, whatsapp: string, idCliente: number, idAsesor: number): Promise<boolean> {
+  try {
+    const mappingData = {
+      lid,
+      whatsapp_number: whatsapp,
+      id_cliente: idCliente,
+      asesor_id: idAsesor
+    };
+    
+    const response = await fetch(`${POSTGREST_URL}/lid_mappings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify(mappingData)
+    });
+    
+    return response.ok;
+  } catch (error) {
+    console.error('Error creando mapeo LID:', error);
+    return false;
+  }
+}
+
+// Función para buscar mapeo LID existente
+export async function buscarMapeoLID(lid: string): Promise<{ 
+  id: number; 
+  lid: string; 
+  whatsapp_number: string; 
+  id_cliente: number; 
+  asesor_id: number; 
+} | null> {
+  try {
+    const response = await fetch(
+      `${POSTGREST_URL}/lid_mappings?lid=eq.${encodeURIComponent(lid)}&select=*&limit=1`
+    );
+    
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data && data.length > 0 ? data[0] : null;
+  } catch (error) {
+    console.error('Error buscando mapeo LID:', error);
+    return null;
+  }
+}
+
+// Función para actualizar última vez visto del mapeo LID
+export async function actualizarMapeoLID(lid: string): Promise<void> {
+  try {
+    await fetch(`${POSTGREST_URL}/lid_mappings?lid=eq.${encodeURIComponent(lid)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        last_seen: new Date().toISOString()
+      })
+    });
+  } catch (error) {
+    console.error('Error actualizando mapeo LID:', error);
+  }
+}
+
+// 🆕 FUNCIÓN PARA ACTUALIZAR CONVERSACIONES HISTÓRICAS CON LID
+export async function actualizarConversacionesHistoricasLID(lid: string, idCliente: number, asesorId: number): Promise<number> {
+  try {
+    console.log(`🔄 Actualizando conversaciones históricas para LID: ${lid} → Cliente ID: ${idCliente}`);
+    
+    // Actualizar todas las conversaciones que tienen este LID pero no tienen id_cliente
+    const url = `${POSTGREST_URL}/conversaciones?wha_cliente=eq.${encodeURIComponent(lid)}&id_cliente=is.null`;
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id_cliente: idCliente,
+        id_asesor: asesorId
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Error HTTP ${response.status} actualizando conversaciones históricas: ${errorText}`);
+      return 0;
+    }
+    
+    // PostgREST no devuelve los registros modificados por defecto en PATCH
+    // Hacer una consulta para contar las conversaciones que ahora tienen el cliente
+    const countResponse = await fetch(`${POSTGREST_URL}/conversaciones?wha_cliente=eq.${encodeURIComponent(lid)}&id_cliente=eq.${idCliente}&select=id`);
+    
+    if (countResponse.ok) {
+      const conversaciones = await countResponse.json();
+      const cantidad = Array.isArray(conversaciones) ? conversaciones.length : 0;
+      console.log(`✅ ${cantidad} conversaciones históricas actualizadas para LID: ${lid}`);
+      return cantidad;
+    }
+    
+    return 0;
+    
+  } catch (error) {
+    console.error('❌ Error actualizando conversaciones históricas:', error);
+    return 0;
+  }
+}
+
 export async function getNextAsesorPonderado(): Promise<{ ID: number } | null> {
   const response = await fetch(`${POSTGREST_URL}/rpc/get_next_asesor_ponderado`, {
     method: 'POST',

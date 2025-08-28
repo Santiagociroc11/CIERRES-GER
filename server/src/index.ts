@@ -10,6 +10,7 @@ import { scheduledMessageService } from './services/scheduledMessageService';
 import telegramBot from './services/telegramBot';
 import apiRoutes from './routes/api';
 import hotmartRoutes from './routes/hotmart';
+import { getLIDsSinMapear } from './dbClient';
 
 // Configurar variables de entorno
 dotenv.config();
@@ -88,6 +89,17 @@ app.get('/telegram-bot-status', (req, res) => {
     },
     timestamp: new Date().toISOString()
   });
+});
+
+// 🆕 Ruta para obtener LIDs sin mapear
+app.get('/api/lids-sin-mapear', async (req, res) => {
+  try {
+    const lids = await getLIDsSinMapear();
+    res.json(lids);
+  } catch (error) {
+    console.error('❌ Error obteniendo LIDs sin mapear:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // Ruta de prueba para mensajes programados

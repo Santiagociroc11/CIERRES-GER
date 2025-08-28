@@ -70,6 +70,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [reportes, setReportes] = useState<any[]>([]);
   const [registros, setRegistros] = useState<any[]>([]);
   const [conversaciones, setConversaciones] = useState<any[]>([]);
+  const [lidsSinMapear, setLidsSinMapear] = useState<any[]>([]);
+  const [cargandoLids, setCargandoLids] = useState(false);
   const [conexionesEstado, setConexionesEstado] = useState<Record<number, {
     whatsapp: 'conectado' | 'desconectado' | 'conectando' | 'verificando';
     telegram: boolean;
@@ -102,7 +104,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [vistaAsesores, setVistaAsesores] = useState<'cards' | 'tabla'>('cards');
 
   // Estado para alternar entre vista de Asesores y Clientes
-  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks'>('asesores');
+  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks' | 'lids'>('asesores');
   
   // Estado para alternar entre modo admin y asesor
   const [modoAsesor, setModoAsesor] = useState(false);
@@ -423,6 +425,13 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     cargarDatos();
   }, [periodoSeleccionado, fechaInicio, fechaFin]);
 
+  // 🆕 Cargar LIDs cuando se accede a la vista
+  useEffect(() => {
+    if (vistaAdmin === 'lids' && adminRole === 'admin') {
+      cargarLidsSinMapear();
+    }
+  }, [vistaAdmin, adminRole]);
+
   const refrescarClientes = async () => {
     console.log("🔄 Refrescando solo datos de clientes...");
     setCargandoClientes(true);
@@ -445,6 +454,26 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       console.error("❌ Error refrescando clientes:", error);
     } finally {
       setCargandoClientes(false);
+    }
+  };
+
+  // 🆕 Función para cargar LIDs sin mapear
+  const cargarLidsSinMapear = async () => {
+    console.log("🔄 Cargando LIDs sin mapear...");
+    setCargandoLids(true);
+    try {
+      const response = await fetch('/api/lids-sin-mapear');
+      if (response.ok) {
+        const lids = await response.json();
+        setLidsSinMapear(lids);
+        console.log("✅ LIDs sin mapear cargados:", lids.length);
+      } else {
+        console.error("❌ Error cargando LIDs sin mapear:", response.status);
+      }
+    } catch (error) {
+      console.error("❌ Error cargando LIDs sin mapear:", error);
+    } finally {
+      setCargandoLids(false);
     }
   };
 
@@ -1579,6 +1608,27 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     <Webhook className="h-5 w-5" />
                     <span className="font-semibold">Webhooks</span>
                     <div className="text-xs opacity-75 hidden sm:block">Configuración</div>
+                  </button>
+                )}
+
+                {/* LIDs sin mapear - Solo para admins completos */}
+                {adminRole === 'admin' && (
+                  <button
+                    onClick={() => setVistaAdmin('lids')}
+                    className={`
+                      flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
+                      ${vistaAdmin === 'lids'
+                        ? 'bg-red-600 text-white shadow-lg border-2 border-red-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
+                      }
+                    `}
+                  >
+                    <AlertTriangle className="h-5 w-5" />
+                    <span className="font-semibold">LIDs</span>
+                    <div className="text-xs opacity-75 hidden sm:block">Sin mapear</div>
+                    <span className="ml-2 bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
+                      {conversaciones.filter(c => c.wha_cliente?.includes('@lid') && !c.id_cliente).length}
+                    </span>
                   </button>
                 )}
               </div>
@@ -3258,6 +3308,164 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
               ) : (
                 <WebhookLogs />
               )}
+            </div>
+          </div>
+        ) : vistaAdmin === 'lids' && adminRole === 'admin' ? (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <AlertTriangle className="mr-3 h-8 w-8 text-red-600" />
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">LIDs Sin Mapear</h2>
+                    <p className="text-gray-600">Conversaciones que necesitan ser asociadas a clientes</p>
+                  </div>
+                </div>
+                <button
+                  onClick={cargarLidsSinMapear}
+                  disabled={cargandoLids}
+                  className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  <RefreshCcw className={`h-4 w-4 mr-2 ${cargandoLids ? 'animate-spin' : ''}`} />
+                  {cargandoLids ? 'Cargando...' : 'Actualizar'}
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                  <div className="flex items-center">
+                    <AlertTriangle className="h-8 w-8 text-red-500 mr-3" />
+                    <div>
+                      <p className="text-2xl font-bold text-red-700">{lidsSinMapear.length}</p>
+                      <p className="text-sm text-red-600">LIDs sin mapear</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                  <div className="flex items-center">
+                    <MessageSquare className="h-8 w-8 text-yellow-500 mr-3" />
+                    <div>
+                      <p className="text-2xl font-bold text-yellow-700">
+                        {lidsSinMapear.reduce((acc, lid) => acc + lid.total_mensajes, 0)}
+                      </p>
+                      <p className="text-sm text-yellow-600">Mensajes perdidos</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <div className="flex items-center">
+                    <Users className="h-8 w-8 text-blue-500 mr-3" />
+                    <div>
+                      <p className="text-2xl font-bold text-blue-700">
+                        {new Set(lidsSinMapear.map(lid => lid.id_asesor)).size}
+                      </p>
+                      <p className="text-sm text-blue-600">Asesores afectados</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabla de LIDs */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800">Listado de LIDs Sin Mapear</h3>
+                <p className="text-sm text-gray-600 mt-1">Estas conversaciones necesitan ser asociadas manualmente a clientes</p>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        LID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Asesor
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Mensajes
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Primera Conversación
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Última Actividad
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Último Mensaje
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {lidsSinMapear.map((lid, index) => {
+                      const asesorAsignado = asesores.find(a => a.ID === lid.id_asesor);
+                      return (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900 font-mono">
+                              {lid.lid.substring(0, 15)}...
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {lid.lid}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {asesorAsignado?.NOMBRE || 'Sin asignar'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              {lid.total_mensajes} mensajes
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {new Date(lid.primera_conversacion * 1000).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatDistanceToNow(new Date(lid.ultima_conversacion * 1000), { addSuffix: true, locale: es })}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-900 max-w-xs truncate">
+                              {lid.ultimo_mensaje || 'Sin mensaje'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button className="text-red-600 hover:text-red-900 mr-3">
+                              Mapear Manualmente
+                            </button>
+                            <button className="text-blue-600 hover:text-blue-900">
+                              Ver Conversación
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                
+                {lidsSinMapear.length === 0 && !cargandoLids && (
+                  <div className="text-center py-12">
+                    <AlertTriangle className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No hay LIDs sin mapear</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Todas las conversaciones están correctamente asociadas a clientes.
+                    </p>
+                  </div>
+                )}
+                
+                {cargandoLids && (
+                  <div className="text-center py-12">
+                    <RefreshCcw className="mx-auto h-8 w-8 text-gray-400 animate-spin" />
+                    <p className="mt-2 text-sm text-gray-500">Cargando LIDs sin mapear...</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : (

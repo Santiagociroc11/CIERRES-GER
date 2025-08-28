@@ -256,10 +256,30 @@ router.post('/webhook', async (req, res) => {
         transactionId: body.data?.purchase?.transaction
       });
       
+      // ✅ IMPORTANTE: Actualizar webhook log antes de terminar
+      const processingTime = Date.now() - startTime;
+      if (webhookLogId) {
+        try {
+          await updateWebhookLog({
+            id: webhookLogId,
+            status: 'success',
+            processing_time_ms: processingTime,
+            processed_at: new Date(),
+            error_message: 'Sin número de teléfono disponible',
+            processing_steps: processingSteps || []
+          });
+          logger.info('Webhook log actualizado: sin número de teléfono', { webhookLogId });
+        } catch (updateError) {
+          logger.error('Error actualizando webhook log (sin teléfono):', updateError);
+        }
+      }
+      
       return res.status(200).json({
         success: true,
         message: 'Webhook procesado (sin número de teléfono)',
         flujo,
+        webhookLogId,
+        processingTimeMs: processingTime,
         timestamp: new Date().toISOString()
       });
     }

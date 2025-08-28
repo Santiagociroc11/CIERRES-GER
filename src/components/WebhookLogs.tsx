@@ -50,7 +50,8 @@ import {
   MonetizationOn,
   Public,
   Replay,
-  Warning
+  Warning,
+  PhoneDisabled
 } from '@mui/icons-material';
 import { toast } from 'react-hot-toast';
 
@@ -309,14 +310,30 @@ const WebhookLogs: React.FC = () => {
     }
   };
 
-  const getStatusChip = (status: WebhookLog['status']) => (
-    <Chip
-      icon={STATUS_ICONS[status]}
-      label={status.toUpperCase()}
-      color={STATUS_COLORS[status]}
-      size="small"
-    />
-  );
+  const getStatusChip = (status: WebhookLog['status'], log?: WebhookLog) => {
+    // Detectar si es success pero sin número de teléfono
+    const isNoPhone = status === 'success' && log?.error_message?.includes('Sin número de teléfono');
+    
+    if (isNoPhone) {
+      return (
+        <Chip
+          icon={<PhoneDisabled />}
+          label="SIN NÚMERO"
+          color="warning"
+          size="small"
+        />
+      );
+    }
+    
+    return (
+      <Chip
+        icon={STATUS_ICONS[status]}
+        label={status.toUpperCase()}
+        color={STATUS_COLORS[status]}
+        size="small"
+      />
+    );
+  };
 
   const getIntegrationChip = (status?: 'success' | 'error' | 'skipped' | 'queued') => {
     if (!status) return null;
@@ -847,7 +864,7 @@ const WebhookLogs: React.FC = () => {
                         <Chip label={log.flujo} size="small" />
                       </TableCell>
                       <TableCell>
-                        {getStatusChip(log.status)}
+                        {getStatusChip(log.status, log)}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">

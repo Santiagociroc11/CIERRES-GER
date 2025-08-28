@@ -500,19 +500,31 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     try {
       const response = await fetch(`/api/conversaciones/${asesorId}`);
       if (response.ok) {
-        const conversaciones = await response.json();
-        setConversacionesChat(conversaciones);
-        console.log("✅ Conversaciones cargadas:", conversaciones.length);
+        const result = await response.json();
+        console.log("📡 Respuesta del backend:", result);
         
-        // Seleccionar automáticamente la primera conversación si existe
-        if (conversaciones.length > 0 && !conversacionActivaChat) {
-          setConversacionActivaChat(conversaciones[0]);
+        // El backend devuelve { success: true, data: conversaciones, timestamp: ... }
+        const conversaciones = result.data || result;
+        
+        if (Array.isArray(conversaciones)) {
+          setConversacionesChat(conversaciones);
+          console.log("✅ Conversaciones cargadas:", conversaciones.length);
+          
+          // Seleccionar automáticamente la primera conversación si existe
+          if (conversaciones.length > 0 && !conversacionActivaChat) {
+            setConversacionActivaChat(conversaciones[0]);
+          }
+        } else {
+          console.error("❌ Formato de respuesta inválido:", conversaciones);
+          setConversacionesChat([]);
         }
       } else {
         console.error("❌ Error cargando conversaciones:", response.status);
+        setConversacionesChat([]);
       }
     } catch (error) {
       console.error("❌ Error cargando conversaciones:", error);
+      setConversacionesChat([]);
     } finally {
       setCargandoConversacionesChat(false);
     }
@@ -524,14 +536,26 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     try {
       const response = await fetch(`/api/mensajes/${asesorId}/${encodeURIComponent(clienteKey)}`);
       if (response.ok) {
-        const mensajes = await response.json();
-        setMensajesChat(mensajes);
-        console.log("✅ Mensajes cargados:", mensajes.length);
+        const result = await response.json();
+        console.log("📡 Respuesta de mensajes del backend:", result);
+        
+        // El backend devuelve { success: true, data: mensajes, timestamp: ... }
+        const mensajes = result.data || result;
+        
+        if (Array.isArray(mensajes)) {
+          setMensajesChat(mensajes);
+          console.log("✅ Mensajes cargados:", mensajes.length);
+        } else {
+          console.error("❌ Formato de respuesta de mensajes inválido:", mensajes);
+          setMensajesChat([]);
+        }
       } else {
         console.error("❌ Error cargando mensajes:", response.status);
+        setMensajesChat([]);
       }
     } catch (error) {
       console.error("❌ Error cargando mensajes:", error);
+      setMensajesChat([]);
     } finally {
       setCargandoMensajesChat(false);
     }

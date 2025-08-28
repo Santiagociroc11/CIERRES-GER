@@ -111,6 +111,7 @@ app.use('/api/soporte', soporteRoutes);
 // Usar las rutas de Reasignación
 app.use('/api', reasignacionRoutes);
 
+
 // Ejemplo de ruta de API
 app.get('/api/status', (req, res) => {
   res.json({

@@ -1,7 +1,7 @@
 module.exports = {
   apps: [{
     name: 'cierres-ger-dev',
-    script: 'src/index.ts',
+    script: 'src/server.ts',
     watch: ['src'],
     env: {
       NODE_ENV: 'development',

@@ -58,6 +58,7 @@ import CrearAsesorModal from './CrearAsesorModal';
 import EditarAsesorModal from './EditarAsesorModal';
 import WebhookConfig from './WebhookConfig';
 import WebhookLogs from './WebhookLogs';
+import DashboardAsesor from './DashboardAsesor';
 
 interface DashboardAdminProps {
   asesor: Asesor;
@@ -105,6 +106,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
   // Estado para alternar entre vista de Asesores y Clientes
   const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks'>('asesores');
+  
+  // Estado para alternar entre modo admin y asesor
+  const [modoAsesor, setModoAsesor] = useState(false);
+  const [asesorModoActivo, setAsesorModoActivo] = useState<Asesor | null>(null);
   // Estado para el modal de historial de cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
   // Estado para la sub-vista de webhooks
@@ -1336,6 +1341,42 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     if (minutos <= limite * 2) return 'text-yellow-600';
     return 'text-red-600';
   };
+
+  // Si estamos en modo asesor, renderizar el DashboardAsesor con banner
+  if (modoAsesor) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        {/* Banner para volver al modo admin */}
+        <div className="bg-gradient-to-r from-purple-600 to-purple-700 shadow-lg">
+          <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-12">
+              <div className="flex items-center space-x-3">
+                <Shield className="h-5 w-5 text-white" />
+                <span className="text-white font-medium">Modo Asesor Activado</span>
+                <span className="text-purple-200 text-sm">• Viendo como: {asesorModoActivo?.NOMBRE || asesor.NOMBRE}</span>
+              </div>
+              <button
+                onClick={() => setModoAsesor(false)}
+                className="flex items-center space-x-2 px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg transition-all duration-200"
+              >
+                <Shield className="h-4 w-4" />
+                <span className="font-medium">Volver a Admin</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Renderizar DashboardAsesor */}
+        <DashboardAsesor 
+          asesor={asesorModoActivo || asesor} 
+          onLogout={() => {
+            setModoAsesor(false);
+            setAsesorModoActivo(null);
+          }} 
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -2703,6 +2744,18 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                 Editar
                               </button>
                             )}
+                            {/* Entrar como Asesor */}
+                            <button
+                              onClick={() => {
+                                setAsesorModoActivo(asesor);
+                                setModoAsesor(true);
+                              }}
+                              className="inline-flex items-center px-3 py-2 border border-purple-300 text-sm font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors duration-200"
+                              title="Entrar como este asesor"
+                            >
+                              <Users className="h-4 w-4 mr-1" />
+                              Entrar
+                            </button>
                             <button
                               onClick={() => setAsesorSeleccionado(asesor)}
                               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
@@ -2825,6 +2878,17 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                         <Edit className="h-4 w-4" />
                                       </button>
                                     )}
+                                    {/* Entrar como Asesor */}
+                                    <button
+                                      onClick={() => {
+                                        setAsesorModoActivo(asesor);
+                                        setModoAsesor(true);
+                                      }}
+                                      className="text-purple-600 hover:text-purple-900 p-1 rounded"
+                                      title="Entrar como este asesor"
+                                    >
+                                      <Users className="h-4 w-4" />
+                                    </button>
                                     <button
                                       onClick={() => setAsesorSeleccionado(asesor)}
                                       className="text-blue-600 hover:text-blue-900 text-xs"

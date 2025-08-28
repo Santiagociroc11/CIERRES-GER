@@ -500,34 +500,26 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   useEffect(() => {
     let pollingInterval: NodeJS.Timeout | undefined;
     
-    // ✅ CORREGIDO: Solo hacer polling si hay instancia y no hay auto-refresh activo
-    if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open" && refreshAttempts === 0 && !isAutoRefreshing) {
-      console.log('🔄 [WhatsApp] Iniciando polling automático cada 30s...');
+    // ✅ SIMPLIFICADO: Polling básico solo cuando modal está abierto
+    if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
+      console.log('🔄 [WhatsApp] Iniciando polling cada 10s (solo verificación de estado)...');
       pollingInterval = setInterval(async () => {
         try {
-          // Verificar que la instancia siga existiendo antes de hacer polling
-          const instanceExists = await checkInstanceExists();
-          if (instanceExists) {
-            // ✅ CORREGIDO: Polling solo verifica estado, NO regenera QR
-            await refreshConnection(false);
-          } else {
-            console.log('ℹ️ [WhatsApp] Instancia ya no existe, deteniendo polling');
-            clearInterval(pollingInterval);
-          }
+          console.log('🔄 [WhatsApp] Polling: verificando estado...');
+          await handleFetchInstanceInfo();
         } catch (error) {
-          console.log('⚠️ [WhatsApp] Error en polling, deteniendo:', error);
-          clearInterval(pollingInterval);
+          console.log('⚠️ [WhatsApp] Error en polling:', error);
         }
-      }, 30000);
+      }, 10000); // Cada 10 segundos, solo verificación
     }
     
     return () => {
       if (pollingInterval) {
-        console.log('🔄 [WhatsApp] Deteniendo polling automático...');
+        console.log('🔄 [WhatsApp] Deteniendo polling...');
         clearInterval(pollingInterval);
       }
     };
-  }, [showWhatsAppModal, instanceInfo, refreshAttempts, isAutoRefreshing]);
+  }, [showWhatsAppModal, instanceInfo]);
 
   useEffect(() => {
     if (instanceInfo?.connectionStatus === "open") {
@@ -760,16 +752,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           setWhatsappStatus("Inicializando");
           console.log('🔄 [WhatsApp] Instancia creada, estado inicial: Inicializando');
           
-          // Programar verificación adicional en 2 segundos
-          setTimeout(async () => {
-            try {
-              // ✅ CORREGIDO: Solo verificar estado, NO regenerar QR
-              await refreshConnection(false);
-              console.log('🔍 [WhatsApp] Verificación post-creación completada');
-            } catch (error) {
-              console.log('⚠️ [WhatsApp] Verificación post-creación falló, manteniendo estado');
-            }
-          }, 2000);
+          // ✅ SIMPLIFICADO: El polling del modal se encargará de verificar el estado
+          console.log('ℹ️ [WhatsApp] Usa el botón "Actualizar" o espera el polling para verificar el estado');
         } else {
           // Si tenemos info, el estado ya se estableció correctamente
           console.log('✅ [WhatsApp] Estado de instancia obtenido correctamente:', instanceInfo.connectionStatus);
@@ -778,15 +762,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         console.log('⚠️ [WhatsApp] Error en refreshConnection post-creación, estableciendo estado por defecto');
         setWhatsappStatus("Inicializando");
         
-        // Programar verificación de recuperación
-        setTimeout(async () => {
-          try {
-            // ✅ CORREGIDO: Solo verificar estado, NO regenerar QR
-            await refreshConnection(false);
-          } catch (error) {
-            console.log('⚠️ [WhatsApp] Verificación de recuperación falló');
-          }
-        }, 3000);
+        // ✅ SIMPLIFICADO: No hacer verificaciones adicionales automáticas
+        console.log('ℹ️ [WhatsApp] Usa el botón "Actualizar" para verificar el estado manualmente');
       }
       
       showToast("Instancia creada, escanea el QR para conectar", "success");
@@ -978,27 +955,12 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         
         console.log(`${statusConfig.icon} [WhatsApp] Estado: ${instance.connectionStatus.toUpperCase()} -> ${statusConfig.displayText}`);
         
-        // ✅ CORREGIDO: Evitar múltiples auto-refresh paralelos
-        console.log(`🔍 [DEBUG] Estado: ${instance.connectionStatus}, Transitorio: ${isTransitoryStatus(instance.connectionStatus)}, Reintentos: ${refreshAttempts}/${MAX_REFRESH_ATTEMPTS}, AutoRefreshing: ${isAutoRefreshing}`);
+        // ✅ SOLUCION RADICAL: ELIMINAR AUTO-REFRESH PROBLEMÁTICO
+        // Solo logear el estado, NO hacer auto-refresh automático
+        console.log(`📊 [WhatsApp] Estado detectado: ${instance.connectionStatus} -> ${statusConfig.displayText}`);
         
-        if (isTransitoryStatus(instance.connectionStatus) && refreshAttempts < MAX_REFRESH_ATTEMPTS && !isAutoRefreshing) {
-          console.log(`🔄 [WhatsApp] Estado transitorio detectado, refresco ${refreshAttempts + 1}/${MAX_REFRESH_ATTEMPTS}...`);
-          setRefreshAttempts(prev => prev + 1);
-          setIsAutoRefreshing(true);
-          console.log(`🔄 [DEBUG] Iniciando auto-refresh, flag set to TRUE`);
-          
-          setTimeout(() => {
-            console.log(`🔄 [DEBUG] Ejecutando auto-refresh programado, reseteando flag`);
-            setIsAutoRefreshing(false);
-            // ✅ CORREGIDO: Solo verificar estado, NO regenerar QR
-            handleFetchInstanceInfo();
-          }, 3000); // Refresca cada 3 segundos para estados transitorios
-        } else if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
-          console.log('⚠️ [WhatsApp] Límite de reintentos alcanzado, deteniendo auto-refresh');
-          setWhatsappStatus("Error de Conexión");
-          setIsAutoRefreshing(false);
-        } else if (isAutoRefreshing) {
-          console.log('⚠️ [DEBUG] Auto-refresh ya está activo, saltando nueva ejecución');
+        if (isTransitoryStatus(instance.connectionStatus)) {
+          console.log(`ℹ️ [WhatsApp] Estado transitorio detectado. Usa "Actualizar" para verificar manualmente.`);
         }
       } else {
         console.log('❌ [WhatsApp] No se encontró instancia');

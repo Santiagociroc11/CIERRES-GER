@@ -441,6 +441,13 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     }
   }, [vistaAdmin, adminRole]);
 
+  // 🆕 Cargar LIDs también al cargar datos iniciales para el contador
+  useEffect(() => {
+    if (adminRole === 'admin') {
+      cargarLidsSinMapear();
+    }
+  }, [adminRole]);
+
   const refrescarClientes = async () => {
     console.log("🔄 Refrescando solo datos de clientes...");
     setCargandoClientes(true);
@@ -1695,7 +1702,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     <span className="font-semibold">LIDs</span>
                     <div className="text-xs opacity-75 hidden sm:block">Sin mapear</div>
                     <span className="ml-2 bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
-                      {conversaciones.filter(c => c.wha_cliente?.includes('@lid') && !c.id_cliente).length}
+                      {lidsSinMapear.length}
                     </span>
                   </button>
                 )}
@@ -3487,7 +3494,6 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {lidsSinMapear.map((lid, index) => {
-                      const asesorAsignado = asesores.find(a => a.ID === lid.id_asesor);
                       return (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -3500,7 +3506,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">
-                              {asesorAsignado?.NOMBRE || 'Sin asignar'}
+                              {lid.nombre_asesor || 'Sin asignar'}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">

@@ -339,14 +339,21 @@ export async function getLIDsSinMapear(): Promise<any[]> {
     }
     
     const conversaciones = await response.json();
+    console.log(`🔍 Conversaciones encontradas con LID sin mapear: ${conversaciones.length}`);
+    
+    // Obtener información de asesores
+    const asesoresResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?select=ID,NOMBRE`);
+    const asesores = asesoresResponse.ok ? await asesoresResponse.json() : [];
     
     // Agrupar por LID y obtener información del asesor
     const lidsAgrupados = conversaciones.reduce((acc: any, conv: any) => {
       const lid = conv.wha_cliente;
       if (!acc[lid]) {
+        const asesor = asesores.find((a: any) => a.ID === conv.id_asesor);
         acc[lid] = {
           lid,
           id_asesor: conv.id_asesor,
+          nombre_asesor: asesor?.NOMBRE || 'Asesor desconocido',
           primera_conversacion: conv.timestamp,
           ultima_conversacion: conv.timestamp,
           total_mensajes: 0,
@@ -367,7 +374,13 @@ export async function getLIDsSinMapear(): Promise<any[]> {
     }, {});
     
     const resultado = Object.values(lidsAgrupados);
-    console.log(`✅ Encontrados ${resultado.length} LIDs sin mapear`);
+    console.log(`✅ Encontrados ${resultado.length} LIDs únicos sin mapear`);
+    
+    // Log detallado para debugging
+    resultado.forEach((lid: any) => {
+      console.log(`📱 LID sin mapear: ${lid.lid} → Asesor: ${lid.nombre_asesor} (${lid.total_mensajes} mensajes)`);
+    });
+    
     return resultado;
     
   } catch (error) {

@@ -912,4 +912,113 @@ export async function getWebhookConfigHistory(platform: string, limit: number = 
     console.error('Error getting webhook config history:', error);
     throw error;
   }
+}
+
+// 🆕 FUNCIONES PARA MANEJO DE DUPLICADOS
+
+export async function getReportesByClienteId(clienteId: number): Promise<any[]> {
+  try {
+    const response = await fetch(
+      `${POSTGREST_URL}/REPORTES?ID_CLIENTE=eq.${clienteId}&select=*&order=FECHA_REPORTE.desc`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Error fetching reportes: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error getting reportes by cliente ID:', error);
+    throw error;
+  }
+}
+
+export async function getRegistrosByClienteId(clienteId: number): Promise<any[]> {
+  try {
+    const response = await fetch(
+      `${POSTGREST_URL}/REGISTROS?ID_CLIENTE=eq.${clienteId}&select=*&order=FECHA_EVENTO.desc`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Error fetching registros: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error getting registros by cliente ID:', error);
+    throw error;
+  }
+}
+
+export async function deleteCliente(clienteId: number): Promise<void> {
+  try {
+    const response = await fetch(
+      `${POSTGREST_URL}/GERSSON_CLIENTES?ID=eq.${clienteId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Error deleting cliente: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error deleting cliente:', error);
+    throw error;
+  }
+}
+
+export async function deleteReporte(reporteId: number): Promise<void> {
+  try {
+    const response = await fetch(
+      `${POSTGREST_URL}/REPORTES?ID=eq.${reporteId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Error deleting reporte: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error deleting reporte:', error);
+    throw error;
+  }
+}
+
+export async function insertReporte(reporte: {
+  ID_CLIENTE: number;
+  TIPO_REPORTE: string;
+  DESCRIPCION: string;
+  FECHA_REPORTE: string;
+  ID_ASESOR: number;
+  NOMBRE_ASESOR: string;
+}): Promise<any[]> {
+  try {
+    const response = await fetch(
+      `${POSTGREST_URL}/REPORTES`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(reporte)
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Error inserting reporte: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error inserting reporte:', error);
+    throw error;
+  }
 } 

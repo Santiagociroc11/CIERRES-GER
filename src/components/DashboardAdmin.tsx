@@ -28,6 +28,7 @@ import {
   Edit,
   Grid3X3,
   List,
+  Copy,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -56,6 +57,7 @@ import EditarAsesorModal from './EditarAsesorModal';
 import WebhookConfig from './WebhookConfig';
 import WebhookLogs from './WebhookLogs';
 import DashboardAsesor from './DashboardAsesor';
+import DuplicateModal from './DuplicateModal';
 
 interface DashboardAdminProps {
   asesor: Asesor;
@@ -222,6 +224,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [clienteParaChat, setClienteParaChat] = useState<any | null>(null);
   const [mostrarModalCrearAsesor, setMostrarModalCrearAsesor] = useState(false);
   const [asesorParaEditar, setAsesorParaEditar] = useState<Asesor | null>(null);
+  const [modalDuplicados, setModalDuplicados] = useState<{isOpen: boolean, clienteId: number, clienteName: string}>({
+    isOpen: false,
+    clienteId: 0,
+    clienteName: ''
+  });
   const [vistaAsesores, setVistaAsesores] = useState<'cards' | 'tabla'>('cards');
 
   // Estado para alternar entre vista de Asesores y Clientes
@@ -1523,6 +1530,21 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     } catch (error) {
       console.error("Error al cargar asesores:", error);
     }
+  };
+
+  // Función para manejar duplicados
+  const handleBuscarDuplicados = (cliente: any) => {
+    setModalDuplicados({
+      isOpen: true,
+      clienteId: cliente.ID,
+      clienteName: cliente.NOMBRE
+    });
+  };
+
+  const handleDuplicadosFusionados = () => {
+    // Recargar datos después de fusionar duplicados
+    cargarDatos();
+    setModalDuplicados({ isOpen: false, clienteId: 0, clienteName: '' });
   };
 
   // Función para manejar la reasignación exitosa de clientes
@@ -3527,6 +3549,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                     <MessageSquare className="h-3.5 w-3.5 mr-1" />
                                     Chat
                                   </button>
+                                  {adminRole === 'admin' && (
+                                    <button
+                                      onClick={() => handleBuscarDuplicados(cliente)}
+                                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded"
+                                      title="Buscar y fusionar duplicados"
+                                    >
+                                      <Copy className="h-3.5 w-3.5 mr-1" />
+                                      Duplicados
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -4435,6 +4467,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                     <MessageSquare className="h-3.5 w-3.5 mr-1" />
                                     Chat
                                   </button>
+                                  {adminRole === 'admin' && (
+                                    <button
+                                      onClick={() => handleBuscarDuplicados(cliente)}
+                                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded"
+                                      title="Buscar y fusionar duplicados"
+                                    >
+                                      <Copy className="h-3.5 w-3.5 mr-1" />
+                                      Duplicados
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -4550,6 +4592,15 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
             asesor={asesorSeleccionado ? { ID: asesorSeleccionado.ID, NOMBRE: asesorSeleccionado.NOMBRE } : { ID: 0, NOMBRE: 'Admin' }}
           />
         )}
+      
+      {/* Modal de Duplicados */}
+      <DuplicateModal
+        isOpen={modalDuplicados.isOpen}
+        onClose={() => setModalDuplicados({ isOpen: false, clienteId: 0, clienteName: '' })}
+        clienteId={modalDuplicados.clienteId}
+        clienteName={modalDuplicados.clienteName}
+        onMergeSuccess={handleDuplicadosFusionados}
+      />
       </div>
       
     </div>

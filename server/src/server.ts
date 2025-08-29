@@ -13,6 +13,7 @@ import apiRoutes from './routes/api';
 import hotmartRoutes from './routes/hotmart';
 import soporteRoutes from './routes/soporte';
 import reasignacionRoutes from './routes/reasignacion';
+import duplicatesRoutes from './routes/duplicates';
 
 // Configurar variables de entorno
 dotenv.config();
@@ -110,6 +111,8 @@ app.use('/api/soporte', soporteRoutes);
 
 // Usar las rutas de Reasignación
 app.use('/api', reasignacionRoutes);
+// Usar las rutas de Duplicados
+app.use('/api/duplicates', duplicatesRoutes);
 
 
 // Ejemplo de ruta de API

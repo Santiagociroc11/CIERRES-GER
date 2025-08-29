@@ -218,7 +218,6 @@ async function detectarYMapearLIDEntrante(eventData: any, asesor: any) {
       const cliente = await buscarClientePorUltimosDigitos(ultimosDigitos);
       
       if (cliente) {
-        console.log('✅ Cliente encontrado:', cliente.NOMBRE, cliente.WHATSAPP);
         
         // Crear mapeo LID → WhatsApp
         const mapeoCreado = await crearMapeoLID(eventData.from, cliente.WHATSAPP, cliente.ID, asesor.ID);
@@ -498,7 +497,6 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
 
       // Determinar modo
       const modo: 'saliente' | 'entrante' = message.key.fromMe ? 'saliente' : 'entrante';
-      console.log('📤 Modo del mensaje:', modo);
 
       // Determinar mensaje para la BD
       let mensaje = '';

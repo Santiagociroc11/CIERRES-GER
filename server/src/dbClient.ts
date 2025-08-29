@@ -138,7 +138,6 @@ export async function getAsesores(): Promise<{ ID: number; NOMBRE: string }[]> {
 export async function getClienteByWhatsapp(wha: string): Promise<{ ID: number; ESTADO: string; ID_ASESOR?: number; NOMBRE_ASESOR?: string } | null> {
   try {
     if (!wha || typeof wha !== 'string') {
-      console.log('❌ getClienteByWhatsapp: Número inválido o vacío', { wha });
       return null;
     }
 
@@ -147,9 +146,7 @@ export async function getClienteByWhatsapp(wha: string): Promise<{ ID: number; E
     
 
     const ultimos7 = soloNumeros.slice(-7);
-    console.log('🔍 getClienteByWhatsapp: Buscando por últimos 7 dígitos', { 
-      original: wha, soloNumeros, ultimos7 
-    });
+
 
     const url = `${POSTGREST_URL}/GERSSON_CLIENTES?WHATSAPP=ilike.*${encodeURIComponent(ultimos7)}&select=ID,ESTADO,ID_ASESOR,NOMBRE_ASESOR&limit=1`;
 
@@ -166,19 +163,8 @@ export async function getClienteByWhatsapp(wha: string): Promise<{ ID: number; E
     const data = await response.json();
 
     if (data.length > 0) {
-      console.log('✅ getClienteByWhatsapp: Cliente encontrado', { 
-        clienteId: data[0].ID,
-        estado: data[0].ESTADO,
-        ultimos7,
-        idAsesor: data[0].ID_ASESOR,
-        nombreAsesor: data[0].NOMBRE_ASESOR
-      });
       return data[0];
     } else {
-      console.log('⚠️ getClienteByWhatsapp: No se encontraron clientes', { 
-        ultimos7,
-        numeroOriginal: wha 
-      });
       return null;
     }
 
@@ -277,7 +263,6 @@ export async function actualizarMapeoLID(lid: string): Promise<void> {
 // 🆕 FUNCIÓN PARA OBTENER CONVERSACIONES AGRUPADAS POR CLIENTE PARA UN ASESOR
 export async function getConversacionesPorAsesor(asesorId: number): Promise<any[]> {
   try {
-    console.log(`🔍 Obteniendo conversaciones para asesor ID: ${asesorId}`);
     
     // Obtener conversaciones del asesor agrupadas por cliente/whatsapp
     const url = `${POSTGREST_URL}/conversaciones?id_asesor=eq.${asesorId}&select=*&order=timestamp.desc&limit=1000`;
@@ -324,11 +309,9 @@ export async function getConversacionesPorAsesor(asesorId: number): Promise<any[
     const resultado = Object.values(conversacionesAgrupadas)
       .sort((a: any, b: any) => b.ultimo_timestamp - a.ultimo_timestamp);
     
-    console.log(`✅ Encontradas ${resultado.length} conversaciones agrupadas para asesor ${asesorId}`);
     return resultado;
     
   } catch (error) {
-    console.error('❌ Error obteniendo conversaciones por asesor:', error);
     return [];
   }
 }
@@ -336,7 +319,6 @@ export async function getConversacionesPorAsesor(asesorId: number): Promise<any[
 // 🆕 FUNCIÓN PARA OBTENER MENSAJES DE UNA CONVERSACIÓN ESPECÍFICA
 export async function getMensajesConversacion(asesorId: number, clienteKey: string): Promise<any[]> {
   try {
-    console.log(`🔍 Obteniendo mensajes para asesor ${asesorId}, cliente: ${clienteKey}`);
     
     // Determinar si es un ID de cliente o WhatsApp
     const isClienteId = !isNaN(Number(clienteKey)) && !clienteKey.includes('@');
@@ -358,7 +340,6 @@ export async function getMensajesConversacion(asesorId: number, clienteKey: stri
     }
     
     const mensajes = await response.json();
-    console.log(`✅ Encontrados ${mensajes.length} mensajes para la conversación`);
     return mensajes;
     
   } catch (error) {
@@ -370,7 +351,6 @@ export async function getMensajesConversacion(asesorId: number, clienteKey: stri
 // 🆕 FUNCIÓN PARA OBTENER LIDs SIN MAPEAR
 export async function getLIDsSinMapear(): Promise<any[]> {
   try {
-    console.log('🔍 Buscando conversaciones con LID sin mapear...');
     
     // Buscar conversaciones que tienen @lid en wha_cliente pero no tienen id_cliente
     const url = `${POSTGREST_URL}/conversaciones?wha_cliente=like.*@lid&id_cliente=is.null&select=wha_cliente,id_asesor,timestamp,mensaje&order=timestamp.desc&limit=1000`;
@@ -383,7 +363,6 @@ export async function getLIDsSinMapear(): Promise<any[]> {
     }
     
     const conversaciones = await response.json();
-    console.log(`🔍 Conversaciones encontradas con LID sin mapear: ${conversaciones.length}`);
     
     // Obtener información de asesores
     const asesoresResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?select=ID,NOMBRE`);
@@ -418,11 +397,9 @@ export async function getLIDsSinMapear(): Promise<any[]> {
     }, {});
     
     const resultado = Object.values(lidsAgrupados);
-    console.log(`✅ Encontrados ${resultado.length} LIDs únicos sin mapear`);
     
     // Log detallado para debugging
     resultado.forEach((lid: any) => {
-      console.log(`📱 LID sin mapear: ${lid.lid} → Asesor: ${lid.nombre_asesor} (${lid.total_mensajes} mensajes)`);
     });
     
     return resultado;
@@ -436,7 +413,6 @@ export async function getLIDsSinMapear(): Promise<any[]> {
 // 🆕 FUNCIÓN PARA ACTUALIZAR CONVERSACIONES HISTÓRICAS CON LID
 export async function actualizarConversacionesHistoricasLID(lid: string, idCliente: number, asesorId: number): Promise<number> {
   try {
-    console.log(`🔄 Actualizando conversaciones históricas para LID: ${lid} → Cliente ID: ${idCliente}`);
     
     // Actualizar todas las conversaciones que tienen este LID pero no tienen id_cliente
     const url = `${POSTGREST_URL}/conversaciones?wha_cliente=eq.${encodeURIComponent(lid)}&id_cliente=is.null`;
@@ -464,7 +440,6 @@ export async function actualizarConversacionesHistoricasLID(lid: string, idClien
     if (countResponse.ok) {
       const conversaciones = await countResponse.json();
       const cantidad = Array.isArray(conversaciones) ? conversaciones.length : 0;
-      console.log(`✅ ${cantidad} conversaciones históricas actualizadas para LID: ${lid}`);
       return cantidad;
     }
     
@@ -828,7 +803,6 @@ export async function updateWebhookConfigInDB(
   updatedBy: string = 'system'
 ): Promise<boolean> {
   try {
-    console.log(`Actualizando webhook config - Platform: ${platform}, Key: ${configKey}`);
     
     const response = await fetch(`${POSTGREST_URL}/rpc/update_webhook_config`, {
       method: 'POST',
@@ -853,7 +827,6 @@ export async function updateWebhookConfigInDB(
     const result = await response.json();
     // PostgREST devuelve directamente true/false para funciones RPC
     const success = result === true || result === 'true';
-    console.log(`Configuración ${platform}.${configKey} actualizada: ${success}`);
     return success;
   } catch (error) {
     console.error(`Error de conexión actualizando webhook config (${platform}.${configKey}):`, error);

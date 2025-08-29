@@ -584,22 +584,62 @@ router.post('/webhook', async (req, res) => {
     if (datosProcesados.correo && datosProcesados.grupoflodesk) {
       try {
         flodeskSegmentId = datosProcesados.grupoflodesk;
+        logger.info('📧 Procesando Flodesk', { 
+          email: datosProcesados.correo, 
+          segmentId: datosProcesados.grupoflodesk,
+          flujo 
+        });
+        
         const flodeskResult = await addSubscriberToFlodesk(datosProcesados.correo, datosProcesados.grupoflodesk);
         
         if (flodeskResult.success) {
           flodeskStatus = 'success';
-          logger.info('Subscriber agregado a Flodesk', { email: datosProcesados.correo });
+          logger.info('✅ Subscriber agregado a Flodesk exitosamente', { 
+            email: datosProcesados.correo,
+            segmentId: datosProcesados.grupoflodesk 
+          });
         } else {
           flodeskStatus = 'error';
           flodeskError = flodeskResult.error || 'Error agregando subscriber';
-          logger.error('Error agregando subscriber a Flodesk', flodeskResult.error);
+          logger.error('❌ Error agregando subscriber a Flodesk', { 
+            error: flodeskResult.error,
+            email: datosProcesados.correo,
+            segmentId: datosProcesados.grupoflodesk 
+          });
         }
       } catch (error) {
         flodeskStatus = 'error';
         flodeskError = error instanceof Error ? error.message : 'Error desconocido';
-        logger.error('Error procesando Flodesk', error);
+        logger.error('❌ Error procesando Flodesk', { 
+          error: flodeskError,
+          email: datosProcesados.correo,
+          segmentId: datosProcesados.grupoflodesk 
+        });
+      }
+    } else {
+      // ✅ Logging detallado cuando se salta Flodesk
+      if (!datosProcesados.correo) {
+        logger.info('⏭️ Flodesk saltado: No hay email', { 
+          flujo,
+          buyer: body.data?.buyer 
+        });
+      }
+      if (!datosProcesados.grupoflodesk) {
+        logger.warn('⏭️ Flodesk saltado: No hay segment ID configurado', { 
+          flujo,
+          config: await getHotmartConfig().then(c => c.flodesk)
+        });
       }
     }
+
+    // Agregar paso de procesamiento para Flodesk
+    processingSteps.push({
+      step: 'flodesk_integration',
+      status: flodeskStatus,
+      segment_id: flodeskSegmentId,
+      error: flodeskError || undefined,
+      timestamp: new Date()
+    });
 
     // Variables para tracking de Telegram
     let telegramStatus: 'success' | 'error' | 'skipped' | 'queued' = 'skipped';
@@ -1012,25 +1052,35 @@ router.post('/test-connections', async (_req, res) => {
 
     // Probar Flodesk (verificando autenticación)
     try {
-      // Flodesk usa Basic Auth con el token como username y password vacía
-      const basicAuth = Buffer.from(`${config.tokens.flodesk}:`).toString('base64');
-      
-      const flodeskResponse = await fetch('https://api.flodesk.com/v1/subscribers?limit=1', {
-        headers: {
-          'Authorization': `Basic ${basicAuth}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'Hotmart Integration (hotmart-webhook-processor)'
-        }
-      });
-      
-      if (flodeskResponse.ok) {
-        testResults.flodesk = { status: 'success', message: 'Token válido y conexión exitosa' };
-      } else {
-        const errorText = await flodeskResponse.text();
+      if (!config.tokens.flodesk) {
         testResults.flodesk = { 
           status: 'error', 
-          message: `Token inválido o error de conexión: ${flodeskResponse.status} - ${errorText}` 
+          message: 'Token de Flodesk no configurado' 
         };
+      } else {
+        // Flodesk usa Basic Auth con el token como username y password vacía
+        const basicAuth = Buffer.from(`${config.tokens.flodesk}:`).toString('base64');
+        
+        const flodeskResponse = await fetch('https://api.flodesk.com/v1/subscribers?limit=1', {
+          headers: {
+            'Authorization': `Basic ${basicAuth}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'Hotmart Integration (hotmart-webhook-processor)'
+          }
+        });
+        
+        if (flodeskResponse.ok) {
+          testResults.flodesk = { 
+            status: 'success', 
+            message: `Token válido y conexión exitosa | Segmentos configurados: ${Object.keys(config.flodesk || {}).length}` 
+          };
+        } else {
+          const errorText = await flodeskResponse.text();
+          testResults.flodesk = { 
+            status: 'error', 
+            message: `Token inválido o error de conexión: ${flodeskResponse.status} - ${errorText}` 
+          };
+        }
       }
     } catch (error) {
       testResults.flodesk = { 
@@ -1050,6 +1100,123 @@ router.post('/test-connections', async (_req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para ver logs de Flodesk específicamente
+router.get('/flodesk-logs', async (req, res) => {
+  try {
+    const { limit = 50, offset = 0, status } = req.query;
+    
+    let logs = await getRecentWebhookLogs(Number(limit), Number(offset));
+    
+    // Filtrar por status si se especifica
+    if (status) {
+      logs = logs.filter((log: WebhookLogEntry) => log.flodesk_status === status);
+    }
+    
+    // Solo logs que tengan información de Flodesk
+    const flodeskLogs = logs.filter((log: WebhookLogEntry) => 
+      log.flodesk_status && log.flodesk_status !== 'skipped'
+    );
+    
+    // Estadísticas de Flodesk
+    const stats = {
+      total: flodeskLogs.length,
+      success: flodeskLogs.filter((log: WebhookLogEntry) => log.flodesk_status === 'success').length,
+      error: flodeskLogs.filter((log: WebhookLogEntry) => log.flodesk_status === 'error').length,
+      skipped: logs.filter((log: WebhookLogEntry) => log.flodesk_status === 'skipped').length,
+      byFlujo: {} as Record<string, { total: number; success: number; error: number }>
+    };
+    
+    // Agrupar por flujo
+    flodeskLogs.forEach((log: WebhookLogEntry) => {
+      if (!stats.byFlujo[log.flujo]) {
+        stats.byFlujo[log.flujo] = { total: 0, success: 0, error: 0 };
+      }
+      stats.byFlujo[log.flujo].total++;
+      if (log.flodesk_status === 'success') {
+        stats.byFlujo[log.flujo].success++;
+      } else if (log.flodesk_status === 'error') {
+        stats.byFlujo[log.flujo].error++;
+      }
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        logs: flodeskLogs,
+        stats,
+        pagination: {
+          limit: Number(limit),
+          offset: Number(offset),
+          total: flodeskLogs.length
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error obteniendo logs de Flodesk:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para estadísticas de retry de Flodesk
+router.get('/flodesk-retry-stats', async (_req, res) => {
+  try {
+    const logs = await getRecentWebhookLogs(1000, 0); // Obtener más logs para estadísticas
+    
+    // Solo logs con errores de Flodesk
+    const flodeskErrorLogs = logs.filter((log: WebhookLogEntry) => 
+      log.flodesk_status === 'error'
+    );
+    
+    // Agrupar por tipo de error
+    const errorStats = {
+      totalErrors: flodeskErrorLogs.length,
+      byFlujo: {} as Record<string, number>,
+      byErrorType: {} as Record<string, number>,
+      recentErrors: flodeskErrorLogs.slice(0, 10).map((log: any) => ({
+        id: log.id,
+        flujo: log.flujo,
+        email: log.buyer_email,
+        error: log.flodesk_error,
+        timestamp: log.received_at
+      }))
+    };
+    
+    flodeskErrorLogs.forEach((log: WebhookLogEntry) => {
+      // Contar por flujo
+      errorStats.byFlujo[log.flujo] = (errorStats.byFlujo[log.flujo] || 0) + 1;
+      
+      // Contar por tipo de error
+      const errorType = log.flodesk_error?.includes('Token') ? 'token_error' :
+                       log.flodesk_error?.includes('conexión') ? 'connection_error' :
+                       log.flodesk_error?.includes('Email') ? 'email_error' :
+                       'other_error';
+      errorStats.byErrorType[errorType] = (errorStats.byErrorType[errorType] || 0) + 1;
+    });
+    
+    res.json({
+      success: true,
+      data: errorStats,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error obteniendo estadísticas de retry de Flodesk:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
       timestamp: new Date().toISOString()
     });
   }
@@ -1668,6 +1835,32 @@ router.post('/test-manychat', async (req, res) => {
   }
 });
 
+// Endpoint para verificar configuración de Flodesk
+router.get('/flodesk-config-check', async (_req, res) => {
+  try {
+    const config = await getHotmartConfig();
+    
+    res.json({
+      success: true,
+      data: {
+        hasToken: !!config.tokens.flodesk,
+        tokenLength: config.tokens.flodesk ? config.tokens.flodesk.length : 0,
+        segments: config.flodesk,
+        segmentsCount: Object.keys(config.flodesk || {}).length,
+        flujosConfigurados: Object.keys(config.flodesk || {}),
+        flujosEsperados: ['CARRITOS', 'RECHAZADOS', 'COMPRAS', 'TICKETS']
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Error obteniendo configuración',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
 // Test individual de Flodesk
 router.post('/test-flodesk', async (req, res) => {
   try {
@@ -1701,6 +1894,78 @@ router.post('/test-flodesk', async (req, res) => {
     
   } catch (error) {
     logger.error('Error en test de Flodesk:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test de Flodesk con flujo específico (simula webhook real)
+router.post('/test-flodesk-flow', async (req, res) => {
+  try {
+    const { flujo, email } = req.body;
+    
+    if (!flujo || !email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Flujo y email requeridos',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const config = await getHotmartConfig();
+    const segmentId = config.flodesk[flujo as keyof typeof config.flodesk];
+    
+    if (!segmentId) {
+      return res.status(400).json({
+        success: false,
+        error: `No hay segment ID configurado para el flujo: ${flujo}`,
+        flujo,
+        flujosDisponibles: Object.keys(config.flodesk || {}),
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Simular el proceso del webhook
+    const datosProcesados = {
+      correo: email,
+      grupoflodesk: segmentId,
+      flujo
+    };
+    
+    logger.info('🧪 Test de Flodesk con flujo', { 
+      email, 
+      flujo, 
+      segmentId 
+    });
+    
+    const result = await addSubscriberToFlodesk(email, segmentId);
+    
+    res.json({
+      success: true,
+      data: {
+        email,
+        flujo,
+        segmentId,
+        result: result,
+        addedSuccessfully: result.success,
+        webhookSimulation: {
+          datosProcesados,
+          conditionMet: !!(datosProcesados.correo && datosProcesados.grupoflodesk)
+        }
+      },
+      config: {
+        token: config.tokens.flodesk ? '***configurado***' : 'no configurado',
+        segments: config.flodesk
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error en test de Flodesk con flujo:', error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
@@ -2133,9 +2398,8 @@ async function retryFlodeskIntegration(originalLog: any) {
       return { success: false, status: 'error', error: 'Email no disponible' };
     }
 
-    // Intentar agregar a Flodesk (aquí necesitarías implementar la función)
-    // Por ahora simulo el resultado
-    const flodeskResult = await addToFlodeskSegment(originalLog.buyer_email, segmentId);
+    // ✅ Usar la función real de Flodesk en lugar del placeholder
+    const flodeskResult = await addSubscriberToFlodesk(originalLog.buyer_email, segmentId);
 
     if (flodeskResult.success) {
       return {
@@ -2159,11 +2423,7 @@ async function retryFlodeskIntegration(originalLog: any) {
   }
 }
 
-// Función placeholder para Flodesk (necesitarías implementar la real)
-async function addToFlodeskSegment(email: string, segmentId: string) {
-  // Aquí iría la implementación real de Flodesk
-  return { success: true, error: undefined }; // Placeholder
-}
+// ✅ Función placeholder eliminada - ahora usa addSubscriberToFlodesk directamente
 
 // Endpoint administrativo para migrar webhooks en processing sin teléfono
 router.post('/admin/migrate-processing-webhooks', async (req, res) => {

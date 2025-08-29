@@ -684,6 +684,23 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     cargarConversacionesChat(asesor.ID);
   };
 
+  // Intervalo para actualizar conversaciones cada 2 segundos
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (asesorSeleccionadoChat && vistaAdmin === 'chat-global') {
+      interval = setInterval(() => {
+        cargarConversacionesChat(asesorSeleccionadoChat.ID);
+      }, 2000);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [asesorSeleccionadoChat, vistaAdmin]);
+
   const seleccionarConversacionChat = (conversacion: any) => {
     setConversacionActivaChat(conversacion);
     if (asesorSeleccionadoChat) {

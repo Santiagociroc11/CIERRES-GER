@@ -3810,43 +3810,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 </div>
         ) : vistaAdmin === 'chat-global' ? (
           <div className="h-screen flex flex-col bg-gray-100">
-            {/* Header del Chat Global */}
-            <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <MessageSquare className="mr-3 h-8 w-8 text-indigo-600" />
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Chat Global</h2>
-                    <p className="text-gray-600">Supervisión de conversaciones en tiempo real</p>
-                  </div>
-                </div>
-                {asesorSeleccionadoChat && (
-                  <div className="flex items-center space-x-4">
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">{asesorSeleccionadoChat.NOMBRE}</p>
-                      <p className="text-xs text-gray-500">
-                        {conversacionesFiltradas.length} de {conversacionesChat.length} conversaciones
-                        {filtroChatGlobal !== 'todos' && (
-                          <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                            filtroChatGlobal === 'mapeados' 
-                              ? 'bg-green-100 text-green-700'
-                              : filtroChatGlobal === 'lids'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-orange-100 text-orange-700'
-                          }`}>
-                            {filtroChatGlobal === 'mapeados' ? 'Solo Mapeados' : 
-                             filtroChatGlobal === 'lids' ? 'Solo LIDs' : 'Solo Pendientes'}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                      <Users className="h-5 w-5 text-indigo-600" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            
 
             <div className="flex-1 flex overflow-hidden">
               {/* Sidebar - Selección de Asesor */}

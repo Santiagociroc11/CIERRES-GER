@@ -81,7 +81,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [cargandoConversacionesChat, setCargandoConversacionesChat] = useState(false);
   const [cargandoMensajesChat, setCargandoMensajesChat] = useState(false);
   const [filtroChatGlobal, setFiltroChatGlobal] = useState<'todos' | 'mapeados' | 'lids' | 'pendientes'>('todos');
-  const [anchoListaChat, setAnchoListaChat] = useState(350); // Ancho inicial de la lista de chats
+  const [anchoListaChat, setAnchoListaChat] = useState(500); // Ancho inicial de la lista de chats
   const [redimensionando, setRedimensionando] = useState(false);
   
   // 🆕 Función para obtener nombre del cliente

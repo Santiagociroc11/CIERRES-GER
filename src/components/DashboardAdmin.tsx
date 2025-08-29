@@ -1685,9 +1685,9 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex">
+    <div className="h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex relative">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-xl border-r border-gray-200 flex flex-col">
+      <div className="fixed left-0 top-0 w-64 h-screen bg-white shadow-xl border-r border-gray-200 flex flex-col z-10">
         {/* Logo y Título del Sidebar */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
@@ -1858,10 +1858,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         </div>
       </div>
 
-      {/* Contenido Principal */}
-      <div className="flex-1 flex flex-col">
+              {/* Contenido Principal */}
+        <div className="flex-1 flex flex-col ml-64 mt-20">
         {/* Header Moderno */}
-        <div className="bg-white shadow-lg border-b border-gray-200">
+        <div className="fixed top-0 left-64 right-0 bg-white shadow-lg border-b border-gray-200 z-20">
           <div className="px-6">
             {/* Header Principal */}
             <div className="flex items-center justify-between h-16 lg:h-20">
@@ -1997,7 +1997,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         </div>
         
         {/* Contenido Principal */}
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="h-[calc(100vh-5rem)] overflow-y-auto">
         {vistaAdmin === 'resumen' ? (
           <div className="space-y-6">
 
@@ -3809,13 +3809,13 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   </div>
                 </div>
         ) : vistaAdmin === 'chat-global' ? (
-          <div className="h-screen flex flex-col bg-gray-100">
+          <div className="h-full flex flex-col bg-gray-100">
             
 
-            <div className="flex-1 flex overflow-hidden">
+            <div className="h-[calc(100vh-5rem)] flex">
               {/* Sidebar - Selección de Asesor */}
               <div 
-                className="bg-white border-r border-gray-200 flex flex-col"
+                className="bg-white border-r border-gray-200 flex flex-col flex-shrink-0"
                 style={{ width: `${anchoListaChat}px` }}
               >
                 {/* Selector de Asesor */}
@@ -4096,7 +4096,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
               </div>
 
               {/* Área Principal - Mensajes */}
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col min-h-0">
                 {conversacionActivaChat ? (
                   <>
                     {/* Header de la conversación */}
@@ -4180,37 +4180,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
 
                     {/* Área de mensajes */}
-                    <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
-                      {/* Banner de estado de la conversación */}
-                      <div className={`mb-4 p-3 rounded-lg border-2 ${
-                        conversacionActivaChat.ultimo_modo === 'entrante'
-                          ? 'bg-red-50 border-red-200'
-                          : 'bg-green-50 border-green-200'
-                      }`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            {conversacionActivaChat.ultimo_modo === 'entrante' ? (
-                              <>
-                                <span className="text-red-600">⚠️</span>
-                                <span className="text-red-800 font-medium">Conversación pendiente de respuesta</span>
-                                <span className="text-red-600 text-sm">El cliente envió el último mensaje</span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-green-600">✅</span>
-                                <span className="text-green-800 font-medium">Conversación al día</span>
-                                <span className="text-green-600 text-sm">El asesor envió el último mensaje</span>
-                              </>
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {formatDistanceToNow(new Date(conversacionActivaChat.ultimo_timestamp * 1000), { 
-                              addSuffix: true, 
-                              locale: es 
-                            })}
-                          </div>
-                        </div>
-                      </div>
+                    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4 min-h-0">
                       
                       {cargandoMensajesChat ? (
                         <div className="flex items-center justify-center h-full">

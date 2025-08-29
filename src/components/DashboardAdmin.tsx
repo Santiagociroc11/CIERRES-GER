@@ -3812,7 +3812,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
           <div className="h-full flex flex-col bg-gray-100">
             
 
-            <div className="h-[calc(100vh-5rem)] flex">
+            <div className="h-[calc(100vh-5rem)] flex min-h-0">
               {/* Sidebar - Selección de Asesor */}
               <div 
                 className="bg-white border-r border-gray-200 flex flex-col flex-shrink-0"
@@ -3863,23 +3863,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           <span className="text-gray-600">Mostrando:</span>
                           <span className="font-medium">{conversacionesFiltradas.length} de {conversacionesChat.length}</span>
                         </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-green-600">Clientes mapeados:</span>
-                          <span className="font-medium text-green-700">
-                            {conversacionesChat.filter(c => obtenerTipoCliente(c) === 'cliente-mapeado').length}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-red-600">LIDs sin mapear:</span>
-                          <span className="font-medium text-red-700">
-                            {conversacionesChat.filter(c => obtenerTipoCliente(c) === 'lid-sin-mapear').length}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-orange-600">Pendientes de respuesta:</span>
-                          <span className="font-medium text-orange-700">
-                            {conversacionesChat.filter(c => c.ultimo_modo === 'entrante').length}
-                          </span>
+                        
                         </div>
                       </div>
                       
@@ -4096,11 +4080,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
               </div>
 
               {/* Área Principal - Mensajes */}
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 flex flex-col min-h-0 h-full">
                 {conversacionActivaChat ? (
                   <>
                     {/* Header de la conversación */}
-                    <div className="bg-white border-b border-gray-200 px-6 py-4">
+                    <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
                           <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mr-4">
@@ -4180,7 +4164,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
 
                     {/* Área de mensajes */}
-                    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4 min-h-0">
+                    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4 min-h-0 max-h-[calc(100vh-12rem)]">
                       
                       {cargandoMensajesChat ? (
                         <div className="flex items-center justify-center h-full">
@@ -4234,7 +4218,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
 
                     {/* Área de envío de mensajes (solo lectura por ahora) */}
-                    <div className="bg-white border-t border-gray-200 px-6 py-4">
+                    <div className="bg-white border-t border-gray-200 px-6 py-4 flex-shrink-0">
                       <div className={`px-4 py-3 rounded-lg text-center border-2 ${
                         conversacionActivaChat.ultimo_modo === 'entrante'
                           ? 'bg-red-50 border-red-200 text-red-700'

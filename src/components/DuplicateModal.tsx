@@ -16,7 +16,7 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
-import { formatDate, formatDateOnly } from '../utils/dateUtils';
+import { formatDate } from '../utils/dateUtils';
 
 interface DuplicateInfo {
   ID: number;

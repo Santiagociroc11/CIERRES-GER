@@ -250,16 +250,40 @@ router.post('/merge', async (req, res) => {
     // Los reportes del duplicado se eliminan junto con el cliente
     
     // 2. Transferir SOLO registros del perdedor al ganador (son acciones externas del sistema)
-    const registrosLoser = await getRegistrosByClienteId(loserId);
-    for (const registro of registrosLoser) {
-      await insertRegistro({
-        ID_CLIENTE: winnerId,
-        TIPO_EVENTO: registro.TIPO_EVENTO,
-        FECHA_EVENTO: registro.FECHA_EVENTO
+    let registrosTransferidos = 0;
+    try {
+      const registrosLoser = await getRegistrosByClienteId(loserId);
+      logger.info('Registros encontrados para transferir', { 
+        loserId, 
+        cantidad: registrosLoser.length 
       });
+      
+      for (const registro of registrosLoser) {
+        try {
+          await insertRegistro({
+            ID_CLIENTE: winnerId,
+            TIPO_EVENTO: registro.TIPO_EVENTO,
+            FECHA_EVENTO: registro.FECHA_EVENTO
+          });
+          registrosTransferidos++;
+        } catch (registroError) {
+          logger.error('Error transfiriendo registro individual', {
+            registroId: registro.ID,
+            error: registroError instanceof Error ? registroError.message : 'Error desconocido'
+          });
+          // Continuar con el siguiente registro
+        }
+      }
+    } catch (registrosError) {
+      logger.error('Error obteniendo registros del cliente perdedor', {
+        loserId,
+        error: registrosError instanceof Error ? registrosError.message : 'Error desconocido'
+      });
+      // Continuar con la fusión sin transferir registros
     }
 
     // 3. Consolidar datos del ganador con la mejor información
+    logger.info('Consolidando datos de clientes', { winnerId, loserId });
     const datosConsolidados = {
       NOMBRE: winner.NOMBRE.length > loser.NOMBRE.length ? winner.NOMBRE : loser.NOMBRE,
       ESTADO: winner.ESTADO === 'PAGADO' || winner.ESTADO === 'VENTA CONSOLIDADA' 
@@ -288,10 +312,28 @@ router.post('/merge', async (req, res) => {
     };
 
     // 4. Actualizar cliente ganador con datos consolidados
-    await updateCliente(winnerId, datosConsolidados);
+    try {
+      logger.info('Actualizando cliente ganador', { winnerId, datosConsolidados });
+      await updateCliente(winnerId, datosConsolidados);
+    } catch (updateError) {
+      logger.error('Error actualizando cliente ganador', { 
+        winnerId, 
+        error: updateError instanceof Error ? updateError.message : 'Error desconocido' 
+      });
+      throw updateError;
+    }
 
     // 5. Eliminar cliente perdedor
-    await deleteCliente(loserId);
+    try {
+      logger.info('Eliminando cliente perdedor', { loserId });
+      await deleteCliente(loserId);
+    } catch (deleteError) {
+      logger.error('Error eliminando cliente perdedor', { 
+        loserId, 
+        error: deleteError instanceof Error ? deleteError.message : 'Error desconocido' 
+      });
+      throw deleteError;
+    }
 
     // 6. Registrar evento de fusión
     await insertRegistro({
@@ -304,7 +346,7 @@ router.post('/merge', async (req, res) => {
       winnerId, 
       loserId,
       reportesEliminados: 'con_cliente_duplicado',
-      registrosTransferidos: registrosLoser.length,
+      registrosTransferidos,
       action: 'solo_registros_transferidos'
     });
 
@@ -314,7 +356,7 @@ router.post('/merge', async (req, res) => {
       data: {
         mergedClientId: winnerId,
         deletedClientId: loserId,
-        transferredRecords: registrosLoser.length,
+        transferredRecords: registrosTransferidos,
         consolidatedData: datosConsolidados,
         note: 'Reportes eliminados con cliente duplicado - Solo registros (acciones del sistema) transferidos'
       }

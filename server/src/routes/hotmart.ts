@@ -46,6 +46,12 @@ const logger = winston.createLogger({
   ]
 });
 
+// Función para limpiar número de WhatsApp (consistente con soporte.ts)
+function limpiarNumeroWhatsapp(numero: string): string {
+  // Remover el símbolo + y cualquier espacio
+  return numero.replace(/^\+/, '').replace(/\s/g, '');
+}
+
 // Función para extraer datos del comprador según el flujo
 function extraerDatosComprador(body: any, flujo: string) {
   const buyer = body.data?.buyer;
@@ -57,8 +63,11 @@ function extraerDatosComprador(body: any, flujo: string) {
     numero = buyer?.checkout_phone || null;
   }
 
+  // Limpiar el número antes de devolverlo
+  const numeroLimpio = numero ? limpiarNumeroWhatsapp(numero) : null;
+
   return {
-    numero,
+    numero: numeroLimpio,
     nombre: buyer?.name || null,
     correo: buyer?.email || null,
     flujo,
@@ -134,7 +143,7 @@ router.post('/webhook', async (req, res) => {
       status: 'received',
       buyer_name: datosComprador.nombre || undefined,
       buyer_email: datosComprador.correo || undefined,
-      buyer_phone: datosComprador.numero,
+      buyer_phone: datosComprador.numero || undefined,
       buyer_country: body.data?.buyer?.address?.country || undefined,
       product_name: body.data?.product?.name || undefined,
       transaction_id: body.data?.purchase?.transaction || undefined,

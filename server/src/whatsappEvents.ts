@@ -133,14 +133,11 @@ async function detectarYMapearLID(eventData: any, asesor: any) {
       }
     }
     
-    if (ultimosDigitos) {
-      console.log('🔍 Buscando cliente con dígitos:', ultimosDigitos);
-      
+    if (ultimosDigitos) {    
       // Buscar cliente por últimos dígitos
       const cliente = await buscarClientePorUltimosDigitos(ultimosDigitos);
       
       if (cliente) {
-        console.log('✅ Cliente encontrado:', cliente.NOMBRE, cliente.WHATSAPP);
         
         // Crear mapeo LID → WhatsApp
         const mapeoCreado = await crearMapeoLID(eventData.from, cliente.WHATSAPP, cliente.ID, asesor.ID);
@@ -328,15 +325,12 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
           
           // Buscar cliente por WhatsApp
           const cliente = await getClienteByWhatsapp(messageData.wha_cliente);
-          console.log('👤 Cliente encontrado:', cliente);
           if (cliente) {
             messageData.id_cliente = cliente.ID;
           }
           
           // Insertar en BD
-          console.log('💾 Insertando mensaje en BD...');
           await insertConversacion(messageData);
-          console.log('✅ Mensaje insertado exitosamente en BD');
         } else {
         }
       } catch (insertError) {
@@ -493,7 +487,6 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
 
       
       const asesor = asesores.find(a => a.NOMBRE.trim().toLowerCase() === (eventData.instance || '').trim().toLowerCase());
-      console.log('✅ Asesor encontrado:', asesor);
       
       if (!asesor) {
         return; // Salir temprano - NO procesar mensajes de instancias sin asesor
@@ -525,12 +518,10 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         mensaje = message.key.fromMe ? `📦 (${tipo}) enviado` : `📦 (${tipo}) recibido`;
       }
       
-      console.log('💬 Mensaje para BD:', mensaje);
 
       // 🆕 BÚSQUEDA INTELIGENTE: LID o WhatsApp tradicional
       let id_cliente: number | null = null;
       try {
-        console.log('🔍 Buscando cliente por WhatsApp/LID:', eventData.from);
         
         // Si es un LID, buscar en mapeos
         if (eventData.from.includes('@lid')) {
@@ -545,17 +536,13 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
           }
         } else {
           // Método original para números reales
-          console.log('📞 Número tradicional, buscando por WhatsApp...');
           const cliente = await getClienteByWhatsapp(eventData.from);
           if (cliente) {
             id_cliente = cliente.ID;
-            console.log('✅ Cliente encontrado por WhatsApp tradicional:', cliente);
           }
         }
         
-        console.log('�� ID Cliente final:', id_cliente);
       } catch (err) {
-        console.log('⚠️ Error buscando cliente (continuando):', err);
         // Silenciar error de cliente no encontrado
       }
 
@@ -572,14 +559,10 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
           estado: message.key.fromMe ? 'enviado' : undefined
         };
         
-        console.log('💾 Datos de conversación a insertar:', JSON.stringify(conversacionData, null, 2));
-        console.log('💾 Insertando conversación en BD...');
         
         await insertConversacion(conversacionData);
-        console.log('✅ Conversación insertada exitosamente en BD');
         
       } catch (err) {
-        console.error('❌ Error guardando mensaje:', err);
       }
     } else {
     }

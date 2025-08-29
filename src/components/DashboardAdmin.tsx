@@ -4101,7 +4101,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
 
                     {/* Área de mensajes */}
-                    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4 min-h-0 max-h-[calc(100vh-16rem)]">
+                    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4 min-h-0 max-h-[calc(100vh-25rem)]">
                       
                       {cargandoMensajesChat ? (
                         <div className="flex items-center justify-center h-full">

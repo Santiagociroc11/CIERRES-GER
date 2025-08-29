@@ -7,6 +7,7 @@ import {
   updateCliente, 
   getNextAsesorPonderado, 
   getAsesorById, 
+  getClienteById,
   updateAsesorCounter, 
   insertRegistro,
   insertWebhookLog,
@@ -2060,7 +2061,18 @@ async function retryTelegramIntegration(originalLog: any) {
       };
     } else {
       // Para otros flujos, enviar notificación al asesor
+      // ⚠️ IMPORTANTE: Verificar que el cliente NO esté en estado PAGADO/CONSOLIDADO
       if (originalLog.asesor_id && originalLog.buyer_phone) {
+        // Verificar estado del cliente antes de enviar notificación
+        const cliente = await getClienteById(originalLog.asesor_id);
+        if (cliente && (cliente.ESTADO === 'PAGADO' || cliente.ESTADO === 'VENTA CONSOLIDADA')) {
+          return {
+            success: false,
+            status: 'skipped',
+            error: 'Cliente ya está en estado PAGADO o VENTA CONSOLIDADA - No se notifica asesor'
+          };
+        }
+
         const asesor = await getAsesorById(originalLog.asesor_id);
         if (asesor?.ID_TG) {
           const asesorMessage = createAsesorNotificationMessage(

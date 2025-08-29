@@ -328,11 +328,11 @@ router.post('/merge', async (req, res) => {
       // País
       PAIS: allClients.find(c => c.PAIS)?.PAIS || winner.PAIS,
       
-      // Mantener el asesor del cliente ganador (el seleccionado por el usuario)
-      // Solo usar asesor de perdedores si el ganador no tiene asesor asignado
-      ID_ASESOR: winner.ID_ASESOR || allClients.find(c => c.ID_ASESOR)?.ID_ASESOR,
-      NOMBRE_ASESOR: winner.NOMBRE_ASESOR || allClients.find(c => c.NOMBRE_ASESOR)?.NOMBRE_ASESOR,
-      WHA_ASESOR: winner.WHA_ASESOR || allClients.find(c => c.WHA_ASESOR)?.WHA_ASESOR,
+      // Mantener exactamente el asesor del cliente ganador (el seleccionado por el usuario)
+      // Si el ganador no tiene asesor, debe quedar sin asesor (no buscar en perdedores)
+      ID_ASESOR: winner.ID_ASESOR,
+      NOMBRE_ASESOR: winner.NOMBRE_ASESOR,
+      WHA_ASESOR: winner.WHA_ASESOR,
       
       // Datos de soporte más recientes
       soporte_tipo: allClients.find(c => c.soporte_tipo)?.soporte_tipo || winner.soporte_tipo,

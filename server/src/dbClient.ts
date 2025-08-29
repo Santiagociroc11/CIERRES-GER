@@ -151,8 +151,8 @@ export async function getClienteByWhatsapp(wha: string): Promise<{ ID: number; E
       original: wha, soloNumeros, ultimos7 
     });
 
-    const url = `${POSTGREST_URL}/GERSSON_CLIENTES?WHATSAPP=ilike.*${encodeURIComponent(ultimos7)}*&select=ID,ESTADO,ID_ASESOR,NOMBRE_ASESOR&limit=1`;
-    
+    const url = `${POSTGREST_URL}/GERSSON_CLIENTES?WHATSAPP=ilike.*${encodeURIComponent(ultimos7)}&select=ID,ESTADO,ID_ASESOR,NOMBRE_ASESOR&limit=1`;
+
     const response = await fetch(url);
     if (!response.ok) {
       console.error('❌ getClienteByWhatsapp: Error en respuesta HTTP', { 
@@ -164,7 +164,7 @@ export async function getClienteByWhatsapp(wha: string): Promise<{ ID: number; E
     }
 
     const data = await response.json();
-    
+
     if (data.length > 0) {
       console.log('✅ getClienteByWhatsapp: Cliente encontrado', { 
         clienteId: data[0].ID,

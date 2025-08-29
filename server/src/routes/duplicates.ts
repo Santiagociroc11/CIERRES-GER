@@ -6,9 +6,7 @@ import {
   deleteCliente,
   insertRegistro,
   getRegistrosByClienteId,
-  getReportesByClienteId,
-  deleteReporte,
-  insertReporte
+  getReportesByClienteId
 } from '../dbClient';
 
 const router = Router();
@@ -248,24 +246,10 @@ router.post('/merge', async (req, res) => {
       });
     }
 
-    // 1. Transferir reportes del perdedor al ganador
-    const reportesLoser = await getReportesByClienteId(loserId);
-    for (const reporte of reportesLoser) {
-      // Crear nuevo reporte para el ganador
-      await insertReporte({
-        ID_CLIENTE: winnerId,
-        TIPO_REPORTE: reporte.TIPO_REPORTE,
-        DESCRIPCION: `[FUSIONADO DE ${loser.NOMBRE}] ${reporte.DESCRIPCION}`,
-        FECHA_REPORTE: reporte.FECHA_REPORTE,
-        ID_ASESOR: reporte.ID_ASESOR,
-        NOMBRE_ASESOR: reporte.NOMBRE_ASESOR
-      });
-      
-      // Eliminar reporte original
-      await deleteReporte(reporte.ID);
-    }
-
-    // 2. Transferir registros del perdedor al ganador
+    // 1. NO transferir reportes - son específicos del asesor
+    // Los reportes del duplicado se eliminan junto con el cliente
+    
+    // 2. Transferir SOLO registros del perdedor al ganador (son acciones externas del sistema)
     const registrosLoser = await getRegistrosByClienteId(loserId);
     for (const registro of registrosLoser) {
       await insertRegistro({
@@ -319,8 +303,9 @@ router.post('/merge', async (req, res) => {
     logger.info('Fusión completada exitosamente', { 
       winnerId, 
       loserId,
-      reportesTransferidos: reportesLoser.length,
-      registrosTransferidos: registrosLoser.length
+      reportesEliminados: 'con_cliente_duplicado',
+      registrosTransferidos: registrosLoser.length,
+      action: 'solo_registros_transferidos'
     });
 
     res.json({
@@ -329,9 +314,9 @@ router.post('/merge', async (req, res) => {
       data: {
         mergedClientId: winnerId,
         deletedClientId: loserId,
-        transferredReports: reportesLoser.length,
         transferredRecords: registrosLoser.length,
-        consolidatedData: datosConsolidados
+        consolidatedData: datosConsolidados,
+        note: 'Reportes eliminados con cliente duplicado - Solo registros (acciones del sistema) transferidos'
       }
     });
 

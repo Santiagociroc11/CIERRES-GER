@@ -919,7 +919,7 @@ export async function getWebhookConfigHistory(platform: string, limit: number = 
 export async function getReportesByClienteId(clienteId: number): Promise<any[]> {
   try {
     const response = await fetch(
-      `${POSTGREST_URL}/REPORTES?ID_CLIENTE=eq.${clienteId}&select=*&order=FECHA_REPORTE.desc`
+      `${POSTGREST_URL}/GERSSON_REPORTES?ID_CLIENTE=eq.${clienteId}&select=*&order=FECHA_REPORTE.desc`
     );
     
     if (!response.ok) {
@@ -936,7 +936,7 @@ export async function getReportesByClienteId(clienteId: number): Promise<any[]> 
 export async function getRegistrosByClienteId(clienteId: number): Promise<any[]> {
   try {
     const response = await fetch(
-      `${POSTGREST_URL}/REGISTROS?ID_CLIENTE=eq.${clienteId}&select=*&order=FECHA_EVENTO.desc`
+      `${POSTGREST_URL}/GERSSON_REGISTROS?ID_CLIENTE=eq.${clienteId}&select=*&order=FECHA_EVENTO.desc`
     );
     
     if (!response.ok) {
@@ -974,7 +974,7 @@ export async function deleteCliente(clienteId: number): Promise<void> {
 export async function deleteReporte(reporteId: number): Promise<void> {
   try {
     const response = await fetch(
-      `${POSTGREST_URL}/REPORTES?ID=eq.${reporteId}`,
+      `${POSTGREST_URL}/GERSSON_REPORTES?ID=eq.${reporteId}`,
       {
         method: 'DELETE',
         headers: {
@@ -1002,7 +1002,7 @@ export async function insertReporte(reporte: {
 }): Promise<any[]> {
   try {
     const response = await fetch(
-      `${POSTGREST_URL}/REPORTES`,
+      `${POSTGREST_URL}/GERSSON_REPORTES`,
       {
         method: 'POST',
         headers: {
@@ -1019,6 +1019,31 @@ export async function insertReporte(reporte: {
     return response.json();
   } catch (error) {
     console.error('Error inserting reporte:', error);
+    throw error;
+  }
+}
+
+export async function updateReporte(reporteId: number, datos: {
+  ID_CLIENTE?: number;
+  DESCRIPCION?: string;
+}): Promise<void> {
+  try {
+    const response = await fetch(
+      `${POSTGREST_URL}/GERSSON_REPORTES?ID=eq.${reporteId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(datos)
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Error updating reporte: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error updating reporte:', error);
     throw error;
   }
 } 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   X, 
   Users, 
@@ -139,7 +139,7 @@ export default function DuplicateModal({
     }
   };
 
-  const getBusinessValueBadge = (value: string) => {
+  const getBusinessValueBadge = (value: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW') => {
     const config = {
       CRITICAL: { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', icon: AlertTriangle },
       HIGH: { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200', icon: TrendingUp },
@@ -147,7 +147,7 @@ export default function DuplicateModal({
       LOW: { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-200', icon: FileText }
     };
     
-    const { bg, text, border, icon: Icon } = config[value as keyof typeof config] || config.LOW;
+    const { bg, text, border, icon: Icon } = config[value] || config.LOW;
     
     return (
       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${bg} ${text} ${border}`}>
@@ -295,7 +295,7 @@ export default function DuplicateModal({
                       </div>
                       <div className="flex items-center space-x-2">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        <span>Creado: {formatDateOnly(new Date(parseInt(client.FECHA_CREACION) * 1000))}</span>
+                        <span>Creado: {formatDateOnly(client.FECHA_CREACION)}</span>
                       </div>
                       {client.NOMBRE_ASESOR && (
                         <div className="flex items-center space-x-2">
@@ -325,7 +325,7 @@ export default function DuplicateModal({
 
                     {client.ultimoReporte && (
                       <div className="mt-2 text-xs text-gray-500">
-                        Último reporte: {formatDate(new Date(client.ultimoReporte))}
+                        Último reporte: {formatDate(client.ultimoReporte)}
                       </div>
                     )}
                   </div>

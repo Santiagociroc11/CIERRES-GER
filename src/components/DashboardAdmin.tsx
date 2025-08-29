@@ -1685,25 +1685,200 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header Moderno */}
-      <div className="bg-white shadow-xl border-b border-gray-200">
-        <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header Principal */}
-          <div className="flex items-center justify-between h-16 lg:h-20">
-            {/* Logo y Título */}
-            <div className="flex items-center space-x-4">
-              <div className="flex-shrink-0">
-                <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <Shield className="h-7 w-7 lg:h-8 lg:w-8 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-white shadow-xl border-r border-gray-200 flex flex-col">
+        {/* Logo y Título del Sidebar */}
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Shield className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">
+                Panel <span className="text-purple-600">Admin</span>
+              </h1>
+              <p className="text-xs text-gray-500">Control del sistema</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Navegación del Sidebar */}
+        <div className="flex-1 px-4 py-6">
+          <nav className="space-y-2">
+            <button
+              onClick={() => setVistaAdmin('resumen')}
+              className={`
+                w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200
+                ${vistaAdmin === 'resumen'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }
+              `}
+            >
+              <PieChart className="h-5 w-5" />
+              <div className="text-left">
+                <div className="font-semibold">Resumen</div>
+                <div className="text-xs opacity-75">Dashboard principal</div>
+              </div>
+            </button>
+            
+            <button
+              onClick={() => setVistaAdmin('asesores')}
+              className={`
+                w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative
+                ${vistaAdmin === 'asesores'
+                  ? 'bg-green-600 text-white shadow-lg'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }
+              `}
+            >
+              <UserCheck className="h-5 w-5" />
+              <div className="flex-1 text-left">
+                <div className="font-semibold">Asesores</div>
+                <div className="text-xs opacity-75">Gestión del equipo</div>
+              </div>
+              <span className="bg-white bg-opacity-20 text-xs font-bold px-2 py-1 rounded-full">
+                {asesores.length}
+              </span>
+            </button>
+            
+            <button
+              onClick={() => setVistaAdmin('clientes')}
+              className={`
+                w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative
+                ${vistaAdmin === 'clientes'
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }
+              `}
+            >
+              <Users className="h-5 w-5" />
+              <div className="flex-1 text-left">
+                <div className="font-semibold">Clientes</div>
+                <div className="text-xs opacity-75">Base de datos</div>
+              </div>
+              <span className="bg-white bg-opacity-20 text-xs font-bold px-2 py-1 rounded-full">
+                {clientes.length}
+              </span>
+            </button>
+            
+            {/* Gestión - Solo para admins completos */}
+            {adminRole === 'admin' && (
+              <button
+                onClick={() => setVistaAdmin('gestion')}
+                className={`
+                  w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200
+                  ${vistaAdmin === 'gestion'
+                    ? 'bg-orange-600 text-white shadow-lg'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }
+                `}
+              >
+                <Settings className="h-5 w-5" />
+                <div className="text-left">
+                  <div className="font-semibold">Gestión</div>
+                  <div className="text-xs opacity-75">Asignaciones</div>
                 </div>
+              </button>
+            )}
+
+            {/* Webhooks - Solo para admins completos */}
+            {adminRole === 'admin' && (
+              <button
+                onClick={() => setVistaAdmin('webhooks')}
+                className={`
+                  w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200
+                  ${vistaAdmin === 'webhooks'
+                    ? 'bg-teal-600 text-white shadow-lg'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }
+                `}
+              >
+                <Webhook className="h-5 w-5" />
+                <div className="text-left">
+                  <div className="font-semibold">Webhooks</div>
+                  <div className="text-xs opacity-75">Configuración</div>
+                </div>
+              </button>
+            )}
+
+            {/* LIDs sin mapear - Solo para admins completos */}
+            {adminRole === 'admin' && (
+              <button
+                onClick={() => setVistaAdmin('lids')}
+                className={`
+                  w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative
+                  ${vistaAdmin === 'lids'
+                    ? 'bg-red-600 text-white shadow-lg'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }
+                `}
+              >
+                <AlertTriangle className="h-5 w-5" />
+                <div className="flex-1 text-left">
+                  <div className="font-semibold">LIDs</div>
+                  <div className="text-xs opacity-75">Sin mapear</div>
+                </div>
+                <span className="bg-white bg-opacity-20 text-xs font-bold px-2 py-1 rounded-full">
+                  {lidsSinMapear.length}
+                </span>
+              </button>
+            )}
+
+            {/* Chat Global */}
+            <button
+              onClick={() => setVistaAdmin('chat-global')}
+              className={`
+                w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200
+                ${vistaAdmin === 'chat-global'
+                  ? 'bg-indigo-600 text-white shadow-lg'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }
+              `}
+            >
+              <MessageSquare className="h-5 w-5" />
+              <div className="text-left">
+                <div className="font-semibold">Chat Global</div>
+                <div className="text-xs opacity-75">Supervisión</div>
               </div>
-              <div>
-                <h1 className="text-xl lg:text-3xl font-bold text-gray-900">
-                  Panel de <span className="text-purple-600">Administración</span>
-                </h1>
-                <p className="text-sm lg:text-base text-gray-500 mt-0.5">Control total del sistema de ventas</p>
-              </div>
+            </button>
+          </nav>
+        </div>
+
+        {/* Footer del Sidebar con botón de salir */}
+        <div className="p-4 border-t border-gray-200">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center space-x-3 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all duration-200"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="font-medium">Salir</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Contenido Principal */}
+      <div className="flex-1 flex flex-col">
+        {/* Header Moderno */}
+        <div className="bg-white shadow-lg border-b border-gray-200">
+          <div className="px-6">
+            {/* Header Principal */}
+            <div className="flex items-center justify-between h-16 lg:h-20">
+            {/* Título de la vista actual */}
+            <div>
+              <h1 className="text-xl lg:text-2xl font-bold text-gray-900 capitalize">
+                {vistaAdmin === 'chat-global' ? 'Chat Global' : vistaAdmin}
+              </h1>
+              <p className="text-sm text-gray-500">
+                {vistaAdmin === 'resumen' && 'Dashboard principal del sistema'}
+                {vistaAdmin === 'asesores' && 'Gestión del equipo de asesores'}
+                {vistaAdmin === 'clientes' && 'Base de datos de clientes'}
+                {vistaAdmin === 'gestion' && 'Asignaciones y configuraciones'}
+                {vistaAdmin === 'webhooks' && 'Configuración de webhooks'}
+                {vistaAdmin === 'lids' && 'LIDs pendientes de mapear'}
+                {vistaAdmin === 'chat-global' && 'Supervisión de conversaciones'}
+              </p>
             </div>
 
             {/* Indicadores de Estado */}
@@ -1752,33 +1927,35 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 </button>
               )}
               
-              {/* Toggle Vista */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setVistaAsesores('cards')}
-                  className={`flex items-center px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
-                    vistaAsesores === 'cards'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  title="Vista de tarjetas"
-                >
-                  <Grid3X3 className="h-4 w-4" />
-                  <span className="hidden lg:inline ml-1">Cards</span>
-                </button>
-                <button
-                  onClick={() => setVistaAsesores('tabla')}
-                  className={`flex items-center px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
-                    vistaAsesores === 'tabla'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  title="Vista de tabla"
-                >
-                  <List className="h-4 w-4" />
-                  <span className="hidden lg:inline ml-1">Tabla</span>
-                </button>
-              </div>
+              {/* Toggle Vista - Solo mostrar en vista asesores */}
+              {vistaAdmin === 'asesores' && (
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setVistaAsesores('cards')}
+                    className={`flex items-center px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
+                      vistaAsesores === 'cards'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                    title="Vista de tarjetas"
+                  >
+                    <Grid3X3 className="h-4 w-4" />
+                    <span className="hidden lg:inline ml-1">Cards</span>
+                  </button>
+                  <button
+                    onClick={() => setVistaAsesores('tabla')}
+                    className={`flex items-center px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
+                      vistaAsesores === 'tabla'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                    title="Vista de tabla"
+                  >
+                    <List className="h-4 w-4" />
+                    <span className="hidden lg:inline ml-1">Tabla</span>
+                  </button>
+                </div>
+              )}
               {/* Verificar Conexiones - Solo para admins completos */}
               {adminRole === 'admin' && (
                 <button
@@ -1789,176 +1966,38 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   <span className="hidden lg:inline font-medium">Verificar Conexiones</span>
                 </button>
               )}
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-2 px-3 lg:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden lg:inline font-medium">Salir</span>
-              </button>
             </div>
           </div>
 
-          {/* Navegación Principal */}
-          <div className="border-t border-gray-100 pt-4 pb-6">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              {/* Pestañas de Navegación */}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setVistaAdmin('resumen')}
-                  className={`
-                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
-                    ${vistaAdmin === 'resumen'
-                      ? 'bg-blue-600 text-white shadow-lg border-2 border-blue-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
-                    }
-                  `}
-                >
-                  <PieChart className="h-5 w-5" />
-                  <span className="font-semibold">Resumen</span>
-                  <div className="text-xs opacity-75 hidden sm:block">Dashboard principal</div>
-                </button>
-                
-                <button
-                  onClick={() => setVistaAdmin('asesores')}
-                  className={`
-                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
-                    ${vistaAdmin === 'asesores'
-                      ? 'bg-green-600 text-white shadow-lg border-2 border-green-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
-                    }
-                  `}
-                >
-                  <UserCheck className="h-5 w-5" />
-                  <span className="font-semibold">Asesores</span>
-                  <div className="text-xs opacity-75 hidden sm:block">Gestión del equipo</div>
-                  <span className="ml-2 bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
-                    {asesores.length}
-                  </span>
-                </button>
-                
-                <button
-                  onClick={() => setVistaAdmin('clientes')}
-                  className={`
-                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
-                    ${vistaAdmin === 'clientes'
-                      ? 'bg-purple-600 text-white shadow-lg border-2 border-purple-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
-                    }
-                  `}
-                >
-                  <Users className="h-5 w-5" />
-                  <span className="font-semibold">Clientes</span>
-                  <div className="text-xs opacity-75 hidden sm:block">Base de datos</div>
-                  <span className="ml-2 bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
-                    {clientes.length}
-                  </span>
-                </button>
-                
-                {/* Gestión - Solo para admins completos */}
-                {adminRole === 'admin' && (
-                  <button
-                    onClick={() => setVistaAdmin('gestion')}
-                    className={`
-                      flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
-                      ${vistaAdmin === 'gestion'
-                        ? 'bg-orange-600 text-white shadow-lg border-2 border-orange-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
-                      }
-                    `}
-                  >
-                    <Settings className="h-5 w-5" />
-                    <span className="font-semibold">Gestión</span>
-                    <div className="text-xs opacity-75 hidden sm:block">Asignaciones</div>
-                  </button>
-                )}
-
-                {/* Webhooks - Solo para admins completos */}
-                {adminRole === 'admin' && (
-                  <button
-                    onClick={() => setVistaAdmin('webhooks')}
-                    className={`
-                      flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
-                      ${vistaAdmin === 'webhooks'
-                        ? 'bg-teal-600 text-white shadow-lg border-2 border-teal-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
-                      }
-                    `}
-                  >
-                    <Webhook className="h-5 w-5" />
-                    <span className="font-semibold">Webhooks</span>
-                    <div className="text-xs opacity-75 hidden sm:block">Configuración</div>
-                  </button>
-                )}
-
-                {/* LIDs sin mapear - Solo para admins completos */}
-                {adminRole === 'admin' && (
-                  <button
-                    onClick={() => setVistaAdmin('lids')}
-                    className={`
-                      flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
-                      ${vistaAdmin === 'lids'
-                        ? 'bg-red-600 text-white shadow-lg border-2 border-red-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
-                      }
-                    `}
-                  >
-                    <AlertTriangle className="h-5 w-5" />
-                    <span className="font-semibold">LIDs</span>
-                    <div className="text-xs opacity-75 hidden sm:block">Sin mapear</div>
-                    <span className="ml-2 bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
-                      {lidsSinMapear.length}
-                    </span>
-                  </button>
-                )}
-
-                {/* Chat Global */}
-                <button
-                  onClick={() => setVistaAdmin('chat-global')}
-                  className={`
-                    flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative group
-                    ${vistaAdmin === 'chat-global'
-                      ? 'bg-indigo-600 text-white shadow-lg border-2 border-indigo-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-md border-2 border-transparent'
-                    }
-                  `}
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="font-semibold">Chat Global</span>
-                  <div className="text-xs opacity-75 hidden sm:block">Supervisión</div>
-                </button>
+          {/* Métricas Rápidas - Ahora en el header */}
+          <div className="border-t border-gray-100 pt-4 pb-4">
+            <div className="flex items-center justify-center space-x-4 bg-gray-50 rounded-xl p-3">
+              <div className="flex items-center space-x-2">
+                <Target className="h-4 w-4 text-green-500" />
+                <span className="text-sm font-medium text-gray-700">
+                  {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasPrincipal || 0), 0)} Principal
+                </span>
               </div>
-
-              {/* Métricas Rápidas */}
-              <div className="hidden xl:flex items-center space-x-4 bg-gray-50 rounded-xl p-3">
-                <div className="flex items-center space-x-2">
-                  <Target className="h-4 w-4 text-green-500" />
-                  <span className="text-sm font-medium text-gray-700">
-                    {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasPrincipal || 0), 0)} Principal
-                  </span>
-                </div>
-                <div className="w-px h-4 bg-gray-300"></div>
-                <div className="flex items-center space-x-2">
-                  <Target className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm font-medium text-gray-700">
-                    {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasDownsell || 0), 0)} Downsell
-                  </span>
-                </div>
-                <div className="w-px h-4 bg-gray-300"></div>
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm font-medium text-gray-700">
-                    {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length).toFixed(1)}% Cierre
-                  </span>
-                </div>
+              <div className="w-px h-4 bg-gray-300"></div>
+              <div className="flex items-center space-x-2">
+                <Target className="h-4 w-4 text-blue-500" />
+                <span className="text-sm font-medium text-gray-700">
+                  {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasDownsell || 0), 0)} Downsell
+                </span>
+              </div>
+              <div className="w-px h-4 bg-gray-300"></div>
+              <div className="flex items-center space-x-2">
+                <TrendingUp className="h-4 w-4 text-purple-500" />
+                <span className="text-sm font-medium text-gray-700">
+                  {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length).toFixed(1)}% Cierre
+                </span>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Contenido principal */}
-      <div className="max-w-8xl mx-auto px-4 py-6">
+        
+        {/* Contenido Principal */}
+        <div className="flex-1 p-6 overflow-auto">
         {vistaAdmin === 'resumen' ? (
           <div className="space-y-6">
 
@@ -4648,15 +4687,17 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       )}
 
       {/* Add the ChatModal component */}
-      {clienteParaChat && (
-        <ChatModal
-          isOpen={!!clienteParaChat}
-          onClose={() => setClienteParaChat(null)}
-          cliente={clienteParaChat}
-          asesor={asesorSeleccionado ? { ID: asesorSeleccionado.ID, NOMBRE: asesorSeleccionado.NOMBRE } : { ID: 0, NOMBRE: 'Admin' }}
-        />
-      )}
-
+        {clienteParaChat && (
+          <ChatModal
+            isOpen={!!clienteParaChat}
+            onClose={() => setClienteParaChat(null)}
+            cliente={clienteParaChat}
+            asesor={asesorSeleccionado ? { ID: asesorSeleccionado.ID, NOMBRE: asesorSeleccionado.NOMBRE } : { ID: 0, NOMBRE: 'Admin' }}
+          />
+        )}
+      </div>
+      
+    </div>
     </div>
   );
 }

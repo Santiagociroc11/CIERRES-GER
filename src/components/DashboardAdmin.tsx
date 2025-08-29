@@ -3863,8 +3863,6 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           <span className="text-gray-600">Mostrando:</span>
                           <span className="font-medium">{conversacionesFiltradas.length} de {conversacionesChat.length}</span>
                         </div>
-                        
-                        </div>
                       </div>
                       
                       {/* Filtro de conversaciones */}

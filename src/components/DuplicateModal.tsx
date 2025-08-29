@@ -295,7 +295,7 @@ export default function DuplicateModal({
                       </div>
                       <div className="flex items-center space-x-2">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        <span>Creado: {formatDateOnly(client.FECHA_CREACION)}</span>
+                        <span>Creado: {formatDate(client.FECHA_CREACION)}</span>
                       </div>
                       {client.NOMBRE_ASESOR && (
                         <div className="flex items-center space-x-2">

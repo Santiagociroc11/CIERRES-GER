@@ -6,7 +6,8 @@ import {
   deleteCliente,
   insertRegistro,
   getRegistrosByClienteId,
-  getReportesByClienteId
+  getReportesByClienteId,
+  deleteReporte
 } from '../dbClient';
 
 const router = Router();
@@ -323,12 +324,28 @@ router.post('/merge', async (req, res) => {
       throw updateError;
     }
 
-    // 5. Eliminar cliente perdedor
+    // 5. Eliminar cliente perdedor (después de transferir registros)
     try {
+      logger.info('Eliminando reportes del cliente perdedor', { loserId });
+      // Eliminar reportes del cliente perdedor
+      const reportesLoser = await getReportesByClienteId(loserId);
+      for (const reporte of reportesLoser) {
+        await deleteReporte(reporte.ID);
+      }
+      
+      logger.info('Eliminando registros restantes del cliente perdedor', { loserId });
+      // Los registros ya fueron transferidos, pero por si quedó alguno
+      const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
+      await fetch(`${POSTGREST_URL}/GERSSON_REGISTROS?ID_CLIENTE=eq.${loserId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
       logger.info('Eliminando cliente perdedor', { loserId });
       await deleteCliente(loserId);
+      
     } catch (deleteError) {
-      logger.error('Error eliminando cliente perdedor', { 
+      logger.error('Error eliminando cliente perdedor y dependencias', { 
         loserId, 
         error: deleteError instanceof Error ? deleteError.message : 'Error desconocido' 
       });
@@ -345,9 +362,9 @@ router.post('/merge', async (req, res) => {
     logger.info('Fusión completada exitosamente', { 
       winnerId, 
       loserId,
-      reportesEliminados: 'con_cliente_duplicado',
+      clienteDuplicadoEliminado: true,
       registrosTransferidos,
-      action: 'solo_registros_transferidos'
+      action: 'cliente_y_dependencias_eliminados_completamente'
     });
 
     res.json({
@@ -358,7 +375,7 @@ router.post('/merge', async (req, res) => {
         deletedClientId: loserId,
         transferredRecords: registrosTransferidos,
         consolidatedData: datosConsolidados,
-        note: 'Reportes eliminados con cliente duplicado - Solo registros (acciones del sistema) transferidos'
+        note: 'Cliente duplicado completamente eliminado junto con sus reportes - Registros transferidos al ganador'
       }
     });
 

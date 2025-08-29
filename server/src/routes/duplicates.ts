@@ -360,19 +360,53 @@ router.post('/merge', async (req, res) => {
     
     for (const loser of losers) {
       try {
-        logger.info('Eliminando reportes del cliente perdedor', { loserId: loser.ID });
-        // Eliminar reportes del cliente perdedor
+        logger.info('Eliminando dependencias del cliente perdedor', { loserId: loser.ID });
+        
+        // 1. Eliminar reportes del cliente perdedor
         const reportesLoser = await getReportesByClienteId(loser.ID);
         for (const reporte of reportesLoser) {
           await deleteReporte(reporte.ID);
         }
         
-        logger.info('Eliminando registros restantes del cliente perdedor', { loserId: loser.ID });
+        // 2. Eliminar registros restantes del cliente perdedor
         // Los registros ya fueron transferidos, pero por si quedó alguno
         await fetch(`${POSTGREST_URL}/GERSSON_REGISTROS?ID_CLIENTE=eq.${loser.ID}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' }
         });
+        
+        // 3. Eliminar todas las dependencias según el esquema de BD
+        const tablasConFK = [
+          { tabla: 'chat_scheduled_messages', campo: 'id_cliente' },
+          { tabla: 'conversaciones', campo: 'id_cliente' },
+          { tabla: 'lid_mappings', campo: 'id_cliente' },
+          { tabla: 'webhook_logs', campo: 'cliente_id' }
+        ];
+        
+        // Eliminar dependencias de tablas con FK explícitos
+        for (const { tabla, campo } of tablasConFK) {
+          try {
+            const response = await fetch(`${POSTGREST_URL}/${tabla}?${campo}=eq.${loser.ID}`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            if (response.ok) {
+              logger.info(`Dependencias eliminadas de ${tabla}`, { loserId: loser.ID, tabla, campo });
+            } else {
+              logger.warn(`No se pudieron eliminar registros de ${tabla}`, { 
+                loserId: loser.ID, 
+                tabla, 
+                status: response.status 
+              });
+            }
+          } catch (tableError) {
+            logger.warn(`Error eliminando de ${tabla}`, { 
+              loserId: loser.ID, 
+              tabla, 
+              error: tableError instanceof Error ? tableError.message : 'Error desconocido' 
+            });
+          }
+        }
         
         logger.info('Eliminando cliente perdedor', { loserId: loser.ID });
         await deleteCliente(loser.ID);

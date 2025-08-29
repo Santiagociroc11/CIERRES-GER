@@ -273,15 +273,13 @@ router.post('/formulario-soporte', async (req, res) => {
       }
     }
 
-    // 1. Buscar cliente existente (usando los últimos 6 dígitos como en N8N)
-    const ultimosSeis = whatsappLimpio.slice(-6);
-    let clienteExistente = await getClienteByWhatsapp(`%${ultimosSeis}`);
+    // 1. Buscar cliente existente (usando getClienteByWhatsapp que maneja la lógica internamente)
+    let clienteExistente = await getClienteByWhatsapp(whatsappLimpio);
     
     // Si no encuentra por WhatsApp, log para debugging
     if (!clienteExistente && nombre) {
       logger.info('Cliente no encontrado por WhatsApp en soporte', {
         nombre,
-        whatsappBuscado: ultimosSeis,
         whatsappCompleto: whatsappLimpio
       });
     }
@@ -297,7 +295,6 @@ router.post('/formulario-soporte', async (req, res) => {
       logger.warn('🚨 VIP_POST_VENTA sin registro en BD - Redirigir a academia', {
         nombre,
         whatsapp: whatsappLimpio,
-        ultimosSeis,
         reason: 'client_claims_purchased_but_not_in_db'
       });
     }

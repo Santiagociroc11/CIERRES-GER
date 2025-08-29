@@ -80,7 +80,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [mensajesChat, setMensajesChat] = useState<any[]>([]);
   const [cargandoConversacionesChat, setCargandoConversacionesChat] = useState(false);
   const [cargandoMensajesChat, setCargandoMensajesChat] = useState(false);
-  const [filtroChatGlobal, setFiltroChatGlobal] = useState<'todos' | 'mapeados' | 'lids' | 'pendientes'>('todos');
+  const [filtroChatGlobal, setFiltroChatGlobal] = useState<'todos' | 'lids-sin-mapear'>('todos');
   const [anchoListaChat, setAnchoListaChat] = useState(500); // Ancho inicial de la lista de chats
   const [redimensionando, setRedimensionando] = useState(false);
   
@@ -151,12 +151,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const conversacionesFiltradas = useMemo(() => {
     if (filtroChatGlobal === 'todos') {
       return conversacionesChat;
-    } else if (filtroChatGlobal === 'mapeados') {
-      return conversacionesChat.filter(c => obtenerTipoCliente(c) === 'cliente-mapeado');
-    } else if (filtroChatGlobal === 'lids') {
+    } else if (filtroChatGlobal === 'lids-sin-mapear') {
       return conversacionesChat.filter(c => obtenerTipoCliente(c) === 'lid-sin-mapear');
-    } else if (filtroChatGlobal === 'pendientes') {
-      return conversacionesChat.filter(c => c.ultimo_modo === 'entrante');
     }
     return conversacionesChat;
   }, [conversacionesChat, filtroChatGlobal]);
@@ -3856,7 +3852,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       
                       {/* Filtro de conversaciones */}
                       <div className="mt-3 pt-3 border-t border-gray-200">
-                        <div className="text-xs font-medium text-gray-700 mb-2">Filtrar por tipo:</div>
+                        <div className="text-xs font-medium text-gray-700 mb-2">Filtro:</div>
                         <div className="flex space-x-1">
                           <button
                             onClick={() => setFiltroChatGlobal('todos')}
@@ -3869,34 +3865,14 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             Todos
                           </button>
                           <button
-                            onClick={() => setFiltroChatGlobal('mapeados')}
+                            onClick={() => setFiltroChatGlobal('lids-sin-mapear')}
                             className={`px-2 py-1 text-xs rounded ${
-                              filtroChatGlobal === 'mapeados'
-                                ? 'bg-green-100 text-green-700 border border-green-200'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            Mapeados
-                          </button>
-                          <button
-                            onClick={() => setFiltroChatGlobal('lids')}
-                            className={`px-2 py-1 text-xs rounded ${
-                              filtroChatGlobal === 'lids'
+                              filtroChatGlobal === 'lids-sin-mapear'
                                 ? 'bg-red-100 text-red-700 border border-red-200'
-                                : 'bg-gray-200 text-red-600 hover:bg-red-100'
+                                : 'bg-gray-100 text-red-600 hover:bg-red-100'
                             }`}
                           >
-                            LIDs
-                          </button>
-                          <button
-                            onClick={() => setFiltroChatGlobal('pendientes')}
-                            className={`px-2 py-1 text-xs rounded ${
-                              filtroChatGlobal === 'pendientes'
-                                ? 'bg-orange-100 text-orange-700 border border-orange-200'
-                                : 'bg-gray-200 text-orange-600 hover:bg-orange-100'
-                            }`}
-                          >
-                            Pendientes
+                            LIDs Sin Mapear
                           </button>
                         </div>
                       </div>
@@ -4067,11 +4043,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
               </div>
 
               {/* Área Principal - Mensajes */}
-              <div className="flex-1 flex flex-col min-h-0 h-full">
+              <div className="flex-1 flex flex-col min-h-0 max-h-[calc(100vh-5rem)]">
                 {conversacionActivaChat ? (
                   <>
                     {/* Header de la conversación */}
-                    <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+                    <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
                           <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mr-4">
@@ -4151,7 +4127,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
 
                     {/* Área de mensajes */}
-                    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4 min-h-0 max-h-[calc(100vh-12rem)]">
+                    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4 min-h-0 max-h-[calc(100vh-16rem)]">
                       
                       {cargandoMensajesChat ? (
                         <div className="flex items-center justify-center h-full">
@@ -4205,13 +4181,13 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
 
                     {/* Área de envío de mensajes (solo lectura por ahora) */}
-                    <div className="bg-white border-t border-gray-200 px-6 py-4 flex-shrink-0">
-                      <div className={`px-4 py-3 rounded-lg text-center border-2 ${
+                    <div className="bg-white border-t border-gray-200 px-6 py-3 flex-shrink-0">
+                      <div className={`px-4 py-2 rounded-lg text-center border-2 ${
                         conversacionActivaChat.ultimo_modo === 'entrante'
                           ? 'bg-red-50 border-red-200 text-red-700'
                           : 'bg-green-50 border-green-200 text-green-700'
                       }`}>
-                        <div className="flex items-center justify-center space-x-2 mb-2">
+                        <div className="flex items-center justify-center space-x-2 mb-1">
                           {conversacionActivaChat.ultimo_modo === 'entrante' ? (
                             <>
                               <AlertTriangle className="h-5 w-5 text-red-500" />
@@ -4224,14 +4200,14 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             </>
                           )}
                         </div>
-                        <p className="text-sm">
+                        <p className="text-xs">
                           {conversacionActivaChat.ultimo_modo === 'entrante'
-                            ? 'El cliente envió el último mensaje - El asesor debe responder'
-                            : 'El asesor envió el último mensaje - Esperando respuesta del cliente'
+                            ? 'Cliente envió último mensaje - Asesor debe responder'
+                            : 'Asesor envió último mensaje - Esperando respuesta del cliente'
                           }
                         </p>
                         <p className="text-xs mt-1 opacity-75">
-                          Modo supervisión - Solo lectura. Para enviar mensajes, usa el chat modal individual
+                          Modo supervisión - Solo lectura
                         </p>
                       </div>
                     </div>

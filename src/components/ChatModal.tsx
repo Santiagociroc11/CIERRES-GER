@@ -200,7 +200,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
       // Cargar mensajes, reportes y registros en paralelo
       const [mensajesData, reportesData, registrosData, quickRepliesData] = await Promise.all([
         apiClient.request<Mensaje[]>(
-          `/conversaciones?select=*&or=(id_cliente.eq.${cliente.ID},wha_cliente.ilike.*${cliente.WHATSAPP.slice(-7)}*)&order=timestamp.asc`
+          `/conversaciones?select=*&id_cliente=eq.${cliente.ID}&order=timestamp.asc`
         ),
         apiClient.request<Reporte[]>(
           `/GERSSON_REPORTES?ID_CLIENTE=eq.${cliente.ID}&order=FECHA_REPORTE.asc`

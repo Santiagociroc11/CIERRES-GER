@@ -1964,32 +1964,6 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
               )}
             </div>
           </div>
-
-          {/* Métricas Rápidas - Ahora en el header */}
-          <div className="border-t border-gray-100 pt-4 pb-4">
-            <div className="flex items-center justify-center space-x-4 bg-gray-50 rounded-xl p-3">
-              <div className="flex items-center space-x-2">
-                <Target className="h-4 w-4 text-green-500" />
-                <span className="text-sm font-medium text-gray-700">
-                  {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasPrincipal || 0), 0)} Principal
-                </span>
-              </div>
-              <div className="w-px h-4 bg-gray-300"></div>
-              <div className="flex items-center space-x-2">
-                <Target className="h-4 w-4 text-blue-500" />
-                <span className="text-sm font-medium text-gray-700">
-                  {Object.values(estadisticas).reduce((acc, stats) => acc + (stats.ventasDownsell || 0), 0)} Downsell
-                </span>
-              </div>
-              <div className="w-px h-4 bg-gray-300"></div>
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="h-4 w-4 text-purple-500" />
-                <span className="text-sm font-medium text-gray-700">
-                  {(Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length).toFixed(1)}% Cierre
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
         
         {/* Contenido Principal */}

@@ -100,7 +100,7 @@ setInterval(recargarAsesores, 5 * 60 * 1000);
 
 // 🆕 FUNCIONES PARA MANEJO DE LID
 
-// Función para detectar patrones de soporte y mapear LIDs automáticamente
+// Función para detectar patrones de soporte y mapear LIDs automáticamente (SALIENTES)
 async function detectarYMapearLID(eventData: any, asesor: any) {
   try {
     // Solo procesar mensajes SALIENTES (del asesor) para detectar patrones de mapeo
@@ -109,7 +109,7 @@ async function detectarYMapearLID(eventData: any, asesor: any) {
     // Solo procesar si es un LID
     if (!eventData.from.includes('@lid')) return;
     
-    console.log('🔍 LID detectado, analizando mensaje para mapeo...');
+    console.log('🔍 LID SALIENTE detectado, analizando mensaje para mapeo...');
     console.log('📱 LID:', eventData.from);
     console.log('💬 Texto del mensaje:', eventData.text);
     
@@ -174,7 +174,89 @@ async function detectarYMapearLID(eventData: any, asesor: any) {
       console.log('⚠️ No se encontró patrón de soporte en el mensaje');
     }
   } catch (error) {
-    console.error('❌ Error detectando mapeo LID:', error);
+    console.error('❌ Error detectando mapeo LID SALIENTE:', error);
+  }
+}
+
+// 🆕 NUEVA FUNCIÓN: Detectar y mapear LIDs ENTRANTES
+async function detectarYMapearLIDEntrante(eventData: any, asesor: any) {
+  try {
+    // Solo procesar mensajes ENTRANTES (del cliente)
+    if (eventData.fromMe) return;
+    
+    // Solo procesar si es un LID
+    if (!eventData.from.includes('@lid')) return;
+    
+    console.log('🔍 LID ENTRANTE detectado, analizando mensaje para mapeo...');
+    console.log('📱 LID:', eventData.from);
+    console.log('💬 Texto del mensaje:', eventData.text);
+    
+    // Buscar patrones de identificación del cliente
+    const patronesCliente = [
+      /mi número[:\s]*(\d{6,})/i,
+      /número[:\s]*(\d{6,})/i,
+      /celular[:\s]*(\d{6,})/i,
+      /teléfono[:\s]*(\d{6,})/i,
+      /whatsapp[:\s]*(\d{6,})/i,
+      /soy[:\s]*(\d{6,})/i,
+      /cliente[:\s]*(\d{6,})/i,
+      /(\d{6,})/ // Patrón genérico para 6+ dígitos
+    ];
+    
+    let ultimosDigitos = null;
+    
+    for (const patron of patronesCliente) {
+      const match = eventData.text.match(patron);
+      if (match) {
+        ultimosDigitos = match[1];
+        console.log(`✅ Patrón de cliente encontrado: "${match[0]}" → dígitos: ${ultimosDigitos}`);
+        break;
+      }
+    }
+    
+    if (ultimosDigitos) {
+      console.log('🔍 Buscando cliente con dígitos:', ultimosDigitos);
+      
+      // Buscar cliente por últimos dígitos
+      const cliente = await buscarClientePorUltimosDigitos(ultimosDigitos);
+      
+      if (cliente) {
+        console.log('✅ Cliente encontrado:', cliente.NOMBRE, cliente.WHATSAPP);
+        
+        // Crear mapeo LID → WhatsApp
+        const mapeoCreado = await crearMapeoLID(eventData.from, cliente.WHATSAPP, cliente.ID, asesor.ID);
+        
+        if (mapeoCreado) {
+          console.log('✅ Mapeo LID ENTRANTE creado exitosamente:', eventData.from, '→', cliente.WHATSAPP);
+          
+          // 🆕 ACTUALIZAR CONVERSACIONES HISTÓRICAS
+          console.log(`🔄 Actualizando conversaciones históricas para LID ENTRANTE: ${eventData.from}`);
+          const conversacionesActualizadas = await actualizarConversacionesHistoricasLID(
+            eventData.from,
+            cliente.ID,
+            asesor.ID
+          );
+          
+          if (conversacionesActualizadas > 0) {
+            console.log(`✅ Se actualizaron ${conversacionesActualizadas} conversaciones históricas con el cliente ${cliente.NOMBRE}`);
+          } else {
+            console.log(`ℹ️ No se encontraron conversaciones históricas para actualizar`);
+          }
+          
+          // 🆕 OPCIONAL: Enviar mensaje de confirmación automática al cliente
+          // await enviarConfirmacionMapeoAutomatico(eventData.from, cliente.NOMBRE, ultimosDigitos);
+          
+        } else {
+          console.log('❌ Error creando mapeo LID ENTRANTE');
+        }
+      } else {
+        console.log('⚠️ Cliente no encontrado para dígitos:', ultimosDigitos);
+      }
+    } else {
+      console.log('⚠️ No se encontró patrón de identificación del cliente en el mensaje ENTRANTE');
+    }
+  } catch (error) {
+    console.error('❌ Error detectando mapeo LID ENTRANTE:', error);
   }
 }
 
@@ -417,8 +499,9 @@ export function setupWhatsAppEventHandlers(socket: Socket) {
         return; // Salir temprano - NO procesar mensajes de instancias sin asesor
       }
 
-      // 🆕 DETECTAR Y MAPEAR LID AUTOMÁTICAMENTE
+      // 🆕 DETECTAR Y MAPEAR LID AUTOMÁTICAMENTE (SALIENTES Y ENTRANTES)
       await detectarYMapearLID(eventData, asesor);
+      await detectarYMapearLIDEntrante(eventData, asesor);
 
       // Determinar modo
       const modo: 'saliente' | 'entrante' = message.key.fromMe ? 'saliente' : 'entrante';

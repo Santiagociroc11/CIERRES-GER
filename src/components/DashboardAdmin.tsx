@@ -3843,21 +3843,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   {/* Estadísticas de conversaciones */}
                   {asesorSeleccionadoChat && conversacionesChat.length > 0 && (
                     <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                                              <div className="flex items-center justify-between mb-2">
-                          <div className="text-xs font-medium text-gray-700">Resumen de Conversaciones</div>
-                          <div className="flex items-center space-x-2">
-                            <div className="text-xs text-indigo-600 font-mono">
-                              {anchoListaChat}px
-                            </div>
-                            <button
-                              onClick={() => setAnchoListaChat(350)}
-                              className="text-xs text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 px-1 py-0.5 rounded"
-                              title="Resetear ancho"
-                            >
-                              ↺
-                            </button>
-                          </div>
-                        </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs font-medium text-gray-700">Resumen de Conversaciones</div>
+           
+                      </div>
                       <div className="space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-600">Mostrando:</span>

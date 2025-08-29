@@ -101,10 +101,10 @@ export default function DuplicateModal({
     }
 
     const allClients = [originalClient, ...duplicates].filter(Boolean) as DuplicateInfo[];
-    const loser = allClients.find(c => c.ID !== selectedWinner);
+    const losers = allClients.filter(c => c.ID !== selectedWinner);
     
-    if (!loser) {
-      setError('No se encontró el cliente a eliminar');
+    if (losers.length === 0) {
+      setError('No se encontraron clientes para eliminar');
       return;
     }
 
@@ -119,7 +119,7 @@ export default function DuplicateModal({
         },
         body: JSON.stringify({
           winnerId: selectedWinner,
-          loserId: loser.ID,
+          loserIds: losers.map(l => l.ID),
         }),
       });
 
@@ -239,8 +239,8 @@ export default function DuplicateModal({
                     <h4 className="font-medium text-blue-900">Instrucciones</h4>
                     <p className="text-sm text-blue-700 mt-1">
                       Se encontraron <strong>{duplicates.length + 1} registros duplicados</strong>. 
-                      Seleccione cuál mantener como registro principal. El resto será eliminado 
-                      y sus reportes/registros se fusionarán al seleccionado.
+                      Seleccione cuál mantener como registro principal. Los otros <strong>{duplicates.length} registros</strong> serán eliminados 
+                      y sus registros del sistema se transferirán al seleccionado. Los reportes de asesores se eliminarán.
                     </p>
                   </div>
                 </div>

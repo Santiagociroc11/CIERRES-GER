@@ -208,108 +208,138 @@ router.get('/:clienteId', async (req, res) => {
 // POST /api/duplicates/merge - Fusionar duplicados
 router.post('/merge', async (req, res) => {
   try {
-    const { winnerId, loserId } = req.body;
+    const { winnerId, loserIds } = req.body;
 
-    if (!winnerId || !loserId || winnerId === loserId) {
+    if (!winnerId || !loserIds || !Array.isArray(loserIds) || loserIds.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'IDs de cliente inválidos'
+        error: 'Debe especificar un winnerId y un array de loserIds'
       });
     }
 
-    logger.info('Iniciando fusión de duplicados', { winnerId, loserId });
-
-    // Obtener ambos clientes con información completa
-    const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
-    
-    const [winnerResponse, loserResponse] = await Promise.all([
-      fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?ID=eq.${winnerId}&select=*`),
-      fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?ID=eq.${loserId}&select=*`)
-    ]);
-
-    if (!winnerResponse.ok || !loserResponse.ok) {
-      return res.status(500).json({
+    // Validar que winnerId no esté en loserIds
+    if (loserIds.includes(winnerId)) {
+      return res.status(400).json({
         success: false,
-        error: 'Error consultando clientes'
+        error: 'El cliente ganador no puede estar en la lista de perdedores'
       });
     }
 
-    const winnerData = await winnerResponse.json();
-    const loserData = await loserResponse.json();
-    
-    const winner = winnerData[0];
-    const loser = loserData[0];
+    logger.info('Iniciando fusión de múltiples duplicados', { 
+      winnerId, 
+      loserIds, 
+      totalDuplicates: loserIds.length + 1 
+    });
 
-    if (!winner || !loser) {
+    // Obtener todos los clientes (ganador + perdedores)
+    const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
+    const allIds = [winnerId, ...loserIds];
+    
+    const clientResponses = await Promise.all(
+      allIds.map(id => fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?ID=eq.${id}&select=*`))
+    );
+
+    // Verificar que todas las respuestas sean exitosas
+    for (let i = 0; i < clientResponses.length; i++) {
+      if (!clientResponses[i].ok) {
+        return res.status(500).json({
+          success: false,
+          error: `Error consultando cliente ID: ${allIds[i]}`
+        });
+      }
+    }
+
+    const clientData = await Promise.all(clientResponses.map(r => r.json()));
+    const clients = clientData.map(data => data[0]).filter(Boolean);
+
+    if (clients.length !== allIds.length) {
       return res.status(404).json({
         success: false,
-        error: 'Uno o ambos clientes no encontrados'
+        error: 'Algunos clientes no fueron encontrados'
       });
     }
+
+    const winner = clients.find(c => c.ID === winnerId);
+    const losers = clients.filter(c => loserIds.includes(c.ID));
 
     // 1. NO transferir reportes - son específicos del asesor
     // Los reportes del duplicado se eliminan junto con el cliente
     
-    // 2. Transferir SOLO registros del perdedor al ganador (son acciones externas del sistema)
+    // 2. Transferir SOLO registros de TODOS los perdedores al ganador (son acciones externas del sistema)
     let registrosTransferidos = 0;
-    try {
-      const registrosLoser = await getRegistrosByClienteId(loserId);
-      logger.info('Registros encontrados para transferir', { 
-        loserId, 
-        cantidad: registrosLoser.length 
-      });
-      
-      for (const registro of registrosLoser) {
-        try {
-          await insertRegistro({
-            ID_CLIENTE: winnerId,
-            TIPO_EVENTO: registro.TIPO_EVENTO,
-            FECHA_EVENTO: registro.FECHA_EVENTO
-          });
-          registrosTransferidos++;
-        } catch (registroError) {
-          logger.error('Error transfiriendo registro individual', {
-            registroId: registro.ID,
-            error: registroError instanceof Error ? registroError.message : 'Error desconocido'
-          });
-          // Continuar con el siguiente registro
+    
+    for (const loser of losers) {
+      try {
+        const registrosLoser = await getRegistrosByClienteId(loser.ID);
+        logger.info('Registros encontrados para transferir', { 
+          loserId: loser.ID, 
+          cantidad: registrosLoser.length 
+        });
+        
+        for (const registro of registrosLoser) {
+          try {
+            await insertRegistro({
+              ID_CLIENTE: winnerId,
+              TIPO_EVENTO: registro.TIPO_EVENTO,
+              FECHA_EVENTO: registro.FECHA_EVENTO
+            });
+            registrosTransferidos++;
+          } catch (registroError) {
+            logger.error('Error transfiriendo registro individual', {
+              registroId: registro.ID,
+              loserId: loser.ID,
+              error: registroError instanceof Error ? registroError.message : 'Error desconocido'
+            });
+            // Continuar con el siguiente registro
+          }
         }
+      } catch (registrosError) {
+        logger.error('Error obteniendo registros del cliente perdedor', {
+          loserId: loser.ID,
+          error: registrosError instanceof Error ? registrosError.message : 'Error desconocido'
+        });
+        // Continuar con el siguiente cliente perdedor
       }
-    } catch (registrosError) {
-      logger.error('Error obteniendo registros del cliente perdedor', {
-        loserId,
-        error: registrosError instanceof Error ? registrosError.message : 'Error desconocido'
-      });
-      // Continuar con la fusión sin transferir registros
     }
 
-    // 3. Consolidar datos del ganador con la mejor información
-    logger.info('Consolidando datos de clientes', { winnerId, loserId });
+    // 3. Consolidar datos del ganador con la mejor información de TODOS los duplicados
+    logger.info('Consolidando datos de múltiples clientes', { winnerId, loserIds });
+    
+    // Encontrar los mejores valores entre todos los clientes (ganador + perdedores)
+    const allClients = [winner, ...losers];
+    
     const datosConsolidados = {
-      NOMBRE: winner.NOMBRE.length > loser.NOMBRE.length ? winner.NOMBRE : loser.NOMBRE,
-      ESTADO: winner.ESTADO === 'PAGADO' || winner.ESTADO === 'VENTA CONSOLIDADA' 
-        ? winner.ESTADO 
-        : (loser.ESTADO === 'PAGADO' || loser.ESTADO === 'VENTA CONSOLIDADA' 
-          ? loser.ESTADO 
-          : winner.ESTADO),
-      WHATSAPP: winner.WHATSAPP.length > loser.WHATSAPP.length ? winner.WHATSAPP : loser.WHATSAPP,
-      FECHA_COMPRA: winner.FECHA_COMPRA || loser.FECHA_COMPRA,
-      MONTO_COMPRA: winner.MONTO_COMPRA || loser.MONTO_COMPRA,
-      MONEDA_COMPRA: winner.MONEDA_COMPRA || loser.MONEDA_COMPRA,
-      PAIS: winner.PAIS || loser.PAIS,
-      // Mantener el asesor más reciente
-      ID_ASESOR: loser.ID_ASESOR || winner.ID_ASESOR,
-      NOMBRE_ASESOR: loser.NOMBRE_ASESOR || winner.NOMBRE_ASESOR,
-      WHA_ASESOR: loser.WHA_ASESOR || winner.WHA_ASESOR,
+      // Nombre más largo
+      NOMBRE: allClients.reduce((best, client) => 
+        client.NOMBRE && client.NOMBRE.length > (best || '').length ? client.NOMBRE : best, winner.NOMBRE),
+      
+      // Estado prioritario (PAGADO/VENTA CONSOLIDADA > otros)
+      ESTADO: allClients.find(c => c.ESTADO === 'PAGADO' || c.ESTADO === 'VENTA CONSOLIDADA')?.ESTADO || winner.ESTADO,
+      
+      // WhatsApp más largo
+      WHATSAPP: allClients.reduce((best, client) => 
+        client.WHATSAPP && client.WHATSAPP.length > (best || '').length ? client.WHATSAPP : best, winner.WHATSAPP),
+      
+      // Mejor información de compra
+      FECHA_COMPRA: allClients.find(c => c.FECHA_COMPRA)?.FECHA_COMPRA || winner.FECHA_COMPRA,
+      MONTO_COMPRA: allClients.find(c => c.MONTO_COMPRA)?.MONTO_COMPRA || winner.MONTO_COMPRA,
+      MONEDA_COMPRA: allClients.find(c => c.MONEDA_COMPRA)?.MONEDA_COMPRA || winner.MONEDA_COMPRA,
+      
+      // País
+      PAIS: allClients.find(c => c.PAIS)?.PAIS || winner.PAIS,
+      
+      // Mantener el asesor del cliente ganador (el seleccionado por el usuario)
+      // Solo usar asesor de perdedores si el ganador no tiene asesor asignado
+      ID_ASESOR: winner.ID_ASESOR || allClients.find(c => c.ID_ASESOR)?.ID_ASESOR,
+      NOMBRE_ASESOR: winner.NOMBRE_ASESOR || allClients.find(c => c.NOMBRE_ASESOR)?.NOMBRE_ASESOR,
+      WHA_ASESOR: winner.WHA_ASESOR || allClients.find(c => c.WHA_ASESOR)?.WHA_ASESOR,
+      
       // Datos de soporte más recientes
-      soporte_tipo: loser.soporte_tipo || winner.soporte_tipo,
-      soporte_prioridad: loser.soporte_prioridad || winner.soporte_prioridad,
-      soporte_duda: loser.soporte_duda || winner.soporte_duda,
-      soporte_descripcion: loser.soporte_descripcion || winner.soporte_descripcion,
-      soporte_fecha_ultimo: Math.max(
-        winner.soporte_fecha_ultimo || 0, 
-        loser.soporte_fecha_ultimo || 0
-      ) || undefined
+      soporte_tipo: allClients.find(c => c.soporte_tipo)?.soporte_tipo || winner.soporte_tipo,
+      soporte_prioridad: allClients.find(c => c.soporte_prioridad)?.soporte_prioridad || winner.soporte_prioridad,
+      soporte_duda: allClients.find(c => c.soporte_duda)?.soporte_duda || winner.soporte_duda,
+      soporte_descripcion: allClients.find(c => c.soporte_descripcion)?.soporte_descripcion || winner.soporte_descripcion,
+      soporte_fecha_ultimo: Math.max(...allClients.map(c => c.soporte_fecha_ultimo || 0)) || undefined
     };
 
     // 4. Actualizar cliente ganador con datos consolidados
@@ -324,32 +354,50 @@ router.post('/merge', async (req, res) => {
       throw updateError;
     }
 
-    // 5. Eliminar cliente perdedor (después de transferir registros)
-    try {
-      logger.info('Eliminando reportes del cliente perdedor', { loserId });
-      // Eliminar reportes del cliente perdedor
-      const reportesLoser = await getReportesByClienteId(loserId);
-      for (const reporte of reportesLoser) {
-        await deleteReporte(reporte.ID);
+    // 5. Eliminar TODOS los clientes perdedores (después de transferir registros)
+    let clientesEliminados = 0;
+    const erroresEliminacion = [];
+    
+    for (const loser of losers) {
+      try {
+        logger.info('Eliminando reportes del cliente perdedor', { loserId: loser.ID });
+        // Eliminar reportes del cliente perdedor
+        const reportesLoser = await getReportesByClienteId(loser.ID);
+        for (const reporte of reportesLoser) {
+          await deleteReporte(reporte.ID);
+        }
+        
+        logger.info('Eliminando registros restantes del cliente perdedor', { loserId: loser.ID });
+        // Los registros ya fueron transferidos, pero por si quedó alguno
+        await fetch(`${POSTGREST_URL}/GERSSON_REGISTROS?ID_CLIENTE=eq.${loser.ID}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        logger.info('Eliminando cliente perdedor', { loserId: loser.ID });
+        await deleteCliente(loser.ID);
+        clientesEliminados++;
+        
+      } catch (deleteError) {
+        logger.error('Error eliminando cliente perdedor y dependencias', { 
+          loserId: loser.ID, 
+          error: deleteError instanceof Error ? deleteError.message : 'Error desconocido' 
+        });
+        erroresEliminacion.push({
+          clienteId: loser.ID,
+          error: deleteError instanceof Error ? deleteError.message : 'Error desconocido'
+        });
+        // Continuar con el siguiente cliente
       }
-      
-      logger.info('Eliminando registros restantes del cliente perdedor', { loserId });
-      // Los registros ya fueron transferidos, pero por si quedó alguno
-      const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
-      await fetch(`${POSTGREST_URL}/GERSSON_REGISTROS?ID_CLIENTE=eq.${loserId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
+    }
+
+    // Si hubo errores parciales, reportarlos pero no fallar la operación si se eliminó al menos uno
+    if (erroresEliminacion.length > 0) {
+      logger.warn('Algunos clientes no pudieron ser eliminados completamente', {
+        erroresEliminacion,
+        clientesEliminadosExitosamente: clientesEliminados,
+        totalClientes: losers.length
       });
-      
-      logger.info('Eliminando cliente perdedor', { loserId });
-      await deleteCliente(loserId);
-      
-    } catch (deleteError) {
-      logger.error('Error eliminando cliente perdedor y dependencias', { 
-        loserId, 
-        error: deleteError instanceof Error ? deleteError.message : 'Error desconocido' 
-      });
-      throw deleteError;
     }
 
     // 6. Registrar evento de fusión
@@ -359,23 +407,29 @@ router.post('/merge', async (req, res) => {
       FECHA_EVENTO: Math.floor(Date.now() / 1000)
     });
 
-    logger.info('Fusión completada exitosamente', { 
+    logger.info('Fusión de múltiples duplicados completada exitosamente', { 
       winnerId, 
-      loserId,
-      clienteDuplicadoEliminado: true,
+      loserIds,
+      clientesEliminados,
+      totalDuplicados: losers.length,
       registrosTransferidos,
-      action: 'cliente_y_dependencias_eliminados_completamente'
+      erroresEliminacion: erroresEliminacion.length,
+      action: 'multiples_clientes_duplicados_eliminados_completamente'
     });
 
     res.json({
       success: true,
-      message: 'Duplicados fusionados exitosamente',
+      message: `Fusión de ${losers.length} duplicados completada exitosamente`,
       data: {
         mergedClientId: winnerId,
-        deletedClientId: loserId,
+        deletedClientIds: loserIds,
+        clientesEliminadosExitosamente: clientesEliminados,
+        totalDuplicados: losers.length,
         transferredRecords: registrosTransferidos,
         consolidatedData: datosConsolidados,
-        note: 'Cliente duplicado completamente eliminado junto con sus reportes - Registros transferidos al ganador'
+        errorsCount: erroresEliminacion.length,
+        errors: erroresEliminacion,
+        note: `${clientesEliminados} clientes duplicados eliminados completamente junto con sus reportes - ${registrosTransferidos} registros transferidos al ganador`
       }
     });
 

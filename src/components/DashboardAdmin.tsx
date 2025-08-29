@@ -610,39 +610,54 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   };
 
   // 🆕 Funciones para Chat Global
-  const cargarConversacionesChat = async (asesorId: number) => {
-    console.log("🔄 Cargando conversaciones para asesor:", asesorId);
-    setCargandoConversacionesChat(true);
+  const cargarConversacionesChat = async (asesorId: number, silencioso: boolean = false) => {
+    if (!silencioso) {
+      console.log("🔄 Cargando conversaciones para asesor:", asesorId);
+      setCargandoConversacionesChat(true);
+    }
+    
     try {
       const response = await fetch(`/api/conversaciones/${asesorId}`);
       if (response.ok) {
         const result = await response.json();
-        console.log("📡 Respuesta del backend:", result);
+        if (!silencioso) {
+          console.log("📡 Respuesta del backend:", result);
+        }
         
         // El backend devuelve { success: true, data: conversaciones, timestamp: ... }
         const conversaciones = result.data || result;
         
         if (Array.isArray(conversaciones)) {
           setConversacionesChat(conversaciones);
-          console.log("✅ Conversaciones cargadas:", conversaciones.length);
+          if (!silencioso) {
+            console.log("✅ Conversaciones cargadas:", conversaciones.length);
+          }
           
-          // Seleccionar automáticamente la primera conversación si existe
-          if (conversaciones.length > 0 && !conversacionActivaChat) {
+          // Seleccionar automáticamente la primera conversación si existe (solo en carga inicial)
+          if (conversaciones.length > 0 && !conversacionActivaChat && !silencioso) {
             setConversacionActivaChat(conversaciones[0]);
           }
         } else {
-          console.error("❌ Formato de respuesta inválido:", conversaciones);
+          if (!silencioso) {
+            console.error("❌ Formato de respuesta inválido:", conversaciones);
+          }
           setConversacionesChat([]);
         }
       } else {
-        console.error("❌ Error cargando conversaciones:", response.status);
+        if (!silencioso) {
+          console.error("❌ Error en la respuesta:", response.status);
+        }
         setConversacionesChat([]);
       }
     } catch (error) {
-      console.error("❌ Error cargando conversaciones:", error);
+      if (!silencioso) {
+        console.error("❌ Error cargando conversaciones:", error);
+      }
       setConversacionesChat([]);
     } finally {
-      setCargandoConversacionesChat(false);
+      if (!silencioso) {
+        setCargandoConversacionesChat(false);
+      }
     }
   };
 
@@ -690,7 +705,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     
     if (asesorSeleccionadoChat && vistaAdmin === 'chat-global') {
       interval = setInterval(() => {
-        cargarConversacionesChat(asesorSeleccionadoChat.ID);
+        cargarConversacionesChat(asesorSeleccionadoChat.ID, true);
       }, 2000);
     }
 

@@ -661,34 +661,49 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     }
   };
 
-  const cargarMensajesChat = async (asesorId: number, clienteKey: string) => {
-    console.log("🔄 Cargando mensajes para:", clienteKey);
-    setCargandoMensajesChat(true);
+  const cargarMensajesChat = async (asesorId: number, clienteKey: string, silencioso: boolean = false) => {
+    if (!silencioso) {
+      console.log("🔄 Cargando mensajes para:", clienteKey);
+      setCargandoMensajesChat(true);
+    }
+    
     try {
       const response = await fetch(`/api/mensajes/${asesorId}/${encodeURIComponent(clienteKey)}`);
       if (response.ok) {
         const result = await response.json();
-        console.log("📡 Respuesta de mensajes del backend:", result);
+        if (!silencioso) {
+          console.log("📡 Respuesta de mensajes del backend:", result);
+        }
         
         // El backend devuelve { success: true, data: mensajes, timestamp: ... }
         const mensajes = result.data || result;
         
         if (Array.isArray(mensajes)) {
           setMensajesChat(mensajes);
-          console.log("✅ Mensajes cargados:", mensajes.length);
+          if (!silencioso) {
+            console.log("✅ Mensajes cargados:", mensajes.length);
+          }
         } else {
-          console.error("❌ Formato de respuesta de mensajes inválido:", mensajes);
+          if (!silencioso) {
+            console.error("❌ Formato de respuesta de mensajes inválido:", mensajes);
+          }
           setMensajesChat([]);
         }
       } else {
-        console.error("❌ Error cargando mensajes:", response.status);
+        if (!silencioso) {
+          console.error("❌ Error cargando mensajes:", response.status);
+        }
         setMensajesChat([]);
       }
     } catch (error) {
-      console.error("❌ Error cargando mensajes:", error);
+      if (!silencioso) {
+        console.error("❌ Error cargando mensajes:", error);
+      }
       setMensajesChat([]);
     } finally {
-      setCargandoMensajesChat(false);
+      if (!silencioso) {
+        setCargandoMensajesChat(false);
+      }
     }
   };
 
@@ -723,6 +738,24 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       cargarMensajesChat(asesorSeleccionadoChat.ID, clienteKey);
     }
   };
+
+  // Intervalo para actualizar mensajes de la conversación activa cada 3 segundos
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (asesorSeleccionadoChat && conversacionActivaChat && vistaAdmin === 'chat-global') {
+      interval = setInterval(() => {
+        const clienteKey = conversacionActivaChat.id_cliente || conversacionActivaChat.wha_cliente;
+        cargarMensajesChat(asesorSeleccionadoChat.ID, clienteKey, true);
+      }, 3000);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [asesorSeleccionadoChat, conversacionActivaChat, vistaAdmin]);
 
   const cargarDatos = async () => {
     const inicioTiempo = performance.now();

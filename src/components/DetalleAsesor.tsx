@@ -48,6 +48,7 @@ interface DetalleAsesorProps {
   bestRateByFuente: Record<string, number>;
   onChat?: (cliente: Cliente) => void;
   adminRole?: AdminRole;
+  onReasignSuccess?: (clienteId: number, nuevoAsesorId: number) => void;
 }
 
 type VistaDetalle = 'general' | 'clientes' | 'metricas' | 'fuentes';
@@ -65,7 +66,8 @@ export default function DetalleAsesor({
   teamStatsByFuente,
   bestRateByFuente,
   onChat,
-  adminRole = 'supervisor'
+  adminRole = 'supervisor',
+  onReasignSuccess
 }: DetalleAsesorProps) {
   const [vistaActual, setVistaActual] = useState<VistaDetalle>('general');
 
@@ -293,6 +295,7 @@ export default function DetalleAsesor({
           readOnly
           admin={true}
           adminRole={adminRole}
+          onReasignSuccess={onReasignSuccess}
         />
       )}
 

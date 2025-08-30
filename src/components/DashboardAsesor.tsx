@@ -754,6 +754,15 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     );
   };
 
+  // Función para manejar la reasignación exitosa
+  const handleReasignSuccess = (clienteId: number, nuevoAsesorId: number) => {
+    // Eliminar el cliente de la lista local ya que fue reasignado a otro asesor
+    setClientes(prevClientes => 
+      prevClientes.filter(cliente => cliente.ID !== clienteId)
+    );
+    console.log(`Cliente ${clienteId} reasignado y removido de la lista`);
+  };
+
   const cargarDatos = async () => {
     try {
       console.log('Cargando datos para asesor:', asesor.ID);
@@ -1515,6 +1524,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
             onReportarVenta={setClienteParaVenta}
             onChat={setClienteParaChat}
             admin={false}
+            onReasignSuccess={handleReasignSuccess}
           />
         )}
         {vistaActual === 'seguimientos' && (

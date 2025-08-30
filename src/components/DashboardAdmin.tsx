@@ -3313,6 +3313,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       onBack={() => setAsesorSeleccionado(null)}
                       onChat={setClienteParaChat}
                       adminRole={adminRole}
+                      onReasignSuccess={handleClienteReasignado}
                     />
                   )}
                 </div>
@@ -4579,6 +4580,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 onBack={() => setAsesorSeleccionado(null)}
                 onChat={setClienteParaChat}
                 adminRole={adminRole}
+                onReasignSuccess={handleClienteReasignado}
               />
             )}
           </div>

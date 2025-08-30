@@ -13,7 +13,7 @@ const ReasignarCliente = ({ clienteId, asesorActual, asesorActualId, onReasignSu
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   const [nuevoAsesor, setNuevoAsesor] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalAutoOpen, setModalAutoOpen] = useState(false);
+  const [modoReasignacion, setModoReasignacion] = useState<'manual' | 'automatico'>('manual');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -92,7 +92,7 @@ const ReasignarCliente = ({ clienteId, asesorActual, asesorActualId, onReasignSu
       const result = await response.json();
       
       alert(`Cliente reasignado automáticamente a: ${result.data.asesor_nuevo.nombre}`);
-      setModalAutoOpen(false);
+      setModalOpen(false);
       
       // Notificar al componente padre sobre el éxito de la reasignación
       if (onReasignSuccess) {
@@ -106,7 +106,15 @@ const ReasignarCliente = ({ clienteId, asesorActual, asesorActualId, onReasignSu
     }
   };
 
-  const reasignar = async () => {
+  const confirmarReasignacion = async () => {
+    if (modoReasignacion === 'automatico') {
+      await reasignarAutomatico();
+    } else {
+      await reasignarManual();
+    }
+  };
+
+  const reasignarManual = async () => {
     if (!nuevoAsesor) {
       setErrorMsg("Selecciona un asesor.");
       return;
@@ -144,28 +152,20 @@ const ReasignarCliente = ({ clienteId, asesorActual, asesorActualId, onReasignSu
     } finally {
       setLoading(false);
     }
-    
   };
 
   return (
-    <div className="flex gap-2">
+    <div>
       <button
         onClick={() => setModalOpen(true)}
         className="mt-2 sm:mt-0 inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
-        Reasignar Manual
-      </button>
-      
-      <button
-        onClick={() => setModalAutoOpen(true)}
-        className="mt-2 sm:mt-0 inline-flex items-center px-3 py-1 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-      >
-        Reasignar Auto
+        Reasignar Cliente
       </button>
 
       {modalOpen && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-80">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
             <h3 className="text-lg font-bold mb-2">Reasignar Cliente</h3>
             <p className="mb-4">
               Asesor actual: <strong>{asesorActual}</strong>
@@ -173,19 +173,60 @@ const ReasignarCliente = ({ clienteId, asesorActual, asesorActualId, onReasignSu
 
             {errorMsg && <p className="text-red-500 mb-2">{errorMsg}</p>}
 
-            <select
-              className="border p-2 w-full my-2"
-              value={nuevoAsesor}
-              onChange={(e) => setNuevoAsesor(e.target.value)}
-              disabled={loading}
-            >
-              <option value="">Selecciona un nuevo asesor</option>
-              {asesores.map((asesor) => (
-                <option key={asesor.ID} value={asesor.ID}>
-                  {asesor.NOMBRE}
-                </option>
-              ))}
-            </select>
+            {/* Selector de modo */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Tipo de reasignación:</label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="modoReasignacion"
+                    value="manual"
+                    checked={modoReasignacion === 'manual'}
+                    onChange={(e) => setModoReasignacion(e.target.value as 'manual' | 'automatico')}
+                    className="mr-2"
+                  />
+                  Manual
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="modoReasignacion"
+                    value="automatico"
+                    checked={modoReasignacion === 'automatico'}
+                    onChange={(e) => setModoReasignacion(e.target.value as 'manual' | 'automatico')}
+                    className="mr-2"
+                  />
+                  Automático
+                </label>
+              </div>
+            </div>
+
+            {/* Mostrar selector de asesor solo en modo manual */}
+            {modoReasignacion === 'manual' && (
+              <select
+                className="border p-2 w-full my-2"
+                value={nuevoAsesor}
+                onChange={(e) => setNuevoAsesor(e.target.value)}
+                disabled={loading}
+              >
+                <option value="">Selecciona un nuevo asesor</option>
+                {asesores.map((asesor) => (
+                  <option key={asesor.ID} value={asesor.ID}>
+                    {asesor.NOMBRE}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Mostrar descripción en modo automático */}
+            {modoReasignacion === 'automatico' && (
+              <div className="bg-green-50 border border-green-200 p-3 rounded mb-2">
+                <p className="text-sm text-green-700">
+                  El sistema asignará automáticamente al próximo asesor disponible según la lógica de ponderación.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 mt-4">
               <button
@@ -196,49 +237,21 @@ const ReasignarCliente = ({ clienteId, asesorActual, asesorActualId, onReasignSu
                 Cancelar
               </button>
               <button
-                onClick={reasignar}
-                className="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 transition"
+                onClick={confirmarReasignacion}
+                className={`px-3 py-1 rounded-md transition text-white ${
+                  modoReasignacion === 'automatico' 
+                    ? 'bg-green-500 hover:bg-green-600' 
+                    : 'bg-blue-500 hover:bg-blue-600'
+                }`}
                 disabled={loading}
               >
-                {loading ? "Cargando..." : "Confirmar"}
+                {loading ? "Procesando..." : `Confirmar ${modoReasignacion === 'automatico' ? 'Automático' : 'Manual'}`}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {modalAutoOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-80">
-            <h3 className="text-lg font-bold mb-2">Reasignación Automática</h3>
-            <p className="mb-4">
-              Asesor actual: <strong>{asesorActual}</strong>
-            </p>
-            <p className="text-gray-600 mb-4">
-              El sistema asignará automáticamente este cliente al próximo asesor disponible según la lógica de ponderación.
-            </p>
-
-            {errorMsg && <p className="text-red-500 mb-2">{errorMsg}</p>}
-
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setModalAutoOpen(false)}
-                className="bg-gray-300 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-400 transition"
-                disabled={loading}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={reasignarAutomatico}
-                className="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 transition"
-                disabled={loading}
-              >
-                {loading ? "Reasignando..." : "Confirmar Automático"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

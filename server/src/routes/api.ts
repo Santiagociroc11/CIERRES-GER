@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import winston from 'winston';
-import { getLIDsSinMapear, getConversacionesPorAsesor, getMensajesConversacion } from '../dbClient';
+import { getConversacionesPorAsesor, getMensajesConversacion } from '../dbClient';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -238,20 +238,6 @@ router.post('/telegram/restart', async (req, res) => {
   }
 });
 
-// 🆕 Ruta para obtener LIDs sin mapear
-router.get('/lids-sin-mapear', async (req, res) => {
-  try {
-    const lids = await getLIDsSinMapear();
-    res.json(lids);
-  } catch (error) {
-    logger.error('❌ Error obteniendo LIDs sin mapear:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Error interno del servidor',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
 
 // 🆕 Ruta para obtener conversaciones de un asesor
 router.get('/conversaciones/:asesorId', async (req, res) => {

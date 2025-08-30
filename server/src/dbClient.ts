@@ -348,67 +348,6 @@ export async function getMensajesConversacion(asesorId: number, clienteKey: stri
   }
 }
 
-// 🆕 FUNCIÓN PARA OBTENER LIDs SIN MAPEAR
-export async function getLIDsSinMapear(): Promise<any[]> {
-  try {
-    
-    // Buscar conversaciones que tienen @lid en wha_cliente pero no tienen id_cliente
-    const url = `${POSTGREST_URL}/conversaciones?wha_cliente=like.*@lid&id_cliente=is.null&select=wha_cliente,id_asesor,timestamp,mensaje&order=timestamp.desc&limit=1000`;
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Error HTTP ${response.status} obteniendo LIDs sin mapear: ${errorText}`);
-      return [];
-    }
-    
-    const conversaciones = await response.json();
-    
-    // Obtener información de asesores
-    const asesoresResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?select=ID,NOMBRE`);
-    const asesores = asesoresResponse.ok ? await asesoresResponse.json() : [];
-    
-    // Agrupar por LID y obtener información del asesor
-    const lidsAgrupados = conversaciones.reduce((acc: any, conv: any) => {
-      const lid = conv.wha_cliente;
-      if (!acc[lid]) {
-        const asesor = asesores.find((a: any) => a.ID === conv.id_asesor);
-        acc[lid] = {
-          lid,
-          id_asesor: conv.id_asesor,
-          nombre_asesor: asesor?.NOMBRE || 'Asesor desconocido',
-          primera_conversacion: conv.timestamp,
-          ultima_conversacion: conv.timestamp,
-          total_mensajes: 0,
-          ultimo_mensaje: conv.mensaje
-        };
-      }
-      
-      acc[lid].total_mensajes++;
-      if (conv.timestamp > acc[lid].ultima_conversacion) {
-        acc[lid].ultima_conversacion = conv.timestamp;
-        acc[lid].ultimo_mensaje = conv.mensaje;
-      }
-      if (conv.timestamp < acc[lid].primera_conversacion) {
-        acc[lid].primera_conversacion = conv.timestamp;
-      }
-      
-      return acc;
-    }, {});
-    
-    const resultado = Object.values(lidsAgrupados);
-    
-    // Log detallado para debugging
-    resultado.forEach((lid: any) => {
-    });
-    
-    return resultado;
-    
-  } catch (error) {
-    console.error('❌ Error obteniendo LIDs sin mapear:', error);
-    return [];
-  }
-}
 
 // 🆕 FUNCIÓN PARA ACTUALIZAR CONVERSACIONES HISTÓRICAS CON LID
 export async function actualizarConversacionesHistoricasLID(lid: string, idCliente: number, asesorId: number): Promise<number> {

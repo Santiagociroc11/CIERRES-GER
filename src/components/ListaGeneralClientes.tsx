@@ -30,6 +30,7 @@ interface ListaGeneralClientesProps {
   admin: boolean;
   readOnly?: boolean;
   adminRole?: AdminRole;
+  onReasignSuccess?: (clienteId: number, nuevoAsesorId: number) => void;
 }
 
 export default function ListaGeneralClientes({
@@ -40,7 +41,8 @@ export default function ListaGeneralClientes({
   onChat,
   admin,
   readOnly = false,
-  adminRole = 'supervisor'
+  adminRole = 'supervisor',
+  onReasignSuccess
 }: ListaGeneralClientesProps) {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<EstadoCliente | 'TODOS'>('TODOS');
@@ -437,6 +439,8 @@ export default function ListaGeneralClientes({
                       <ReasignarCliente
                         clienteId={cliente.ID}
                         asesorActual={cliente.NOMBRE_ASESOR}
+                        asesorActualId={cliente.ID_ASESOR}
+                        onReasignSuccess={onReasignSuccess}
                       />
                     </div>
                   )}
@@ -619,6 +623,8 @@ export default function ListaGeneralClientes({
                           <ReasignarCliente
                             clienteId={cliente.ID}
                             asesorActual={cliente.NOMBRE_ASESOR}
+                            asesorActualId={cliente.ID_ASESOR}
+                            onReasignSuccess={onReasignSuccess}
                           />
                         </div>
                       )}

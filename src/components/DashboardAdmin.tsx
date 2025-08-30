@@ -3532,6 +3532,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                       <ReasignarCliente
                                         clienteId={cliente.ID}
                                         asesorActual={asesorAsignado.NOMBRE}
+                                        asesorActualId={asesorAsignado.ID}
                                         onReasignSuccess={handleClienteReasignado}
                                       />
                                     </div>
@@ -4450,6 +4451,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                       <ReasignarCliente
                                         clienteId={cliente.ID}
                                         asesorActual={asesorAsignado.NOMBRE}
+                                        asesorActualId={asesorAsignado.ID}
                                         onReasignSuccess={handleClienteReasignado}
                                       />
                                     </div>

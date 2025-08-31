@@ -3233,13 +3233,13 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       const actividades = getUltimasActividades(asesor.ID);
                       
                       return (
-                        <div key={asesor.ID} className="bg-gray-50 rounded-lg p-4">
+                        <div key={asesor.ID} className="bg-gray-50 rounded-lg p-4 cursor-pointer" onClick={() => handleAsesorNameClick(asesor)}>
                           {/* Encabezado del asesor */}
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                             <div className="flex items-center">
                               <Users className="h-8 w-8 text-blue-500" />
                               <div className="ml-3">
-                                <h3 className="text-lg font-semibold cursor-pointer hover:text-blue-600" onClick={() => handleAsesorNameClick(asesor)}>{asesor.NOMBRE}</h3>
+                                <h3 className="text-lg font-semibold hover:text-blue-600">{asesor.NOMBRE}</h3>
                                 {horasSinActividad !== null && (
                                   <p className={`text-sm ${horasSinActividad > 10 ? 'text-red-500' : 'text-gray-500'}`}>
                                     {formatInactivityTime(stats?.ultimaActividad)}
@@ -3660,12 +3660,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             const estadoConexion = conexionesEstado[asesor.ID];
 
                             return (
-                              <tr key={asesor.ID} className="hover:bg-gray-50">
+                              <tr key={asesor.ID} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleAsesorNameClick(asesor)} >
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex items-center">
                                     <Users className="h-10 w-10 text-blue-500 mr-3" />
                                     <div>
-                                      <div className="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600" onClick={() => handleAsesorNameClick(asesor)}>{asesor.NOMBRE}</div>
+                                      <div className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</div>
                                       <div className="text-sm text-gray-500">{asesor.WHATSAPP}</div>
                                     </div>
                                   </div>

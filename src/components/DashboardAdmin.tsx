@@ -4495,7 +4495,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                         VIPs en Sistema - Métricas por Asesor
                       </h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        Vista consolidada con 6 estados de VIPs (unificados para mejor legibilidad), porcentajes de contactado, reportado y conversión para toma de decisiones
+                        Vista consolidada con 5 estados de VIPs (sin contacto calculado automáticamente), porcentajes de contactado, reportado y conversión para toma de decisiones
                       </p>
                     </div>
                     <button
@@ -4529,12 +4529,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                         <h4 className="text-sm font-semibold text-blue-900 mb-3">📊 Estados de VIPs en el Sistema</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-blue-800">
-                          <div><strong>🟢 Sin Contacto:</strong> VIPs sin reportes ni actividad</div>
                           <div><strong>🔵 Contactados:</strong> Con conversaciones registradas</div>
                           <div><strong>🟠 En Proceso:</strong> Interesados + En Seguimiento (SEGUIMIENTO + NO CONTESTÓ)</div>
                           <div><strong>🟢 Ventas:</strong> Pagados + Consolidadas (PAGADO + VENTA CONSOLIDADA)</div>
                           <div><strong>🔴 No Interesados:</strong> Estado "NO INTERESADO" (no va a comprar)</div>
                           <div><strong>⚫ No Contactar:</strong> Estado "NO CONTACTAR" (no debe ser contactado)</div>
+                          <div><strong>📊 % Contactado:</strong> Porcentaje de VIPs con actividad (calculado automáticamente)</div>
                         </div>
                       </div>
 
@@ -4545,7 +4545,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             <tr className="bg-gray-50">
                               <th className="text-left px-4 py-3 border-b font-semibold text-gray-700">Asesor</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Total VIPs</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Sin Contacto</th>
+
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Contactados</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">En Proceso</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Ventas</th>
@@ -4570,11 +4570,6 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                 </td>
                                 <td className="text-center px-3 py-3 border-b">
                                   <span className="font-bold text-lg text-gray-800">{asesorData.metricas.totalVIPs}</span>
-                                </td>
-                                <td className="text-center px-3 py-3 border-b">
-                                  <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full font-medium text-sm">
-                                    {asesorData.metricas.sinContacto}
-                                  </span>
                                 </td>
                                 <td className="text-center px-3 py-3 border-b">
                                   <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full font-medium text-sm">

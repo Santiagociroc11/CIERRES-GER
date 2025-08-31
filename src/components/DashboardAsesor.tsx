@@ -517,7 +517,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         setHasShownInitialWarning(true);
       }
     }
-  }, [verificandoWhatsApp, instanceInfo, hasShownInitialWarning, whatsappStatus]);
+  }, [verificandoWhatsApp, instanceInfo, whatsappStatus]); // Removido hasShownInitialWarning de las dependencias
 
   useEffect(() => {
     if (showWhatsAppModal) {

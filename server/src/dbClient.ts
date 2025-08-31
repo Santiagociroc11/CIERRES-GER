@@ -1107,7 +1107,6 @@ function crearMensajeVIPAsignado(vip: any): string {
 
 👤 *Cliente:* ${vip.NOMBRE || 'Sin nombre'}
 📞 *WhatsApp:* ${vip.WHATSAPP}
-${vip.CORREO ? `📧 *Email:* ${vip.CORREO}` : ''}
 
 ${nivelEmoji[nivelConciencia] || '⚡'} *Prioridad:* ${nivelConciencia.toUpperCase()}
 ${origenEmoji[origenRegistro] || '📱'} *Origen:* ${origenRegistro === 'segunda_clase' ? 'Registrado en 2da clase' : 'Grupo WhatsApp'}
@@ -1158,18 +1157,13 @@ export async function crearClienteDesdeVIP(vip: any, asesorId: number): Promise<
     // Crear cliente en GERSSON_CLIENTES
     const clienteData = {
       NOMBRE: vip.NOMBRE || 'VIP Sin Nombre',
-      CORREO: vip.CORREO || null,
       WHATSAPP: vip.WHATSAPP,
       ESTADO: 'LISTA-VIP',
       ID_ASESOR: asesorId,
       NOMBRE_ASESOR: asesorNombre,
+      FECHA_CREACION: new Date().toISOString(),
       FECHA_COMPRA: new Date().toISOString(),
-      MONTO_COMPRA: null, // Se puede actualizar después
-      FUENTE: 'VIP_LIST',
-      NIVEL_CONCIENCIA: vip.NIVEL_CONCIENCIA || 'media',
-      ORIGEN_VIP: vip.ORIGEN_REGISTRO || 'grupo_whatsapp',
-      POSICION_CSV: vip.POSICION_CSV || null,
-      FECHA_ASIGNACION_VIP: new Date().toISOString()
+      MEDIO_COMPRA: 'VIP_LIST'
     };
     
     const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES`, {

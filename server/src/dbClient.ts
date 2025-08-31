@@ -1,4 +1,5 @@
 const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
+import telegramQueue from './services/telegramQueueService';
 
 // Interfaces para webhook logs
 export interface WebhookLogEntry {
@@ -1085,6 +1086,67 @@ export async function getVIPsPendientes(): Promise<VIP[]> {
   }
 }
 
+// Crear mensaje de notificación para VIP asignado
+function crearMensajeVIPAsignado(vip: any): string {
+  const nivelEmoji: Record<string, string> = {
+    'alta': '🔥',
+    'media': '⚡',
+    'baja': '💫'
+  };
+
+  const origenEmoji: Record<string, string> = {
+    'segunda_clase': '🎓',
+    'grupo_whatsapp_activo': '💬',
+    'grupo_whatsapp': '📱'
+  };
+
+  const nivelConciencia = vip.NIVEL_CONCIENCIA || 'media';
+  const origenRegistro = vip.ORIGEN_REGISTRO || 'grupo_whatsapp';
+
+  return `🎯 *NUEVO VIP ASIGNADO*
+
+👤 *Cliente:* ${vip.NOMBRE || 'Sin nombre'}
+📞 *WhatsApp:* ${vip.WHATSAPP}
+${vip.CORREO ? `📧 *Email:* ${vip.CORREO}` : ''}
+
+${nivelEmoji[nivelConciencia] || '⚡'} *Prioridad:* ${nivelConciencia.toUpperCase()}
+${origenEmoji[origenRegistro] || '📱'} *Origen:* ${origenRegistro === 'segunda_clase' ? 'Registrado en 2da clase' : 'Grupo WhatsApp'}
+📍 *Posición CSV:* #${vip.POSICION_CSV || 'N/A'}
+
+⏰ *Asignado:* ${new Date().toLocaleString('es-ES', { 
+  timeZone: 'America/Bogota',
+  day: '2-digit',
+  month: '2-digit', 
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})}
+
+🚀 *¡Contacta lo antes posible!*`;
+}
+
+// Crear mensaje de notificación para asignación masiva de VIPs
+function crearMensajeVIPsMasivos(cantidadVips: number, asesorNombre: string): string {
+  return `🎯 *ASIGNACIÓN MASIVA DE VIPs*
+
+👤 *Asesor:* ${asesorNombre}
+📊 *VIPs Asignados:* ${cantidadVips}
+
+⏰ *Fecha:* ${new Date().toLocaleString('es-ES', { 
+  timeZone: 'America/Bogota',
+  day: '2-digit',
+  month: '2-digit', 
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})}
+
+🔥 Estos VIPs han sido priorizados por su nivel de conciencia
+📋 Revisa tu lista de clientes para verlos todos
+
+🚀 *¡Comienza a contactarlos de inmediato!*`;
+}
+
 // Crear cliente desde VIP
 export async function crearClienteDesdeVIP(vip: any, asesorId: number): Promise<number> {
   try {
@@ -1098,7 +1160,7 @@ export async function crearClienteDesdeVIP(vip: any, asesorId: number): Promise<
       NOMBRE: vip.NOMBRE || 'VIP Sin Nombre',
       CORREO: vip.CORREO || null,
       WHATSAPP: vip.WHATSAPP,
-      ESTADO: 'ACTIVO',
+      ESTADO: 'LISTA-VIP',
       ID_ASESOR: asesorId,
       NOMBRE_ASESOR: asesorNombre,
       FECHA_COMPRA: new Date().toISOString(),
@@ -1173,6 +1235,37 @@ export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise
     if (!updateResponse.ok) {
       // Si falla la actualización del VIP, intentamos eliminar el cliente creado
       console.warn(`⚠️ Error actualizando VIP ${vipId}, pero cliente ${clienteId} ya fue creado`);
+    }
+
+    // 4. Obtener datos del asesor para notificación
+    const asesorResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}&select=NOMBRE,ID_TG`);
+    const asesores = await asesorResponse.json();
+    const asesor = asesores[0];
+    
+    // 5. Enviar notificación por Telegram si el asesor tiene ID_TG
+    if (asesor?.ID_TG) {
+      try {
+        const mensaje = crearMensajeVIPAsignado(vip);
+        const messageId = telegramQueue.enqueueMessage(
+          asesor.ID_TG,
+          mensaje,
+          undefined, // No hay webhookLogId para VIPs
+          {
+            type: 'vip_assignment',
+            asesor: asesor.NOMBRE,
+            vip_id: vipId,
+            cliente_id: clienteId,
+            nivel_conciencia: vip.NIVEL_CONCIENCIA,
+            whatsapp: vip.WHATSAPP
+          }
+        );
+        console.log(`📱 Notificación VIP encolada para ${asesor.NOMBRE}: ${messageId}`);
+      } catch (error) {
+        console.error(`❌ Error encolando notificación VIP para asesor ${asesorId}:`, error);
+        // No falla la asignación por un error de notificación
+      }
+    } else {
+      console.warn(`⚠️ Asesor ${asesorId} sin ID de Telegram configurado, no se envió notificación VIP`);
     }
     
     console.log(`✅ VIP ${vipId} asignado a asesor ${asesorId} y convertido a cliente ${clienteId}`);

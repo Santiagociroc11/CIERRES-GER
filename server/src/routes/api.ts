@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import winston from 'winston';
 import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema } from '../dbClient';
+import telegramQueue from '../services/telegramQueueService';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -424,6 +425,28 @@ router.patch('/vips/:vipId/asignar', async (req, res) => {
   }
 });
 
+// Función para crear mensaje de notificación masiva
+function crearMensajeVIPsMasivos(cantidadVips: number, asesorNombre: string): string {
+  return `🎯 *ASIGNACIÓN MASIVA DE VIPs*
+
+👤 *Asesor:* ${asesorNombre}
+📊 *VIPs Asignados:* ${cantidadVips}
+
+⏰ *Fecha:* ${new Date().toLocaleString('es-ES', { 
+  timeZone: 'America/Bogota',
+  day: '2-digit',
+  month: '2-digit', 
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})}
+
+🔥 Estos VIPs han sido priorizados por su nivel de conciencia
+📋 Revisa tu lista de clientes para verlos todos
+
+🚀 *¡Comienza a contactarlos de inmediato!*`;
+}
+
 // Asignación masiva de VIPs
 router.post('/vips/asignar-masivo', async (req, res) => {
   try {
@@ -478,6 +501,7 @@ router.post('/vips/asignar-masivo', async (req, res) => {
         const vipsParaAsesor = vipsPendientes.slice(indiceProcesado, indiceProcesado + cantidadVips);
         
         // Asignar cada VIP individualmente
+        let vipsAsignadosAsesor = 0;
         for (const vip of vipsParaAsesor) {
           try {
             if (!vip.ID) {
@@ -486,8 +510,40 @@ router.post('/vips/asignar-masivo', async (req, res) => {
             }
             await asignarVIPAsesor(vip.ID, asesorId);
             totalAsignados++;
+            vipsAsignadosAsesor++;
           } catch (error) {
             errores.push(`Error asignando VIP ${vip.ID} al asesor ${asesorId}: ${error}`);
+          }
+        }
+        
+        // Enviar notificación masiva al asesor si se asignaron VIPs exitosamente
+        if (vipsAsignadosAsesor > 0) {
+          try {
+            // Obtener datos del asesor
+            const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
+            const asesorResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}&select=NOMBRE,ID_TG`);
+            const asesores = await asesorResponse.json();
+            const asesor = asesores[0];
+            
+            if (asesor?.ID_TG) {
+              const mensaje = crearMensajeVIPsMasivos(vipsAsignadosAsesor, asesor.NOMBRE);
+              const messageId = telegramQueue.enqueueMessage(
+                asesor.ID_TG,
+                mensaje,
+                undefined,
+                {
+                  type: 'mass_vip_assignment',
+                  asesor: asesor.NOMBRE,
+                  cantidad_vips: vipsAsignadosAsesor,
+                  asesor_id: asesorId
+                }
+              );
+              logger.info(`📱 Notificación masiva VIP encolada para ${asesor.NOMBRE}: ${messageId} (${vipsAsignadosAsesor} VIPs)`);
+            } else {
+              logger.warn(`⚠️ Asesor ${asesorId} sin ID de Telegram, no se envió notificación masiva`);
+            }
+          } catch (error) {
+            logger.error(`❌ Error encolando notificación masiva para asesor ${asesorId}:`, error);
           }
         }
         

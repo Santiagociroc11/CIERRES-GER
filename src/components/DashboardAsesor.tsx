@@ -654,10 +654,12 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   useEffect(() => {
     if (instanceInfo?.connectionStatus === "open") {
       setShowWhatsAppWarning(false);
+      // Reset flag cuando se conecta, por si se desconecta después
+      setHasShownInitialWarning(false);
     }
     // ✅ CORREGIDO: NO mostrar advertencia en cada polling, solo al inicio
     // La advertencia solo se muestra en verificarConexionInicial()
-  }, [instanceInfo]);
+  }, [instanceInfo?.connectionStatus]); // Solo depender del connectionStatus, no del objeto completo
 
   const getClientesEstadoPendiente = () => {
     return clientes.filter(cliente => {

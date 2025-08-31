@@ -639,24 +639,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
               });
               
               if (vip.WHATSAPP) {
-                // Agregar posición en CSV y determinar nivel de conciencia
-                const posicion = i; // Posición basada en el orden en el CSV
-                vip.POSICION_CSV = posicion;
-                
-                // Los primeros 500 se consideran alta conciencia (registrados en segunda clase)
-                // Puedes ajustar este número según tus datos
-                if (posicion <= 500) {
-                  vip.NIVEL_CONCIENCIA = 'alta';
-                  vip.ORIGEN_REGISTRO = 'segunda_clase';
-                } else if (posicion <= 2000) {
-                  vip.NIVEL_CONCIENCIA = 'media';
-                  vip.ORIGEN_REGISTRO = 'grupo_whatsapp_activo';
-                } else {
-                  vip.NIVEL_CONCIENCIA = 'baja';
-                  vip.ORIGEN_REGISTRO = 'grupo_whatsapp';
-                }
-                
                 vips.push(vip);
+              }
               }
             }
           }
@@ -688,8 +672,34 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       // 1. Extraer datos del CSV
       const vipsDelCsv = await procesarArchivoCSV(archivoCsv);
       console.log(`📋 ${vipsDelCsv.length} VIPs extraídos del CSV`);
+      
+      // 2. Asignar posición y nivel de conciencia basado en porcentajes
+      const totalVips = vipsDelCsv.length;
+      vipsDelCsv.forEach((vip, index) => {
+        const posicion = index + 1; // Posición 1-based
+        vip.POSICION_CSV = posicion;
+        
+        // Calcular porcentaje de posición
+        const porcentajePosicion = (posicion / totalVips) * 100;
+        
+        // Primeros 35% = Alta conciencia (registrados durante clase)
+        if (porcentajePosicion <= 35) {
+          vip.NIVEL_CONCIENCIA = 'alta';
+          vip.ORIGEN_REGISTRO = 'segunda_clase';
+        }
+        // Siguientes 35% = Media conciencia (activos en grupo)
+        else if (porcentajePosicion <= 70) {
+          vip.NIVEL_CONCIENCIA = 'media';
+          vip.ORIGEN_REGISTRO = 'grupo_whatsapp_activo';
+        }
+        // Resto 30% = Baja conciencia (pasivos en grupo)
+        else {
+          vip.NIVEL_CONCIENCIA = 'baja';
+          vip.ORIGEN_REGISTRO = 'grupo_whatsapp';
+        }
+      });
 
-      // 2. Procesar VIPs (comparar con clientes existentes)
+      // 3. Procesar VIPs (comparar con clientes existentes)
       const response = await fetch('/api/vips/procesar', {
         method: 'POST',
         headers: {

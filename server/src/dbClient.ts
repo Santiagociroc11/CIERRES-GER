@@ -1716,7 +1716,7 @@ export async function getVIPsTableData(): Promise<any[]> {
         metricas: {
           totalVIPs: estadisticas.total,
           sinContacto: estadisticas['listado-vip'],
-          contactados: estadisticas.contactado,
+          contactados: clientesContactados, // ✅ Usar la misma lógica que el porcentaje
           enSeguimiento: estadisticas['en-seguimiento'],
           interesados: estadisticas.interesado,
           pagados: estadisticas.pagado,

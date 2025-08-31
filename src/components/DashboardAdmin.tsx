@@ -1146,34 +1146,47 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     };
   }, [asesorSeleccionadoChat, conversacionActivaChat, vistaAdmin]);
 
-  const handleAsesorNameClick = (asesor: Asesor) => {
+  const handleAsesorNameClick = async (asesor: Asesor) => {
     setVipModalAsesor(asesor);
     setLoadingVipClientes(true);
-    const asesorData = vipsTablaData.find(data => data.asesor.ID === asesor.ID);
-    if (asesorData && asesorData.vips) {
-      const priority = {
-        'venta-consolidada': 0,
-        'pagado': 1,
-        'interesado': 2,
-        'en-seguimiento': 3,
-        'contactado': 4,
-        'listado-vip': 5,
-        'no-interesado': 6,
-        'no-contactar': 7,
-      };
 
-      const sortedVips = [...asesorData.vips].sort((a, b) => {
-        const priorityA = priority[a.estadoPipeline] ?? 99;
-        const priorityB = priority[b.estadoPipeline] ?? 99;
-        return priorityA - priorityB;
-      });
+    try {
+        const allVipsByAsesor = await apiClient.request<any[]>('/api/vips/pipeline-por-asesor');
 
-      setVipClientes(sortedVips);
-    } else {
-        console.error(`No VIP data found for advisor ${asesor.NOMBRE}`);
+        let asesorData;
+        if (Array.isArray(allVipsByAsesor)) {
+            asesorData = allVipsByAsesor.find(data => data.asesor.ID === asesor.ID);
+        }
+
+        if (asesorData && asesorData.vips) {
+            const priority = {
+                'venta-consolidada': 0,
+                'pagado': 1,
+                'interesado': 2,
+                'en-seguimiento': 3,
+                'contactado': 4,
+                'listado-vip': 5,
+                'no-interesado': 6,
+                'no-contactar': 7,
+            };
+
+            const sortedVips = [...asesorData.vips].sort((a, b) => {
+                const priorityA = priority[a.estadoPipeline] ?? 99;
+                const priorityB = priority[b.estadoPipeline] ?? 99;
+                return priorityA - priorityB;
+            });
+
+            setVipClientes(sortedVips);
+        } else {
+            console.error(`No VIP data found for advisor ${asesor.NOMBRE}`);
+            setVipClientes([]);
+        }
+    } catch (error) {
+        console.error("Error fetching VIP clients for advisor", error);
         setVipClientes([]);
+    } finally {
+        setLoadingVipClientes(false);
     }
-    setLoadingVipClientes(false);
   };
 
   const VipClientsModal = ({ asesor, clients, isLoading, onClose }: { asesor: Asesor | null, clients: any[], isLoading: boolean, onClose: () => void }) => {

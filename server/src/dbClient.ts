@@ -1491,16 +1491,18 @@ export async function getVIPsEnPipelinePorAsesor(): Promise<any[]> {
     const vipsEnSistema = await getVIPsEnSistema();
     
     // Obtener todos los asesores
-    const asesoresResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?select=ID,NOMBRE,ACTIVO&ACTIVO=eq.true&order=NOMBRE.asc`);
+    const asesoresResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?select=ID,NOMBRE&order=NOMBRE.asc`);
     if (!asesoresResponse.ok) {
-      throw new Error('Error obteniendo asesores');
+      const errorText = await asesoresResponse.text();
+      throw new Error(`Error obteniendo asesores: ${asesoresResponse.status} - ${errorText}`);
     }
     const asesores = await asesoresResponse.json();
     
     // Obtener todas las conversaciones para determinar contactos
     const conversacionesResponse = await fetch(`${POSTGREST_URL}/conversaciones?select=id_cliente,wha_cliente,id_asesor,timestamp&order=timestamp.desc`);
     if (!conversacionesResponse.ok) {
-      throw new Error('Error obteniendo conversaciones');
+      const errorText = await conversacionesResponse.text();
+      throw new Error(`Error obteniendo conversaciones: ${conversacionesResponse.status} - ${errorText}`);
     }
     const conversaciones = await conversacionesResponse.json();
     

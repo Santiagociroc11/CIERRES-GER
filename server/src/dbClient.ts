@@ -1143,47 +1143,31 @@ function crearMensajeVIPAsignado(vip: any): string {
   const nivelConciencia = vip.NIVEL_CONCIENCIA || 'media';
   const origenRegistro = vip.ORIGEN_REGISTRO || 'grupo_whatsapp';
 
-  return `🎯 *NUEVO VIP ASIGNADO*
+  return `🎯 *NUEVO CLIENTE DEL LISTADO VIP ASIGNADO*
 
 👤 *Cliente:* ${vip.NOMBRE || 'Sin nombre'}
 📞 *WhatsApp:* ${vip.WHATSAPP}
 
 ${nivelEmoji[nivelConciencia] || '⚡'} *Prioridad:* ${nivelConciencia.toUpperCase()}
 ${origenEmoji[origenRegistro] || '📱'} *Origen:* ${origenRegistro === 'segunda_clase' ? 'Registrado en 2da clase' : 'Grupo WhatsApp'}
-📍 *Posición CSV:* #${vip.POSICION_CSV || 'N/A'}
 
-⏰ *Asignado:* ${new Date().toLocaleString('es-ES', { 
-  timeZone: 'America/Bogota',
-  day: '2-digit',
-  month: '2-digit', 
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit'
-})}
 
-🚀 *¡Contacta lo antes posible!*`;
+
+
+🚀 *¡CONTACTAR Y VENDER EN FRIO!*`;
 }
 
 // Crear mensaje de notificación para asignación masiva de VIPs
 function crearMensajeVIPsMasivos(cantidadVips: number, asesorNombre: string): string {
-  return `🎯 *ASIGNACIÓN MASIVA DE VIPs*
+  return `🎯 *ASIGNACIÓN MASIVA DE CLIENTES DEL LISTADO VIP*
 
 👤 *Asesor:* ${asesorNombre}
-📊 *VIPs Asignados:* ${cantidadVips}
+📊 *Clientes Asignados:* ${cantidadVips}
 
-⏰ *Fecha:* ${new Date().toLocaleString('es-ES', { 
-  timeZone: 'America/Bogota',
-  day: '2-digit',
-  month: '2-digit', 
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit'
-})}
-
-🔥 Estos VIPs han sido priorizados por su nivel de conciencia
+🔥 Estos clientes han sido priorizados por su nivel de conciencia
 📋 Revisa tu lista de clientes para verlos todos
 
-🚀 *¡Comienza a contactarlos de inmediato!*`;
+🚀 *¡CONTACTAR Y VENDER EN FRIO!*`;
 }
 
 // Crear cliente desde VIP

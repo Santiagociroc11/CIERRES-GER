@@ -1750,77 +1750,108 @@ export async function getTodosClientesVIPPorAsesor(asesorId: number): Promise<an
   try {
     console.log(`🔄 Obteniendo todos los clientes VIP del asesor ${asesorId}...`);
     
-    // Paso 1: Obtener VIPs pendientes del asesor (que no son clientes aún)
-    const vipsPendientesResponse = await fetch(
-      `${POSTGREST_URL}/GERSSON_CUPOS_VIP?ASESOR_ASIGNADO=eq.${asesorId}&YA_ES_CLIENTE=eq.false&select=*&order=FECHA_ULTIMA_ACTUALIZACION.desc`
-    );
+    // Usar la misma lógica que getVIPsEnPipelinePorAsesor
+    // Obtener todos los VIPs que ya están en el sistema
+    const vipsEnSistema = await getVIPsEnSistema();
+    console.log(`🔍 DEBUG: Total de VIPs en sistema: ${vipsEnSistema.length}`);
     
-    let vipsPendientes = [];
-    if (vipsPendientesResponse.ok) {
-      vipsPendientes = await vipsPendientesResponse.json();
-      console.log(`📋 ${vipsPendientes.length} VIPs pendientes encontrados para el asesor ${asesorId}`);
+    // Obtener todas las conversaciones para determinar contactos
+    const conversacionesResponse = await fetch(`${POSTGREST_URL}/conversaciones?select=id_cliente,wha_cliente,id_asesor,timestamp&order=timestamp.desc`);
+    if (!conversacionesResponse.ok) {
+      throw new Error(`Error obteniendo conversaciones: ${conversacionesResponse.status}`);
     }
+    const conversaciones = await conversacionesResponse.json();
     
-    // Paso 2: Obtener clientes existentes del asesor que fueron VIPs originalmente
-    const clientesResponse = await fetch(
-      `${POSTGREST_URL}/GERSSON_CLIENTES?ID_ASESOR=eq.${asesorId}&select=ID,NOMBRE,WHATSAPP,EMAIL,ESTADO,ID_ASESOR,NOMBRE_ASESOR,FECHA_COMPRA,MONTO_COMPRA,FUENTE,FECHA_CREACION`
-    );
+    // Normalizar números de WhatsApp para comparación
+    const normalizeWhatsApp = (wha: string): string => {
+      const soloNumeros = wha.replace(/\D/g, '');
+      return soloNumeros.slice(-7);
+    };
     
-    let clientesExistentes = [];
-    if (clientesResponse.ok) {
-      clientesExistentes = await clientesResponse.json();
-      console.log(`👥 ${clientesExistentes.length} clientes existentes encontrados para el asesor ${asesorId}`);
-    }
+    // Crear un mapa de conversaciones por cliente
+    const conversacionesPorCliente = new Map();
+    conversaciones.forEach((conv: any) => {
+      const key = conv.id_cliente || normalizeWhatsApp(conv.wha_cliente || '');
+      if (!conversacionesPorCliente.has(key)) {
+        conversacionesPorCliente.set(key, {
+          tieneConversaciones: true,
+          ultimaConversacion: conv.timestamp,
+          asesorId: conv.id_asesor
+        });
+      }
+    });
     
-    // Paso 3: Combinar y normalizar los datos
-    const todosLosClientes = [];
-    
-    // Agregar VIPs pendientes
-    for (const vip of vipsPendientes) {
-      todosLosClientes.push({
-        ID: vip.ID,
-        NOMBRE: vip.NOMBRE,
-        WHATSAPP: vip.WHATSAPP,
-        EMAIL: vip.EMAIL,
-        FUENTE: vip.FUENTE,
-        estadoPipeline: 'listado-vip', // Estado por defecto para VIPs pendientes
-        tipo: 'vip-pendiente',
-        fechaCreacion: vip.FECHA_IMPORTACION || vip.FECHA_ULTIMA_ACTUALIZACION
-      });
-    }
-    
-    // Agregar clientes existentes con estados del pipeline
-    for (const cliente of clientesExistentes) {
-      let estadoPipeline = 'contactado'; // Estado por defecto
+    // Determinar el estado del pipeline para cada VIP (misma lógica que getVIPsEnPipelinePorAsesor)
+    const determinarEstadoPipeline = (vip: any): string => {
+      const cliente = vip.cliente;
+      const clienteKey = cliente?.ID || normalizeWhatsApp(vip.WHATSAPP || '');
+      const tieneConversaciones = conversacionesPorCliente.has(clienteKey);
       
-      // Determinar estado basado en el estado actual del cliente
-      if (cliente.MONTO_COMPRA && cliente.MONTO_COMPRA > 0) {
-        estadoPipeline = 'pagado';
-      } else if (cliente.ESTADO === 'SEGUIMIENTO') {
-        estadoPipeline = 'en-seguimiento';
-      } else if (cliente.ESTADO === 'NO INTERESADO') {
-        estadoPipeline = 'no-interesado';
-      } else if (cliente.ESTADO === 'VENTA CONSOLIDADA') {
-        estadoPipeline = 'venta-consolidada';
-      } else if (cliente.ESTADO === 'INTERESADO') {
-        estadoPipeline = 'interesado';
-      } else if (cliente.ESTADO === 'NO CONTACTAR') {
-        estadoPipeline = 'no-contactar';
+      // 1. Venta consolidada
+      if (cliente?.ESTADO === 'VENTA CONSOLIDADA') {
+        return 'venta-consolidada';
       }
       
-      todosLosClientes.push({
+      // 2. Pagado
+      if (cliente?.ESTADO === 'PAGADO') {
+        return 'pagado';
+      }
+      
+      // 3. Interesado
+      if (cliente?.ESTADO === 'SEGUIMIENTO') {
+        return 'interesado';
+      }
+      
+      // 4. En seguimiento
+      if (cliente?.ESTADO === 'NO CONTESTÓ') {
+        return 'en-seguimiento';
+      }
+      
+      // 5. Contactado
+      if (tieneConversaciones) {
+        return 'contactado';
+      }
+      
+      // 6. No Interesado
+      if (cliente?.ESTADO === 'NO INTERESADO') {
+        return 'no-interesado';
+      }
+      
+      // 7. No Contactar
+      if (cliente?.ESTADO === 'NO CONTACTAR') {
+        return 'no-contactar';
+      }
+      
+      // 8. Listado VIP (por defecto)
+      return 'listado-vip';
+    };
+    
+    // Filtrar VIPs que pertenecen al asesor específico
+    const vipsDelAsesor = vipsEnSistema.filter(vip => {
+      const cliente = vip.cliente;
+      return cliente && cliente.ID_ASESOR === asesorId;
+    });
+    
+    console.log(`🔍 DEBUG: VIPs del asesor ${asesorId}: ${vipsDelAsesor.length}`);
+    
+    // Convertir a formato del modal
+    const todosLosClientes = vipsDelAsesor.map(vip => {
+      const cliente = vip.cliente;
+      const estadoPipeline = determinarEstadoPipeline(vip);
+      
+      return {
         ID: cliente.ID,
         NOMBRE: cliente.NOMBRE,
         WHATSAPP: cliente.WHATSAPP,
-        EMAIL: cliente.EMAIL,
-        FUENTE: cliente.FUENTE,
+        EMAIL: cliente.EMAIL || '',
+        FUENTE: vip.FUENTE || '',
         estadoPipeline: estadoPipeline,
         tipo: 'cliente-existente',
         fechaCreacion: cliente.FECHA_CREACION,
         fechaCompra: cliente.FECHA_COMPRA,
         montoCompra: cliente.MONTO_COMPRA
-      });
-    }
+      };
+    });
     
     console.log(`✅ Total de ${todosLosClientes.length} clientes VIP obtenidos para el asesor ${asesorId}`);
     return todosLosClientes;

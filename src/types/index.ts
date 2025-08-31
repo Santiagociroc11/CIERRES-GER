@@ -200,8 +200,8 @@ export const esEstadoCritico = (estado: EstadoCliente, cliente?: { ESTADO: strin
     return true;
   }
   
-  // Estado LINK con prioridad alta (prospectos críticos de soporte)
-  if (estado === 'LINK' && cliente?.soporte_prioridad === 'ALTA') {
+  // Estado LINK con prioridad alta o media (prospectos críticos de soporte)
+  if (estado === 'LINK' && (cliente?.soporte_prioridad === 'ALTA' || cliente?.soporte_prioridad === 'MEDIA')) {
     return true;
   }
   

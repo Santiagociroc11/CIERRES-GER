@@ -1629,15 +1629,15 @@ export async function getVIPsTableData(): Promise<any[]> {
       
       // Obtener IDs de clientes del asesor que son VIPs
       const clientesVIPIds = vips
-        .map(vip => vip.cliente?.ID)
-        .filter(id => id);
+        .map((vip: any) => vip.cliente?.ID)
+        .filter((id: any) => id);
       
       if (clientesVIPIds.length === 0) {
         continue;
       }
       
       // Calcular % contactado (clientes con conversaciones)
-      const clientesContactados = vips.filter(vip => 
+      const clientesContactados = vips.filter((vip: any) => 
         ['contactado', 'en-seguimiento', 'interesado', 'pagado', 'venta-consolidada'].includes(vip.estadoPipeline)
       ).length;
       

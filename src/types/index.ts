@@ -189,13 +189,23 @@ export interface EstadisticasDetalladas extends EstadisticasAsesor {
   ultimoMensaje: number | null;
 }
 
-export type EstadoCritico = 'CARRITOS' | 'RECHAZADOS' | 'TICKETS';
+export type EstadoCritico = 'CARRITOS' | 'RECHAZADOS' | 'TICKETS' | 'LINK_ALTA_PRIORIDAD';
 export type EstadoNoCritico = 'LINK' | 'PAGADO' | 'VENTA CONSOLIDADA' | 'MASIVOS';
 export type EstadoAsesor = 'SEGUIMIENTO' | 'NO CONTACTAR' | 'NO CONTESTÓ' | 'NO INTERESADO';
 export type EstadoCliente = EstadoCritico | EstadoNoCritico | EstadoAsesor;
 
-export const esEstadoCritico = (estado: EstadoCliente): estado is EstadoCritico => {
-  return ['CARRITOS', 'RECHAZADOS', 'TICKETS'].includes(estado);
+export const esEstadoCritico = (estado: EstadoCliente, cliente?: { ESTADO: string; soporte_prioridad?: string | null }): estado is EstadoCritico => {
+  // Estados críticos tradicionales
+  if (['CARRITOS', 'RECHAZADOS', 'TICKETS'].includes(estado)) {
+    return true;
+  }
+  
+  // Estado LINK con prioridad alta (prospectos críticos de soporte)
+  if (estado === 'LINK' && cliente?.soporte_prioridad === 'ALTA') {
+    return true;
+  }
+  
+  return false;
 };
 
 export interface ListaGeneralClientesProps {

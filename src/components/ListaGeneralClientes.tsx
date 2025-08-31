@@ -154,7 +154,7 @@ export default function ListaGeneralClientes({
 
     const coincideEstado =
       filtroEstado === 'TODOS' || cliente.ESTADO === filtroEstado;
-    const coincideCriticos = !mostrarSoloCriticos || esEstadoCritico(cliente.ESTADO);
+    const coincideCriticos = !mostrarSoloCriticos || esEstadoCritico(cliente.ESTADO, cliente);
     const coincideVIPs = !mostrarSoloVIPs || esClienteVIP(cliente);
 
     return coincideBusqueda && coincideEstado && coincideCriticos && coincideVIPs;

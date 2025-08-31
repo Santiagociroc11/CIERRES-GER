@@ -1611,4 +1611,96 @@ export async function getVIPsEnPipelinePorAsesor(): Promise<any[]> {
   }
 }
 
+// Nueva función para obtener estadísticas detalladas para vista de tabla VIP
+export async function getVIPsTableData(): Promise<any[]> {
+  try {
+    console.log('🔄 Obteniendo datos de VIPs para vista de tabla con métricas...');
+    
+    // Obtener VIPs pipeline por asesor
+    const vipsPorAsesor = await getVIPsEnPipelinePorAsesor();
+    
+    // Para cada asesor, calcular métricas adicionales
+    const resultado = [];
+    
+    for (const asesorData of vipsPorAsesor) {
+      const asesor = asesorData.asesor;
+      const vips = asesorData.vips;
+      const estadisticas = asesorData.estadisticas;
+      
+      // Obtener IDs de clientes del asesor que son VIPs
+      const clientesVIPIds = vips
+        .map(vip => vip.cliente?.ID)
+        .filter(id => id);
+      
+      if (clientesVIPIds.length === 0) {
+        continue;
+      }
+      
+      // Calcular % contactado (clientes con conversaciones)
+      const clientesContactados = vips.filter(vip => 
+        ['contactado', 'en-seguimiento', 'interesado', 'pagado', 'venta-consolidada'].includes(vip.estadoPipeline)
+      ).length;
+      
+      const porcentajeContactado = estadisticas.total > 0 
+        ? Math.round((clientesContactados / estadisticas.total) * 100) 
+        : 0;
+      
+      // Calcular % reportado (clientes con reportes en GERSSON_REPORTES)
+      let clientesReportados = 0;
+      try {
+        const reportesResponse = await fetch(
+          `${POSTGREST_URL}/GERSSON_REPORTES?ID_CLIENTE=in.(${clientesVIPIds.join(',')})&ID_ASESOR=eq.${asesor.ID}&select=ID_CLIENTE`
+        );
+        
+        if (reportesResponse.ok) {
+          const reportes = await reportesResponse.json();
+          // Contar clientes únicos que tienen reportes
+          const clientesConReporte = new Set(reportes.map((r: any) => r.ID_CLIENTE));
+          clientesReportados = clientesConReporte.size;
+        }
+      } catch (error) {
+        console.warn(`⚠️  Error obteniendo reportes para asesor ${asesor.NOMBRE}:`, error);
+      }
+      
+      const porcentajeReportado = estadisticas.total > 0 
+        ? Math.round((clientesReportados / estadisticas.total) * 100) 
+        : 0;
+      
+      // Calcular conversión (pagados + consolidadas)
+      const clientesConversion = estadisticas.pagado + estadisticas['venta-consolidada'];
+      const porcentajeConversion = estadisticas.total > 0 
+        ? Math.round((clientesConversion / estadisticas.total) * 100) 
+        : 0;
+      
+      resultado.push({
+        asesor: asesor,
+        estadisticas: estadisticas,
+        metricas: {
+          totalVIPs: estadisticas.total,
+          sinContacto: estadisticas['listado-vip'],
+          contactados: estadisticas.contactado,
+          enSeguimiento: estadisticas['en-seguimiento'],
+          interesados: estadisticas.interesado,
+          pagados: estadisticas.pagado,
+          consolidadas: estadisticas['venta-consolidada'],
+          porcentajeContactado: porcentajeContactado,
+          porcentajeReportado: porcentajeReportado,
+          porcentajeConversion: porcentajeConversion,
+          clientesReportados: clientesReportados
+        }
+      });
+    }
+    
+    // Ordenar por total de VIPs descendente
+    resultado.sort((a, b) => b.metricas.totalVIPs - a.metricas.totalVIPs);
+    
+    console.log(`✅ Datos de tabla VIP generados para ${resultado.length} asesores`);
+    return resultado;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo datos de tabla VIP:', error);
+    throw error;
+  }
+}
+
  

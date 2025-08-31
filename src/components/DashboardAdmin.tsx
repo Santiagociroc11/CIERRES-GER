@@ -97,6 +97,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [cargandoVipsEnSistema, setCargandoVipsEnSistema] = useState(false);
   const [vipsPipelinePorAsesor, setVipsPipelinePorAsesor] = useState<any[]>([]);
   const [cargandoPipeline, setCargandoPipeline] = useState(false);
+  const [vipsTablaData, setVipsTablaData] = useState<any[]>([]);
+  const [cargandoTablaVips, setCargandoTablaVips] = useState(false);
   
   // Estados para asignación masiva
   const [asignacionMasiva, setAsignacionMasiva] = useState<{[asesorId: number]: number}>({});
@@ -963,13 +965,32 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     }
   };
 
+  const cargarVIPsTablaData = async () => {
+    setCargandoTablaVips(true);
+    try {
+      const response = await fetch('/api/vips/table-data');
+      if (response.ok) {
+        const resultado = await response.json();
+        setVipsTablaData(resultado.data);
+        console.log(`✅ Datos de tabla VIP cargados para ${resultado.data.length} asesores`);
+      } else {
+        throw new Error('Error cargando datos de tabla VIP');
+      }
+    } catch (error) {
+      console.error('❌ Error cargando datos de tabla VIP:', error);
+      alert('Error cargando datos de tabla VIP');
+    } finally {
+      setCargandoTablaVips(false);
+    }
+  };
+
   // Cargar VIPs según la subvista activa
   useEffect(() => {
     if (vistaAdmin === 'vips') {
       if (vistaVIP === 'pendientes') {
         cargarVIPsPendientes();
       } else if (vistaVIP === 'en-sistema') {
-        cargarVIPsPipelinePorAsesor();
+        cargarVIPsTablaData();
       }
     }
   }, [vistaAdmin, vistaVIP]);
@@ -4464,37 +4485,37 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 </div>
               </div>
             ) : (
-              /* Subvista: VIPs en Sistema - Tablero Kanban */
+              /* Subvista: VIPs en Sistema - Tabla con Métricas */
               <div className="bg-white rounded-xl shadow-sm border border-gray-200">
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-800 flex items-center">
                         <BarChart className="h-5 w-5 mr-2 text-yellow-600" />
-                        VIPs en Sistema - Pipeline por Asesor
+                        VIPs en Sistema - Métricas por Asesor
                       </h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        Estado real del pipeline de VIPs asignados por cada asesor basado en actividad
+                        Vista consolidada con porcentajes de contactado, reportado y conversión para toma de decisiones
                       </p>
                     </div>
                     <button
-                      onClick={cargarVIPsPipelinePorAsesor}
-                      disabled={cargandoPipeline}
+                      onClick={cargarVIPsTablaData}
+                      disabled={cargandoTablaVips}
                       className="flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50"
                     >
-                      <RefreshCcw className={`h-4 w-4 mr-2 ${cargandoPipeline ? 'animate-spin' : ''}`} />
-                      {cargandoPipeline ? 'Cargando...' : 'Actualizar'}
+                      <RefreshCcw className={`h-4 w-4 mr-2 ${cargandoTablaVips ? 'animate-spin' : ''}`} />
+                      {cargandoTablaVips ? 'Cargando...' : 'Actualizar'}
                     </button>
                   </div>
                 </div>
 
                 <div className="p-6">
-                  {cargandoPipeline ? (
+                  {cargandoTablaVips ? (
                     <div className="text-center py-12">
                       <RefreshCcw className="mx-auto h-8 w-8 text-gray-400 animate-spin" />
-                      <p className="mt-2 text-sm text-gray-500">Cargando pipeline de VIPs...</p>
+                      <p className="mt-2 text-sm text-gray-500">Cargando datos de VIPs...</p>
                     </div>
-                  ) : vipsPipelinePorAsesor.length === 0 ? (
+                  ) : vipsTablaData.length === 0 ? (
                     <div className="text-center py-12">
                       <BarChart className="mx-auto h-12 w-12 text-gray-400" />
                       <h3 className="mt-2 text-sm font-medium text-gray-900">No hay VIPs asignados</h3>
@@ -4504,307 +4525,137 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
                   ) : (
                     <div>
-                      {/* Pipeline por Asesor */}
-                      <div className="space-y-6">
-                        {vipsPipelinePorAsesor.map((asesorData: any) => (
-                          <div key={asesorData.asesor.ID} className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center">
-                                <Users className="h-8 w-8 text-blue-600 mr-3" />
-                                <div>
-                                  <h4 className="text-lg font-semibold text-gray-900">{asesorData.asesor.NOMBRE}</h4>
-                                  <p className="text-sm text-gray-500">{asesorData.estadisticas.total} VIPs asignados</p>
-                                </div>
-                              </div>
-                              <div className="flex space-x-4 text-center">
-                                <div>
-                                  <p className="text-lg font-bold text-green-600">{asesorData.estadisticas['venta-consolidada']}</p>
-                                  <p className="text-xs text-gray-500">Ventas</p>
-                                </div>
-                                <div>
-                                  <p className="text-lg font-bold text-purple-600">{asesorData.estadisticas.pagado}</p>
-                                  <p className="text-xs text-gray-500">Pagados</p>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-6 gap-2">
-                              <div className="bg-gray-100 p-3 rounded text-center">
-                                <div className="text-sm font-medium text-gray-700">Sin Contacto</div>
-                                <div className="text-xl font-bold text-gray-700">{asesorData.estadisticas['listado-vip']}</div>
-                              </div>
-                              <div className="bg-blue-50 p-3 rounded text-center">
-                                <div className="text-sm font-medium text-blue-700">Contactado</div>
-                                <div className="text-xl font-bold text-blue-700">{asesorData.estadisticas.contactado}</div>
-                              </div>
-                              <div className="bg-yellow-50 p-3 rounded text-center">
-                                <div className="text-sm font-medium text-yellow-700">En Seguimiento</div>
-                                <div className="text-xl font-bold text-yellow-700">{asesorData.estadisticas['en-seguimiento']}</div>
-                              </div>
-                              <div className="bg-orange-50 p-3 rounded text-center">
-                                <div className="text-sm font-medium text-orange-700">Interesado</div>
-                                <div className="text-xl font-bold text-orange-700">{asesorData.estadisticas.interesado}</div>
-                              </div>
-                              <div className="bg-purple-50 p-3 rounded text-center">
-                                <div className="text-sm font-medium text-purple-700">Pagado</div>
-                                <div className="text-xl font-bold text-purple-700">{asesorData.estadisticas.pagado}</div>
-                              </div>
-                              <div className="bg-green-50 p-3 rounded text-center">
-                                <div className="text-sm font-medium text-green-700">Consolidada</div>
-                                <div className="text-xl font-bold text-green-700">{asesorData.estadisticas['venta-consolidada']}</div>
-                              </div>
-                            </div>
-                            
-                            <div className="mt-3 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                style={{
-                                  width: `${((asesorData.estadisticas.pagado + asesorData.estadisticas['venta-consolidada']) / asesorData.estadisticas.total) * 100}%`
-                                }}
-                              ></div>
-                            </div>
-                            <div className="flex justify-between text-xs text-gray-500 mt-1">
-                              <span>Conversión: {Math.round(((asesorData.estadisticas.pagado + asesorData.estadisticas['venta-consolidada']) / asesorData.estadisticas.total) * 100)}%</span>
-                            </div>
-                          </div>
-                        ))}
+                      {/* Tabla de Métricas VIP por Asesor */}
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full table-auto border-collapse">
+                          <thead>
+                            <tr className="bg-gray-50">
+                              <th className="text-left px-4 py-3 border-b font-semibold text-gray-700">Asesor</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Total VIPs</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Sin Contacto</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Contactados</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">En Seguimiento</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Interesados</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Pagados</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Consolidadas</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-blue-600">% Contactado</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-purple-600">% Reportado</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-green-600">% Conversión</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {vipsTablaData.map((asesorData: any) => (
+                              <tr key={asesorData.asesor.ID} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-3 border-b">
+                                  <div className="flex items-center">
+                                    <Users className="h-5 w-5 text-blue-600 mr-2" />
+                                    <div>
+                                      <div className="font-medium text-gray-900">{asesorData.asesor.NOMBRE}</div>
+                                      <div className="text-xs text-gray-500">ID: {asesorData.asesor.ID}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <span className="font-bold text-lg text-gray-800">{asesorData.metricas.totalVIPs}</span>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full font-medium text-sm">
+                                    {asesorData.metricas.sinContacto}
+                                  </span>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full font-medium text-sm">
+                                    {asesorData.metricas.contactados}
+                                  </span>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <span className="px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full font-medium text-sm">
+                                    {asesorData.metricas.enSeguimiento}
+                                  </span>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <span className="px-2 py-1 bg-orange-50 text-orange-700 rounded-full font-medium text-sm">
+                                    {asesorData.metricas.interesados}
+                                  </span>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded-full font-medium text-sm">
+                                    {asesorData.metricas.pagados}
+                                  </span>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <span className="px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium text-sm">
+                                    {asesorData.metricas.consolidadas}
+                                  </span>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <div className="flex flex-col items-center">
+                                    <span className="font-bold text-lg text-blue-600">{asesorData.metricas.porcentajeContactado}%</span>
+                                    <div className="w-12 bg-gray-200 rounded-full h-2 mt-1">
+                                      <div 
+                                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                                        style={{width: `${asesorData.metricas.porcentajeContactado}%`}}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <div className="flex flex-col items-center">
+                                    <span className="font-bold text-lg text-purple-600">{asesorData.metricas.porcentajeReportado}%</span>
+                                    <div className="w-12 bg-gray-200 rounded-full h-2 mt-1">
+                                      <div 
+                                        className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                                        style={{width: `${asesorData.metricas.porcentajeReportado}%`}}
+                                      ></div>
+                                    </div>
+                                    <span className="text-xs text-gray-500 mt-1">{asesorData.metricas.clientesReportados} reportados</span>
+                                  </div>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <div className="flex flex-col items-center">
+                                    <span className="font-bold text-lg text-green-600">{asesorData.metricas.porcentajeConversion}%</span>
+                                    <div className="w-12 bg-gray-200 rounded-full h-2 mt-1">
+                                      <div 
+                                        className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                        style={{width: `${asesorData.metricas.porcentajeConversion}%`}}
+                                      ></div>
+                                    </div>
+                                    <span className="text-xs text-gray-500 mt-1">{asesorData.metricas.pagados + asesorData.metricas.consolidadas} ventas</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                      {/* Métricas originales del Kanban (ocultas temporalmente) */}
-                      <div className="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                          <div className="text-center">
-                            <p className="text-2xl font-bold text-blue-700">
-                              {vipsEnSistema.filter(v => v.estadoKanban === 'lead').length}
-                            </p>
-                            <p className="text-sm text-blue-600">Leads</p>
+                      
+                      {/* Resumen de totales */}
+                      <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-blue-50 p-4 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-blue-600">
+                            {vipsTablaData.reduce((sum, asesor) => sum + asesor.metricas.totalVIPs, 0)}
                           </div>
+                          <div className="text-sm text-blue-700">Total VIPs</div>
                         </div>
-                        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                          <div className="text-center">
-                            <p className="text-2xl font-bold text-orange-700">
-                              {vipsEnSistema.filter(v => v.estadoKanban === 'interesado').length}
-                            </p>
-                            <p className="text-sm text-orange-600">Interesados</p>
+                        <div className="bg-purple-50 p-4 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-purple-600">
+                            {vipsTablaData.reduce((sum, asesor) => sum + asesor.metricas.clientesReportados, 0)}
                           </div>
+                          <div className="text-sm text-purple-700">Total Reportados</div>
                         </div>
-                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                          <div className="text-center">
-                            <p className="text-2xl font-bold text-green-700">
-                              {vipsEnSistema.filter(v => v.estadoKanban === 'comprador').length}
-                            </p>
-                            <p className="text-sm text-green-600">Compradores</p>
+                        <div className="bg-green-50 p-4 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-green-600">
+                            {vipsTablaData.reduce((sum, asesor) => sum + asesor.metricas.pagados + asesor.metricas.consolidadas, 0)}
                           </div>
+                          <div className="text-sm text-green-700">Total Ventas</div>
                         </div>
-                        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                          <div className="text-center">
-                            <p className="text-2xl font-bold text-red-700">
-                              {vipsEnSistema.filter(v => v.estadoKanban === 'no_interesado').length}
-                            </p>
-                            <p className="text-sm text-red-600">No Interesados</p>
+                        <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-yellow-600">
+                            {vipsTablaData.length > 0 ? 
+                              Math.round((vipsTablaData.reduce((sum, asesor) => sum + asesor.metricas.pagados + asesor.metricas.consolidadas, 0) / 
+                                         vipsTablaData.reduce((sum, asesor) => sum + asesor.metricas.totalVIPs, 0)) * 100) : 0}%
                           </div>
-                        </div>
-                      </div>
-
-                      {/* Tablero Kanban */}
-                      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                        {/* Columna 1: Leads */}
-                        <div className="bg-blue-50 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-medium text-blue-900 flex items-center">
-                              <Users className="h-4 w-4 mr-2" />
-                              Leads ({vipsEnSistema.filter(v => v.estadoKanban === 'lead').length})
-                            </h4>
-                          </div>
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
-                            {vipsEnSistema.filter(v => v.estadoKanban === 'lead').slice(0, 20).map((vip: any) => (
-                              <div key={vip.ID} className="bg-white p-3 rounded-lg shadow-sm border">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {vip.NOMBRE || 'Sin nombre'}
-                                    </div>
-                                    {vip.NIVEL_CONCIENCIA === 'alta' && (
-                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
-                                        ALTA
-                                      </span>
-                                    )}
-                                    {vip.NIVEL_CONCIENCIA === 'media' && (
-                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
-                                        MEDIA
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-xs text-gray-500 space-y-1">
-                                  <div>📱 {vip.WHATSAPP}</div>
-                                  <div>👤 {vip.cliente.NOMBRE_ASESOR || 'Sin asesor'}</div>
-                                  <div>📊 Estado: {vip.cliente.ESTADO}</div>
-                                  {vip.POSICION_CSV && (
-                                    <div>📍 Posición CSV: #{vip.POSICION_CSV}</div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Columna 2: Interesados */}
-                        <div className="bg-orange-50 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-medium text-orange-900 flex items-center">
-                              <Target className="h-4 w-4 mr-2" />
-                              Interesados ({vipsEnSistema.filter(v => v.estadoKanban === 'interesado').length})
-                            </h4>
-                          </div>
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
-                            {vipsEnSistema.filter(v => v.estadoKanban === 'interesado').slice(0, 20).map((vip: any) => (
-                              <div key={vip.ID} className="bg-white p-3 rounded-lg shadow-sm border">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {vip.NOMBRE || 'Sin nombre'}
-                                    </div>
-                                    {vip.NIVEL_CONCIENCIA === 'alta' && (
-                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
-                                        ALTA
-                                      </span>
-                                    )}
-                                    {vip.NIVEL_CONCIENCIA === 'media' && (
-                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
-                                        MEDIA
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-xs text-gray-500 space-y-1">
-                                  <div>📱 {vip.WHATSAPP}</div>
-                                  <div>👤 {vip.cliente.NOMBRE_ASESOR || 'Sin asesor'}</div>
-                                  <div>📊 Estado: {vip.cliente.ESTADO}</div>
-                                  {vip.POSICION_CSV && (
-                                    <div>📍 Posición CSV: #{vip.POSICION_CSV}</div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Columna 3: Compradores */}
-                        <div className="bg-green-50 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-medium text-green-900 flex items-center">
-                              <DollarSign className="h-4 w-4 mr-2" />
-                              Compradores ({vipsEnSistema.filter(v => v.estadoKanban === 'comprador').length})
-                            </h4>
-                          </div>
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
-                            {vipsEnSistema.filter(v => v.estadoKanban === 'comprador').slice(0, 20).map((vip: any) => (
-                              <div key={vip.ID} className="bg-white p-3 rounded-lg shadow-sm border border-green-200">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {vip.NOMBRE || 'Sin nombre'}
-                                    </div>
-                                    {vip.NIVEL_CONCIENCIA === 'alta' && (
-                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
-                                        ALTA
-                                      </span>
-                                    )}
-                                    {vip.NIVEL_CONCIENCIA === 'media' && (
-                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
-                                        MEDIA
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-xs text-gray-500 space-y-1">
-                                  <div>📱 {vip.WHATSAPP}</div>
-                                  <div>👤 {vip.cliente.NOMBRE_ASESOR || 'Sin asesor'}</div>
-                                  <div className="text-green-600 font-medium">
-                                    💰 ${vip.cliente.MONTO_COMPRA?.toLocaleString() || '0'}
-                                  </div>
-                                  <div>📅 {vip.cliente.FECHA_COMPRA ? new Date(vip.cliente.FECHA_COMPRA).toLocaleDateString() : 'Sin fecha'}</div>
-                                  {vip.POSICION_CSV && (
-                                    <div>📍 Posición CSV: #{vip.POSICION_CSV}</div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Columna 4: No Interesados */}
-                        <div className="bg-red-50 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-medium text-red-900 flex items-center">
-                              <AlertTriangle className="h-4 w-4 mr-2" />
-                              No Interesados ({vipsEnSistema.filter(v => v.estadoKanban === 'no_interesado').length})
-                            </h4>
-                          </div>
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
-                            {vipsEnSistema.filter(v => v.estadoKanban === 'no_interesado').slice(0, 20).map((vip: any) => (
-                              <div key={vip.ID} className="bg-white p-3 rounded-lg shadow-sm border">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {vip.NOMBRE || 'Sin nombre'}
-                                    </div>
-                                    {vip.NIVEL_CONCIENCIA === 'alta' && (
-                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
-                                        ALTA
-                                      </span>
-                                    )}
-                                    {vip.NIVEL_CONCIENCIA === 'media' && (
-                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
-                                        MEDIA
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-xs text-gray-500 space-y-1">
-                                  <div>📱 {vip.WHATSAPP}</div>
-                                  <div>👤 {vip.cliente.NOMBRE_ASESOR || 'Sin asesor'}</div>
-                                  <div>📊 Estado: {vip.cliente.ESTADO}</div>
-                                  {vip.POSICION_CSV && (
-                                    <div>📍 Posición CSV: #{vip.POSICION_CSV}</div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Resumen estadístico */}
-                      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                        <h4 className="font-medium text-gray-900 mb-2">📊 Análisis de Conversión</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-600">Tasa de Conversión:</span>
-                            <span className="font-bold text-green-600 ml-1">
-                              {vipsEnSistema.length > 0 
-                                ? ((vipsEnSistema.filter(v => v.estadoKanban === 'comprador').length / vipsEnSistema.length) * 100).toFixed(1)
-                                : 0}%
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">VIPs Alta Conciencia:</span>
-                            <span className="font-bold text-red-600 ml-1">
-                              {vipsEnSistema.filter(v => v.NIVEL_CONCIENCIA === 'alta').length}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">VIPs Media Conciencia:</span>
-                            <span className="font-bold text-orange-600 ml-1">
-                              {vipsEnSistema.filter(v => v.NIVEL_CONCIENCIA === 'media').length}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Total en Sistema:</span>
-                            <span className="font-bold text-blue-600 ml-1">
-                              {vipsEnSistema.length}
-                            </span>
-                          </div>
+                          <div className="text-sm text-yellow-700">Conversión Global</div>
                         </div>
                       </div>
                     </div>

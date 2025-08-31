@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import winston from 'winston';
-import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor } from '../dbClient';
+import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData } from '../dbClient';
 import telegramQueue from '../services/telegramQueueService';
 
 const router = Router();
@@ -687,6 +687,29 @@ router.get('/vips/pipeline-por-asesor', async (req, res) => {
     
   } catch (error) {
     logger.error('❌ Error obteniendo VIPs en pipeline por asesor:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Obtener datos de VIPs para vista de tabla con métricas
+router.get('/vips/table-data', async (req, res) => {
+  try {
+    logger.info('🔄 Obteniendo datos de VIPs para vista de tabla');
+    
+    const vipsTableData = await getVIPsTableData();
+    
+    res.json({
+      success: true,
+      data: vipsTableData,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('❌ Error obteniendo datos de tabla VIP:', error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',

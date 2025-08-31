@@ -4598,6 +4598,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                         style={{width: `${asesorData.metricas.porcentajeContactado}%`}}
                                       ></div>
                                     </div>
+                                    <span className="text-xs text-gray-500 mt-1">{asesorData.metricas.contactados} contactados</span>
                                   </div>
                                 </td>
                                 <td className="text-center px-3 py-3 border-b">

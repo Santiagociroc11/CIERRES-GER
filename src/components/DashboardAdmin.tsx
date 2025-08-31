@@ -703,9 +703,9 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       
       const tamanioLote = 100;
       const resultadoFinal = {
-        yaEnSistema: [],
-        nuevosVIPs: [],
-        errores: []
+        yaEnSistema: [] as any[],
+        nuevosVIPs: [] as any[],
+        errores: [] as string[]
       };
 
       for (let i = 0; i < vipsDelCsv.length; i += tamanioLote) {
@@ -755,22 +755,37 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     try {
       console.log(`🔄 Guardando ${resultadoProceso.nuevosVIPs.length} VIPs nuevos...`);
       
-      const response = await fetch('/api/vips/guardar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ vips: resultadoProceso.nuevosVIPs })
-      });
+      const BATCH_SIZE = 100;
+      const vips = resultadoProceso.nuevosVIPs;
+      const totalLotes = Math.ceil(vips.length / BATCH_SIZE);
+      let totalInsertados = 0;
 
-      if (!response.ok) {
-        throw new Error('Error guardando VIPs');
+      for (let i = 0; i < totalLotes; i++) {
+        const inicio = i * BATCH_SIZE;
+        const fin = Math.min(inicio + BATCH_SIZE, vips.length);
+        const lote = vips.slice(inicio, fin);
+        
+        console.log(`📦 Guardando lote ${i + 1}/${totalLotes} (${lote.length} VIPs)`);
+
+        const response = await fetch('/api/vips/guardar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ vips: lote })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error guardando lote ${i + 1}: ${response.status} ${response.statusText}`);
+        }
+
+        const resultado = await response.json();
+        totalInsertados += resultado.data.insertados || lote.length;
+        console.log(`✅ Lote ${i + 1} guardado: ${resultado.data.insertados || lote.length} VIPs`);
       }
 
-      const resultado = await response.json();
-      console.log('✅ VIPs guardados:', resultado);
-
-      alert(`${resultado.data.insertados} VIPs guardados exitosamente`);
+      console.log(`✅ Todos los VIPs guardados: ${totalInsertados} total`);
+      alert(`${totalInsertados} VIPs guardados exitosamente`);
       
       // Limpiar el resultado y archivo
       setResultadoProceso(null);

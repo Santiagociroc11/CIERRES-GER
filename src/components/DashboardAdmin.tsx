@@ -4495,7 +4495,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                         VIPs en Sistema - Métricas por Asesor
                       </h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        Vista consolidada con 5 estados de VIPs (sin contacto calculado automáticamente), porcentajes de contactado, reportado y conversión para toma de decisiones
+                        Vista consolidada con métricas de VIPs por asesor, porcentajes de contactado, reportado y conversión para toma de decisiones
                       </p>
                     </div>
                     <button
@@ -4525,19 +4525,6 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
                   ) : (
                     <div>
-                      {/* Leyenda de Estados VIP */}
-                      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <h4 className="text-sm font-semibold text-blue-900 mb-3">📊 Estados de VIPs en el Sistema</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-blue-800">
-                          <div><strong>🔵 Contactados:</strong> Con conversaciones registradas</div>
-                          <div><strong>🟠 En Proceso:</strong> Interesados + En Seguimiento (SEGUIMIENTO + NO CONTESTÓ)</div>
-                          <div><strong>🟢 Ventas:</strong> Pagados + Consolidadas (PAGADO + VENTA CONSOLIDADA)</div>
-                          <div><strong>🔴 No Interesados:</strong> Estado "NO INTERESADO" (no va a comprar)</div>
-                          <div><strong>⚫ No Contactar:</strong> Estado "NO CONTACTAR" (no debe ser contactado)</div>
-                          <div><strong>📊 % Contactado:</strong> Porcentaje de VIPs con actividad (calculado automáticamente)</div>
-                        </div>
-                      </div>
-
                       {/* Tabla de Métricas VIP por Asesor */}
                       <div className="overflow-x-auto">
                         <table className="min-w-full table-auto border-collapse">

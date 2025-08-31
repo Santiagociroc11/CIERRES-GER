@@ -1190,58 +1190,35 @@ function crearMensajeVIPsMasivos(cantidadVips: number, asesorNombre: string): st
 export async function crearClienteDesdeVIP(vip: any, asesorId: number): Promise<number> {
   try {
     // Obtener datos del asesor para el registro
-    const asesorResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}&select=NOMBRE`);
+    const asesorResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}&select=NOMBRE,WHATSAPP`);
     const asesores = await asesorResponse.json();
-    const asesorNombre = asesores[0]?.NOMBRE || 'Asesor Desconocido';
+    const asesor = asesores[0];
+    const asesorNombre = asesor?.NOMBRE || 'Asesor Desconocido';
     
-    // Crear cliente en GERSSON_CLIENTES
-    const clienteData = {
+    // Crear cliente usando la misma función que Hotmart
+    const nuevoCliente = await createCliente({
       NOMBRE: vip.NOMBRE || 'VIP Sin Nombre',
       WHATSAPP: vip.WHATSAPP,
       ESTADO: 'LISTA-VIP',
       ID_ASESOR: asesorId,
       NOMBRE_ASESOR: asesorNombre,
-      FECHA_CREACION: new Date().toISOString()
-    };
-    
-    const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify(clienteData)
+      WHA_ASESOR: asesor?.WHATSAPP, // Incluir WhatsApp del asesor como Hotmart
+      FECHA_CREACION: Math.floor(Date.now() / 1000) // Timestamp como Hotmart
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Error creando cliente: ${response.status} - ${errorText}`);
-    }
+    const clienteId = nuevoCliente[0]?.ID;
     
-    const clienteCreado = await response.json();
-    const clienteId = clienteCreado[0]?.ID;
+    console.log(`✅ Cliente creado desde VIP: ID ${clienteId}, Nombre: ${vip.NOMBRE || 'VIP Sin Nombre'}`);
     
-    console.log(`✅ Cliente creado desde VIP: ID ${clienteId}, Nombre: ${clienteData.NOMBRE}`);
-    
-    // Crear registro del evento VIP (igual que Hotmart)
+    // Crear registro del evento VIP usando la misma función que Hotmart
+    const currentTimestamp = Math.floor(Date.now() / 1000);
     try {
-      const registroResponse = await fetch(`${POSTGREST_URL}/GERSSON_REGISTROS`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ID_CLIENTE: clienteId,
-          TIPO_EVENTO: 'ASIGNACION_VIP',
-          FECHA_EVENTO: Math.floor(Date.now() / 1000) // Timestamp como en Hotmart
-        })
+      await insertRegistro({
+        ID_CLIENTE: clienteId,
+        TIPO_EVENTO: 'ASIGNACION_VIP',
+        FECHA_EVENTO: currentTimestamp
       });
-      
-      if (registroResponse.ok) {
-        console.log(`✅ Registro VIP creado para cliente ${clienteId}`);
-      } else {
-        console.warn(`⚠️ Error creando registro VIP para cliente ${clienteId}`);
-      }
+      console.log(`✅ Registro VIP creado para cliente ${clienteId}`);
     } catch (error) {
       console.error('❌ Error creando registro VIP:', error);
     }

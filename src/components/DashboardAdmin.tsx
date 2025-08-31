@@ -4637,7 +4637,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           </thead>
                           <tbody>
                             {vipsTablaData.map((asesorData: any) => (
-                              <tr key={asesorData.asesor.ID} className="hover:bg-gray-50 transition-colors">
+                              <tr key={asesorData.asesor.ID} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => handleAsesorNameClick(asesorData.asesor)} >
                                 <td className="px-4 py-3 border-b">
                                   <div className="flex items-center">
                                     <Users className="h-5 w-5 text-blue-600 mr-2" />

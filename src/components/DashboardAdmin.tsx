@@ -1146,56 +1146,61 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     };
   }, [asesorSeleccionadoChat, conversacionActivaChat, vistaAdmin]);
 
-  const handleAsesorNameClick = async (asesor: Asesor) => {
+  const handleAsesorNameClick = (asesor: Asesor) => {
     setVipModalAsesor(asesor);
     setLoadingVipClientes(true);
-    try {
-      const response = await apiClient.request<any[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}&es_vip=eq.true&select=*`);
-      
-      const getClientPriority = (client: any) => {
-        if (client.ESTADO === 'VENTA CONSOLIDADA') return 0;
-        if (client.ESTADO === 'PAGADO') return 1;
-        
-        const hasReport = reportes.some(r => r.ID_CLIENTE === client.ID);
-        if (hasReport) return 2;
-
-        const hasContact = conversaciones.some(c => c.id_cliente === client.ID);
-        if (!hasContact) return 3;
-
-        return 4;
+    const asesorData = vipsTablaData.find(data => data.asesor.ID === asesor.ID);
+    if (asesorData && asesorData.vips) {
+      const priority = {
+        'venta-consolidada': 0,
+        'pagado': 1,
+        'interesado': 2,
+        'en-seguimiento': 3,
+        'contactado': 4,
+        'listado-vip': 5,
+        'no-interesado': 6,
+        'no-contactar': 7,
       };
 
-      const sortedClients = response.sort((a, b) => getClientPriority(a) - getClientPriority(b));
-      setVipClientes(sortedClients);
+      const sortedVips = [...asesorData.vips].sort((a, b) => {
+        const priorityA = priority[a.estadoPipeline] ?? 99;
+        const priorityB = priority[b.estadoPipeline] ?? 99;
+        return priorityA - priorityB;
+      });
 
-    } catch (error) {
-      console.error("Error fetching VIP clients for advisor", error);
-      setVipClientes([]);
-    } finally {
-      setLoadingVipClientes(false);
+      setVipClientes(sortedVips);
+    } else {
+        console.error(`No VIP data found for advisor ${asesor.NOMBRE}`);
+        setVipClientes([]);
     }
+    setLoadingVipClientes(false);
   };
 
   const VipClientsModal = ({ asesor, clients, isLoading, onClose }: { asesor: Asesor | null, clients: any[], isLoading: boolean, onClose: () => void }) => {
     if (!asesor) return null;
 
     const getStatusPill = (client: any) => {
-        const clientState = client.ESTADO;
-        if (clientState === 'VENTA CONSOLIDADA') {
-            return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">Consolidado</span>;
+        const status = client.estadoPipeline;
+        switch (status) {
+            case 'venta-consolidada':
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">Consolidado</span>;
+            case 'pagado':
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Pagado</span>;
+            case 'interesado':
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Interesado</span>;
+            case 'en-seguimiento':
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">En Seguimiento</span>;
+            case 'contactado':
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">Contactado</span>;
+            case 'listado-vip':
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-700">Sin Contacto</span>;
+            case 'no-interesado':
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">No Interesado</span>;
+            case 'no-contactar':
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-200 text-red-900">No Contactar</span>;
+            default:
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">{status}</span>;
         }
-        if (clientState === 'PAGADO') {
-            return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Pagado</span>;
-        }
-        const hasReport = reportes.some(r => r.ID_CLIENTE === client.ID);
-        if (hasReport) {
-            return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Con Reporte</span>;
-        }
-        const hasContact = conversaciones.some(c => c.id_cliente === client.ID);
-        if (!hasContact) {
-            return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-700">Sin Contacto</span>;
-        }
-        return <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getClienteEstadoColor(clientState)}`}>{clientState}</span>;
     };
 
     return (

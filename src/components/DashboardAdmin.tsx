@@ -698,23 +698,45 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         }
       });
 
-      // 3. Procesar VIPs (comparar con clientes existentes)
-      const response = await fetch('/api/vips/procesar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ vips: vipsDelCsv })
-      });
+      // 3. Procesar VIPs en lotes (comparar con clientes existentes)
+      console.log(`🔄 Procesando ${vipsDelCsv.length} VIPs en lotes de 100...`);
+      
+      const tamanioLote = 100;
+      const resultadoFinal = {
+        yaEnSistema: [],
+        nuevosVIPs: [],
+        errores: []
+      };
 
-      if (!response.ok) {
-        throw new Error('Error procesando VIPs');
+      for (let i = 0; i < vipsDelCsv.length; i += tamanioLote) {
+        const lote = vipsDelCsv.slice(i, i + tamanioLote);
+        console.log(`📦 Procesando lote ${Math.floor(i/tamanioLote) + 1}/${Math.ceil(vipsDelCsv.length/tamanioLote)} (${lote.length} VIPs)`);
+        
+        const response = await fetch('/api/vips/procesar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ vips: lote })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error procesando lote ${Math.floor(i/tamanioLote) + 1}`);
+        }
+
+        const resultadoLote = await response.json();
+        
+        // Combinar resultados
+        resultadoFinal.yaEnSistema.push(...resultadoLote.data.yaEnSistema);
+        resultadoFinal.nuevosVIPs.push(...resultadoLote.data.nuevosVIPs);
+        resultadoFinal.errores.push(...resultadoLote.data.errores);
+        
+        // Pequeña pausa para no sobrecargar el servidor
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      const resultado = await response.json();
-      console.log('✅ Resultado del procesamiento:', resultado);
-
-      setResultadoProceso(resultado.data);
+      console.log('✅ Resultado del procesamiento completo:', resultadoFinal);
+      setResultadoProceso(resultadoFinal);
 
     } catch (error) {
       console.error('❌ Error procesando CSV:', error);

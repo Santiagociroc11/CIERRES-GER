@@ -48,6 +48,7 @@ export default function ListaGeneralClientes({
   const [filtroEstado, setFiltroEstado] = useState<EstadoCliente | 'TODOS'>('TODOS');
   const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);
   const [mostrarSoloCriticos, setMostrarSoloCriticos] = useState(false);
+  const [mostrarSoloVIPs, setMostrarSoloVIPs] = useState(false);
   const [clienteAcciones, setClienteAcciones] = useState<number | null>(null);
   const [pagina, setPagina] = useState(1);
   const [forzarBusqueda, setForzarBusqueda] = useState(false);
@@ -107,7 +108,13 @@ export default function ListaGeneralClientes({
       return fechaB - fechaA;
     })[0];
   };
-  
+
+  // Función para verificar si un cliente es VIP
+  const esClienteVIP = (cliente: Cliente): boolean => {
+    // Los clientes VIP pueden identificarse por su estado o por tener un registro específico
+    // Por ahora, usamos el estado como indicador
+    return cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP';
+  };
 
   // Modificamos getEstadoTexto para incluir el tipo de producto en ventas
   const getEstadoTexto = (estado: EstadoCliente, clienteId: number) => {
@@ -148,8 +155,9 @@ export default function ListaGeneralClientes({
     const coincideEstado =
       filtroEstado === 'TODOS' || cliente.ESTADO === filtroEstado;
     const coincideCriticos = !mostrarSoloCriticos || esEstadoCritico(cliente.ESTADO);
+    const coincideVIPs = !mostrarSoloVIPs || esClienteVIP(cliente);
 
-    return coincideBusqueda && coincideEstado && coincideCriticos;
+    return coincideBusqueda && coincideEstado && coincideCriticos && coincideVIPs;
   });
 
   const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
@@ -334,6 +342,13 @@ export default function ListaGeneralClientes({
             >
               <AlertCircle className={`inline-block h-4 w-4 mr-2 ${mostrarSoloCriticos ? 'text-amber-500' : 'text-gray-400'}`} />
               Solo críticos
+            </button>
+            <button
+              onClick={() => setMostrarSoloVIPs(!mostrarSoloVIPs)}
+              className={`px-4 py-2 rounded-lg border ${mostrarSoloVIPs ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-300'}`}
+            >
+              <CheckCircle className={`inline-block h-4 w-4 mr-2 ${mostrarSoloVIPs ? 'text-blue-500' : 'text-gray-400'}`} />
+              Solo VIPs
             </button>
           </div>
         </div>

@@ -3334,7 +3334,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       const actividades = getUltimasActividades(asesor.ID);
                       
                       return (
-                        <div key={asesor.ID} className="bg-gray-50 rounded-lg p-4 cursor-pointer" onClick={() => handleAsesorNameClick(asesor)}>
+                        <div key={asesor.ID} className="bg-gray-50 rounded-lg p-4">
                           {/* Encabezado del asesor */}
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                             <div className="flex items-center">
@@ -3761,7 +3761,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             const estadoConexion = conexionesEstado[asesor.ID];
 
                             return (
-                              <tr key={asesor.ID} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleAsesorNameClick(asesor)} >
+                              <tr key={asesor.ID} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex items-center">
                                     <Users className="h-10 w-10 text-blue-500 mr-3" />

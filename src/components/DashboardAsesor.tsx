@@ -474,37 +474,54 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     cargarDatos();
   }, [asesor.ID]);
 
-  useEffect(() => {
-    // ⚡ MEJORA UX: Permitir que la plataforma cargue primero antes de verificar WhatsApp
-    // Esto evita que el modal de "WhatsApp no conectado" aparezca inmediatamente,
-    // proporcionando una mejor experiencia de usuario donde el dashboard se carga
-    // normalmente y la verificación ocurre en segundo plano
-    const verificarConexionInicial = async () => {
-      console.log('🔍 [WhatsApp] Iniciando verificación de conexión para:', asesor.NOMBRE);
-      console.log('🔍 [WhatsApp] Tipo de dispositivo:', /Mobi|Android/i.test(navigator.userAgent) ? 'MÓVIL' : 'DESKTOP');
+  // ⚡ MEJORA UX: Permitir que la plataforma cargue primero antes de verificar WhatsApp
+  // Esto evita que el modal de "WhatsApp no conectado" aparezca inmediatamente,
+  // proporcionando una mejor experiencia de usuario donde el dashboard se carga
+  // normalmente y la verificación ocurre en segundo plano
+  const verificarConexionInicial = async () => {
+    console.log('🔍 [WhatsApp] Iniciando verificación de conexión para:', asesor.NOMBRE);
+    console.log('🔍 [WhatsApp] Tipo de dispositivo:', /Mobi|Android/i.test(navigator.userAgent) ? 'MÓVIL' : 'DESKTOP');
+    
+    // ✅ CORREGIDO: Solo verificar si ya existe una instancia
+    try {
+      console.log('🔍 [WhatsApp] Verificando si existe instancia...');
       
-      // ✅ CORREGIDO: Solo verificar si ya existe una instancia
-      try {
-        console.log('🔍 [WhatsApp] Verificando si existe instancia...');
-        
-        // Primero verificar si la instancia existe (sin intentar conectar)
-        const instanceExists = await checkInstanceExists();
-        
-        if (instanceExists) {
-          console.log('✅ [WhatsApp] Instancia existe, verificando estado...');
-          // ✅ CORREGIDO: Solo verificar estado inicial, no obtener QR
-          await refreshConnection(false);
-        } else {
-          console.log('ℹ️ [WhatsApp] No hay instancia configurada, mostrando advertencia inicial');
-          setWhatsappStatus("Sin Configurar");
-          setVerificandoWhatsApp(false);
-          // Mostrar advertencia solo una vez al cargar la página
-          if (!hasShownInitialWarning) {
-            setShowWhatsAppWarning(true);
-            setHasShownInitialWarning(true);
-          }
-          return;
+      // Primero verificar si la instancia existe (sin intentar conectar)
+      const instanceExists = await checkInstanceExists();
+      
+      if (instanceExists) {
+        console.log('✅ [WhatsApp] Instancia existe, verificando estado...');
+        // ✅ CORREGIDO: Solo verificar estado inicial, no obtener QR
+        await refreshConnection(false);
+      } else {
+        console.log('ℹ️ [WhatsApp] No hay instancia configurada, mostrando advertencia inicial');
+        setWhatsappStatus("Sin Configurar");
+        setVerificandoWhatsApp(false);
+        // Mostrar advertencia solo una vez al cargar la página
+        if (!hasShownInitialWarning) {
+          setShowWhatsAppWarning(true);
+          setHasShownInitialWarning(true);
         }
+        return;
+      }
+      
+      console.log('✅ [WhatsApp] Verificación completada. Estado final:', instanceInfo?.connectionStatus || 'SIN_INFO');
+    } catch (error) {
+      console.error('❌ [WhatsApp] Error en verificación inicial:', error);
+      setWhatsappStatus("Error de Verificación");
+      // Mostrar advertencia en caso de error también
+      if (!hasShownInitialWarning) {
+        setShowWhatsAppWarning(true);
+        setHasShownInitialWarning(true);
+      }
+    } finally {
+      setVerificandoWhatsApp(false);
+    }
+  };
+
+  useEffect(() => {
+    verificarConexionInicial();
+  }, []);
 
   // ✅ NUEVO: useEffect separado para mostrar advertencia después de verificación
   useEffect(() => {
@@ -544,34 +561,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   }, [showWhatsAppModal, asesor.NOMBRE]);
 
   useEffect(() => {
-    let pollingInterval: NodeJS.Timeout | undefined;
-    
-    // ✅ SIMPLIFICADO: Polling básico solo cuando modal está abierto
-    if (showWhatsAppModal && instanceInfo && instanceInfo.connectionStatus !== "open") {
-      console.log('🔄 [WhatsApp] Iniciando polling cada 30s (con regeneración de QR)...');
-      pollingInterval = setInterval(async () => {
-        try {
-          console.log('🔄 [WhatsApp] Polling: regenerando QR y verificando estado...');
-          // ✅ CORREGIDO: Regenerar QR Y verificar estado cada 30 segundos
-          await Promise.all([
-            handleSilentQRRefresh(),
-            handleSilentInstanceCheck()
-          ]);
-        } catch (error) {
-          console.log('⚠️ [WhatsApp] Error en polling:', error);
-        }
-      }, 30000); // Cada 30 segundos, regeneración + verificación
-    }
-    
-    return () => {
-      if (pollingInterval) {
-        console.log('🔄 [WhatsApp] Deteniendo polling...');
-        clearInterval(pollingInterval);
-      }
-    };
-  }, [showWhatsAppModal, instanceInfo]);
-
-  useEffect(() => {
     if (instanceInfo?.connectionStatus === "open") {
       setShowWhatsAppWarning(false);
       console.log('✅ [WhatsApp] WhatsApp conectado, ocultando advertencia');
@@ -581,47 +570,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     // ✅ CORREGIDO: NO mostrar advertencia en cada polling, solo al inicio
     // La advertencia solo se muestra en verificarConexionInicial()
   }, [instanceInfo]);
-        
-        console.log('✅ [WhatsApp] Verificación completada. Estado final:', instanceInfo?.connectionStatus || 'SIN_INFO');
-      } catch (error) {
-        console.error('❌ [WhatsApp] Error en verificación inicial:', error);
-        setWhatsappStatus("Error de Verificación");
-        // Mostrar advertencia en caso de error también
-        if (!hasShownInitialWarning) {
-          setShowWhatsAppWarning(true);
-          setHasShownInitialWarning(true);
-        }
-      } finally {
-        setVerificandoWhatsApp(false);
-      }
-    };
-    
-    verificarConexionInicial();
-  }, []);
-
-  useEffect(() => {
-    if (showWhatsAppModal) {
-      // ✅ CORREGIDO: Solo refrescar si la instancia existe
-      const checkAndRefresh = async () => {
-        try {
-          const instanceExists = await checkInstanceExists();
-          if (instanceExists) {
-            console.log('✅ [WhatsApp] Modal abierto, instancia existe, obteniendo QR...');
-            // ✅ CORREGIDO: Modal SÍ necesita QR para mostrar al usuario
-            await refreshConnection(true);
-          } else {
-            console.log('ℹ️ [WhatsApp] Modal abierto, no hay instancia, saltando refresh');
-            setWhatsappStatus("Sin Configurar");
-          }
-        } catch (error) {
-          console.log('⚠️ [WhatsApp] Error verificando instancia en modal:', error);
-          setWhatsappStatus("Error de Verificación");
-        }
-      };
-      
-      checkAndRefresh();
-    }
-  }, [showWhatsAppModal, asesor.NOMBRE]);
 
   useEffect(() => {
     let pollingInterval: NodeJS.Timeout | undefined;
@@ -651,15 +599,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     };
   }, [showWhatsAppModal, instanceInfo]);
 
-  useEffect(() => {
-    if (instanceInfo?.connectionStatus === "open") {
-      setShowWhatsAppWarning(false);
-      // Reset flag cuando se conecta, por si se desconecta después
-      setHasShownInitialWarning(false);
-    }
-    // ✅ CORREGIDO: NO mostrar advertencia en cada polling, solo al inicio
-    // La advertencia solo se muestra en verificarConexionInicial()
-  }, [instanceInfo?.connectionStatus]); // Solo depender del connectionStatus, no del objeto completo
+
 
   const getClientesEstadoPendiente = () => {
     return clientes.filter(cliente => {

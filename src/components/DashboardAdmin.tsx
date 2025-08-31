@@ -1151,11 +1151,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     setLoadingVipClientes(true);
 
     try {
-        const allVipsByAsesor = await apiClient.request<any[]>('/api/vips/pipeline-por-asesor');
+        const allVipsTableData = await apiClient.request<any[]>('/vips/table-data');
 
         let asesorData;
-        if (Array.isArray(allVipsByAsesor)) {
-            asesorData = allVipsByAsesor.find(data => data.asesor.ID === asesor.ID);
+        if (Array.isArray(allVipsTableData)) {
+            asesorData = allVipsTableData.find(data => data.asesor.ID === asesor.ID);
         }
 
         if (asesorData && asesorData.vips) {

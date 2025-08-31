@@ -1069,7 +1069,7 @@ export async function guardarVIPsNuevos(vips: VIP[]): Promise<{ insertados: numb
   }
 }
 
-// Obtener todos los VIPs pendientes (no clientes aún)
+// Obtener todos los VIPs pendientes (no clientes aún) - OPTIMIZADO
 export async function getVIPsPendientes(): Promise<VIP[]> {
   try {
     const response = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?YA_ES_CLIENTE=eq.false&select=*&order=POSICION_CSV.asc.nullslast,FECHA_IMPORTACION.desc`);
@@ -1080,43 +1080,97 @@ export async function getVIPsPendientes(): Promise<VIP[]> {
     
     let vips = await response.json();
     
-    // Filtrar VIPs que ya existen como clientes en el sistema
+    if (vips.length === 0) {
+      return vips;
+    }
+    
+    // OPTIMIZACIÓN: Una sola consulta para obtener todos los WhatsApp de clientes existentes
+    console.log(`🚀 Optimizando filtrado de ${vips.length} VIPs...`);
+    const startTime = Date.now();
+    
+    const clientesResponse = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?select=ID,WHATSAPP,ESTADO,ID_ASESOR,NOMBRE_ASESOR`);
+    if (!clientesResponse.ok) {
+      throw new Error(`Error obteniendo clientes existentes: ${clientesResponse.status}`);
+    }
+    
+    const clientesExistentes = await clientesResponse.json();
+    
+    // Crear Map para búsqueda rápida por últimos 7 dígitos
+    const clientesPorWhatsapp = new Map<string, any>();
+    
+    for (const cliente of clientesExistentes) {
+      if (cliente.WHATSAPP) {
+        const soloNumeros = cliente.WHATSAPP.replace(/\D/g, '');
+        const ultimos7 = soloNumeros.slice(-7);
+        clientesPorWhatsapp.set(ultimos7, cliente);
+      }
+    }
+    
+    // Filtrar VIPs en memoria (mucho más rápido)
     const vipsFiltrados = [];
+    const vipsParaActualizar = [];
     
     for (const vip of vips) {
       if (vip.WHATSAPP) {
-        // Verificar si ya existe como cliente
-        const clienteExistente = await getClienteByWhatsapp(vip.WHATSAPP);
+        const soloNumeros = vip.WHATSAPP.replace(/\D/g, '');
+        const ultimos7 = soloNumeros.slice(-7);
+        const clienteExistente = clientesPorWhatsapp.get(ultimos7);
         
         if (!clienteExistente) {
           // Solo incluir si NO existe como cliente
           vipsFiltrados.push(vip);
         } else {
-          // El VIP ya existe como cliente, actualizar registros VIP
-          console.log(`🔍 VIP ya es cliente, actualizando registro: ${vip.NOMBRE} - ${vip.WHATSAPP}`);
-          
+          // El VIP ya existe como cliente, marcarlo para actualización
+          vipsParaActualizar.push({
+            vipId: vip.ID,
+            clienteId: clienteExistente.ID,
+            nombre: vip.NOMBRE,
+            whatsapp: vip.WHATSAPP
+          });
+        }
+      } else {
+        // VIP sin WhatsApp, incluir en pendientes
+        vipsFiltrados.push(vip);
+      }
+    }
+    
+    // Actualizar VIPs que ya son clientes (en lotes para mayor eficiencia)
+    if (vipsParaActualizar.length > 0) {
+      console.log(`📋 Actualizando ${vipsParaActualizar.length} VIPs que ya son clientes...`);
+      
+      // Procesar en lotes de 20 para evitar sobrecargar la API
+      const loteSize = 20;
+      for (let i = 0; i < vipsParaActualizar.length; i += loteSize) {
+        const lote = vipsParaActualizar.slice(i, i + loteSize);
+        
+        const promesasActualizacion = lote.map(async (item) => {
           try {
-            // Actualizar el VIP con los datos del cliente existente
-            await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ID=eq.${vip.ID}`, {
+            await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ID=eq.${item.vipId}`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
                 YA_ES_CLIENTE: true,
-                CLIENTE_ID: clienteExistente.ID,
+                CLIENTE_ID: item.clienteId,
                 FECHA_CONVERSION_CLIENTE: new Date().toISOString(),
                 FECHA_ULTIMA_ACTUALIZACION: new Date().toISOString()
               })
             });
-            
-            console.log(`✅ VIP ${vip.ID} actualizado con cliente ${clienteExistente.ID}`);
           } catch (error) {
-            console.error(`❌ Error actualizando VIP ${vip.ID}:`, error);
+            console.error(`❌ Error actualizando VIP ${item.vipId}:`, error);
           }
-        }
+        });
+        
+        await Promise.all(promesasActualizacion);
       }
+      
+      console.log(`✅ VIPs actualizados correctamente`);
     }
+    
+    const endTime = Date.now();
+    console.log(`⚡ Filtrado optimizado completado en ${endTime - startTime}ms`);
+    console.log(`📊 Resultado: ${vipsFiltrados.length} VIPs pendientes, ${vipsParaActualizar.length} ya eran clientes`)
     
     console.log(`✅ VIPs pendientes: ${vipsFiltrados.length} de ${vips.length} (${vips.length - vipsFiltrados.length} filtrados por ser clientes)`);
     return vipsFiltrados;

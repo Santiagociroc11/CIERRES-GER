@@ -424,6 +424,96 @@ router.patch('/vips/:vipId/asignar', async (req, res) => {
   }
 });
 
+// Asignación masiva de VIPs
+router.post('/vips/asignar-masivo', async (req, res) => {
+  try {
+    const { asignaciones, prioridad } = req.body;
+    
+    if (!asignaciones || typeof asignaciones !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere un objeto de asignaciones válido',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Calcular total de VIPs solicitados
+    const totalVipsSolicitados = Object.values(asignaciones as Record<number, number>)
+      .reduce((sum, cantidad) => sum + (cantidad as number), 0);
+    
+    if (totalVipsSolicitados === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No hay VIPs para asignar',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    logger.info(`🔄 Procesando asignación masiva de ${totalVipsSolicitados} VIPs`);
+    
+    // Obtener VIPs pendientes ordenados por prioridad
+    const vipsPendientes = await getVIPsPendientes();
+    
+    if (totalVipsSolicitados > vipsPendientes.length) {
+      return res.status(400).json({
+        success: false,
+        error: `No hay suficientes VIPs pendientes. Disponibles: ${vipsPendientes.length}, Solicitados: ${totalVipsSolicitados}`,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    let indiceProcesado = 0;
+    let totalAsignados = 0;
+    const errores: string[] = [];
+    
+    // Procesar asignaciones por asesor
+    for (const [asesorIdStr, cantidad] of Object.entries(asignaciones as Record<string, number>)) {
+      const asesorId = parseInt(asesorIdStr);
+      const cantidadVips = cantidad as number;
+      
+      if (cantidadVips > 0) {
+        logger.info(`📋 Asignando ${cantidadVips} VIPs al asesor ${asesorId}`);
+        
+        // Tomar los siguientes VIPs en orden de prioridad
+        const vipsParaAsesor = vipsPendientes.slice(indiceProcesado, indiceProcesado + cantidadVips);
+        
+        // Asignar cada VIP individualmente
+        for (const vip of vipsParaAsesor) {
+          try {
+            await asignarVIPAsesor(vip.ID, asesorId);
+            totalAsignados++;
+          } catch (error) {
+            errores.push(`Error asignando VIP ${vip.ID} al asesor ${asesorId}: ${error}`);
+          }
+        }
+        
+        indiceProcesado += cantidadVips;
+      }
+    }
+    
+    logger.info(`✅ Asignación masiva completada: ${totalAsignados} VIPs asignados, ${errores.length} errores`);
+    
+    res.json({
+      success: true,
+      data: {
+        asignados: totalAsignados,
+        errores: errores.length,
+        detalleErrores: errores
+      },
+      message: `${totalAsignados} VIPs asignados exitosamente`,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('❌ Error en asignación masiva:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Actualizar estado de VIP
 router.patch('/vips/:vipId/estado', async (req, res) => {
   try {

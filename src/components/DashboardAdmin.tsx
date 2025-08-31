@@ -96,6 +96,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [vipsEnSistema, setVipsEnSistema] = useState<any[]>([]);
   const [cargandoVipsEnSistema, setCargandoVipsEnSistema] = useState(false);
   
+  // Estados para asignación masiva
+  const [asignacionMasiva, setAsignacionMasiva] = useState<{[asesorId: number]: number}>({});
+  const [procesandoAsignacion, setProcesandoAsignacion] = useState(false);
+  
   // 🆕 Función para obtener nombre del cliente
   const obtenerNombreCliente = (conversacion: any) => {
     // Si tiene id_cliente, buscar en la base de clientes
@@ -864,6 +868,56 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     } catch (error) {
       console.error('❌ Error actualizando estado VIP:', error);
       alert('Error actualizando estado VIP');
+    }
+  };
+
+  const asignarVIPsMasivo = async () => {
+    setProcesandoAsignacion(true);
+    try {
+      // Calcular total de VIPs a asignar
+      const totalVips = Object.values(asignacionMasiva).reduce((sum, cantidad) => sum + cantidad, 0);
+      
+      if (totalVips === 0) {
+        alert('No hay asignaciones para procesar');
+        return;
+      }
+      
+      if (totalVips > vipsPendientes.length) {
+        alert(`No hay suficientes VIPs pendientes. Disponibles: ${vipsPendientes.length}, Solicitados: ${totalVips}`);
+        return;
+      }
+      
+      console.log(`🔄 Procesando asignación masiva de ${totalVips} VIPs`);
+      
+      const response = await fetch('/api/vips/asignar-masivo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          asignaciones: asignacionMasiva,
+          prioridad: 'posicion_csv' // Asignar por orden de prioridad (posición en CSV)
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Error en asignación masiva');
+      }
+
+      const resultado = await response.json();
+      console.log('✅ Asignación masiva completada:', resultado);
+      
+      alert(`${resultado.data.asignados} VIPs asignados exitosamente`);
+      
+      // Limpiar formulario y recargar
+      setAsignacionMasiva({});
+      cargarVIPsPendientes();
+      
+    } catch (error) {
+      console.error('❌ Error en asignación masiva:', error);
+      alert('Error procesando la asignación masiva');
+    } finally {
+      setProcesandoAsignacion(false);
     }
   };
 
@@ -4170,6 +4224,80 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       <RefreshCcw className={`h-4 w-4 mr-2 ${cargandoVips ? 'animate-spin' : ''}`} />
                       {cargandoVips ? 'Cargando...' : 'Actualizar'}
                     </button>
+                  </div>
+                </div>
+
+                {/* Panel de Asignación Masiva */}
+                <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                  <h4 className="text-md font-medium text-gray-800 mb-4 flex items-center">
+                    <Users className="h-4 w-4 mr-2 text-blue-600" />
+                    Asignación Masiva de VIPs
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {asesores.map((asesor) => (
+                      <div key={asesor.ID} className="bg-white p-3 rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span className="text-sm font-medium text-gray-700">{asesor.NOMBRE}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              min="0"
+                              max={vipsPendientes.length}
+                              value={asignacionMasiva[asesor.ID] || 0}
+                              onChange={(e) => setAsignacionMasiva({
+                                ...asignacionMasiva,
+                                [asesor.ID]: Math.max(0, parseInt(e.target.value) || 0)
+                              })}
+                              className="w-16 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="0"
+                            />
+                            <span className="text-xs text-gray-500">VIPs</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      <span>Total a asignar: </span>
+                      <span className="font-semibold text-blue-600">
+                        {Object.values(asignacionMasiva).reduce((sum, cantidad) => sum + cantidad, 0)} VIPs
+                      </span>
+                      <span className="mx-2">•</span>
+                      <span>Disponibles: </span>
+                      <span className="font-semibold text-green-600">{vipsPendientes.length} VIPs</span>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => setAsignacionMasiva({})}
+                        className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
+                      >
+                        Limpiar
+                      </button>
+                      <button
+                        onClick={asignarVIPsMasivo}
+                        disabled={procesandoAsignacion || Object.values(asignacionMasiva).reduce((sum, cantidad) => sum + cantidad, 0) === 0}
+                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {procesandoAsignacion ? (
+                          <>
+                            <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
+                            Procesando...
+                          </>
+                        ) : (
+                          <>
+                            <Users className="h-4 w-4 mr-2" />
+                            Asignar VIPs
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

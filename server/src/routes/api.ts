@@ -480,6 +480,10 @@ router.post('/vips/asignar-masivo', async (req, res) => {
         // Asignar cada VIP individualmente
         for (const vip of vipsParaAsesor) {
           try {
+            if (!vip.ID) {
+              errores.push(`VIP sin ID válido para asesor ${asesorId}`);
+              continue;
+            }
             await asignarVIPAsesor(vip.ID, asesorId);
             totalAsignados++;
           } catch (error) {

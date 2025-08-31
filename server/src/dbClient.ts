@@ -1085,10 +1085,77 @@ export async function getVIPsPendientes(): Promise<VIP[]> {
   }
 }
 
-// Asignar VIP a un asesor
+// Crear cliente desde VIP
+export async function crearClienteDesdeVIP(vip: any, asesorId: number): Promise<number> {
+  try {
+    // Obtener datos del asesor para el registro
+    const asesorResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?ID=eq.${asesorId}&select=NOMBRE`);
+    const asesores = await asesorResponse.json();
+    const asesorNombre = asesores[0]?.NOMBRE || 'Asesor Desconocido';
+    
+    // Crear cliente en GERSSON_CLIENTES
+    const clienteData = {
+      NOMBRE: vip.NOMBRE || 'VIP Sin Nombre',
+      CORREO: vip.CORREO || null,
+      WHATSAPP: vip.WHATSAPP,
+      ESTADO: 'ACTIVO',
+      ID_ASESOR: asesorId,
+      NOMBRE_ASESOR: asesorNombre,
+      FECHA_COMPRA: new Date().toISOString(),
+      MONTO_COMPRA: null, // Se puede actualizar después
+      FUENTE: 'VIP_LIST',
+      NIVEL_CONCIENCIA: vip.NIVEL_CONCIENCIA || 'media',
+      ORIGEN_VIP: vip.ORIGEN_REGISTRO || 'grupo_whatsapp',
+      POSICION_CSV: vip.POSICION_CSV || null,
+      FECHA_ASIGNACION_VIP: new Date().toISOString()
+    };
+    
+    const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(clienteData)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error creando cliente: ${response.status} - ${errorText}`);
+    }
+    
+    const clienteCreado = await response.json();
+    const clienteId = clienteCreado[0]?.ID;
+    
+    console.log(`✅ Cliente creado desde VIP: ID ${clienteId}, Nombre: ${clienteData.NOMBRE}`);
+    return clienteId;
+    
+  } catch (error) {
+    console.error('❌ Error creando cliente desde VIP:', error);
+    throw error;
+  }
+}
+
+// Asignar VIP a un asesor y crear cliente automáticamente
 export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise<void> {
   try {
-    const response = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ID=eq.${vipId}`, {
+    // 1. Obtener datos del VIP
+    const vipResponse = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ID=eq.${vipId}&select=*`);
+    if (!vipResponse.ok) {
+      throw new Error(`Error obteniendo VIP: ${vipResponse.status}`);
+    }
+    const vips = await vipResponse.json();
+    const vip = vips[0];
+    
+    if (!vip) {
+      throw new Error(`VIP ${vipId} no encontrado`);
+    }
+    
+    // 2. Crear cliente desde VIP
+    const clienteId = await crearClienteDesdeVIP(vip, asesorId);
+    
+    // 3. Actualizar VIP como asignado y convertido a cliente
+    const updateResponse = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ID=eq.${vipId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json'
@@ -1096,15 +1163,19 @@ export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise
       body: JSON.stringify({
         ASESOR_ASIGNADO: asesorId,
         ESTADO_CONTACTO: 'asignado',
-        FECHA_ULTIMA_ACTUALIZACION: new Date().toISOString()
+        YA_ES_CLIENTE: true,
+        CLIENTE_ID: clienteId,
+        FECHA_ULTIMA_ACTUALIZACION: new Date().toISOString(),
+        FECHA_CONVERSION_CLIENTE: new Date().toISOString()
       })
     });
     
-    if (!response.ok) {
-      throw new Error(`Error asignando VIP: ${response.status}`);
+    if (!updateResponse.ok) {
+      // Si falla la actualización del VIP, intentamos eliminar el cliente creado
+      console.warn(`⚠️ Error actualizando VIP ${vipId}, pero cliente ${clienteId} ya fue creado`);
     }
     
-    console.log(`✅ VIP ${vipId} asignado a asesor ${asesorId}`);
+    console.log(`✅ VIP ${vipId} asignado a asesor ${asesorId} y convertido a cliente ${clienteId}`);
   } catch (error) {
     console.error('❌ Error asignando VIP:', error);
     throw error;

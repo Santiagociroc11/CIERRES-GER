@@ -1078,8 +1078,48 @@ export async function getVIPsPendientes(): Promise<VIP[]> {
       throw new Error(`Error obteniendo VIPs pendientes: ${response.status}`);
     }
     
-    const vips = await response.json();
-    return vips;
+    let vips = await response.json();
+    
+    // Filtrar VIPs que ya existen como clientes en el sistema
+    const vipsFiltrados = [];
+    
+    for (const vip of vips) {
+      if (vip.WHATSAPP) {
+        // Verificar si ya existe como cliente
+        const clienteExistente = await getClienteByWhatsapp(vip.WHATSAPP);
+        
+        if (!clienteExistente) {
+          // Solo incluir si NO existe como cliente
+          vipsFiltrados.push(vip);
+        } else {
+          // El VIP ya existe como cliente, actualizar registros VIP
+          console.log(`🔍 VIP ya es cliente, actualizando registro: ${vip.NOMBRE} - ${vip.WHATSAPP}`);
+          
+          try {
+            // Actualizar el VIP con los datos del cliente existente
+            await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ID=eq.${vip.ID}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                YA_ES_CLIENTE: true,
+                CLIENTE_ID: clienteExistente.ID,
+                FECHA_CONVERSION_CLIENTE: new Date().toISOString(),
+                FECHA_ULTIMA_ACTUALIZACION: new Date().toISOString()
+              })
+            });
+            
+            console.log(`✅ VIP ${vip.ID} actualizado con cliente ${clienteExistente.ID}`);
+          } catch (error) {
+            console.error(`❌ Error actualizando VIP ${vip.ID}:`, error);
+          }
+        }
+      }
+    }
+    
+    console.log(`✅ VIPs pendientes: ${vipsFiltrados.length} de ${vips.length} (${vips.length - vipsFiltrados.length} filtrados por ser clientes)`);
+    return vipsFiltrados;
   } catch (error) {
     console.error('❌ Error obteniendo VIPs pendientes:', error);
     throw error;
@@ -1221,14 +1261,16 @@ export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise
         ESTADO_CONTACTO: 'asignado',
         YA_ES_CLIENTE: true,
         CLIENTE_ID: clienteId,
-        FECHA_ULTIMA_ACTUALIZACION: new Date().toISOString(),
-        FECHA_CONVERSION_CLIENTE: new Date().toISOString()
+        FECHA_CONVERSION_CLIENTE: new Date().toISOString(),
+        FECHA_ULTIMA_ACTUALIZACION: new Date().toISOString()
       })
     });
     
     if (!updateResponse.ok) {
-      // Si falla la actualización del VIP, intentamos eliminar el cliente creado
-      console.warn(`⚠️ Error actualizando VIP ${vipId}, pero cliente ${clienteId} ya fue creado`);
+      const errorText = await updateResponse.text();
+      console.error(`❌ Error actualizando VIP ${vipId}: ${updateResponse.status} - ${errorText}`);
+      console.warn(`⚠️ Cliente ${clienteId} ya fue creado, pero VIP no se actualizó correctamente`);
+      // No lanzamos error aquí porque el cliente ya fue creado exitosamente
     }
 
     // 4. Obtener datos del asesor para notificación
@@ -1268,6 +1310,7 @@ export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise
     throw error;
   }
 }
+
 
 // Actualizar estado de contacto de VIP
 export async function actualizarEstadoVIP(vipId: number, estado: string, notas?: string): Promise<void> {
@@ -1392,4 +1435,6 @@ export async function getVIPsEnSistema(): Promise<any[]> {
     console.error('❌ Error obteniendo VIPs en sistema:', error);
     throw error;
   }
-} 
+}
+
+ 

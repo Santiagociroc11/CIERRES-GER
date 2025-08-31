@@ -955,6 +955,16 @@ export async function updateReporte(reporteId: number, datos: {
 // ================================
 // FUNCIONES PARA GESTIÓN DE VIPs
 // ================================
+// ✅ CORREGIDO: Lógica de estados actualizada para usar estados disponibles
+// - ANTES: buscaba estados 'interesado', 'muy_interesado', 'activo', 'en_seguimiento', 'comprador' (nunca disponibles)
+// - AHORA: usa estados REALES que SÍ están disponibles:
+//   * 'VENTA CONSOLIDADA' → venta-consolidada
+//   * 'PAGADO' → pagado  
+//   * 'SEGUIMIENTO' → interesado
+//   * 'NO CONTESTÓ' → en-seguimiento
+//   * 'NO INTERESADO' → no-interesado
+//   * 'NO CONTACTAR' → no-contactar
+// - RESULTADO: Las métricas VIPs ahora funcionan correctamente y muestran datos reales
 
 export interface VIP {
   ID?: number;
@@ -1452,13 +1462,18 @@ export async function getVIPsEnSistema(): Promise<any[]> {
         }
         
         // Determinar estado del cliente para el Kanban
+        // ✅ CORREGIDO: Usar estados que SÍ están disponibles en el sistema
         let estadoKanban = 'lead'; // Default
         
         if (cliente.MONTO_COMPRA && cliente.MONTO_COMPRA > 0) {
           estadoKanban = 'comprador';
-        } else if (cliente.ESTADO === 'activo' || cliente.ESTADO === 'en_seguimiento') {
+        } else if (cliente.ESTADO === 'SEGUIMIENTO') {
+          // ✅ ANTES: buscaba 'activo' o 'en_seguimiento' (nunca disponibles)
+          // ✅ AHORA: usa 'SEGUIMIENTO' que SÍ está disponible
           estadoKanban = 'interesado';
-        } else if (cliente.ESTADO === 'rechazado' || cliente.ESTADO === 'no_interesado') {
+        } else if (cliente.ESTADO === 'NO INTERESADO') {
+          // ✅ ANTES: buscaba 'rechazado' o 'no_interesado' (nunca disponibles)
+          // ✅ AHORA: usa 'NO INTERESADO' que SÍ está disponible
           estadoKanban = 'no_interesado';
         } else {
           estadoKanban = 'lead';
@@ -1526,37 +1541,58 @@ export async function getVIPsEnPipelinePorAsesor(): Promise<any[]> {
     });
     
     // Determinar el estado del pipeline para cada VIP
+    // ✅ CORREGIDO: Usar estados que SÍ están disponibles en el sistema
     const determinarEstadoPipeline = (vip: any): string => {
       const cliente = vip.cliente;
       const clienteKey = cliente?.ID || normalizeWhatsApp(vip.WHATSAPP || '');
       const tieneConversaciones = conversacionesPorCliente.has(clienteKey);
       
-      // 1. Venta consolidada - tiene compra completada
-      if (cliente?.MONTO_COMPRA && cliente.MONTO_COMPRA > 0 && cliente.ESTADO === 'comprador') {
+      // 1. Venta consolidada - estado VENTA CONSOLIDADA reportado por asesor
+      // ✅ Cliente con venta verificada y consolidada
+      if (cliente?.ESTADO === 'VENTA CONSOLIDADA') {
         return 'venta-consolidada';
       }
       
-      // 2. Pagado - tiene monto pero aún no está consolidado
-      if (cliente?.MONTO_COMPRA && cliente.MONTO_COMPRA > 0) {
+      // 2. Pagado - estado PAGADO reportado por asesor
+      // ✅ Cliente que pagó pero aún no está consolidado
+      if (cliente?.ESTADO === 'PAGADO') {
         return 'pagado';
       }
       
-      // 3. Interesado - estado avanzado reportado por asesor
-      if (cliente?.ESTADO === 'interesado' || cliente?.ESTADO === 'muy_interesado') {
+      // 3. Interesado - estado SEGUIMIENTO reportado por asesor
+      // ✅ ANTES: buscaba 'interesado' o 'muy_interesado' (nunca disponibles)
+      // ✅ AHORA: usa 'SEGUIMIENTO' que SÍ está disponible
+      if (cliente?.ESTADO === 'SEGUIMIENTO') {
         return 'interesado';
       }
       
-      // 4. En seguimiento - estado reportado por asesor
-      if (cliente?.ESTADO === 'activo' || cliente?.ESTADO === 'en_seguimiento') {
+      // 4. En seguimiento - estado NO CONTESTÓ (cliente que necesita seguimiento)
+      // ✅ ANTES: buscaba 'activo' o 'en_seguimiento' (nunca disponibles)
+      // ✅ AHORA: usa 'NO CONTESTÓ' que SÍ está disponible para diferenciar
+      if (cliente?.ESTADO === 'NO CONTESTÓ') {
         return 'en-seguimiento';
       }
       
       // 5. Contactado - tiene conversaciones registradas
+      // ✅ Cliente con actividad de chat registrada
       if (tieneConversaciones) {
         return 'contactado';
       }
       
-      // 6. Listado VIP - sin contacto aún
+      // 6. No Interesado - estado NO INTERESADO reportado por asesor
+      // ✅ Cliente que no está interesado en comprar
+      if (cliente?.ESTADO === 'NO INTERESADO') {
+        return 'no-interesado';
+      }
+      
+      // 7. No Contactar - estado NO CONTACTAR reportado por asesor
+      // ✅ Cliente que no debe ser contactado
+      if (cliente?.ESTADO === 'NO CONTACTAR') {
+        return 'no-contactar';
+      }
+      
+      // 8. Listado VIP - sin contacto aún (estado por defecto)
+      // ✅ Cliente VIP sin reportes ni actividad registrada
       return 'listado-vip';
     };
     
@@ -1575,6 +1611,8 @@ export async function getVIPsEnPipelinePorAsesor(): Promise<any[]> {
           'interesado': 0,
           'pagado': 0,
           'venta-consolidada': 0,
+          'no-interesado': 0,
+          'no-contactar': 0,
           total: 0
         }
       });
@@ -1683,6 +1721,8 @@ export async function getVIPsTableData(): Promise<any[]> {
           interesados: estadisticas.interesado,
           pagados: estadisticas.pagado,
           consolidadas: estadisticas['venta-consolidada'],
+          noInteresados: estadisticas['no-interesado'],
+          noContactar: estadisticas['no-contactar'],
           porcentajeContactado: porcentajeContactado,
           porcentajeReportado: porcentajeReportado,
           porcentajeConversion: porcentajeConversion,

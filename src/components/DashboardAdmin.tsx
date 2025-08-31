@@ -4495,7 +4495,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                         VIPs en Sistema - Métricas por Asesor
                       </h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        Vista consolidada con porcentajes de contactado, reportado y conversión para toma de decisiones
+                        Vista consolidada con 6 estados de VIPs (unificados para mejor legibilidad), porcentajes de contactado, reportado y conversión para toma de decisiones
                       </p>
                     </div>
                     <button
@@ -4525,6 +4525,19 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     </div>
                   ) : (
                     <div>
+                      {/* Leyenda de Estados VIP */}
+                      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h4 className="text-sm font-semibold text-blue-900 mb-3">📊 Estados de VIPs en el Sistema</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-blue-800">
+                          <div><strong>🟢 Sin Contacto:</strong> VIPs sin reportes ni actividad</div>
+                          <div><strong>🔵 Contactados:</strong> Con conversaciones registradas</div>
+                          <div><strong>🟠 En Proceso:</strong> Interesados + En Seguimiento (SEGUIMIENTO + NO CONTESTÓ)</div>
+                          <div><strong>🟢 Ventas:</strong> Pagados + Consolidadas (PAGADO + VENTA CONSOLIDADA)</div>
+                          <div><strong>🔴 No Interesados:</strong> Estado "NO INTERESADO" (no va a comprar)</div>
+                          <div><strong>⚫ No Contactar:</strong> Estado "NO CONTACTAR" (no debe ser contactado)</div>
+                        </div>
+                      </div>
+
                       {/* Tabla de Métricas VIP por Asesor */}
                       <div className="overflow-x-auto">
                         <table className="min-w-full table-auto border-collapse">
@@ -4534,10 +4547,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Total VIPs</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Sin Contacto</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Contactados</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">En Seguimiento</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Interesados</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Pagados</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Consolidadas</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">En Proceso</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Ventas</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-red-600">No Interesados</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-600">No Contactar</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-blue-600">% Contactado</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-purple-600">% Reportado</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-green-600">% Conversión</th>
@@ -4569,23 +4582,29 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                   </span>
                                 </td>
                                 <td className="text-center px-3 py-3 border-b">
-                                  <span className="px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full font-medium text-sm">
-                                    {asesorData.metricas.enSeguimiento}
-                                  </span>
-                                </td>
-                                <td className="text-center px-3 py-3 border-b">
                                   <span className="px-2 py-1 bg-orange-50 text-orange-700 rounded-full font-medium text-sm">
-                                    {asesorData.metricas.interesados}
+                                    {(asesorData.metricas.enSeguimiento || 0) + (asesorData.metricas.interesados || 0)}
                                   </span>
-                                </td>
-                                <td className="text-center px-3 py-3 border-b">
-                                  <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded-full font-medium text-sm">
-                                    {asesorData.metricas.pagados}
-                                  </span>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {asesorData.metricas.interesados || 0} int. + {asesorData.metricas.enSeguimiento || 0} seg.
+                                  </div>
                                 </td>
                                 <td className="text-center px-3 py-3 border-b">
                                   <span className="px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium text-sm">
-                                    {asesorData.metricas.consolidadas}
+                                    {(asesorData.metricas.pagados || 0) + (asesorData.metricas.consolidadas || 0)}
+                                  </span>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {asesorData.metricas.pagados || 0} pag. + {asesorData.metricas.consolidadas || 0} cons.
+                                  </div>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <span className="px-2 py-1 bg-red-50 text-red-700 rounded-full font-medium text-sm">
+                                    {asesorData.metricas.noInteresados || 0}
+                                  </span>
+                                </td>
+                                <td className="text-center px-3 py-3 border-b">
+                                  <span className="px-2 py-1 bg-gray-50 text-gray-600 rounded-full font-medium text-sm">
+                                    {asesorData.metricas.noContactar || 0}
                                   </span>
                                 </td>
                                 <td className="text-center px-3 py-3 border-b">

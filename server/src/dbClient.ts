@@ -1674,9 +1674,10 @@ export async function getVIPsTableData(): Promise<any[]> {
         continue;
       }
       
-      // Calcular % contactado (clientes con conversaciones)
+      // Calcular % contactado (cualquier estado reportado = contacto realizado)
+      // ✅ LÓGICA ACTUALIZADA: Si el asesor reportó cualquier estado, es obvio que hizo contacto
       const clientesContactados = vips.filter((vip: any) => 
-        ['contactado', 'en-seguimiento', 'interesado', 'pagado', 'venta-consolidada'].includes(vip.estadoPipeline)
+        ['contactado', 'en-seguimiento', 'interesado', 'pagado', 'venta-consolidada', 'no-interesado', 'no-contactar'].includes(vip.estadoPipeline)
       ).length;
       
       const porcentajeContactado = estadisticas.total > 0 

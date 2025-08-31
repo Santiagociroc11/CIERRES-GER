@@ -993,7 +993,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       if (vistaVIP === 'pendientes') {
         cargarVIPsPendientes();
       } else if (vistaVIP === 'en-sistema') {
-        cargarVIPsTablaData();
+        cargarVIPsEnSistema();
       }
     }
   }, [vistaAdmin, vistaVIP]);
@@ -1159,7 +1159,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         }
 
         if (asesorData && asesorData.vips) {
-            const priority = {
+            const priority: { [key: string]: number } = {
                 'venta-consolidada': 0,
                 'pagado': 1,
                 'interesado': 2,
@@ -1171,8 +1171,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
             };
 
             const sortedVips = [...asesorData.vips].sort((a, b) => {
-                const priorityA = priority[a.estadoPipeline] ?? 99;
-                const priorityB = priority[b.estadoPipeline] ?? 99;
+                const priorityA = priority[a.estadoPipeline as keyof typeof priority] ?? 99;
+                const priorityB = priority[b.estadoPipeline as keyof typeof priority] ?? 99;
                 return priorityA - priorityB;
             });
 

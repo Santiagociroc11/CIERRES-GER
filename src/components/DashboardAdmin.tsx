@@ -1151,35 +1151,39 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     setLoadingVipClientes(true);
 
     try {
-        const allVipsTableData = await apiClient.request<any[]>('/vips/table-data');
+        // Usar el endpoint específico para obtener VIPs del asesor
+        const response = await fetch(`/api/vips/asesor/${asesor.ID}`);
+        
+        if (response.ok) {
+            const result = await response.json();
+            const vips = result.data || [];
+            
+            if (vips.length > 0) {
+                const priority: { [key: string]: number } = {
+                    'venta-consolidada': 0,
+                    'pagado': 1,
+                    'interesado': 2,
+                    'en-seguimiento': 3,
+                    'contactado': 4,
+                    'listado-vip': 5,
+                    'no-interesado': 6,
+                    'no-contactar': 7,
+                };
 
-        let asesorData;
-        if (Array.isArray(allVipsTableData)) {
-            asesorData = allVipsTableData.find(data => data.asesor.ID === asesor.ID);
-        }
+                const sortedVips = [...vips].sort((a, b) => {
+                    const priorityA = priority[a.estadoPipeline as keyof typeof priority] ?? 99;
+                    const priorityB = priority[b.estadoPipeline as keyof typeof priority] ?? 99;
+                    return priorityA - priorityB;
+                });
 
-        if (asesorData && asesorData.vips) {
-            const priority: { [key: string]: number } = {
-                'venta-consolidada': 0,
-                'pagado': 1,
-                'interesado': 2,
-                'en-seguimiento': 3,
-                'contactado': 4,
-                'listado-vip': 5,
-                'no-interesado': 6,
-                'no-contactar': 7,
-            };
-
-            const sortedVips = [...asesorData.vips].sort((a, b) => {
-                const priorityA = priority[a.estadoPipeline as keyof typeof priority] ?? 99;
-                const priorityB = priority[b.estadoPipeline as keyof typeof priority] ?? 99;
-                return priorityA - priorityB;
-            });
-
-            setVipClientes(sortedVips);
+                setVipClientes(sortedVips);
+                console.log(`✅ ${sortedVips.length} clientes VIP cargados para ${asesor.NOMBRE}`);
+            } else {
+                console.log(`No hay clientes VIP asignados a ${asesor.NOMBRE}`);
+                setVipClientes([]);
+            }
         } else {
-            console.error(`No VIP data found for advisor ${asesor.NOMBRE}`);
-            setVipClientes([]);
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
         }
     } catch (error) {
         console.error("Error fetching VIP clients for advisor", error);
@@ -1220,7 +1224,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
             <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
                 <div className="flex justify-between items-center pb-4 border-b border-gray-200">
-                    <h2 className="text-2xl font-bold text-gray-800">Clientes VIP de {asesor.NOMBRE}</h2>
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-800">Clientes VIP de {asesor.NOMBRE}</h2>
+                        <p className="text-sm text-gray-600 mt-1">
+                            {!isLoading && clients.length > 0 ? `${clients.length} clientes VIP asignados` : 'Cargando clientes VIP...'}
+                        </p>
+                    </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
@@ -1235,17 +1244,71 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             <p className="text-gray-500">No se encontraron clientes VIP para este asesor.</p>
                         </div>
                     ) : (
-                        <ul className="divide-y divide-gray-200">
-                            {clients.map(client => (
-                                <li key={client.ID} className="py-4 flex justify-between items-center">
+                        <div className="space-y-4">
+                            {/* Resumen de estadísticas */}
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                                     <div>
-                                        <p className="font-semibold text-gray-900">{client.NOMBRE}</p>
-                                        <p className="text-sm text-gray-600">{client.WHATSAPP}</p>
+                                        <div className="text-2xl font-bold text-blue-600">{clients.length}</div>
+                                        <div className="text-sm text-gray-600">Total VIPs</div>
                                     </div>
-                                    {getStatusPill(client)}
-                                </li>
-                            ))}
-                        </ul>
+                                    <div>
+                                        <div className="text-2xl font-bold text-purple-600">
+                                            {clients.filter(c => c.estadoPipeline === 'contactado').length}
+                                        </div>
+                                        <div className="text-sm text-gray-600">Contactados</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-2xl font-bold text-green-600">
+                                            {clients.filter(c => c.estadoPipeline === 'pagado' || c.estadoPipeline === 'venta-consolidada').length}
+                                        </div>
+                                        <div className="text-sm text-gray-600">Ventas</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-2xl font-bold text-gray-600">
+                                            {clients.filter(c => c.estadoPipeline === 'listado-vip').length}
+                                        </div>
+                                        <div className="text-sm text-gray-600">Sin Contacto</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Lista de clientes */}
+                            <ul className="divide-y divide-gray-200">
+                                {clients.map(client => (
+                                    <li key={client.ID} className="py-4 hover:bg-gray-50 transition-colors">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-3">
+                                                    <p className="font-semibold text-gray-900">{client.NOMBRE}</p>
+                                                    {getStatusPill(client)}
+                                                </div>
+                                                <div className="mt-2 space-y-1">
+                                                    {client.WHATSAPP && (
+                                                        <p className="text-sm text-gray-600 flex items-center gap-2">
+                                                            <span className="text-green-500">📱</span>
+                                                            {client.WHATSAPP}
+                                                        </p>
+                                                    )}
+                                                    {client.EMAIL && (
+                                                        <p className="text-sm text-gray-600 flex items-center gap-2">
+                                                            <span className="text-blue-500">✉️</span>
+                                                            {client.EMAIL}
+                                                        </p>
+                                                    )}
+                                                    {client.FUENTE && (
+                                                        <p className="text-sm text-gray-600 flex items-center gap-2">
+                                                            <span className="text-orange-500">🌐</span>
+                                                            {client.FUENTE}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
                     )}
                 </div>
             </div>

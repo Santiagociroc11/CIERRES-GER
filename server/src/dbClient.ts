@@ -1482,4 +1482,131 @@ export async function getVIPsEnSistema(): Promise<any[]> {
   }
 }
 
+// Obtener VIPs en pipeline por asesor con estados reales basados en actividad
+export async function getVIPsEnPipelinePorAsesor(): Promise<any[]> {
+  try {
+    console.log('🔄 Obteniendo VIPs en pipeline agrupados por asesor...');
+    
+    // Obtener todos los VIPs que ya están en el sistema
+    const vipsEnSistema = await getVIPsEnSistema();
+    
+    // Obtener todos los asesores
+    const asesoresResponse = await fetch(`${POSTGREST_URL}/GERSSON_ASESORES?select=ID,NOMBRE,ACTIVO&ACTIVO=eq.true&order=NOMBRE.asc`);
+    if (!asesoresResponse.ok) {
+      throw new Error('Error obteniendo asesores');
+    }
+    const asesores = await asesoresResponse.json();
+    
+    // Obtener todas las conversaciones para determinar contactos
+    const conversacionesResponse = await fetch(`${POSTGREST_URL}/conversaciones?select=id_cliente,wha_cliente,id_asesor,timestamp&order=timestamp.desc`);
+    if (!conversacionesResponse.ok) {
+      throw new Error('Error obteniendo conversaciones');
+    }
+    const conversaciones = await conversacionesResponse.json();
+    
+    // Normalizar números de WhatsApp para comparación
+    const normalizeWhatsApp = (wha: string): string => {
+      const soloNumeros = wha.replace(/\D/g, '');
+      return soloNumeros.slice(-7);
+    };
+    
+    // Crear un mapa de conversaciones por cliente
+    const conversacionesPorCliente = new Map();
+    conversaciones.forEach((conv: any) => {
+      const key = conv.id_cliente || normalizeWhatsApp(conv.wha_cliente || '');
+      if (!conversacionesPorCliente.has(key)) {
+        conversacionesPorCliente.set(key, {
+          tieneConversaciones: true,
+          ultimaConversacion: conv.timestamp,
+          asesorId: conv.id_asesor
+        });
+      }
+    });
+    
+    // Determinar el estado del pipeline para cada VIP
+    const determinarEstadoPipeline = (vip: any): string => {
+      const cliente = vip.cliente;
+      const clienteKey = cliente?.ID || normalizeWhatsApp(vip.WHATSAPP || '');
+      const tieneConversaciones = conversacionesPorCliente.has(clienteKey);
+      
+      // 1. Venta consolidada - tiene compra completada
+      if (cliente?.MONTO_COMPRA && cliente.MONTO_COMPRA > 0 && cliente.ESTADO === 'comprador') {
+        return 'venta-consolidada';
+      }
+      
+      // 2. Pagado - tiene monto pero aún no está consolidado
+      if (cliente?.MONTO_COMPRA && cliente.MONTO_COMPRA > 0) {
+        return 'pagado';
+      }
+      
+      // 3. Interesado - estado avanzado reportado por asesor
+      if (cliente?.ESTADO === 'interesado' || cliente?.ESTADO === 'muy_interesado') {
+        return 'interesado';
+      }
+      
+      // 4. En seguimiento - estado reportado por asesor
+      if (cliente?.ESTADO === 'activo' || cliente?.ESTADO === 'en_seguimiento') {
+        return 'en-seguimiento';
+      }
+      
+      // 5. Contactado - tiene conversaciones registradas
+      if (tieneConversaciones) {
+        return 'contactado';
+      }
+      
+      // 6. Listado VIP - sin contacto aún
+      return 'listado-vip';
+    };
+    
+    // Agrupar VIPs por asesor
+    const vipsPorAsesor = new Map();
+    
+    // Inicializar todos los asesores
+    asesores.forEach((asesor: any) => {
+      vipsPorAsesor.set(asesor.ID, {
+        asesor: asesor,
+        vips: [],
+        estadisticas: {
+          'listado-vip': 0,
+          'contactado': 0,
+          'en-seguimiento': 0,
+          'interesado': 0,
+          'pagado': 0,
+          'venta-consolidada': 0,
+          total: 0
+        }
+      });
+    });
+    
+    // Asignar VIPs a asesores y calcular estadísticas
+    vipsEnSistema.forEach((vip: any) => {
+      const asesorId = vip.cliente?.ID_ASESOR;
+      if (asesorId && vipsPorAsesor.has(asesorId)) {
+        const estadoPipeline = determinarEstadoPipeline(vip);
+        const vipConEstado = {
+          ...vip,
+          estadoPipeline: estadoPipeline
+        };
+        
+        const asesorData = vipsPorAsesor.get(asesorId);
+        asesorData.vips.push(vipConEstado);
+        asesorData.estadisticas[estadoPipeline]++;
+        asesorData.estadisticas.total++;
+      }
+    });
+    
+    // Convertir a array y filtrar asesores sin VIPs asignados
+    const resultado = Array.from(vipsPorAsesor.values())
+      .filter((asesorData: any) => asesorData.estadisticas.total > 0)
+      .sort((a: any, b: any) => b.estadisticas.total - a.estadisticas.total);
+    
+    console.log(`✅ ${resultado.length} asesores con VIPs en pipeline cargados`);
+    return resultado;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo VIPs en pipeline por asesor:', error);
+    throw error;
+  }
+}
+
  

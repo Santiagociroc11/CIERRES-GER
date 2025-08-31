@@ -95,6 +95,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [cargandoVips, setCargandoVips] = useState(false);
   const [vipsEnSistema, setVipsEnSistema] = useState<any[]>([]);
   const [cargandoVipsEnSistema, setCargandoVipsEnSistema] = useState(false);
+  const [vipsPipelinePorAsesor, setVipsPipelinePorAsesor] = useState<any[]>([]);
+  const [cargandoPipeline, setCargandoPipeline] = useState(false);
   
   // Estados para asignación masiva
   const [asignacionMasiva, setAsignacionMasiva] = useState<{[asesorId: number]: number}>({});
@@ -942,13 +944,32 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     }
   };
 
+  const cargarVIPsPipelinePorAsesor = async () => {
+    setCargandoPipeline(true);
+    try {
+      const response = await fetch('/api/vips/pipeline-por-asesor');
+      if (response.ok) {
+        const resultado = await response.json();
+        setVipsPipelinePorAsesor(resultado.data);
+        console.log(`✅ ${resultado.data.length} asesores con VIPs en pipeline cargados`);
+      } else {
+        throw new Error('Error cargando VIPs en pipeline por asesor');
+      }
+    } catch (error) {
+      console.error('❌ Error cargando VIPs en pipeline por asesor:', error);
+      alert('Error cargando VIPs en pipeline por asesor');
+    } finally {
+      setCargandoPipeline(false);
+    }
+  };
+
   // Cargar VIPs según la subvista activa
   useEffect(() => {
     if (vistaAdmin === 'vips') {
       if (vistaVIP === 'pendientes') {
         cargarVIPsPendientes();
       } else if (vistaVIP === 'en-sistema') {
-        cargarVIPsEnSistema();
+        cargarVIPsPipelinePorAsesor();
       }
     }
   }, [vistaAdmin, vistaVIP]);
@@ -4450,41 +4471,106 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     <div>
                       <h3 className="text-lg font-semibold text-gray-800 flex items-center">
                         <BarChart className="h-5 w-5 mr-2 text-yellow-600" />
-                        VIPs en Sistema - Tablero de Conversión
+                        VIPs en Sistema - Pipeline por Asesor
                       </h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        Estado de conversión de VIPs que ya están registrados como clientes
+                        Estado real del pipeline de VIPs asignados por cada asesor basado en actividad
                       </p>
                     </div>
                     <button
-                      onClick={cargarVIPsEnSistema}
-                      disabled={cargandoVipsEnSistema}
+                      onClick={cargarVIPsPipelinePorAsesor}
+                      disabled={cargandoPipeline}
                       className="flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50"
                     >
-                      <RefreshCcw className={`h-4 w-4 mr-2 ${cargandoVipsEnSistema ? 'animate-spin' : ''}`} />
-                      {cargandoVipsEnSistema ? 'Cargando...' : 'Actualizar'}
+                      <RefreshCcw className={`h-4 w-4 mr-2 ${cargandoPipeline ? 'animate-spin' : ''}`} />
+                      {cargandoPipeline ? 'Cargando...' : 'Actualizar'}
                     </button>
                   </div>
                 </div>
 
                 <div className="p-6">
-                  {cargandoVipsEnSistema ? (
+                  {cargandoPipeline ? (
                     <div className="text-center py-12">
                       <RefreshCcw className="mx-auto h-8 w-8 text-gray-400 animate-spin" />
-                      <p className="mt-2 text-sm text-gray-500">Cargando VIPs en sistema...</p>
+                      <p className="mt-2 text-sm text-gray-500">Cargando pipeline de VIPs...</p>
                     </div>
-                  ) : vipsEnSistema.length === 0 ? (
+                  ) : vipsPipelinePorAsesor.length === 0 ? (
                     <div className="text-center py-12">
                       <BarChart className="mx-auto h-12 w-12 text-gray-400" />
-                      <h3 className="mt-2 text-sm font-medium text-gray-900">No hay VIPs en el sistema</h3>
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No hay VIPs asignados</h3>
                       <p className="mt-1 text-sm text-gray-500">
-                        Importa VIPs primero y espera a que algunos se registren como clientes.
+                        Importa VIPs primero y espera a que algunos sean asignados a asesores.
                       </p>
                     </div>
                   ) : (
                     <div>
-                      {/* Métricas del Kanban */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                      {/* Pipeline por Asesor */}
+                      <div className="space-y-6">
+                        {vipsPipelinePorAsesor.map((asesorData: any) => (
+                          <div key={asesorData.asesor.ID} className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center">
+                                <Users className="h-8 w-8 text-blue-600 mr-3" />
+                                <div>
+                                  <h4 className="text-lg font-semibold text-gray-900">{asesorData.asesor.NOMBRE}</h4>
+                                  <p className="text-sm text-gray-500">{asesorData.estadisticas.total} VIPs asignados</p>
+                                </div>
+                              </div>
+                              <div className="flex space-x-4 text-center">
+                                <div>
+                                  <p className="text-lg font-bold text-green-600">{asesorData.estadisticas['venta-consolidada']}</p>
+                                  <p className="text-xs text-gray-500">Ventas</p>
+                                </div>
+                                <div>
+                                  <p className="text-lg font-bold text-purple-600">{asesorData.estadisticas.pagado}</p>
+                                  <p className="text-xs text-gray-500">Pagados</p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-6 gap-2">
+                              <div className="bg-gray-100 p-3 rounded text-center">
+                                <div className="text-sm font-medium text-gray-700">Sin Contacto</div>
+                                <div className="text-xl font-bold text-gray-700">{asesorData.estadisticas['listado-vip']}</div>
+                              </div>
+                              <div className="bg-blue-50 p-3 rounded text-center">
+                                <div className="text-sm font-medium text-blue-700">Contactado</div>
+                                <div className="text-xl font-bold text-blue-700">{asesorData.estadisticas.contactado}</div>
+                              </div>
+                              <div className="bg-yellow-50 p-3 rounded text-center">
+                                <div className="text-sm font-medium text-yellow-700">En Seguimiento</div>
+                                <div className="text-xl font-bold text-yellow-700">{asesorData.estadisticas['en-seguimiento']}</div>
+                              </div>
+                              <div className="bg-orange-50 p-3 rounded text-center">
+                                <div className="text-sm font-medium text-orange-700">Interesado</div>
+                                <div className="text-xl font-bold text-orange-700">{asesorData.estadisticas.interesado}</div>
+                              </div>
+                              <div className="bg-purple-50 p-3 rounded text-center">
+                                <div className="text-sm font-medium text-purple-700">Pagado</div>
+                                <div className="text-xl font-bold text-purple-700">{asesorData.estadisticas.pagado}</div>
+                              </div>
+                              <div className="bg-green-50 p-3 rounded text-center">
+                                <div className="text-sm font-medium text-green-700">Consolidada</div>
+                                <div className="text-xl font-bold text-green-700">{asesorData.estadisticas['venta-consolidada']}</div>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-3 bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${((asesorData.estadisticas.pagado + asesorData.estadisticas['venta-consolidada']) / asesorData.estadisticas.total) * 100}%`
+                                }}
+                              ></div>
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>Conversión: {Math.round(((asesorData.estadisticas.pagado + asesorData.estadisticas['venta-consolidada']) / asesorData.estadisticas.total) * 100)}%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Métricas originales del Kanban (ocultas temporalmente) */}
+                      <div className="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                           <div className="text-center">
                             <p className="text-2xl font-bold text-blue-700">

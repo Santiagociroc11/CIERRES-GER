@@ -16,10 +16,16 @@ export default function NuevoReporte({ cliente, asesor, onComplete, onClose }: N
   const [fechaSeguimiento, setFechaSeguimiento] = useState('');
   const [medioPago, setMedioPago] = useState('');
   const [loading, setLoading] = useState(false);
+  const [imagenConversacion, setImagenConversacion] = useState<File | null>(null);
+  const [imagenPago, setImagenPago] = useState<File | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    // TODO: Implement image upload logic and get the URLs.
+    const imagenConversacionUrl = '';
+    const imagenPagoUrl = '';
 
     try {
       // 1️⃣ Crear el nuevo reporte con estilo y precisión
@@ -59,6 +65,7 @@ export default function NuevoReporte({ cliente, asesor, onComplete, onClose }: N
     } finally {
       setLoading(false);
     }
+  };
     
 
   return (

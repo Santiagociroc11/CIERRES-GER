@@ -243,6 +243,9 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     clienteName: ''
   });
   const [vistaAsesores, setVistaAsesores] = useState<'cards' | 'tabla'>('cards');
+  const [vipModalAsesor, setVipModalAsesor] = useState<Asesor | null>(null);
+  const [vipClientes, setVipClientes] = useState<any[]>([]);
+  const [loadingVipClientes, setLoadingVipClientes] = useState(false);
 
   // Estado para alternar entre vista de Asesores y Clientes
   const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks' | 'vips' | 'chat-global'>('asesores');
@@ -1142,6 +1145,95 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       }
     };
   }, [asesorSeleccionadoChat, conversacionActivaChat, vistaAdmin]);
+
+  const handleAsesorNameClick = async (asesor: Asesor) => {
+    setVipModalAsesor(asesor);
+    setLoadingVipClientes(true);
+    try {
+      const response = await apiClient.request<any[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}&es_vip=eq.true&select=*`);
+      
+      const getClientPriority = (client: any) => {
+        if (client.ESTADO === 'VENTA CONSOLIDADA') return 0;
+        if (client.ESTADO === 'PAGADO') return 1;
+        
+        const hasReport = reportes.some(r => r.ID_CLIENTE === client.ID);
+        if (hasReport) return 2;
+
+        const hasContact = conversaciones.some(c => c.id_cliente === client.ID);
+        if (!hasContact) return 3;
+
+        return 4;
+      };
+
+      const sortedClients = response.sort((a, b) => getClientPriority(a) - getClientPriority(b));
+      setVipClientes(sortedClients);
+
+    } catch (error) {
+      console.error("Error fetching VIP clients for advisor", error);
+      setVipClientes([]);
+    } finally {
+      setLoadingVipClientes(false);
+    }
+  };
+
+  const VipClientsModal = ({ asesor, clients, isLoading, onClose }: { asesor: Asesor | null, clients: any[], isLoading: boolean, onClose: () => void }) => {
+    if (!asesor) return null;
+
+    const getStatusPill = (client: any) => {
+        const clientState = client.ESTADO;
+        if (clientState === 'VENTA CONSOLIDADA') {
+            return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">Consolidado</span>;
+        }
+        if (clientState === 'PAGADO') {
+            return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Pagado</span>;
+        }
+        const hasReport = reportes.some(r => r.ID_CLIENTE === client.ID);
+        if (hasReport) {
+            return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Con Reporte</span>;
+        }
+        const hasContact = conversaciones.some(c => c.id_cliente === client.ID);
+        if (!hasContact) {
+            return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-700">Sin Contacto</span>;
+        }
+        return <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getClienteEstadoColor(clientState)}`}>{clientState}</span>;
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+                <div className="flex justify-between items-center pb-4 border-b border-gray-200">
+                    <h2 className="text-2xl font-bold text-gray-800">Clientes VIP de {asesor.NOMBRE}</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div className="overflow-y-auto mt-4">
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-48">
+                            <p className="text-gray-500">Cargando clientes VIP...</p>
+                        </div>
+                    ) : clients.length === 0 ? (
+                        <div className="flex justify-center items-center h-48">
+                            <p className="text-gray-500">No se encontraron clientes VIP para este asesor.</p>
+                        </div>
+                    ) : (
+                        <ul className="divide-y divide-gray-200">
+                            {clients.map(client => (
+                                <li key={client.ID} className="py-4 flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold text-gray-900">{client.NOMBRE}</p>
+                                        <p className="text-sm text-gray-600">{client.WHATSAPP}</p>
+                                    </div>
+                                    {getStatusPill(client)}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+  };
 
   const cargarDatos = async () => {
     const inicioTiempo = performance.now();
@@ -3147,7 +3239,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             <div className="flex items-center">
                               <Users className="h-8 w-8 text-blue-500" />
                               <div className="ml-3">
-                                <h3 className="text-lg font-semibold">{asesor.NOMBRE}</h3>
+                                <h3 className="text-lg font-semibold cursor-pointer hover:text-blue-600" onClick={() => handleAsesorNameClick(asesor)}>{asesor.NOMBRE}</h3>
                                 {horasSinActividad !== null && (
                                   <p className={`text-sm ${horasSinActividad > 10 ? 'text-red-500' : 'text-gray-500'}`}>
                                     {formatInactivityTime(stats?.ultimaActividad)}
@@ -3573,7 +3665,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                   <div className="flex items-center">
                                     <Users className="h-10 w-10 text-blue-500 mr-3" />
                                     <div>
-                                      <div className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</div>
+                                      <div className="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600" onClick={() => handleAsesorNameClick(asesor)}>{asesor.NOMBRE}</div>
                                       <div className="text-sm text-gray-500">{asesor.WHATSAPP}</div>
                                     </div>
                                   </div>
@@ -5449,6 +5541,15 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         clienteName={modalDuplicados.clienteName}
         onMergeSuccess={handleDuplicadosFusionados}
       />
+
+      {vipModalAsesor && (
+        <VipClientsModal 
+            asesor={vipModalAsesor}
+            clients={vipClientes}
+            isLoading={loadingVipClientes}
+            onClose={() => setVipModalAsesor(null)}
+        />
+      )}
       </div>
       
     </div>

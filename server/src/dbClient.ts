@@ -949,4 +949,289 @@ export async function updateReporte(reporteId: number, datos: {
     console.error('Error updating reporte:', error);
     throw error;
   }
+}
+
+// ================================
+// FUNCIONES PARA GESTIÓN DE VIPs
+// ================================
+
+export interface VIP {
+  ID?: number;
+  NOMBRE?: string;
+  CORREO?: string;
+  WHATSAPP: string;
+  FECHA_IMPORTACION?: string;
+  ASESOR_ASIGNADO?: number;
+  ESTADO_CONTACTO?: string;
+  NOTAS?: string;
+  YA_ES_CLIENTE?: boolean;
+  FECHA_CONTACTO?: string;
+  FECHA_ULTIMA_ACTUALIZACION?: string;
+  POSICION_CSV?: number;
+  NIVEL_CONCIENCIA?: string;
+  ORIGEN_REGISTRO?: string;
+}
+
+// Procesar CSV de VIPs y clasificar si ya están en el sistema
+export async function procesarVIPs(vips: { NOMBRE?: string; CORREO?: string; WHATSAPP: string }[]): Promise<{
+  yaEnSistema: any[];
+  nuevosVIPs: any[];
+  errores: string[];
+}> {
+  try {
+    console.log(`🔄 Procesando ${vips.length} VIPs...`);
+    
+    const yaEnSistema: any[] = [];
+    const nuevosVIPs: any[] = [];
+    const errores: string[] = [];
+    
+    for (const vip of vips) {
+      try {
+        if (!vip.WHATSAPP) {
+          errores.push(`VIP sin WhatsApp: ${vip.NOMBRE || 'Sin nombre'}`);
+          continue;
+        }
+        
+        // Usar la función existente getClienteByWhatsapp que ya maneja la normalización
+        const clienteExistente = await getClienteByWhatsapp(vip.WHATSAPP);
+        
+        // Log para debugging (solo los primeros 5 para no saturar)
+        if (yaEnSistema.length + nuevosVIPs.length < 5) {
+          console.log(`🔍 VIP: ${vip.NOMBRE} | WhatsApp: ${vip.WHATSAPP} | ${clienteExistente ? 'ENCONTRADO' : 'NUEVO'}`);
+        }
+        
+        if (clienteExistente) {
+          yaEnSistema.push({
+            ...vip,
+            cliente: clienteExistente,
+            motivo: 'Ya es cliente en el sistema'
+          });
+        } else {
+          nuevosVIPs.push(vip);
+        }
+      } catch (error) {
+        errores.push(`Error procesando VIP ${vip.NOMBRE}: ${error}`);
+      }
+    }
+    
+    console.log(`✅ Procesamiento completo: ${yaEnSistema.length} ya en sistema, ${nuevosVIPs.length} nuevos VIPs, ${errores.length} errores`);
+    
+    return { yaEnSistema, nuevosVIPs, errores };
+  } catch (error) {
+    console.error('❌ Error procesando VIPs:', error);
+    throw error;
+  }
+}
+
+// Guardar VIPs nuevos en la base de datos
+export async function guardarVIPsNuevos(vips: VIP[]): Promise<{ insertados: number; errores: string[] }> {
+  try {
+    console.log(`🔄 Guardando ${vips.length} VIPs nuevos...`);
+    
+    const errores: string[] = [];
+    let insertados = 0;
+    
+    // Preparar datos para inserción
+    const vipsParaInsertar = vips.map(vip => ({
+      NOMBRE: vip.NOMBRE || null,
+      CORREO: vip.CORREO || null,
+      WHATSAPP: vip.WHATSAPP,
+      ESTADO_CONTACTO: 'sin_asesor',
+      YA_ES_CLIENTE: false,
+      POSICION_CSV: vip.POSICION_CSV || null,
+      NIVEL_CONCIENCIA: vip.NIVEL_CONCIENCIA || 'media',
+      ORIGEN_REGISTRO: vip.ORIGEN_REGISTRO || 'grupo_whatsapp'
+    }));
+    
+    // Insertar en lotes para mejor rendimiento
+    const response = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(vipsParaInsertar)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error guardando VIPs: ${response.status} - ${errorText}`);
+    }
+    
+    insertados = vipsParaInsertar.length;
+    console.log(`✅ ${insertados} VIPs guardados exitosamente`);
+    
+    return { insertados, errores };
+  } catch (error) {
+    console.error('❌ Error guardando VIPs:', error);
+    throw error;
+  }
+}
+
+// Obtener todos los VIPs pendientes (no clientes aún)
+export async function getVIPsPendientes(): Promise<VIP[]> {
+  try {
+    const response = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?YA_ES_CLIENTE=eq.false&select=*&order=POSICION_CSV.asc.nullslast,FECHA_IMPORTACION.desc`);
+    
+    if (!response.ok) {
+      throw new Error(`Error obteniendo VIPs pendientes: ${response.status}`);
+    }
+    
+    const vips = await response.json();
+    return vips;
+  } catch (error) {
+    console.error('❌ Error obteniendo VIPs pendientes:', error);
+    throw error;
+  }
+}
+
+// Asignar VIP a un asesor
+export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise<void> {
+  try {
+    const response = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ID=eq.${vipId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ASESOR_ASIGNADO: asesorId,
+        ESTADO_CONTACTO: 'asignado',
+        FECHA_ULTIMA_ACTUALIZACION: new Date().toISOString()
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error asignando VIP: ${response.status}`);
+    }
+    
+    console.log(`✅ VIP ${vipId} asignado a asesor ${asesorId}`);
+  } catch (error) {
+    console.error('❌ Error asignando VIP:', error);
+    throw error;
+  }
+}
+
+// Actualizar estado de contacto de VIP
+export async function actualizarEstadoVIP(vipId: number, estado: string, notas?: string): Promise<void> {
+  try {
+    const datos: any = {
+      ESTADO_CONTACTO: estado,
+      FECHA_ULTIMA_ACTUALIZACION: new Date().toISOString()
+    };
+    
+    if (estado === 'contactado' && !datos.FECHA_CONTACTO) {
+      datos.FECHA_CONTACTO = new Date().toISOString();
+    }
+    
+    if (notas) {
+      datos.NOTAS = notas;
+    }
+    
+    const response = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ID=eq.${vipId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(datos)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error actualizando estado VIP: ${response.status}`);
+    }
+    
+    console.log(`✅ VIP ${vipId} actualizado a estado: ${estado}`);
+  } catch (error) {
+    console.error('❌ Error actualizando estado VIP:', error);
+    throw error;
+  }
+}
+
+// Obtener VIPs asignados a un asesor específico
+export async function getVIPsPorAsesor(asesorId: number): Promise<VIP[]> {
+  try {
+    const response = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ASESOR_ASIGNADO=eq.${asesorId}&YA_ES_CLIENTE=eq.false&select=*&order=FECHA_ULTIMA_ACTUALIZACION.desc`);
+    
+    if (!response.ok) {
+      throw new Error(`Error obteniendo VIPs del asesor: ${response.status}`);
+    }
+    
+    const vips = await response.json();
+    return vips;
+  } catch (error) {
+    console.error('❌ Error obteniendo VIPs del asesor:', error);
+    throw error;
+  }
+}
+
+// Obtener VIPs que ya están en el sistema (cruzados con clientes)
+export async function getVIPsEnSistema(): Promise<any[]> {
+  try {
+    console.log('🔄 Obteniendo VIPs que ya están en el sistema...');
+    
+    // Obtener todos los VIPs importados
+    const vipsResponse = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?select=*&order=POSICION_CSV.asc.nullslast`);
+    if (!vipsResponse.ok) {
+      throw new Error('Error obteniendo VIPs importados');
+    }
+    const vipsImportados = await vipsResponse.json();
+    
+    // Obtener todos los clientes del sistema
+    const clientesResponse = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES?select=ID,NOMBRE,WHATSAPP,ESTADO,ID_ASESOR,NOMBRE_ASESOR,FECHA_COMPRA,MONTO_COMPRA`);
+    if (!clientesResponse.ok) {
+      throw new Error('Error obteniendo clientes');
+    }
+    const clientes = await clientesResponse.json();
+    
+    // Normalizar números de WhatsApp para comparación (últimos 7 dígitos como el sistema)
+    const normalizeWhatsApp = (wha: string): string => {
+      const soloNumeros = wha.replace(/\D/g, '');
+      return soloNumeros.slice(-7); // Usar últimos 7 dígitos como el sistema existente
+    };
+    
+    // Cruzar VIPs con clientes existentes
+    const vipsEnSistema = [];
+    for (const vip of vipsImportados) {
+      const whaNormalizado = normalizeWhatsApp(vip.WHATSAPP || '');
+      
+      // Buscar cliente correspondiente
+      const cliente = clientes.find((c: any) => {
+        const clienteWha = normalizeWhatsApp(c.WHATSAPP || '');
+        return clienteWha === whaNormalizado;
+      });
+      
+      if (cliente) {
+        // Log para debugging (solo los primeros 3)
+        if (vipsEnSistema.length < 3) {
+          console.log(`🎯 VIP en sistema: ${vip.NOMBRE} | VIP WhatsApp: ${vip.WHATSAPP} (${whaNormalizado}) | Cliente WhatsApp: ${cliente.WHATSAPP} | Match encontrado`);
+        }
+        
+        // Determinar estado del cliente para el Kanban
+        let estadoKanban = 'lead'; // Default
+        
+        if (cliente.MONTO_COMPRA && cliente.MONTO_COMPRA > 0) {
+          estadoKanban = 'comprador';
+        } else if (cliente.ESTADO === 'activo' || cliente.ESTADO === 'en_seguimiento') {
+          estadoKanban = 'interesado';
+        } else if (cliente.ESTADO === 'rechazado' || cliente.ESTADO === 'no_interesado') {
+          estadoKanban = 'no_interesado';
+        } else {
+          estadoKanban = 'lead';
+        }
+        
+        vipsEnSistema.push({
+          ...vip,
+          cliente: cliente,
+          estadoKanban: estadoKanban,
+          yaEsCliente: true
+        });
+      }
+    }
+    
+    console.log(`✅ ${vipsEnSistema.length} VIPs encontrados en el sistema de ${vipsImportados.length} VIPs importados`);
+    return vipsEnSistema;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo VIPs en sistema:', error);
+    throw error;
+  }
 } 

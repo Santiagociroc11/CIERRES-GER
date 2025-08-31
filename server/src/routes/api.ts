@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import winston from 'winston';
-import { getConversacionesPorAsesor, getMensajesConversacion } from '../dbClient';
+import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema } from '../dbClient';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -290,6 +290,223 @@ router.get('/mensajes/:asesorId/:clienteKey', async (req, res) => {
   } catch (error) {
     logger.error('❌ Error obteniendo mensajes:', error);
     res.status(500).json({ 
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// ================================
+// ENDPOINTS PARA GESTIÓN DE VIPs
+// ================================
+
+// Procesar CSV de VIPs
+router.post('/vips/procesar', async (req, res) => {
+  try {
+    const { vips } = req.body;
+    
+    if (!vips || !Array.isArray(vips)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere un array de VIPs',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    logger.info(`🔄 Procesando ${vips.length} VIPs desde CSV`);
+    
+    const resultado = await procesarVIPs(vips);
+    
+    res.json({
+      success: true,
+      data: resultado,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('❌ Error procesando VIPs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Guardar VIPs nuevos después del procesamiento
+router.post('/vips/guardar', async (req, res) => {
+  try {
+    const { vips } = req.body;
+    
+    if (!vips || !Array.isArray(vips)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere un array de VIPs',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    logger.info(`🔄 Guardando ${vips.length} VIPs nuevos`);
+    
+    const resultado = await guardarVIPsNuevos(vips);
+    
+    res.json({
+      success: true,
+      data: resultado,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('❌ Error guardando VIPs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Obtener todos los VIPs pendientes
+router.get('/vips/pendientes', async (req, res) => {
+  try {
+    logger.info('🔄 Obteniendo VIPs pendientes');
+    
+    const vips = await getVIPsPendientes();
+    
+    res.json({
+      success: true,
+      data: vips,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('❌ Error obteniendo VIPs pendientes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Asignar VIP a un asesor
+router.patch('/vips/:vipId/asignar', async (req, res) => {
+  try {
+    const vipId = parseInt(req.params.vipId);
+    const { asesorId } = req.body;
+    
+    if (!asesorId || isNaN(vipId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere vipId y asesorId válidos',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    logger.info(`🔄 Asignando VIP ${vipId} a asesor ${asesorId}`);
+    
+    await asignarVIPAsesor(vipId, asesorId);
+    
+    res.json({
+      success: true,
+      message: 'VIP asignado exitosamente',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('❌ Error asignando VIP:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Actualizar estado de VIP
+router.patch('/vips/:vipId/estado', async (req, res) => {
+  try {
+    const vipId = parseInt(req.params.vipId);
+    const { estado, notas } = req.body;
+    
+    if (!estado || isNaN(vipId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere vipId y estado válidos',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    logger.info(`🔄 Actualizando VIP ${vipId} a estado: ${estado}`);
+    
+    await actualizarEstadoVIP(vipId, estado, notas);
+    
+    res.json({
+      success: true,
+      message: 'Estado de VIP actualizado exitosamente',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('❌ Error actualizando estado VIP:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Obtener VIPs asignados a un asesor
+router.get('/vips/asesor/:asesorId', async (req, res) => {
+  try {
+    const asesorId = parseInt(req.params.asesorId);
+    
+    if (isNaN(asesorId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere asesorId válido',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    logger.info(`🔄 Obteniendo VIPs del asesor ${asesorId}`);
+    
+    const vips = await getVIPsPorAsesor(asesorId);
+    
+    res.json({
+      success: true,
+      data: vips,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('❌ Error obteniendo VIPs del asesor:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Obtener VIPs que ya están en el sistema (para Kanban)
+router.get('/vips/en-sistema', async (req, res) => {
+  try {
+    logger.info('🔄 Obteniendo VIPs que están en el sistema');
+    
+    const vips = await getVIPsEnSistema();
+    
+    res.json({
+      success: true,
+      data: vips,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('❌ Error obteniendo VIPs en sistema:', error);
+    res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
       timestamp: new Date().toISOString()

@@ -29,6 +29,8 @@ import {
   Grid3X3,
   List,
   Copy,
+  Crown,
+  Upload,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -83,6 +85,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [filtroChatGlobal, setFiltroChatGlobal] = useState<'todos'>('todos');
   const [anchoListaChat, setAnchoListaChat] = useState(500); // Ancho inicial de la lista de chats
   const [redimensionando, setRedimensionando] = useState(false);
+
+  // 🆕 Estados para gestión de VIPs
+  const [vistaVIP, setVistaVIP] = useState<'importar' | 'pendientes' | 'en-sistema'>('importar');
+  const [archivoCsv, setArchivoCsv] = useState<File | null>(null);
+  const [procesandoCsv, setProcesandoCsv] = useState(false);
+  const [resultadoProceso, setResultadoProceso] = useState<any>(null);
+  const [vipsPendientes, setVipsPendientes] = useState<any[]>([]);
+  const [cargandoVips, setCargandoVips] = useState(false);
+  const [vipsEnSistema, setVipsEnSistema] = useState<any[]>([]);
+  const [cargandoVipsEnSistema, setCargandoVipsEnSistema] = useState(false);
   
   // 🆕 Función para obtener nombre del cliente
   const obtenerNombreCliente = (conversacion: any) => {
@@ -225,7 +237,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [vistaAsesores, setVistaAsesores] = useState<'cards' | 'tabla'>('cards');
 
   // Estado para alternar entre vista de Asesores y Clientes
-  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks' | 'chat-global'>('asesores');
+  const [vistaAdmin, setVistaAdmin] = useState<'resumen' | 'asesores' | 'clientes' | 'gestion' | 'webhooks' | 'vips' | 'chat-global'>('asesores');
   
   // Estado para alternar entre modo admin y asesor
   const [modoAsesor, setModoAsesor] = useState(false);
@@ -572,6 +584,274 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     }
   };
 
+
+  // 🆕 Funciones para gestión de VIPs
+  const procesarArchivoCSV = (archivo: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          let texto = e.target?.result as string;
+          
+          // Intentar decodificar caracteres especiales comunes en CSV
+          texto = texto
+            .replace(/Ã¡/g, 'á')
+            .replace(/Ã©/g, 'é')
+            .replace(/Ã­/g, 'í')
+            .replace(/Ã³/g, 'ó')
+            .replace(/Ãº/g, 'ú')
+            .replace(/Ã±/g, 'ñ')
+            .replace(/Ã /g, 'à')
+            .replace(/Ãˆ/g, 'è')
+            .replace(/Ã¼/g, 'ü');
+          
+          const lineas = texto.split('\n').filter(linea => linea.trim());
+          
+          // Asumir que la primera línea contiene los headers
+          const headers = lineas[0].split(',').map(h => h.trim().replace(/"/g, ''));
+          console.log('📊 Headers detectados:', headers);
+          
+          const vips = [];
+          for (let i = 1; i < lineas.length; i++) {
+            const valores = lineas[i].split(',').map(v => v.trim().replace(/"/g, ''));
+            if (valores.length >= headers.length) {
+              const vip: any = {};
+              headers.forEach((header, index) => {
+                const headerLower = header.toLowerCase().trim();
+                const valor = valores[index]?.trim() || '';
+                
+                // Mapear headers exactos del CSV que me mostraste
+                if (headerLower === 'id') {
+                  vip.ID_CSV = valor;
+                } else if (headerLower === 'nombre') {
+                  vip.NOMBRE = valor;
+                } else if (headerLower === 'correo') {
+                  vip.CORREO = valor;
+                } else if (headerLower === 'whatsapp') {
+                  vip.WHATSAPP = valor;
+                } else {
+                  // Fallback para otros formatos posibles
+                  if (headerLower.includes('nombre')) vip.NOMBRE = valor;
+                  else if (headerLower.includes('correo') || headerLower.includes('email')) vip.CORREO = valor;
+                  else if (headerLower.includes('whatsapp') || headerLower.includes('telefono') || headerLower.includes('phone')) vip.WHATSAPP = valor;
+                  else vip[header] = valor;
+                }
+              });
+              
+              if (vip.WHATSAPP) {
+                // Agregar posición en CSV y determinar nivel de conciencia
+                const posicion = i; // Posición basada en el orden en el CSV
+                vip.POSICION_CSV = posicion;
+                
+                // Los primeros 500 se consideran alta conciencia (registrados en segunda clase)
+                // Puedes ajustar este número según tus datos
+                if (posicion <= 500) {
+                  vip.NIVEL_CONCIENCIA = 'alta';
+                  vip.ORIGEN_REGISTRO = 'segunda_clase';
+                } else if (posicion <= 2000) {
+                  vip.NIVEL_CONCIENCIA = 'media';
+                  vip.ORIGEN_REGISTRO = 'grupo_whatsapp_activo';
+                } else {
+                  vip.NIVEL_CONCIENCIA = 'baja';
+                  vip.ORIGEN_REGISTRO = 'grupo_whatsapp';
+                }
+                
+                vips.push(vip);
+              }
+            }
+          }
+          
+          console.log(`✅ ${vips.length} VIPs extraídos del CSV`);
+          resolve(vips);
+        } catch (error) {
+          console.error('❌ Error procesando CSV:', error);
+          reject(error);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsText(archivo);
+    });
+  };
+
+  const manejarProcesarCSV = async () => {
+    if (!archivoCsv) {
+      alert('Por favor selecciona un archivo CSV');
+      return;
+    }
+
+    setProcesandoCsv(true);
+    setResultadoProceso(null);
+
+    try {
+      console.log('🔄 Iniciando procesamiento de CSV...');
+      
+      // 1. Extraer datos del CSV
+      const vipsDelCsv = await procesarArchivoCSV(archivoCsv);
+      console.log(`📋 ${vipsDelCsv.length} VIPs extraídos del CSV`);
+
+      // 2. Procesar VIPs (comparar con clientes existentes)
+      const response = await fetch('/api/vips/procesar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ vips: vipsDelCsv })
+      });
+
+      if (!response.ok) {
+        throw new Error('Error procesando VIPs');
+      }
+
+      const resultado = await response.json();
+      console.log('✅ Resultado del procesamiento:', resultado);
+
+      setResultadoProceso(resultado.data);
+
+    } catch (error) {
+      console.error('❌ Error procesando CSV:', error);
+      alert('Error procesando el archivo CSV');
+    } finally {
+      setProcesandoCsv(false);
+    }
+  };
+
+  const guardarVIPsNuevos = async () => {
+    if (!resultadoProceso?.nuevosVIPs?.length) {
+      alert('No hay VIPs nuevos para guardar');
+      return;
+    }
+
+    try {
+      console.log(`🔄 Guardando ${resultadoProceso.nuevosVIPs.length} VIPs nuevos...`);
+      
+      const response = await fetch('/api/vips/guardar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ vips: resultadoProceso.nuevosVIPs })
+      });
+
+      if (!response.ok) {
+        throw new Error('Error guardando VIPs');
+      }
+
+      const resultado = await response.json();
+      console.log('✅ VIPs guardados:', resultado);
+
+      alert(`${resultado.data.insertados} VIPs guardados exitosamente`);
+      
+      // Limpiar el resultado y archivo
+      setResultadoProceso(null);
+      setArchivoCsv(null);
+      
+      // Cargar VIPs pendientes si estamos en esa vista
+      if (vistaVIP === 'pendientes') {
+        cargarVIPsPendientes();
+      }
+
+    } catch (error) {
+      console.error('❌ Error guardando VIPs:', error);
+      alert('Error guardando los VIPs');
+    }
+  };
+
+  const cargarVIPsPendientes = async () => {
+    setCargandoVips(true);
+    try {
+      const response = await fetch('/api/vips/pendientes');
+      if (response.ok) {
+        const resultado = await response.json();
+        setVipsPendientes(resultado.data);
+        console.log(`✅ ${resultado.data.length} VIPs pendientes cargados`);
+      } else {
+        throw new Error('Error cargando VIPs pendientes');
+      }
+    } catch (error) {
+      console.error('❌ Error cargando VIPs pendientes:', error);
+      alert('Error cargando VIPs pendientes');
+    } finally {
+      setCargandoVips(false);
+    }
+  };
+
+  const asignarVIP = async (vipId: number, asesorId: number) => {
+    try {
+      const response = await fetch(`/api/vips/${vipId}/asignar`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ asesorId })
+      });
+
+      if (!response.ok) {
+        throw new Error('Error asignando VIP');
+      }
+
+      alert('VIP asignado exitosamente');
+      cargarVIPsPendientes(); // Recargar la lista
+      
+    } catch (error) {
+      console.error('❌ Error asignando VIP:', error);
+      alert('Error asignando VIP');
+    }
+  };
+
+  const cambiarEstadoVIP = async (vipId: number, nuevoEstado: string, notas?: string) => {
+    try {
+      const response = await fetch(`/api/vips/${vipId}/estado`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ estado: nuevoEstado, notas })
+      });
+
+      if (!response.ok) {
+        throw new Error('Error actualizando estado VIP');
+      }
+
+      alert('Estado actualizado exitosamente');
+      cargarVIPsPendientes(); // Recargar la lista
+      
+    } catch (error) {
+      console.error('❌ Error actualizando estado VIP:', error);
+      alert('Error actualizando estado VIP');
+    }
+  };
+
+  const cargarVIPsEnSistema = async () => {
+    setCargandoVipsEnSistema(true);
+    try {
+      // Obtener VIPs que ya están registrados como clientes
+      // Necesitamos cruzar los datos de VIPs con la tabla de clientes
+      const response = await fetch('/api/vips/en-sistema');
+      if (response.ok) {
+        const resultado = await response.json();
+        setVipsEnSistema(resultado.data);
+        console.log(`✅ ${resultado.data.length} VIPs en sistema cargados`);
+      } else {
+        throw new Error('Error cargando VIPs en sistema');
+      }
+    } catch (error) {
+      console.error('❌ Error cargando VIPs en sistema:', error);
+      alert('Error cargando VIPs en sistema');
+    } finally {
+      setCargandoVipsEnSistema(false);
+    }
+  };
+
+  // Cargar VIPs según la subvista activa
+  useEffect(() => {
+    if (vistaAdmin === 'vips') {
+      if (vistaVIP === 'pendientes') {
+        cargarVIPsPendientes();
+      } else if (vistaVIP === 'en-sistema') {
+        cargarVIPsEnSistema();
+      }
+    }
+  }, [vistaAdmin, vistaVIP]);
 
   // 🆕 Funciones para Chat Global
   const cargarConversacionesChat = async (asesorId: number, silencioso: boolean = false) => {
@@ -1782,6 +2062,28 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
               </button>
             )}
 
+            {/* Listado VIP - Solo para admins completos */}
+            {adminRole === 'admin' && (
+              <button
+                onClick={() => setVistaAdmin('vips')}
+                className={`
+                  w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 relative
+                  ${vistaAdmin === 'vips'
+                    ? 'bg-yellow-600 text-white shadow-lg'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }
+                `}
+              >
+                <Crown className="h-5 w-5" />
+                <div className="flex-1 text-left">
+                  <div className="font-semibold">Listado VIP</div>
+                  <div className="text-xs opacity-75">Importar y gestionar</div>
+                </div>
+                <span className="bg-white bg-opacity-20 text-xs font-bold px-2 py-1 rounded-full">
+                  {vipsPendientes.length}
+                </span>
+              </button>
+            )}
 
             {/* Chat Global */}
             <button
@@ -1833,6 +2135,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 {vistaAdmin === 'clientes' && 'Base de datos de clientes'}
                 {vistaAdmin === 'gestion' && 'Asignaciones y configuraciones'}
                 {vistaAdmin === 'webhooks' && 'Configuración de webhooks'}
+                {vistaAdmin === 'vips' && 'Importar y gestionar lista VIP'}
                 {vistaAdmin === 'chat-global' && 'Supervisión de conversaciones'}
               </p>
             </div>
@@ -3586,6 +3889,669 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 <WebhookLogs />
               )}
             </div>
+          </div>
+        ) : vistaAdmin === 'vips' && adminRole === 'admin' ? (
+          <div className="space-y-6">
+            {/* Navegación de subvistas */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex space-x-4 mb-4">
+                <button
+                  onClick={() => setVistaVIP('importar')}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                    vistaVIP === 'importar'
+                      ? 'bg-yellow-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Upload className="h-4 w-4 inline-block mr-2" />
+                  Importar VIPs
+                </button>
+                <button
+                  onClick={() => setVistaVIP('pendientes')}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                    vistaVIP === 'pendientes'
+                      ? 'bg-yellow-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Crown className="h-4 w-4 inline-block mr-2" />
+                  VIPs Pendientes ({vipsPendientes.length})
+                </button>
+                <button
+                  onClick={() => setVistaVIP('en-sistema')}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                    vistaVIP === 'en-sistema'
+                      ? 'bg-yellow-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <BarChart className="h-4 w-4 inline-block mr-2" />
+                  VIPs en Sistema ({vipsEnSistema.length})
+                </button>
+              </div>
+            </div>
+
+            {vistaVIP === 'importar' ? (
+              /* Subvista: Importar CSV */
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                    <Upload className="h-5 w-5 mr-2 text-yellow-600" />
+                    Importar Lista VIP desde CSV
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Sube tu archivo CSV con los datos VIP. El sistema verificará automáticamente quiénes ya están registrados como clientes.
+                  </p>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  {/* Upload de archivo */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Seleccionar archivo CSV
+                    </label>
+                    <div className="flex items-center space-x-4">
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={(e) => setArchivoCsv(e.target.files?.[0] || null)}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100"
+                      />
+                      <button
+                        onClick={manejarProcesarCSV}
+                        disabled={!archivoCsv || procesandoCsv}
+                        className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                      >
+                        {procesandoCsv ? (
+                          <>
+                            <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
+                            Procesando...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="h-4 w-4 mr-2" />
+                            Procesar
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Resultado del procesamiento */}
+                  {resultadoProceso && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* VIPs ya en sistema */}
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                          <div className="flex items-center">
+                            <Users className="h-8 w-8 text-blue-500 mr-3" />
+                            <div>
+                              <p className="text-2xl font-bold text-blue-700">
+                                {resultadoProceso.yaEnSistema.length}
+                              </p>
+                              <p className="text-sm text-blue-600">Ya en sistema</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* VIPs nuevos */}
+                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                          <div className="flex items-center">
+                            <Crown className="h-8 w-8 text-green-500 mr-3" />
+                            <div>
+                              <p className="text-2xl font-bold text-green-700">
+                                {resultadoProceso.nuevosVIPs.length}
+                              </p>
+                              <p className="text-sm text-green-600">VIPs nuevos</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Errores */}
+                        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                          <div className="flex items-center">
+                            <AlertTriangle className="h-8 w-8 text-red-500 mr-3" />
+                            <div>
+                              <p className="text-2xl font-bold text-red-700">
+                                {resultadoProceso.errores.length}
+                              </p>
+                              <p className="text-sm text-red-600">Errores</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botón para guardar VIPs nuevos */}
+                      {resultadoProceso.nuevosVIPs.length > 0 && (
+                        <div className="flex justify-center">
+                          <button
+                            onClick={guardarVIPsNuevos}
+                            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center"
+                          >
+                            <Download className="h-5 w-5 mr-2" />
+                            Guardar {resultadoProceso.nuevosVIPs.length} VIPs Nuevos
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Tablas de resultados */}
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        {/* Tabla: Ya en sistema */}
+                        {resultadoProceso.yaEnSistema.length > 0 && (
+                          <div>
+                            <h4 className="text-lg font-medium text-gray-800 mb-3">VIPs que ya están en el sistema</h4>
+                            <div className="bg-gray-50 rounded-lg overflow-hidden">
+                              <div className="max-h-64 overflow-y-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                  <thead className="bg-gray-100">
+                                    <tr>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">WhatsApp</th>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-200">
+                                    {resultadoProceso.yaEnSistema.slice(0, 50).map((vip: any, index: number) => (
+                                      <tr key={index} className="hover:bg-gray-50">
+                                        <td className="px-4 py-2 text-sm">{vip.NOMBRE || 'Sin nombre'}</td>
+                                        <td className="px-4 py-2 text-sm font-mono">{vip.WHATSAPP}</td>
+                                        <td className="px-4 py-2 text-sm">
+                                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                                            Cliente: {vip.cliente?.ESTADO}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Tabla: VIPs nuevos */}
+                        {resultadoProceso.nuevosVIPs.length > 0 && (
+                          <div>
+                            <h4 className="text-lg font-medium text-gray-800 mb-3">VIPs nuevos para importar</h4>
+                            <div className="bg-gray-50 rounded-lg overflow-hidden">
+                              <div className="max-h-64 overflow-y-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                  <thead className="bg-gray-100">
+                                    <tr>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">WhatsApp</th>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Correo</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-200">
+                                    {resultadoProceso.nuevosVIPs.slice(0, 50).map((vip: any, index: number) => (
+                                      <tr key={index} className="hover:bg-gray-50">
+                                        <td className="px-4 py-2 text-sm">{vip.NOMBRE || 'Sin nombre'}</td>
+                                        <td className="px-4 py-2 text-sm font-mono">{vip.WHATSAPP}</td>
+                                        <td className="px-4 py-2 text-sm">{vip.CORREO || 'Sin correo'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : vistaVIP === 'pendientes' ? (
+              /* Subvista: VIPs Pendientes */
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                        <Crown className="h-5 w-5 mr-2 text-yellow-600" />
+                        VIPs Pendientes de Contactar
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Lista de VIPs que aún no han sido convertidos en clientes del sistema
+                      </p>
+                    </div>
+                    <button
+                      onClick={cargarVIPsPendientes}
+                      disabled={cargandoVips}
+                      className="flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+                    >
+                      <RefreshCcw className={`h-4 w-4 mr-2 ${cargandoVips ? 'animate-spin' : ''}`} />
+                      {cargandoVips ? 'Cargando...' : 'Actualizar'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  {cargandoVips ? (
+                    <div className="text-center py-12">
+                      <RefreshCcw className="mx-auto h-8 w-8 text-gray-400 animate-spin" />
+                      <p className="mt-2 text-sm text-gray-500">Cargando VIPs pendientes...</p>
+                    </div>
+                  ) : vipsPendientes.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Crown className="mx-auto h-12 w-12 text-gray-400" />
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No hay VIPs pendientes</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Todos los VIPs han sido contactados o convertidos en clientes.
+                      </p>
+                    </div>
+                  ) : (
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VIP / Prioridad</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">WhatsApp</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asesor</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Última Act.</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {vipsPendientes.map((vip: any) => {
+                          const asesorAsignado = asesores.find(a => a.ID === vip.ASESOR_ASIGNADO);
+                          return (
+                            <tr key={vip.ID} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div>
+                                  <div className="flex items-center space-x-2 mb-1">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {vip.NOMBRE || 'Sin nombre'}
+                                    </div>
+                                    {vip.NIVEL_CONCIENCIA === 'alta' && (
+                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
+                                        ALTA PRIORIDAD
+                                      </span>
+                                    )}
+                                    {vip.NIVEL_CONCIENCIA === 'media' && (
+                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                                        MEDIA
+                                      </span>
+                                    )}
+                                    {vip.NIVEL_CONCIENCIA === 'baja' && (
+                                      <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded-full">
+                                        BAJA
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-gray-500 space-y-1">
+                                    {vip.CORREO && <div>📧 {vip.CORREO}</div>}
+                                    {vip.POSICION_CSV && <div>📍 Posición CSV: #{vip.POSICION_CSV}</div>}
+                                    {vip.ORIGEN_REGISTRO && <div>🎯 {vip.ORIGEN_REGISTRO === 'segunda_clase' ? 'Registrado en 2da clase' : 'Desde grupo WhatsApp'}</div>}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-mono text-gray-900">{vip.WHATSAPP}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                  vip.ESTADO_CONTACTO === 'sin_asesor' 
+                                    ? 'bg-gray-100 text-gray-800' 
+                                    : vip.ESTADO_CONTACTO === 'asignado'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : vip.ESTADO_CONTACTO === 'contactado'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {vip.ESTADO_CONTACTO === 'sin_asesor' && 'Sin Asesor'}
+                                  {vip.ESTADO_CONTACTO === 'asignado' && 'Asignado'}
+                                  {vip.ESTADO_CONTACTO === 'contactado' && 'Contactado'}
+                                  {vip.ESTADO_CONTACTO === 'no_responde' && 'No Responde'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {asesorAsignado ? asesorAsignado.NOMBRE : 'Sin asignar'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {vip.FECHA_ULTIMA_ACTUALIZACION 
+                                  ? formatDistanceToNow(new Date(vip.FECHA_ULTIMA_ACTUALIZACION), { addSuffix: true, locale: es })
+                                  : 'N/A'
+                                }
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                {/* Asignar a asesor */}
+                                {vip.ESTADO_CONTACTO === 'sin_asesor' && (
+                                  <select
+                                    onChange={(e) => {
+                                      const asesorId = parseInt(e.target.value);
+                                      if (asesorId) asignarVIP(vip.ID, asesorId);
+                                    }}
+                                    className="text-xs border rounded px-2 py-1"
+                                    defaultValue=""
+                                  >
+                                    <option value="">Asignar a...</option>
+                                    {asesores.map(asesor => (
+                                      <option key={asesor.ID} value={asesor.ID}>
+                                        {asesor.NOMBRE}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                                
+                                {/* WhatsApp directo */}
+                                <a
+                                  href={`https://wa.me/${vip.WHATSAPP.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-green-600 hover:text-green-900"
+                                >
+                                  <Smartphone className="h-4 w-4 inline" />
+                                </a>
+                                
+                                {/* Cambiar estado */}
+                                {vip.ASESOR_ASIGNADO && (
+                                  <select
+                                    onChange={(e) => {
+                                      if (e.target.value) cambiarEstadoVIP(vip.ID, e.target.value);
+                                    }}
+                                    className="text-xs border rounded px-2 py-1"
+                                    defaultValue=""
+                                  >
+                                    <option value="">Estado...</option>
+                                    <option value="contactado">Contactado</option>
+                                    <option value="no_responde">No Responde</option>
+                                  </select>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Subvista: VIPs en Sistema - Tablero Kanban */
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                        <BarChart className="h-5 w-5 mr-2 text-yellow-600" />
+                        VIPs en Sistema - Tablero de Conversión
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Estado de conversión de VIPs que ya están registrados como clientes
+                      </p>
+                    </div>
+                    <button
+                      onClick={cargarVIPsEnSistema}
+                      disabled={cargandoVipsEnSistema}
+                      className="flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+                    >
+                      <RefreshCcw className={`h-4 w-4 mr-2 ${cargandoVipsEnSistema ? 'animate-spin' : ''}`} />
+                      {cargandoVipsEnSistema ? 'Cargando...' : 'Actualizar'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  {cargandoVipsEnSistema ? (
+                    <div className="text-center py-12">
+                      <RefreshCcw className="mx-auto h-8 w-8 text-gray-400 animate-spin" />
+                      <p className="mt-2 text-sm text-gray-500">Cargando VIPs en sistema...</p>
+                    </div>
+                  ) : vipsEnSistema.length === 0 ? (
+                    <div className="text-center py-12">
+                      <BarChart className="mx-auto h-12 w-12 text-gray-400" />
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No hay VIPs en el sistema</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Importa VIPs primero y espera a que algunos se registren como clientes.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Métricas del Kanban */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-blue-700">
+                              {vipsEnSistema.filter(v => v.estadoKanban === 'lead').length}
+                            </p>
+                            <p className="text-sm text-blue-600">Leads</p>
+                          </div>
+                        </div>
+                        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-orange-700">
+                              {vipsEnSistema.filter(v => v.estadoKanban === 'interesado').length}
+                            </p>
+                            <p className="text-sm text-orange-600">Interesados</p>
+                          </div>
+                        </div>
+                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-green-700">
+                              {vipsEnSistema.filter(v => v.estadoKanban === 'comprador').length}
+                            </p>
+                            <p className="text-sm text-green-600">Compradores</p>
+                          </div>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-red-700">
+                              {vipsEnSistema.filter(v => v.estadoKanban === 'no_interesado').length}
+                            </p>
+                            <p className="text-sm text-red-600">No Interesados</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tablero Kanban */}
+                      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        {/* Columna 1: Leads */}
+                        <div className="bg-blue-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-medium text-blue-900 flex items-center">
+                              <Users className="h-4 w-4 mr-2" />
+                              Leads ({vipsEnSistema.filter(v => v.estadoKanban === 'lead').length})
+                            </h4>
+                          </div>
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {vipsEnSistema.filter(v => v.estadoKanban === 'lead').slice(0, 20).map((vip: any) => (
+                              <div key={vip.ID} className="bg-white p-3 rounded-lg shadow-sm border">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {vip.NOMBRE || 'Sin nombre'}
+                                    </div>
+                                    {vip.NIVEL_CONCIENCIA === 'alta' && (
+                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
+                                        ALTA
+                                      </span>
+                                    )}
+                                    {vip.NIVEL_CONCIENCIA === 'media' && (
+                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                                        MEDIA
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-500 space-y-1">
+                                  <div>📱 {vip.WHATSAPP}</div>
+                                  <div>👤 {vip.cliente.NOMBRE_ASESOR || 'Sin asesor'}</div>
+                                  <div>📊 Estado: {vip.cliente.ESTADO}</div>
+                                  {vip.POSICION_CSV && (
+                                    <div>📍 Posición CSV: #{vip.POSICION_CSV}</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Columna 2: Interesados */}
+                        <div className="bg-orange-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-medium text-orange-900 flex items-center">
+                              <Target className="h-4 w-4 mr-2" />
+                              Interesados ({vipsEnSistema.filter(v => v.estadoKanban === 'interesado').length})
+                            </h4>
+                          </div>
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {vipsEnSistema.filter(v => v.estadoKanban === 'interesado').slice(0, 20).map((vip: any) => (
+                              <div key={vip.ID} className="bg-white p-3 rounded-lg shadow-sm border">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {vip.NOMBRE || 'Sin nombre'}
+                                    </div>
+                                    {vip.NIVEL_CONCIENCIA === 'alta' && (
+                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
+                                        ALTA
+                                      </span>
+                                    )}
+                                    {vip.NIVEL_CONCIENCIA === 'media' && (
+                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                                        MEDIA
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-500 space-y-1">
+                                  <div>📱 {vip.WHATSAPP}</div>
+                                  <div>👤 {vip.cliente.NOMBRE_ASESOR || 'Sin asesor'}</div>
+                                  <div>📊 Estado: {vip.cliente.ESTADO}</div>
+                                  {vip.POSICION_CSV && (
+                                    <div>📍 Posición CSV: #{vip.POSICION_CSV}</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Columna 3: Compradores */}
+                        <div className="bg-green-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-medium text-green-900 flex items-center">
+                              <DollarSign className="h-4 w-4 mr-2" />
+                              Compradores ({vipsEnSistema.filter(v => v.estadoKanban === 'comprador').length})
+                            </h4>
+                          </div>
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {vipsEnSistema.filter(v => v.estadoKanban === 'comprador').slice(0, 20).map((vip: any) => (
+                              <div key={vip.ID} className="bg-white p-3 rounded-lg shadow-sm border border-green-200">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {vip.NOMBRE || 'Sin nombre'}
+                                    </div>
+                                    {vip.NIVEL_CONCIENCIA === 'alta' && (
+                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
+                                        ALTA
+                                      </span>
+                                    )}
+                                    {vip.NIVEL_CONCIENCIA === 'media' && (
+                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                                        MEDIA
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-500 space-y-1">
+                                  <div>📱 {vip.WHATSAPP}</div>
+                                  <div>👤 {vip.cliente.NOMBRE_ASESOR || 'Sin asesor'}</div>
+                                  <div className="text-green-600 font-medium">
+                                    💰 ${vip.cliente.MONTO_COMPRA?.toLocaleString() || '0'}
+                                  </div>
+                                  <div>📅 {vip.cliente.FECHA_COMPRA ? new Date(vip.cliente.FECHA_COMPRA).toLocaleDateString() : 'Sin fecha'}</div>
+                                  {vip.POSICION_CSV && (
+                                    <div>📍 Posición CSV: #{vip.POSICION_CSV}</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Columna 4: No Interesados */}
+                        <div className="bg-red-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-medium text-red-900 flex items-center">
+                              <AlertTriangle className="h-4 w-4 mr-2" />
+                              No Interesados ({vipsEnSistema.filter(v => v.estadoKanban === 'no_interesado').length})
+                            </h4>
+                          </div>
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {vipsEnSistema.filter(v => v.estadoKanban === 'no_interesado').slice(0, 20).map((vip: any) => (
+                              <div key={vip.ID} className="bg-white p-3 rounded-lg shadow-sm border">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {vip.NOMBRE || 'Sin nombre'}
+                                    </div>
+                                    {vip.NIVEL_CONCIENCIA === 'alta' && (
+                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
+                                        ALTA
+                                      </span>
+                                    )}
+                                    {vip.NIVEL_CONCIENCIA === 'media' && (
+                                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                                        MEDIA
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-500 space-y-1">
+                                  <div>📱 {vip.WHATSAPP}</div>
+                                  <div>👤 {vip.cliente.NOMBRE_ASESOR || 'Sin asesor'}</div>
+                                  <div>📊 Estado: {vip.cliente.ESTADO}</div>
+                                  {vip.POSICION_CSV && (
+                                    <div>📍 Posición CSV: #{vip.POSICION_CSV}</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Resumen estadístico */}
+                      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                        <h4 className="font-medium text-gray-900 mb-2">📊 Análisis de Conversión</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Tasa de Conversión:</span>
+                            <span className="font-bold text-green-600 ml-1">
+                              {vipsEnSistema.length > 0 
+                                ? ((vipsEnSistema.filter(v => v.estadoKanban === 'comprador').length / vipsEnSistema.length) * 100).toFixed(1)
+                                : 0}%
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">VIPs Alta Conciencia:</span>
+                            <span className="font-bold text-red-600 ml-1">
+                              {vipsEnSistema.filter(v => v.NIVEL_CONCIENCIA === 'alta').length}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">VIPs Media Conciencia:</span>
+                            <span className="font-bold text-orange-600 ml-1">
+                              {vipsEnSistema.filter(v => v.NIVEL_CONCIENCIA === 'media').length}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Total en Sistema:</span>
+                            <span className="font-bold text-blue-600 ml-1">
+                              {vipsEnSistema.length}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : vistaAdmin === 'chat-global' ? (
           <div className="h-full flex flex-col bg-gray-100">

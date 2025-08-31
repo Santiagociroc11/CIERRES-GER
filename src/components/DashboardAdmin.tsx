@@ -641,7 +641,6 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
               if (vip.WHATSAPP) {
                 vips.push(vip);
               }
-              }
             }
           }
           

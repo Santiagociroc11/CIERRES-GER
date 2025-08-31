@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import winston from 'winston';
-import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData } from '../dbClient';
+import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData, getTodosClientesVIPPorAsesor } from '../dbClient';
 import telegramQueue from '../services/telegramQueueService';
 
 const router = Router();
@@ -710,6 +710,39 @@ router.get('/vips/table-data', async (req, res) => {
     
   } catch (error) {
     logger.error('❌ Error obteniendo datos de tabla VIP:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Obtener todos los clientes VIP de un asesor (para el modal)
+router.get('/vips/asesor/:asesorId/todos', async (req, res) => {
+  try {
+    const asesorId = parseInt(req.params.asesorId);
+    
+    if (isNaN(asesorId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere asesorId válido',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    logger.info(`🔄 Obteniendo todos los clientes VIP del asesor ${asesorId}`);
+    
+    const todosLosClientes = await getTodosClientesVIPPorAsesor(asesorId);
+    
+    res.json({
+      success: true,
+      data: todosLosClientes,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error(`❌ Error obteniendo todos los clientes VIP del asesor ${req.params.asesorId}:`, error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',

@@ -1151,8 +1151,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     setLoadingVipClientes(true);
 
     try {
-        // Usar el endpoint específico para obtener VIPs del asesor
-        const response = await fetch(`/api/vips/asesor/${asesor.ID}`);
+        // Usar el nuevo endpoint que combina VIPs pendientes con clientes existentes
+        const response = await fetch(`/api/vips/asesor/${asesor.ID}/todos`);
         
         if (response.ok) {
             const result = await response.json();
@@ -1302,6 +1302,26 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                                             {client.FUENTE}
                                                         </p>
                                                     )}
+                                                    {/* Indicador de tipo de cliente */}
+                                                    <div className="flex items-center gap-2 mt-2">
+                                                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                                            client.tipo === 'vip-pendiente' 
+                                                                ? 'bg-yellow-100 text-yellow-800' 
+                                                                : 'bg-blue-100 text-blue-800'
+                                                        }`}>
+                                                            {client.tipo === 'vip-pendiente' ? '🆕 VIP Pendiente' : '✅ Cliente Existente'}
+                                                        </span>
+                                                        {client.fechaCreacion && (
+                                                            <span className="text-xs text-gray-500">
+                                                                Creado: {new Date(client.fechaCreacion).toLocaleDateString()}
+                                                            </span>
+                                                        )}
+                                                        {client.montoCompra && client.montoCompra > 0 && (
+                                                            <span className="text-xs text-green-600 font-medium">
+                                                                💰 ${client.montoCompra.toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

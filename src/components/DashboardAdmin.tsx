@@ -4533,7 +4533,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                               <th className="text-left px-4 py-3 border-b font-semibold text-gray-700">Asesor</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Total VIPs</th>
 
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Contactados</th>
+                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Primer contacto</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">En Proceso</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Ventas</th>
                               <th className="text-center px-3 py-3 border-b font-semibold text-red-600">No Interesados</th>

@@ -536,6 +536,14 @@ router.post('/vips/asignar-masivo', async (req, res) => {
                   asesor: asesor.NOMBRE,
                   cantidad_vips: vipsAsignadosAsesor,
                   asesor_id: asesorId
+                },
+                {
+                  inline_keyboard: [[
+                    {
+                      text: "🚀 Ir a la Plataforma",
+                      url: "https://sistema-cierres-ger.automscc.com"
+                    }
+                  ]]
                 }
               );
               logger.info(`📱 Notificación masiva VIP encolada para ${asesor.NOMBRE}: ${messageId} (${vipsAsignadosAsesor} VIPs)`);

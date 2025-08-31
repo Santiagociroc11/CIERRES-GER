@@ -1201,9 +1201,7 @@ export async function crearClienteDesdeVIP(vip: any, asesorId: number): Promise<
       ESTADO: 'LISTA-VIP',
       ID_ASESOR: asesorId,
       NOMBRE_ASESOR: asesorNombre,
-      FECHA_CREACION: new Date().toISOString(),
-      FECHA_COMPRA: new Date().toISOString(),
-      MEDIO_COMPRA: 'VIP_LIST'
+      FECHA_CREACION: new Date().toISOString()
     };
     
     const response = await fetch(`${POSTGREST_URL}/GERSSON_CLIENTES`, {
@@ -1224,6 +1222,30 @@ export async function crearClienteDesdeVIP(vip: any, asesorId: number): Promise<
     const clienteId = clienteCreado[0]?.ID;
     
     console.log(`✅ Cliente creado desde VIP: ID ${clienteId}, Nombre: ${clienteData.NOMBRE}`);
+    
+    // Crear registro del evento VIP (igual que Hotmart)
+    try {
+      const registroResponse = await fetch(`${POSTGREST_URL}/GERSSON_REGISTROS`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ID_CLIENTE: clienteId,
+          TIPO_EVENTO: 'ASIGNACION_VIP',
+          FECHA_EVENTO: Math.floor(Date.now() / 1000) // Timestamp como en Hotmart
+        })
+      });
+      
+      if (registroResponse.ok) {
+        console.log(`✅ Registro VIP creado para cliente ${clienteId}`);
+      } else {
+        console.warn(`⚠️ Error creando registro VIP para cliente ${clienteId}`);
+      }
+    } catch (error) {
+      console.error('❌ Error creando registro VIP:', error);
+    }
+    
     return clienteId;
     
   } catch (error) {
@@ -1293,6 +1315,14 @@ export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise
             cliente_id: clienteId,
             nivel_conciencia: vip.NIVEL_CONCIENCIA,
             whatsapp: vip.WHATSAPP
+          },
+          {
+            inline_keyboard: [[
+              {
+                text: "🚀 Ir a la Plataforma",
+                url: "https://sistema-cierres-ger.automscc.com"
+              }
+            ]]
           }
         );
         console.log(`📱 Notificación VIP encolada para ${asesor.NOMBRE}: ${messageId}`);

@@ -1527,11 +1527,11 @@ export async function getVIPsEnPipelinePorAsesor(): Promise<any[]> {
       return soloNumeros.slice(-7);
     };
     
-    // Crear un mapa de conversaciones por cliente
+    // Crear un mapa de conversaciones por cliente (actualizado para capturar timestamp más reciente)
     const conversacionesPorCliente = new Map();
     conversaciones.forEach((conv: any) => {
       const key = conv.id_cliente || normalizeWhatsApp(conv.wha_cliente || '');
-      if (!conversacionesPorCliente.has(key)) {
+      if (!conversacionesPorCliente.has(key) || conv.timestamp > conversacionesPorCliente.get(key).ultimaConversacion) {
         conversacionesPorCliente.set(key, {
           tieneConversaciones: true,
           ultimaConversacion: conv.timestamp,
@@ -1540,23 +1540,60 @@ export async function getVIPsEnPipelinePorAsesor(): Promise<any[]> {
       }
     });
     
-    // Determinar el estado del pipeline para cada VIP
+    // Función auxiliar para validar actividad del asesor anterior a compra (conversación O reporte)
+    const validarActividadAnteriorACompra = async (cliente: any, conversacionesPorCliente: Map<any, any>): Promise<boolean> => {
+      if (!cliente?.FECHA_COMPRA || !cliente?.ID_ASESOR) return false;
+      
+      const fechaCompraTimestamp = typeof cliente.FECHA_COMPRA === 'string' 
+        ? parseInt(cliente.FECHA_COMPRA) 
+        : cliente.FECHA_COMPRA;
+      
+      // 1. Verificar conversación previa
+      const clienteKey = cliente.ID;
+      const conversacionInfo = conversacionesPorCliente.get(clienteKey);
+      
+      if (conversacionInfo && conversacionInfo.ultimaConversacion && conversacionInfo.ultimaConversacion < fechaCompraTimestamp) {
+        return true; // Hay conversación previa
+      }
+      
+      // 2. Verificar reporte previo del asesor
+      try {
+        const reportesResponse = await fetch(
+          `${POSTGREST_URL}/GERSSON_REPORTES?ID_CLIENTE=eq.${cliente.ID}&ID_ASESOR=eq.${cliente.ID_ASESOR}&select=FECHA_REPORTE&order=FECHA_REPORTE.desc&limit=1`
+        );
+        
+        if (reportesResponse.ok) {
+          const reportes = await reportesResponse.json();
+          if (reportes && reportes.length > 0) {
+            const ultimoReporte = reportes[0];
+            if (ultimoReporte.FECHA_REPORTE && ultimoReporte.FECHA_REPORTE < fechaCompraTimestamp) {
+              return true; // Hay reporte previo
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Error verificando reportes previos:', error);
+      }
+      
+      return false; // No hay conversación ni reporte previo
+    };
+
+    // Determinar el estado del pipeline para cada VIP (primera pasada - identificar candidatos)
     // ✅ CORREGIDO: Usar estados que SÍ están disponibles en el sistema
+    // ✅ NUEVO: Validar actividad previa (conversación O reporte) para estados de venta
     const determinarEstadoPipeline = (vip: any): string => {
       const cliente = vip.cliente;
       const clienteKey = cliente?.ID || normalizeWhatsApp(vip.WHATSAPP || '');
       const tieneConversaciones = conversacionesPorCliente.has(clienteKey);
       
-      // 1. Venta consolidada - estado VENTA CONSOLIDADA reportado por asesor
-      // ✅ Cliente con venta verificada y consolidada
+      // 1. Venta consolidada - marcamos como candidato para validación async
       if (cliente?.ESTADO === 'VENTA CONSOLIDADA') {
-        return 'venta-consolidada';
+        return 'venta-consolidada-pendiente';
       }
       
-      // 2. Pagado - estado PAGADO reportado por asesor
-      // ✅ Cliente que pagó pero aún no está consolidado
+      // 2. Pagado - marcamos como candidato para validación async
       if (cliente?.ESTADO === 'PAGADO') {
-        return 'pagado';
+        return 'pagado-pendiente';
       }
       
       // 3. Interesado - estado SEGUIMIENTO reportado por asesor
@@ -1618,11 +1655,21 @@ export async function getVIPsEnPipelinePorAsesor(): Promise<any[]> {
       });
     });
     
-    // Asignar VIPs a asesores y calcular estadísticas
-    vipsEnSistema.forEach((vip: any) => {
+    // Asignar VIPs a asesores y calcular estadísticas (con validación async para ventas)
+    for (const vip of vipsEnSistema) {
       const asesorId = vip.cliente?.ID_ASESOR;
       if (asesorId && vipsPorAsesor.has(asesorId)) {
-        const estadoPipeline = determinarEstadoPipeline(vip);
+        let estadoPipeline = determinarEstadoPipeline(vip);
+        
+        // Validar async para estados de venta pendientes
+        if (estadoPipeline === 'venta-consolidada-pendiente') {
+          const tieneActividad = await validarActividadAnteriorACompra(vip.cliente, conversacionesPorCliente);
+          estadoPipeline = tieneActividad ? 'venta-consolidada' : 'listado-vip';
+        } else if (estadoPipeline === 'pagado-pendiente') {
+          const tieneActividad = await validarActividadAnteriorACompra(vip.cliente, conversacionesPorCliente);
+          estadoPipeline = tieneActividad ? 'pagado' : 'listado-vip';
+        }
+        
         const vipConEstado = {
           ...vip,
           estadoPipeline: estadoPipeline
@@ -1633,7 +1680,7 @@ export async function getVIPsEnPipelinePorAsesor(): Promise<any[]> {
         asesorData.estadisticas[estadoPipeline]++;
         asesorData.estadisticas.total++;
       }
-    });
+    }
     
     // Convertir a array y filtrar asesores sin VIPs asignados
     const resultado = Array.from(vipsPorAsesor.values())
@@ -1768,11 +1815,11 @@ export async function getTodosClientesVIPPorAsesor(asesorId: number): Promise<an
       return soloNumeros.slice(-7);
     };
     
-    // Crear un mapa de conversaciones por cliente
+    // Crear un mapa de conversaciones por cliente (actualizado para capturar timestamp más reciente)
     const conversacionesPorCliente = new Map();
     conversaciones.forEach((conv: any) => {
       const key = conv.id_cliente || normalizeWhatsApp(conv.wha_cliente || '');
-      if (!conversacionesPorCliente.has(key)) {
+      if (!conversacionesPorCliente.has(key) || conv.timestamp > conversacionesPorCliente.get(key).ultimaConversacion) {
         conversacionesPorCliente.set(key, {
           tieneConversaciones: true,
           ultimaConversacion: conv.timestamp,
@@ -1781,20 +1828,58 @@ export async function getTodosClientesVIPPorAsesor(asesorId: number): Promise<an
       }
     });
     
-    // Determinar el estado del pipeline para cada VIP (misma lógica que getVIPsEnPipelinePorAsesor)
+    // Función auxiliar para validar actividad del asesor anterior a compra (conversación O reporte)
+    const validarActividadAnteriorACompra = async (cliente: any, conversacionesPorCliente: Map<any, any>): Promise<boolean> => {
+      if (!cliente?.FECHA_COMPRA || !cliente?.ID_ASESOR) return false;
+      
+      const fechaCompraTimestamp = typeof cliente.FECHA_COMPRA === 'string' 
+        ? parseInt(cliente.FECHA_COMPRA) 
+        : cliente.FECHA_COMPRA;
+      
+      // 1. Verificar conversación previa
+      const clienteKey = cliente.ID;
+      const conversacionInfo = conversacionesPorCliente.get(clienteKey);
+      
+      if (conversacionInfo && conversacionInfo.ultimaConversacion && conversacionInfo.ultimaConversacion < fechaCompraTimestamp) {
+        return true; // Hay conversación previa
+      }
+      
+      // 2. Verificar reporte previo del asesor
+      try {
+        const reportesResponse = await fetch(
+          `${POSTGREST_URL}/GERSSON_REPORTES?ID_CLIENTE=eq.${cliente.ID}&ID_ASESOR=eq.${cliente.ID_ASESOR}&select=FECHA_REPORTE&order=FECHA_REPORTE.desc&limit=1`
+        );
+        
+        if (reportesResponse.ok) {
+          const reportes = await reportesResponse.json();
+          if (reportes && reportes.length > 0) {
+            const ultimoReporte = reportes[0];
+            if (ultimoReporte.FECHA_REPORTE && ultimoReporte.FECHA_REPORTE < fechaCompraTimestamp) {
+              return true; // Hay reporte previo
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Error verificando reportes previos:', error);
+      }
+      
+      return false; // No hay conversación ni reporte previo
+    };
+    
+    // Determinar el estado del pipeline para cada VIP (primera pasada - identificar candidatos)
     const determinarEstadoPipeline = (vip: any): string => {
       const cliente = vip.cliente;
       const clienteKey = cliente?.ID || normalizeWhatsApp(vip.WHATSAPP || '');
       const tieneConversaciones = conversacionesPorCliente.has(clienteKey);
       
-      // 1. Venta consolidada
+      // 1. Venta consolidada - marcamos como candidato para validación async
       if (cliente?.ESTADO === 'VENTA CONSOLIDADA') {
-        return 'venta-consolidada';
+        return 'venta-consolidada-pendiente';
       }
       
-      // 2. Pagado
+      // 2. Pagado - marcamos como candidato para validación async
       if (cliente?.ESTADO === 'PAGADO') {
-        return 'pagado';
+        return 'pagado-pendiente';
       }
       
       // 3. Interesado
@@ -1834,12 +1919,22 @@ export async function getTodosClientesVIPPorAsesor(asesorId: number): Promise<an
     
     console.log(`🔍 DEBUG: VIPs del asesor ${asesorId}: ${vipsDelAsesor.length}`);
     
-    // Convertir a formato del modal
-    const todosLosClientes = vipsDelAsesor.map(vip => {
+    // Convertir a formato del modal (con validación async para ventas)
+    const todosLosClientes = [];
+    for (const vip of vipsDelAsesor) {
       const cliente = vip.cliente;
-      const estadoPipeline = determinarEstadoPipeline(vip);
+      let estadoPipeline = determinarEstadoPipeline(vip);
       
-      return {
+      // Validar async para estados de venta pendientes
+      if (estadoPipeline === 'venta-consolidada-pendiente') {
+        const tieneActividad = await validarActividadAnteriorACompra(cliente, conversacionesPorCliente);
+        estadoPipeline = tieneActividad ? 'venta-consolidada' : 'listado-vip';
+      } else if (estadoPipeline === 'pagado-pendiente') {
+        const tieneActividad = await validarActividadAnteriorACompra(cliente, conversacionesPorCliente);
+        estadoPipeline = tieneActividad ? 'pagado' : 'listado-vip';
+      }
+      
+      todosLosClientes.push({
         ID: cliente.ID,
         NOMBRE: cliente.NOMBRE,
         WHATSAPP: cliente.WHATSAPP,
@@ -1850,8 +1945,8 @@ export async function getTodosClientesVIPPorAsesor(asesorId: number): Promise<an
         fechaCreacion: cliente.FECHA_CREACION,
         fechaCompra: cliente.FECHA_COMPRA,
         montoCompra: cliente.MONTO_COMPRA
-      };
-    });
+      });
+    }
     
     console.log(`✅ Total de ${todosLosClientes.length} clientes VIP obtenidos para el asesor ${asesorId}`);
     return todosLosClientes;

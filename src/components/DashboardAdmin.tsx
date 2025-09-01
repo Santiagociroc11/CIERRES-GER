@@ -31,6 +31,9 @@ import {
   Copy,
   Crown,
   Upload,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import {
   formatDateOnly,
@@ -99,6 +102,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [cargandoPipeline, setCargandoPipeline] = useState(false);
   const [vipsTablaData, setVipsTablaData] = useState<any[]>([]);
   const [cargandoTablaVips, setCargandoTablaVips] = useState(false);
+  const [sortVipsBy, setSortVipsBy] = useState<string>('asesor');
+  const [sortVipsOrder, setSortVipsOrder] = useState<'asc' | 'desc'>('asc');
   
   // Estados para asignación masiva
   const [asignacionMasiva, setAsignacionMasiva] = useState<{[asesorId: number]: number}>({});
@@ -985,6 +990,106 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     } finally {
       setCargandoTablaVips(false);
     }
+  };
+
+  // Función para manejar el ordenamiento de la tabla VIP
+  const handleVipSort = (column: string) => {
+    if (sortVipsBy === column) {
+      setSortVipsOrder(sortVipsOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortVipsBy(column);
+      setSortVipsOrder('asc');
+    }
+  };
+
+  // Función para ordenar los datos de la tabla VIP
+  const sortedVipsTablaData = useMemo(() => {
+    if (!vipsTablaData.length) return [];
+
+    return [...vipsTablaData].sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortVipsBy) {
+        case 'asesor':
+          aValue = a.asesor.NOMBRE.toLowerCase();
+          bValue = b.asesor.NOMBRE.toLowerCase();
+          break;
+        case 'totalVIPs':
+          aValue = a.metricas.totalVIPs;
+          bValue = b.metricas.totalVIPs;
+          break;
+        case 'contactados':
+          aValue = a.metricas.contactados;
+          bValue = b.metricas.contactados;
+          break;
+        case 'enProceso':
+          aValue = (a.metricas.enSeguimiento || 0) + (a.metricas.interesados || 0);
+          bValue = (b.metricas.enSeguimiento || 0) + (b.metricas.interesados || 0);
+          break;
+        case 'ventas':
+          aValue = (a.metricas.pagados || 0) + (a.metricas.consolidadas || 0);
+          bValue = (b.metricas.pagados || 0) + (b.metricas.consolidadas || 0);
+          break;
+        case 'noInteresados':
+          aValue = a.metricas.noInteresados || 0;
+          bValue = b.metricas.noInteresados || 0;
+          break;
+        case 'noContactar':
+          aValue = a.metricas.noContactar || 0;
+          bValue = b.metricas.noContactar || 0;
+          break;
+        case 'porcentajeContactado':
+          aValue = a.metricas.porcentajeContactado;
+          bValue = b.metricas.porcentajeContactado;
+          break;
+        case 'porcentajeReportado':
+          aValue = a.metricas.porcentajeReportado;
+          bValue = b.metricas.porcentajeReportado;
+          break;
+        case 'porcentajeConversion':
+          aValue = a.metricas.porcentajeConversion;
+          bValue = b.metricas.porcentajeConversion;
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aValue === 'string') {
+        return sortVipsOrder === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      return sortVipsOrder === 'asc' ? aValue - bValue : bValue - aValue;
+    });
+  }, [vipsTablaData, sortVipsBy, sortVipsOrder]);
+
+  // Componente para header clicable con sorting
+  const SortableHeader = ({ column, children, className = "" }: { 
+    column: string; 
+    children: React.ReactNode; 
+    className?: string;
+  }) => {
+    const getSortIcon = () => {
+      if (sortVipsBy !== column) {
+        return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+      }
+      return sortVipsOrder === 'asc' 
+        ? <ArrowUp className="h-4 w-4 text-blue-600" />
+        : <ArrowDown className="h-4 w-4 text-blue-600" />;
+    };
+
+    return (
+      <th 
+        className={`text-center px-3 py-3 border-b font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none ${className}`}
+        onClick={() => handleVipSort(column)}
+      >
+        <div className="flex items-center justify-center gap-1">
+          {children}
+          {getSortIcon()}
+        </div>
+      </th>
+    );
   };
 
   // Cargar VIPs según la subvista activa
@@ -4723,21 +4828,40 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                         <table className="min-w-full table-auto border-collapse">
                           <thead>
                             <tr className="bg-gray-50">
-                              <th className="text-left px-4 py-3 border-b font-semibold text-gray-700">Asesor</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Total VIPs</th>
-
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Primer contacto</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">En Proceso</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-700">Ventas</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-red-600">No Interesados</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-gray-600">No Contactar</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-blue-600">% Contactado</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-purple-600">% Reportado</th>
-                              <th className="text-center px-3 py-3 border-b font-semibold text-green-600">% Conversión</th>
+                              <SortableHeader column="asesor" className="text-left px-4 py-3 border-b font-semibold text-gray-700">
+                                Asesor
+                              </SortableHeader>
+                              <SortableHeader column="totalVIPs" className="text-center px-3 py-3 border-b font-semibold text-gray-700">
+                                Total VIPs
+                              </SortableHeader>
+                              <SortableHeader column="contactados" className="text-center px-3 py-3 border-b font-semibold text-gray-700">
+                                Primer contacto
+                              </SortableHeader>
+                              <SortableHeader column="enProceso" className="text-center px-3 py-3 border-b font-semibold text-gray-700">
+                                En Proceso
+                              </SortableHeader>
+                              <SortableHeader column="ventas" className="text-center px-3 py-3 border-b font-semibold text-gray-700">
+                                Ventas
+                              </SortableHeader>
+                              <SortableHeader column="noInteresados" className="text-center px-3 py-3 border-b font-semibold text-red-600">
+                                No Interesados
+                              </SortableHeader>
+                              <SortableHeader column="noContactar" className="text-center px-3 py-3 border-b font-semibold text-gray-600">
+                                No Contactar
+                              </SortableHeader>
+                              <SortableHeader column="porcentajeContactado" className="text-center px-3 py-3 border-b font-semibold text-blue-600">
+                                % Contactado
+                              </SortableHeader>
+                              <SortableHeader column="porcentajeReportado" className="text-center px-3 py-3 border-b font-semibold text-purple-600">
+                                % Reportado
+                              </SortableHeader>
+                              <SortableHeader column="porcentajeConversion" className="text-center px-3 py-3 border-b font-semibold text-green-600">
+                                % Conversión
+                              </SortableHeader>
                             </tr>
                           </thead>
                           <tbody>
-                            {vipsTablaData.map((asesorData: any) => (
+                            {sortedVipsTablaData.map((asesorData: any) => (
                               <tr key={asesorData.asesor.ID} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => handleAsesorNameClick(asesorData.asesor)} >
                                 <td className="px-4 py-3 border-b">
                                   <div className="flex items-center">

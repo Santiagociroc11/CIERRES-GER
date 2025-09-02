@@ -288,7 +288,8 @@ router.post('/webhook', async (req, res) => {
               flujo: 'COMPRAS',
               nota: 'Venta sin número de teléfono - No se pudo asignar asesor'
             },
-            ventaMessage.reply_markup
+            undefined, // reply_markup no necesario para mensajes de venta
+            ventaMessage.message_thread_id
           );
           
           logger.info('Notificación de venta enviada (sin teléfono)', {
@@ -472,7 +473,8 @@ router.post('/webhook', async (req, res) => {
                 flujo: 'COMPRAS',
                 nota: 'Cliente ya estaba PAGADO/CONSOLIDADA - Solo notificación de venta'
               },
-              ventaMessage.reply_markup
+              undefined, // reply_markup no necesario para mensajes de venta
+              ventaMessage.message_thread_id
             );
             
             logger.info('Notificación de venta enviada para cliente ya PAGADO/CONSOLIDADA', {

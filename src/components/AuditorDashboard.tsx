@@ -1011,9 +1011,13 @@ function AuditorDashboard() {
         registros
           .map(r => {
             let fuente = (r.TIPO_EVENTO?.trim() || 'Desconocido');
-            // Si la fuente NO es LINK ni MASIVOS, se agrupa como HOTMART
-            if (!['LINK', 'MASIVOS'].includes(fuente.toUpperCase())) {
+            // Si la fuente NO es LINK, MASIVOS o ASIGNACION_VIP, se agrupa como HOTMART
+            if (!['LINK', 'MASIVOS', 'ASIGNACION_VIP'].includes(fuente.toUpperCase())) {
               fuente = 'HOTMART';
+            }
+            // Renombrar ASIGNACION_VIP a VIP para mejor visualización
+            if (fuente.toUpperCase() === 'ASIGNACION_VIP') {
+              fuente = 'VIP';
             }
             return fuente;
           })
@@ -1063,8 +1067,12 @@ function AuditorDashboard() {
         const estado = reporte ? (validaParaComision ? "VERIFICADA" : "NO APLICABLE") : "SIN REPORTE";
         // Obtener fuente y agruparla
         let fuente = obtenerFuente(cliente.ID);
-        if (!['LINK', 'MASIVOS'].includes(fuente.toUpperCase())) {
+        if (!['LINK', 'MASIVOS', 'ASIGNACION_VIP'].includes(fuente.toUpperCase())) {
           fuente = 'HOTMART';
+        }
+        // Renombrar ASIGNACION_VIP a VIP para mejor visualización
+        if (fuente.toUpperCase() === 'ASIGNACION_VIP') {
+          fuente = 'VIP';
         }
         const currentRow = detalleData.length + 1; // Fila actual (la 1 es encabezado)
         const commissionFormula = `=IF(E${currentRow}="VERIFICADA",IFERROR(VLOOKUP(D${currentRow},Parametros!$A$2:$B$${numSources + 1},2,FALSE),0),0)`;
@@ -1970,8 +1978,12 @@ function AuditorDashboard() {
             new Set(
               registros.map(r => {
                 let fuente = r.TIPO_EVENTO?.trim() || 'Desconocido';
-                if (!['LINK', 'MASIVOS'].includes(fuente.toUpperCase())) {
+                if (!['LINK', 'MASIVOS', 'ASIGNACION_VIP'].includes(fuente.toUpperCase())) {
                   fuente = 'HOTMART';
+                }
+                // Renombrar ASIGNACION_VIP a VIP para mejor visualización
+                if (fuente.toUpperCase() === 'ASIGNACION_VIP') {
+                  fuente = 'VIP';
                 }
                 return fuente;
               })

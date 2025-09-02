@@ -2094,6 +2094,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         return 'bg-orange-100 text-orange-800';
       case 'MASIVOS':
         return 'bg-teal-100 text-teal-800 border-2 border-teal-500';
+      case 'VIP':
+        return 'bg-yellow-100 text-yellow-800 border-2 border-yellow-500';
       default:
         return 'bg-gray-100 text-gray-800';
     }

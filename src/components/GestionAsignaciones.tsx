@@ -1513,6 +1513,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                                       fuente === 'LINK' ? 'bg-green-100 text-green-700' :
                                       fuente === 'MASIVOS' ? 'bg-blue-100 text-blue-700' :
                                       fuente === 'HOTMART' ? 'bg-orange-100 text-orange-700' :
+                                      fuente === 'VIP' ? 'bg-yellow-100 text-yellow-700' :
                                       'bg-gray-100 text-gray-700'
                                     }`}>
                                       {fuente}

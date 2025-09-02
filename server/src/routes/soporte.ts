@@ -362,32 +362,54 @@ router.post('/formulario-soporte', async (req, res) => {
     } else {
       logger.info('Cliente nuevo, creando registro');
 
-      // Obtener próximo asesor ponderado
-      const nextAsesor = await getNextAsesorPonderado();
-      if (nextAsesor?.ID) {
-        asesorAsignado = await getAsesorById(nextAsesor.ID);
-        
-        // Crear nuevo cliente con asesor asignado y datos CRM
-        const nuevoCliente = await createCliente({
-          NOMBRE: nombre,
-          ESTADO: 'LINK',
-          WHATSAPP: whatsappLimpio,
-          ID_ASESOR: nextAsesor.ID,
-          NOMBRE_ASESOR: asesorAsignado?.NOMBRE,
-          WHA_ASESOR: asesorAsignado?.WHATSAPP,
-          FECHA_CREACION: currentTimestamp,
-          soporte_tipo: segmentacion.tipo,
-          soporte_prioridad: segmentacion.prioridad,
-          soporte_duda: mainDoubt,
-          soporte_descripcion: segmentacion.descripcion,
-          soporte_fecha_ultimo: currentTimestamp
-        });
-        clienteId = nuevoCliente[0].ID;
+      if (!shouldRedirectToAcademy) {
+        // Obtener próximo asesor ponderado solo si NO va a academia
+        const nextAsesor = await getNextAsesorPonderado();
+        if (nextAsesor?.ID) {
+          asesorAsignado = await getAsesorById(nextAsesor.ID);
+          
+          // Crear nuevo cliente con asesor asignado y datos CRM
+          const nuevoCliente = await createCliente({
+            NOMBRE: nombre,
+            ESTADO: 'LINK',
+            WHATSAPP: whatsappLimpio,
+            ID_ASESOR: nextAsesor.ID,
+            NOMBRE_ASESOR: asesorAsignado?.NOMBRE,
+            WHA_ASESOR: asesorAsignado?.WHATSAPP,
+            FECHA_CREACION: currentTimestamp,
+            soporte_tipo: segmentacion.tipo,
+            soporte_prioridad: segmentacion.prioridad,
+            soporte_duda: mainDoubt,
+            soporte_descripcion: segmentacion.descripcion,
+            soporte_fecha_ultimo: currentTimestamp
+          });
+          clienteId = nuevoCliente[0].ID;
 
-        // Incrementar contador LINK del asesor
-        await updateAsesorCounter(nextAsesor.ID, 'LINK');
+          // Incrementar contador LINK del asesor
+          await updateAsesorCounter(nextAsesor.ID, 'LINK');
+        } else {
+          // No hay asesores disponibles - crear cliente sin asesor
+          const nuevoCliente = await createCliente({
+            NOMBRE: nombre,
+            ESTADO: 'LINK',
+            WHATSAPP: whatsappLimpio,
+            FECHA_CREACION: currentTimestamp,
+            soporte_tipo: segmentacion.tipo,
+            soporte_prioridad: segmentacion.prioridad,
+            soporte_duda: mainDoubt,
+            soporte_descripcion: segmentacion.descripcion,
+            soporte_fecha_ultimo: currentTimestamp
+          });
+          clienteId = nuevoCliente[0].ID;
+        }
       } else {
-        // No hay asesores disponibles - crear cliente con datos CRM
+        // Cliente VIP_POST_VENTA que no existe en BD - crear SIN asesor
+        logger.info('🎓 Creando cliente VIP_POST_VENTA sin asesor (será redirigido a academia)', {
+          nombre,
+          whatsapp: whatsappLimpio,
+          reason: 'vip_post_venta_not_in_db'
+        });
+        
         const nuevoCliente = await createCliente({
           NOMBRE: nombre,
           ESTADO: 'LINK',
@@ -398,8 +420,12 @@ router.post('/formulario-soporte', async (req, res) => {
           soporte_duda: mainDoubt,
           soporte_descripcion: segmentacion.descripcion,
           soporte_fecha_ultimo: currentTimestamp
+          // SIN ID_ASESOR, NOMBRE_ASESOR, WHA_ASESOR
         });
         clienteId = nuevoCliente[0].ID;
+        
+        // Asegurar que asesorAsignado permanezca null
+        asesorAsignado = null;
       }
     }
 

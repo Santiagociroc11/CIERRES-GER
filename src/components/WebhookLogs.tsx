@@ -55,8 +55,8 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-hot-toast';
 
-// Función para formatear fechas en zona horaria de Perú (UTC-5)
-const formatDatePeru = (dateString: string): string => {
+// Función para formatear fechas en zona horaria de Bogotá, Colombia (UTC-5)
+const formatDateBogota = (dateString: string): string => {
   try {
     const date = new Date(dateString);
     
@@ -65,9 +65,9 @@ const formatDatePeru = (dateString: string): string => {
       return 'Fecha inválida';
     }
     
-    // Formatear en zona horaria de Perú
-    return date.toLocaleString('es-PE', {
-      timeZone: 'America/Lima',
+    // Formatear en zona horaria de Bogotá, Colombia
+    return date.toLocaleString('es-CO', {
+      timeZone: 'America/Bogota',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -512,7 +512,7 @@ const WebhookLogs: React.FC = () => {
                 {item.step}
               </Typography>
               <Typography variant="caption" color="textSecondary">
-                {formatDatePeru(item.timestamp)}
+                {formatDateBogota(item.timestamp)}
               </Typography>
             </Box>
           ))}
@@ -887,7 +887,7 @@ const WebhookLogs: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="caption">
-                          {formatDatePeru(log.received_at)}
+                          {formatDateBogota(log.received_at)}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -1031,7 +1031,7 @@ const WebhookLogs: React.FC = () => {
                                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                                     <AccessTime sx={{ mr: 1, fontSize: 16 }} />
                                     <Typography variant="body2">
-                                      Procesado: {log.processed_at ? formatDatePeru(log.processed_at) : 'N/A'}
+                                      Procesado: {log.processed_at ? formatDateBogota(log.processed_at) : 'N/A'}
                                     </Typography>
                                   </Box>
                                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -1147,10 +1147,10 @@ const WebhookLogs: React.FC = () => {
                       <Typography variant="body2"><strong>Evento:</strong> {selectedLog.event_type}</Typography>
                       <Typography variant="body2"><strong>Flujo:</strong> {selectedLog.flujo}</Typography>
                       <Typography variant="body2"><strong>Estado:</strong> {selectedLog.status}</Typography>
-                      <Typography variant="body2"><strong>Recibido:</strong> {formatDatePeru(selectedLog.received_at)}</Typography>
+                      <Typography variant="body2"><strong>Recibido:</strong> {formatDateBogota(selectedLog.received_at)}</Typography>
                       {selectedLog.processed_at && (
                         <Typography variant="body2">
-                          <strong>Procesado:</strong> {formatDatePeru(selectedLog.processed_at)}
+                          <strong>Procesado:</strong> {formatDateBogota(selectedLog.processed_at)}
                         </Typography>
                       )}
                       <Typography variant="body2">
@@ -1191,7 +1191,7 @@ const WebhookLogs: React.FC = () => {
                         {selectedLog.purchase_amount && (
                           <Typography variant="body2"><strong>Monto:</strong> ${selectedLog.purchase_amount}</Typography>
                         )}
-                        <Typography variant="body2"><strong>Fecha Compra:</strong> {selectedLog.purchase_date ? formatDatePeru(selectedLog.purchase_date) : 'N/A'}</Typography>
+                        <Typography variant="body2"><strong>Fecha Compra:</strong> {selectedLog.purchase_date ? formatDateBogota(selectedLog.purchase_date) : 'N/A'}</Typography>
                       </Grid>
                     </Grid>
                   </Box>
@@ -1359,7 +1359,7 @@ const WebhookLogs: React.FC = () => {
                             )}
                             {step.timestamp && (
                               <Typography variant="caption" color="textSecondary">
-                                {formatDatePeru(step.timestamp)}
+                                {formatDateBogota(step.timestamp)}
                               </Typography>
                             )}
                           </Box>
@@ -1442,11 +1442,11 @@ const WebhookLogs: React.FC = () => {
                             <strong>Tiempo Total:</strong> {selectedLog.processing_time_ms || 0}ms
                           </Typography>
                           <Typography variant="body2">
-                            <strong>Recibido:</strong> {formatDatePeru(selectedLog.received_at)}
+                            <strong>Recibido:</strong> {formatDateBogota(selectedLog.received_at)}
                           </Typography>
                           {selectedLog.processed_at && (
                             <Typography variant="body2">
-                              <strong>Procesado:</strong> {formatDatePeru(selectedLog.processed_at)}
+                              <strong>Procesado:</strong> {formatDateBogota(selectedLog.processed_at)}
                             </Typography>
                           )}
                         </Card>

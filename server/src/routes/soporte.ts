@@ -299,15 +299,7 @@ router.post('/formulario-soporte', async (req, res) => {
       });
     }
 
-    // IMPORTANTE: Si debe ir a academia, NO asignar asesor
-    if (shouldRedirectToAcademy) {
-      asesorAsignado = null; // Limpiar asesor para evitar notificaciones
-      logger.info('🧹 Asesor limpiado para cliente VIP_POST_VENTA', {
-        nombre,
-        whatsapp: whatsappLimpio,
-        reason: 'redirect_to_academy'
-      });
-    }
+    // IMPORTANTE: asesorAsignado se maneja dentro de cada bloque según shouldRedirectToAcademy
 
     // Variables para tracking de resultados de integraciones
     let telegramStatus: 'success' | 'error' | 'skipped' | 'queued' = 'skipped';
@@ -354,9 +346,16 @@ router.post('/formulario-soporte', async (req, res) => {
           soporte_fecha_ultimo: currentTimestamp
         });
 
-        // Obtener asesor asignado
-        if (clienteExistente.ID_ASESOR) {
+        // Obtener asesor asignado SOLO si NO va a academia
+        if (clienteExistente.ID_ASESOR && !shouldRedirectToAcademy) {
           asesorAsignado = await getAsesorById(clienteExistente.ID_ASESOR);
+        } else if (shouldRedirectToAcademy) {
+          logger.info('🧹 Asesor NO asignado para cliente existente VIP_POST_VENTA', {
+            nombre,
+            whatsapp: whatsappLimpio,
+            clienteId: clienteExistente.ID,
+            reason: 'redirect_to_academy_existing_client'
+          });
         }
       }
     } else {

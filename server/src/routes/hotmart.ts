@@ -266,32 +266,132 @@ router.post('/webhook', async (req, res) => {
         transactionId: body.data?.purchase?.transaction
       });
       
-      // ✅ IMPORTANTE: Actualizar webhook log antes de terminar
-      const processingTime = Date.now() - startTime;
-      if (webhookLogId) {
+      // Si es COMPRAS, aún enviar notificación de venta aunque no tenga teléfono
+      if (flujo === 'COMPRAS') {
         try {
-          await updateWebhookLog({
-            id: webhookLogId,
-            status: 'success',
-            processing_time_ms: processingTime,
-            processed_at: new Date(),
-            error_message: 'Sin número de teléfono disponible',
-            processing_steps: processingSteps || []
+          logger.info('Enviando notificación de venta sin número de teléfono', {
+            nombre: datosProcesados.nombre,
+            correo: datosProcesados.correo,
+            flujo
           });
-          logger.info('Webhook log actualizado: sin número de teléfono', { webhookLogId });
-        } catch (updateError) {
-          logger.error('Error actualizando webhook log (sin teléfono):', updateError);
+          
+          // Crear y enviar notificación de venta al grupo general
+          const ventaMessage = await createVentaMessage(body.data, 'SIN CERRADOR - Sin teléfono');
+          const messageId = telegramQueue.enqueueMessage(
+            ventaMessage.chat_id,
+            ventaMessage.text,
+            webhookLogId || undefined,
+            { 
+              type: 'venta',
+              asesor: 'SIN CERRADOR - Sin teléfono',
+              cliente: datosProcesados.nombre,
+              flujo: 'COMPRAS',
+              nota: 'Venta sin número de teléfono - No se pudo asignar asesor'
+            },
+            ventaMessage.reply_markup
+          );
+          
+          logger.info('Notificación de venta enviada (sin teléfono)', {
+            nombre: datosProcesados.nombre,
+            messageId,
+            nota: 'Sin número para procesar cliente'
+          });
+          
+          // Actualizar webhook log con resultado
+          const processingTime = Date.now() - startTime;
+          if (webhookLogId) {
+            try {
+              await updateWebhookLog({
+                id: webhookLogId,
+                status: 'success',
+                processing_time_ms: processingTime,
+                processed_at: new Date(),
+                error_message: 'Sin número de teléfono - Solo notificación de venta enviada',
+                telegram_status: 'queued',
+                telegram_message_id: messageId,
+                processing_steps: processingSteps || []
+              });
+            } catch (updateError) {
+              logger.error('Error actualizando webhook log (sin teléfono con venta):', updateError);
+            }
+          }
+          
+          return res.status(200).json({
+            success: true,
+            message: 'COMPRA procesada sin teléfono - Solo notificación de venta enviada',
+            flujo,
+            telegramNotificationSent: true,
+            messageId: messageId,
+            webhookLogId,
+            processingTimeMs: processingTime,
+            timestamp: new Date().toISOString()
+          });
+          
+        } catch (telegramError) {
+          logger.error('Error enviando notificación de venta sin teléfono', {
+            error: telegramError,
+            nombre: datosProcesados.nombre,
+            flujo
+          });
+          
+          // Actualizar webhook log con error
+          const processingTime = Date.now() - startTime;
+          if (webhookLogId) {
+            try {
+              await updateWebhookLog({
+                id: webhookLogId,
+                status: 'success',
+                processing_time_ms: processingTime,
+                processed_at: new Date(),
+                error_message: 'Sin número de teléfono - Error enviando notificación de venta',
+                telegram_status: 'error',
+                telegram_error: telegramError instanceof Error ? telegramError.message : 'Error desconocido',
+                processing_steps: processingSteps || []
+              });
+            } catch (updateError) {
+              logger.error('Error actualizando webhook log (sin teléfono con error):', updateError);
+            }
+          }
+          
+          return res.status(200).json({
+            success: true,
+            message: 'COMPRA procesada sin teléfono - Error enviando notificación de venta',
+            flujo,
+            telegramNotificationSent: false,
+            telegramError: telegramError instanceof Error ? telegramError.message : 'Error desconocido',
+            webhookLogId,
+            processingTimeMs: processingTime,
+            timestamp: new Date().toISOString()
+          });
         }
+      } else {
+        // Para otros flujos que no son COMPRAS, comportamiento original
+        const processingTime = Date.now() - startTime;
+        if (webhookLogId) {
+          try {
+            await updateWebhookLog({
+              id: webhookLogId,
+              status: 'success',
+              processing_time_ms: processingTime,
+              processed_at: new Date(),
+              error_message: 'Sin número de teléfono disponible',
+              processing_steps: processingSteps || []
+            });
+            logger.info('Webhook log actualizado: sin número de teléfono', { webhookLogId });
+          } catch (updateError) {
+            logger.error('Error actualizando webhook log (sin teléfono):', updateError);
+          }
+        }
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Webhook procesado (sin número de teléfono)',
+          flujo,
+          webhookLogId,
+          processingTimeMs: processingTime,
+          timestamp: new Date().toISOString()
+        });
       }
-      
-      return res.status(200).json({
-        success: true,
-        message: 'Webhook procesado (sin número de teléfono)',
-        flujo,
-        webhookLogId,
-        processingTimeMs: processingTime,
-        timestamp: new Date().toISOString()
-      });
     }
 
     logger.info('Datos procesados del webhook', {
@@ -341,19 +441,81 @@ router.post('/webhook', async (req, res) => {
       logger.info('Cliente existente encontrado', { clienteId: clienteExistente.ID });
       clienteId = clienteExistente.ID;
 
-      // Verificar si el cliente ya está en estado PAGADO o VENTA CONSOLIDADA (como en N8N)
+      // Verificar si el cliente ya está en estado PAGADO o VENTA CONSOLIDADA
       if (clienteExistente.ESTADO === 'PAGADO' || clienteExistente.ESTADO === 'VENTA CONSOLIDADA') {
-        logger.info('Cliente ya está en estado PAGADO o VENTA CONSOLIDADA, no se procesa ningún flujo', { 
+        logger.info('Cliente ya está en estado PAGADO o VENTA CONSOLIDADA', { 
           clienteId, 
           estado: clienteExistente.ESTADO,
-          flujo 
+          flujo,
+          accion: flujo === 'COMPRAS' ? 'Enviará notificación de venta pero no procesará otros flujos' : 'No se procesa ningún flujo'
         });
-        return res.status(200).json({
-          success: true,
-          message: 'Cliente ya está en estado PAGADO o VENTA CONSOLIDADA, no se procesa',
-          estado: clienteExistente.ESTADO,
-          timestamp: new Date().toISOString()
-        });
+        
+        // Si es COMPRAS, aún enviar notificación de venta al grupo general
+        if (flujo === 'COMPRAS') {
+          try {
+            // Obtener asesor si existe
+            let asesorAsignado = null;
+            if (clienteExistente.ID_ASESOR) {
+              asesorAsignado = await getAsesorById(clienteExistente.ID_ASESOR);
+            }
+            
+            // Crear y enviar notificación de venta al grupo general
+            const ventaMessage = await createVentaMessage(body.data, asesorAsignado?.NOMBRE);
+            const messageId = telegramQueue.enqueueMessage(
+              ventaMessage.chat_id,
+              ventaMessage.text,
+              webhookLogId || undefined,
+              { 
+                type: 'venta',
+                asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR',
+                cliente: datosProcesados.nombre,
+                flujo: 'COMPRAS',
+                nota: 'Cliente ya estaba PAGADO/CONSOLIDADA - Solo notificación de venta'
+              },
+              ventaMessage.reply_markup
+            );
+            
+            logger.info('Notificación de venta enviada para cliente ya PAGADO/CONSOLIDADA', {
+              clienteId,
+              estado: clienteExistente.ESTADO,
+              asesor: asesorAsignado?.NOMBRE || 'SIN CERRADOR',
+              messageId
+            });
+            
+            return res.status(200).json({
+              success: true,
+              message: 'Cliente ya estaba PAGADO/CONSOLIDADA. Notificación de venta enviada, otros flujos saltados.',
+              estado: clienteExistente.ESTADO,
+              telegramNotificationSent: true,
+              messageId: messageId,
+              timestamp: new Date().toISOString()
+            });
+            
+          } catch (telegramError) {
+            logger.error('Error enviando notificación de venta para cliente ya PAGADO/CONSOLIDADA', {
+              clienteId,
+              estado: clienteExistente.ESTADO,
+              error: telegramError
+            });
+            
+            return res.status(200).json({
+              success: true,
+              message: 'Cliente ya estaba PAGADO/CONSOLIDADA. Error enviando notificación de venta.',
+              estado: clienteExistente.ESTADO,
+              telegramNotificationSent: false,
+              telegramError: telegramError instanceof Error ? telegramError.message : 'Error desconocido',
+              timestamp: new Date().toISOString()
+            });
+          }
+        } else {
+          // Para otros flujos que no son COMPRAS, no hacer nada
+          return res.status(200).json({
+            success: true,
+            message: 'Cliente ya está en estado PAGADO o VENTA CONSOLIDADA, no se procesa',
+            estado: clienteExistente.ESTADO,
+            timestamp: new Date().toISOString()
+          });
+        }
       }
 
       // Si el cliente existe pero NO está pagado, procesar según el flujo

@@ -58,7 +58,15 @@ import { toast } from 'react-hot-toast';
 // Función para formatear fechas en zona horaria de Bogotá, Colombia (UTC-5)
 const formatDateBogota = (dateString: string): string => {
   try {
+    // Debug: Log the input date string
+    console.log('Input date string:', dateString);
+    
     const date = new Date(dateString);
+    
+    // Debug: Log the parsed date
+    console.log('Parsed date:', date);
+    console.log('Date UTC:', date.toISOString());
+    console.log('Date local:', date.toString());
     
     // Verificar si la fecha es válida
     if (isNaN(date.getTime())) {
@@ -66,7 +74,7 @@ const formatDateBogota = (dateString: string): string => {
     }
     
     // Formatear en zona horaria de Bogotá, Colombia
-    return date.toLocaleString('es-CO', {
+    const formatted = date.toLocaleString('es-CO', {
       timeZone: 'America/Bogota',
       year: 'numeric',
       month: '2-digit',
@@ -76,6 +84,11 @@ const formatDateBogota = (dateString: string): string => {
       second: '2-digit',
       hour12: false
     });
+    
+    // Debug: Log the formatted result
+    console.log('Formatted result:', formatted);
+    
+    return formatted;
   } catch (error) {
     console.error('Error formateando fecha:', error);
     return 'Error en fecha';

@@ -1,8 +1,8 @@
 // MinIO S3 API endpoints
-const MINIO_ENDPOINT = 'https://n8n-minio.wc2hpx.easypanel.host';
-const ACCESS_KEY = 'lxvrgujgyKdgVl0UE1dl';
-const SECRET_KEY = 'lU8uij0GzxmyfnPsaRmo8zDLdjk57MT8r1noWfrd';
-const BUCKET_NAME = 'reportes';
+const MINIO_ENDPOINT = import.meta.env.VITE_MINIO_ENDPOINT;
+const ACCESS_KEY = import.meta.env.VITE_MINIO_ACCESS_KEY;
+const SECRET_KEY = import.meta.env.VITE_MINIO_SECRET_KEY;
+const BUCKET_NAME = import.meta.env.VITE_MINIO_BUCKET_NAME;
 
 export const uploadToMinio = async (file: File, folder: string): Promise<string> => {
   try {

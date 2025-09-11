@@ -45,6 +45,7 @@ interface Mensaje {
   timestamp: number;
   mensaje: string;
   estado?: EstadoMensaje;
+  nombre_asesor?: string; // Nombre del asesor que envió el mensaje
 }
 
 interface MensajeTemporal extends Omit<Mensaje, 'id'> {
@@ -72,6 +73,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [asesores, setAsesores] = useState<{ ID: number; NOMBRE: string }[]>([]);
   
   // Nuevas funcionalidades
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,6 +91,12 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
 
   const evolutionApiUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
   const evolutionApiKey = import.meta.env.VITE_EVOLUTIONAPI_TOKEN;
+
+  // Función para obtener el nombre del asesor por ID
+  const getNombreAsesor = (idAsesor: number): string => {
+    const asesorEncontrado = asesores.find(a => a.ID === idAsesor);
+    return asesorEncontrado?.NOMBRE || `Asesor ${idAsesor}`;
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -118,7 +126,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
       // Convertir reportes a timeline items
       ...reportes.map((rep): TimelineItem => ({
         id: `rep-${rep.ID}`,
-        timestamp: rep.FECHA_REPORTE,
+        timestamp: Number(rep.FECHA_REPORTE),
         tipo: 'reporte',
         contenido: rep
       })),
@@ -126,7 +134,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
       // Convertir registros a timeline items
       ...registros.map((reg): TimelineItem => ({
         id: `reg-${reg.ID}`,
-        timestamp: Number(reg.FECHA_EVENTO), // Asumiendo que es timestamp en segundos
+        timestamp: reg.FECHA_EVENTO ? Number(reg.FECHA_EVENTO) : 0, // Asumiendo que es timestamp en segundos
         tipo: 'registro',
         contenido: reg
       }))
@@ -197,6 +205,14 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         setIsLoading(true);
       }
       
+      // Cargar asesores si no están cargados
+      if (asesores.length === 0) {
+        const asesoresData = await apiClient.request<{ ID: number; NOMBRE: string }[]>(
+          '/GERSSON_ASESORES?select=ID,NOMBRE&order=NOMBRE.asc'
+        );
+        setAsesores(asesoresData || []);
+      }
+      
       // Cargar mensajes, reportes y registros en paralelo
       const [mensajesData, reportesData, registrosData, quickRepliesData] = await Promise.all([
         apiClient.request<Mensaje[]>(
@@ -220,7 +236,13 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         registrosData.length > registros.length;
         
       if (!silencioso || hayDatosNuevos) {
-        setMensajes(mensajesData || []);
+        // Agregar nombre del asesor a cada mensaje
+        const mensajesConAsesor = (mensajesData || []).map(mensaje => ({
+          ...mensaje,
+          nombre_asesor: getNombreAsesor(mensaje.id_asesor)
+        }));
+        
+        setMensajes(mensajesConAsesor);
         setReportes(reportesData || []);
         setRegistros(registrosData || []);
       }
@@ -362,20 +384,28 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
             key={item.id}
             className={`flex ${mensaje.modo === 'saliente' ? 'justify-end' : 'justify-start'}`}
           >
-            <div
-              className={`relative max-w-[75%] px-4 py-2 rounded-2xl shadow-sm text-sm whitespace-pre-line break-words
-                ${mensaje.modo === 'saliente'
-                  ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-br-md'
-                  : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'}
-                ${mensaje.estado === 'error' ? 'border-red-300 bg-red-50' : ''}
-              `}
-            >
-              <span className={mensaje.estado === 'error' ? 'text-red-700' : ''}>
-                {mensaje.mensaje}
-              </span>
-              <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${mensaje.modo === 'saliente' ? 'text-blue-100' : 'text-gray-400'}`}>
-                <span>{formatChatDate(mensaje.timestamp)}</span>
-                {renderEstadoMensaje(mensaje)}
+            <div className={`max-w-[75%] ${mensaje.modo === 'saliente' ? 'text-right' : 'text-left'}`}>
+              {/* Mostrar nombre del asesor solo para mensajes salientes */}
+              {mensaje.modo === 'saliente' && mensaje.nombre_asesor && (
+                <div className="text-xs text-gray-500 mb-1 px-1">
+                  {mensaje.nombre_asesor}
+                </div>
+              )}
+              <div
+                className={`relative px-4 py-2 rounded-2xl shadow-sm text-sm whitespace-pre-line break-words
+                  ${mensaje.modo === 'saliente'
+                    ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-br-md'
+                    : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'}
+                  ${mensaje.estado === 'error' ? 'border-red-300 bg-red-50' : ''}
+                `}
+              >
+                <span className={mensaje.estado === 'error' ? 'text-red-700' : ''}>
+                  {mensaje.mensaje}
+                </span>
+                <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${mensaje.modo === 'saliente' ? 'text-blue-100' : 'text-gray-400'}`}>
+                  <span>{formatChatDate(mensaje.timestamp)}</span>
+                  {renderEstadoMensaje(mensaje)}
+                </div>
               </div>
             </div>
           </div>
@@ -396,7 +426,7 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
               <p className="text-gray-600 text-xs mb-1">{reporte.COMENTARIO}</p>
               <div className="text-xs text-gray-500 flex items-center justify-center">
                 <Calendar className="h-3 w-3 mr-1" />
-                {formatChatDate(reporte.FECHA_REPORTE)}
+                {formatChatDate(Number(reporte.FECHA_REPORTE))}
               </div>
             </div>
           </div>

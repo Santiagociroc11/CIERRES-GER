@@ -206,11 +206,14 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
       }
       
       // Cargar asesores si no están cargados
+      let asesoresActuales = asesores;
       if (asesores.length === 0) {
         const asesoresData = await apiClient.request<{ ID: number; NOMBRE: string }[]>(
           '/GERSSON_ASESORES?select=ID,NOMBRE&order=NOMBRE.asc'
         );
-        setAsesores(asesoresData || []);
+        asesoresActuales = asesoresData || [];
+        console.log('Asesores cargados:', asesoresActuales);
+        setAsesores(asesoresActuales);
       }
       
       // Cargar mensajes, reportes y registros en paralelo
@@ -236,11 +239,21 @@ export default function ChatModal({ isOpen, onClose, cliente, asesor }: ChatModa
         registrosData.length > registros.length;
         
       if (!silencioso || hayDatosNuevos) {
+        // Función para obtener el nombre del asesor usando los datos actuales
+        const getNombreAsesorActual = (idAsesor: number): string => {
+          const asesorEncontrado = asesoresActuales.find(a => a.ID === idAsesor);
+          return asesorEncontrado?.NOMBRE || `Asesor ${idAsesor}`;
+        };
+        
         // Agregar nombre del asesor a cada mensaje
-        const mensajesConAsesor = (mensajesData || []).map(mensaje => ({
-          ...mensaje,
-          nombre_asesor: getNombreAsesor(mensaje.id_asesor)
-        }));
+        const mensajesConAsesor = (mensajesData || []).map(mensaje => {
+          const nombreAsesor = getNombreAsesorActual(mensaje.id_asesor);
+          console.log(`Mensaje ID ${mensaje.id}, Asesor ID ${mensaje.id_asesor}, Nombre: ${nombreAsesor}`);
+          return {
+            ...mensaje,
+            nombre_asesor: nombreAsesor
+          };
+        });
         
         setMensajes(mensajesConAsesor);
         setReportes(reportesData || []);

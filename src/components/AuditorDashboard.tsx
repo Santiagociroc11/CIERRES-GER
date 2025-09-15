@@ -464,7 +464,7 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
       toast.error('Debe ingresar el motivo del rechazo.');
       return;
     }
-    const validPasswords = ['0911', '2222'];
+    const validPasswords = ['0911', '092525'];
     if (!validPasswords.includes(password)) {
       toast.error('Contraseña incorrecta.');
       return;
@@ -537,7 +537,7 @@ function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverifi
       toast.error('Debe ingresar su contraseña de auditor.');
       return;
     }
-    const validPasswords = ['0911', '1109', '2023', '2024'];
+    const validPasswords = ['0911', '092525'];
     if (!validPasswords.includes(password)) {
       toast.error('Contraseña incorrecta.');
       return;
@@ -598,7 +598,7 @@ function ModalResolverConflicto({ cliente, reporte, onResolve, onCancel }: Modal
       return;
     }
     // Contraseña especial para supervisores que pueden resolver conflictos
-    if (password !== '2025') {
+    if (password !== '09251111') {
       toast.error('Solo los supervisores pueden resolver conflictos.');
       return;
     }

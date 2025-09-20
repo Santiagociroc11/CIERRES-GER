@@ -428,12 +428,22 @@ router.post('/formulario-soporte', async (req, res) => {
       }
     }
 
-    // 2. Registrar evento LINK
-    await insertRegistro({
-      ID_CLIENTE: clienteId,
-      TIPO_EVENTO: 'LINK',
-      FECHA_EVENTO: currentTimestamp
-    });
+    // 2. Registrar evento LINK (solo si el cliente NO está en estado PAGADO)
+    if (!shouldRedirectToAcademy) {
+      await insertRegistro({
+        ID_CLIENTE: clienteId,
+        TIPO_EVENTO: 'LINK',
+        FECHA_EVENTO: currentTimestamp
+      });
+      logger.info('✅ Evento LINK registrado para cliente', { clienteId, nombre });
+    } else {
+      logger.info('🚫 Evento LINK NO registrado - Cliente ya compró', { 
+        clienteId, 
+        nombre, 
+        estado: clienteExistente?.ESTADO || 'VIP_POST_VENTA',
+        reason: 'client_already_paid'
+      });
+    }
 
     // 3. Si debe ir a academia, responder inmediatamente
     if (shouldRedirectToAcademy) {

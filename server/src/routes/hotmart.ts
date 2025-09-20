@@ -621,11 +621,18 @@ router.post('/webhook', async (req, res) => {
       }
     }
 
-    // 2. Registrar evento
+    // 2. Registrar evento (esta línea solo se ejecuta si el cliente NO estaba previamente PAGADO)
     await insertRegistro({
       ID_CLIENTE: clienteId,
       TIPO_EVENTO: flujo === 'COMPRAS' ? 'COMPRA' : flujo,
       FECHA_EVENTO: currentTimestamp
+    });
+    
+    logger.info('✅ Evento registrado desde Hotmart', { 
+      clienteId, 
+      tipoEvento: flujo === 'COMPRAS' ? 'COMPRA' : flujo,
+      flujo,
+      nombre: datosProcesados.nombre
     });
 
     // Variables para tracking de resultados de integraciones

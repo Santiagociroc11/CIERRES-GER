@@ -69,6 +69,7 @@ interface ClientesAsesorModalProps {
   onVerChat: (cliente: Cliente) => void;
   onResolverConflicto: (cliente: Cliente) => void;
   onVerHistorialResolucion: (cliente: Cliente) => void;
+  onEliminarDecision: (cliente: Cliente) => void;
 }
 
 // Componente para renderizar cada fila de cliente y usar memo para actualizar solo esa fila
@@ -82,6 +83,7 @@ const ClienteRow = React.memo(({
   onVerChat,
   onResolverConflicto,
   onVerHistorialResolucion,
+  onEliminarDecision,
   enDisputa
 }: {
   cliente: Cliente;
@@ -93,6 +95,7 @@ const ClienteRow = React.memo(({
   onVerChat: (cliente: Cliente) => void;
   onResolverConflicto: (cliente: Cliente) => void;
   onVerHistorialResolucion: (cliente: Cliente) => void;
+  onEliminarDecision: (cliente: Cliente) => void;
   enDisputa: boolean;
 }) => {
   // Función para obtener el texto del estado, incluyendo detalle de verificación doble
@@ -188,6 +191,9 @@ const ClienteRow = React.memo(({
           {reporte && reporte.verificada && reporte.estado_verificacion === 'aprobada' && (
             <CheckCircle className="h-4 w-4 text-blue-600" />
           )}
+          {reporte && reporte.supervisor_resolution_timestamp && (
+            <span className="text-amber-600" title="Resuelto por Supervisor">👑</span>
+          )}
         </span>
       </td>
       <td className="px-6 py-4 whitespace-normal break-words text-sm text-gray-500">
@@ -218,12 +224,24 @@ const ClienteRow = React.memo(({
                   case 'pendiente_auditor1':
                   case 'pendiente_auditor2':
                     return (
-                      <button
-                        onClick={() => onVerificarVenta(cliente)}
-                        className="px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
-                      >
-                        {estadoDoble === 'pendiente_auditor1' ? 'Verificar (1er auditor)' : 'Verificar (2do auditor)'}
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => onVerificarVenta(cliente)}
+                          className="px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200"
+                        >
+                          {estadoDoble === 'pendiente_auditor1' ? 'Verificar (1er auditor)' : 'Verificar (2do auditor)'}
+                        </button>
+                        {/* Mostrar botón eliminar si hay al menos una decisión */}
+                        {(reporte.auditor1_decision || reporte.auditor2_decision) && (
+                          <button
+                            onClick={() => onEliminarDecision(cliente)}
+                            className="px-3 py-1 rounded border bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200"
+                            title="Eliminar mi propia decisión"
+                          >
+                           Cambiar decisión
+                          </button>
+                        )}
+                      </div>
                     );
                   case 'aprobada':
                   case 'rechazada':
@@ -239,21 +257,37 @@ const ClienteRow = React.memo(({
                         {(reporte.supervisor_resolution_timestamp || (reporte.auditor1_decision && reporte.auditor2_decision)) && (
                           <button
                             onClick={() => onVerHistorialResolucion(cliente)}
-                            className="px-3 py-1 rounded border bg-blue-100 text-blue-800 hover:bg-blue-200"
+                            className="px-3 py-1 rounded border bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200 relative"
+                            title={reporte.supervisor_resolution_timestamp ? "Resuelto por Supervisor" : "Ver historial de verificación"}
                           >
                             Ver Historial
+                            {reporte.supervisor_resolution_timestamp && (
+                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center border border-white shadow-sm">
+                                <span className="text-white text-xs font-bold">S</span>
+                              </span>
+                            )}
                           </button>
                         )}
                       </div>
                     );
                   case 'conflicto':
                     return (
-                      <button
-                        onClick={() => onResolverConflicto(cliente)}
-                        className="px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200"
-                      >
-                        Resolver Conflicto
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => onResolverConflicto(cliente)}
+                          className="px-3 py-1 rounded border bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200"
+                        >
+                          Resolver Conflicto
+                        </button>
+                        {/* En conflicto, permitir que cada auditor elimine su decisión */}
+                        <button
+                          onClick={() => onEliminarDecision(cliente)}
+                          className="px-3 py-1 rounded border bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200"
+                          title="Eliminar mi propia decisión"
+                        >
+                          Cambiar decisión
+                        </button>
+                      </div>
                     );
                   default:
                     return null;
@@ -311,8 +345,19 @@ function ClientesAsesorModal({
   onVerChat,
   onResolverConflicto,
   onVerHistorialResolucion,
+  onEliminarDecision,
 }: ClientesAsesorModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   const { clientesAsesor, clientesFiltrados } = useMemo(() => {
     const clientesAsesor = clientes.filter(c => c.ID_ASESOR === asesor.ID);
@@ -441,6 +486,7 @@ function ClientesAsesorModal({
                     onVerChat={onVerChat}
                     onResolverConflicto={onResolverConflicto}
                     onVerHistorialResolucion={onVerHistorialResolucion}
+                    onEliminarDecision={onEliminarDecision}
                     enDisputa={enDisputa}
                   />
                 );
@@ -470,6 +516,16 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
   const [decision, setDecision] = useState<'aprobada' | 'rechazada'>('aprobada');
   const [comentario, setComentario] = useState('');
   const [password, setPassword] = useState('');
+
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   const handleConfirm = () => {
     if (!password.trim()) {
@@ -548,6 +604,16 @@ function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverifi
   const [password, setPassword] = useState('');
   const [comentario, setComentario] = useState('');
 
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   const handleConfirm = () => {
     if (!password.trim()) {
       toast.error('Debe ingresar su contraseña de auditor.');
@@ -591,6 +657,159 @@ function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverifi
 }
 
 
+/* ––––––– MODAL: Eliminar Propia Decisión ––––––– */
+interface ModalEliminarDecisionProps {
+  cliente: Cliente;
+  reporte: Reporte;
+  onConfirm: (auditorId: string) => void;
+  onCancel: () => void;
+}
+
+function ModalEliminarDecision({ cliente, reporte, onConfirm, onCancel }: ModalEliminarDecisionProps) {
+  const [password, setPassword] = useState('');
+
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
+  const getAuditorName = (auditorId: string | null) => {
+    if (!auditorId) return 'Auditor desconocido';
+    const auditorNames: { [key: string]: string } = {
+      '0911': 'Auditor Principal',
+      '092501': 'Auditor Secundario'
+    };
+    return auditorNames[auditorId] || `Auditor ${auditorId}`;
+  };
+
+  const handleConfirm = () => {
+    if (!password.trim()) {
+      toast.error('Debe ingresar su contraseña de auditor.');
+      return;
+    }
+    
+    const validPasswords = ['0911', '092501'];
+    if (!validPasswords.includes(password)) {
+      toast.error('Contraseña incorrecta.');
+      return;
+    }
+
+    // Verificar si este auditor tiene una decisión registrada
+    const tieneDecision = reporte.auditor1_id === password || reporte.auditor2_id === password;
+    if (!tieneDecision) {
+      toast.error('No tienes ninguna decisión registrada para esta venta.');
+      return;
+    }
+
+    onConfirm(password);
+  };
+
+  // Determinar qué decisión puede eliminar este auditor
+  const getDecisionDelAuditor = (auditorId: string) => {
+    if (reporte.auditor1_id === auditorId) {
+      return {
+        decision: reporte.auditor1_decision,
+        comentario: reporte.auditor1_comentario,
+        timestamp: reporte.auditor1_timestamp,
+        posicion: 'primera'
+      };
+    } else if (reporte.auditor2_id === auditorId) {
+      return {
+        decision: reporte.auditor2_decision,
+        comentario: reporte.auditor2_comentario,
+        timestamp: reporte.auditor2_timestamp,
+        posicion: 'segunda'
+      };
+    }
+    return null;
+  };
+
+  const formatTimestamp = (timestamp: number | null) => {
+    if (!timestamp) return 'Fecha no disponible';
+    return new Date(timestamp * 1000).toLocaleString();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded shadow-lg max-w-md w-full">
+        <h2 className="text-xl font-bold mb-4 text-red-600">
+          Cambiar decisión
+        </h2>
+        
+        <div className="mb-4">
+          <p className="text-sm text-gray-600 mb-4">
+            Ingrese su contraseña para eliminar <strong>únicamente su propia decisión</strong> de la venta de <strong>{cliente.NOMBRE}</strong>.
+          </p>
+          
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+            <p className="text-yellow-800 text-sm">
+              ⚠️ <strong>Importante:</strong> Solo puede eliminar la decisión que usted mismo registró. 
+              El sistema lo identificará por su contraseña.
+            </p>
+          </div>
+        </div>
+
+        {/* Campo de contraseña del auditor */}
+        <div className="mb-4">
+          <label className="block font-medium">Su Contraseña de Auditor:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 block w-full border rounded-md p-2"
+            placeholder="Ingrese su contraseña"
+          />
+        </div>
+
+        {/* Mostrar preview de qué decisión se eliminará */}
+        {password && ['0911', '092501'].includes(password) && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+            {(() => {
+              const decision = getDecisionDelAuditor(password);
+              if (decision) {
+                return (
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800">Su decisión a eliminar:</p>
+                    <p className="text-sm text-blue-700">
+                      <strong>Decisión:</strong> {decision.decision?.toUpperCase()}<br/>
+                      <strong>Comentario:</strong> {decision.comentario || 'Sin comentario'}<br/>
+                      <strong>Fecha:</strong> {formatTimestamp(decision.timestamp)}<br/>
+                      <strong>Posición:</strong> {decision.posicion} decisión registrada
+                    </p>
+                  </div>
+                );
+              } else {
+                return (
+                  <p className="text-sm text-red-600">
+                    No tienes ninguna decisión registrada para esta venta.
+                  </p>
+                );
+              }
+            })()}
+          </div>
+        )}
+
+        <div className="flex justify-end space-x-4">
+          <button onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded">
+            Cancelar
+          </button>
+          <button 
+            onClick={handleConfirm} 
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Cambiar decisión
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ––––––– MODAL: Ver Historial de Resolución ––––––– */
 interface ModalVerHistorialResolucionProps {
   cliente: Cliente;
@@ -599,6 +818,19 @@ interface ModalVerHistorialResolucionProps {
 }
 
 function ModalVerHistorialResolucion({ cliente, reporte, onClose }: ModalVerHistorialResolucionProps) {
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    // Guardar el valor actual del overflow
+    const originalOverflow = document.body.style.overflow;
+    // Bloquear scroll
+    document.body.style.overflow = 'hidden';
+    
+    // Cleanup: restaurar el scroll cuando el modal se cierre
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   const formatTimestamp = (timestamp: number | null) => {
     if (!timestamp) return 'Fecha no disponible';
     return new Date(timestamp * 1000).toLocaleString();
@@ -802,6 +1034,16 @@ function ModalResolverConflicto({ cliente, reporte, onResolve, onCancel }: Modal
   const [comentario, setComentario] = useState('');
   const [password, setPassword] = useState('');
 
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   const handleConfirm = () => {
     if (!password.trim()) {
       toast.error('Debe ingresar la contraseña de supervisor.');
@@ -926,6 +1168,16 @@ function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalRes
   const [comentario, setComentario] = useState("");
   const [password1, setPassword1] = useState("");
   const [password2, setPassword2] = useState("");
+
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   const getNombreAsesor = (id: number | null) => {
     if (id === null) return "Desconocido";
@@ -1052,6 +1304,16 @@ function ExportExcelModal({ fuentes, onCancel, onExport }: ExportExcelModalProps
   const [bonus50, setBonus50] = useState('');
   const [bestSellerBonus, setBestSellerBonus] = useState('');
 
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   const handleCommissionChange = (source: string, value: string) => {
     setCommissionValues(prev => ({ ...prev, [source]: value }));
   };
@@ -1157,6 +1419,7 @@ function AuditorDashboard() {
   const [clienteParaChat, setClienteParaChat] = useState<Cliente | null>(null);
   const [conflictoParaResolver, setConflictoParaResolver] = useState<{cliente: Cliente, reporte: Reporte} | null>(null);
   const [historialResolucionParaVer, setHistorialResolucionParaVer] = useState<{cliente: Cliente, reporte: Reporte} | null>(null);
+  const [decisionParaEliminar, setDecisionParaEliminar] = useState<{cliente: Cliente, reporte: Reporte} | null>(null);
 
   // Estados para duplicados, progresos y modales
   const [duplicados, setDuplicados] = useState<Cliente[][]>([]);
@@ -1721,6 +1984,96 @@ function AuditorDashboard() {
     }
   };
 
+  const handleEliminarDecision = (cliente: Cliente) => {
+    const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
+    if (reporte) {
+      setDecisionParaEliminar({ cliente, reporte });
+    }
+  };
+
+  const confirmEliminarDecision = async (auditorId: string) => {
+    if (!decisionParaEliminar) return;
+    
+    const { cliente, reporte } = decisionParaEliminar;
+    const reporteIndex = reportes.findIndex(r => r.ID === reporte.ID);
+    if (reporteIndex === -1) return;
+
+    try {
+      let updateData: any = {};
+      let mensajeExito = '';
+      
+      // Determinar qué decisión eliminar basado en el auditor ID
+      if (reporte.auditor1_id === auditorId) {
+        // Eliminar decisión del auditor 1
+        if (reporte.auditor2_decision) {
+          // Si hay segunda decisión, la primera se convierte en la única
+          updateData = {
+            auditor1_decision: reporte.auditor2_decision,
+            auditor1_comentario: reporte.auditor2_comentario,
+            auditor1_timestamp: reporte.auditor2_timestamp,
+            auditor1_id: reporte.auditor2_id,
+            auditor2_decision: null,
+            auditor2_comentario: null,
+            auditor2_timestamp: null,
+            auditor2_id: null,
+            estado_doble_verificacion: 'pendiente_auditor2',
+            verificada: false,
+            estado_verificacion: null
+          };
+          mensajeExito = 'Su decisión ha sido eliminada. La otra decisión queda pendiente de segunda revisión.';
+        } else {
+          // Solo había una decisión (la del auditor 1)
+          updateData = {
+            auditor1_decision: null,
+            auditor1_comentario: null,
+            auditor1_timestamp: null,
+            auditor1_id: null,
+            estado_doble_verificacion: 'pendiente_auditor1',
+            verificada: false,
+            estado_verificacion: null
+          };
+          mensajeExito = 'Su decisión ha sido eliminada. La venta vuelve a estar pendiente de primera revisión.';
+        }
+      } else if (reporte.auditor2_id === auditorId) {
+        // Eliminar decisión del auditor 2
+        updateData = {
+          auditor2_decision: null,
+          auditor2_comentario: null,
+          auditor2_timestamp: null,
+          auditor2_id: null,
+          estado_doble_verificacion: 'pendiente_auditor2',
+          verificada: false,
+          estado_verificacion: null
+        };
+        mensajeExito = 'Su decisión ha sido eliminada. La venta queda pendiente de segunda revisión.';
+      }
+
+      const response = await apiClient.request(
+        `/GERSSON_REPORTES?ID=eq.${reporte.ID}`,
+        'PATCH',
+        updateData
+      );
+      
+      console.log('Respuesta del PATCH (eliminar decisión):', response);
+      
+      // Actualizar en memoria local
+      const updatedReporte = { ...reporte, ...updateData };
+      const nuevosReportes = [...reportes];
+      nuevosReportes[reporteIndex] = updatedReporte;
+      setReportes(nuevosReportes);
+      
+      toast.success(`✅ ${mensajeExito}`, {
+        style: { borderRadius: '8px', background: '#16a34a', color: '#fff' },
+        icon: '🗑️'
+      });
+      
+    } catch (err) {
+      console.error('❌ Error al eliminar decisión:', err);
+      toast.error('Hubo un error al intentar eliminar su decisión.');
+    }
+    setDecisionParaEliminar(null);
+  };
+
   const confirmResolverConflicto = async (decision: 'aprobada' | 'rechazada', comentario: string) => {
     if (!conflictoParaResolver) return;
     
@@ -2137,6 +2490,7 @@ function AuditorDashboard() {
           onVerChat={(cliente) => setClienteParaChat(cliente)}
           onResolverConflicto={handleResolverConflicto}
           onVerHistorialResolucion={handleVerHistorialResolucion}
+          onEliminarDecision={handleEliminarDecision}
           registros={registros}
         />
       )}
@@ -2255,6 +2609,16 @@ function AuditorDashboard() {
           cliente={historialResolucionParaVer.cliente}
           reporte={historialResolucionParaVer.reporte}
           onClose={() => setHistorialResolucionParaVer(null)}
+        />
+      )}
+
+      {/* Modal para eliminar propia decisión */}
+      {decisionParaEliminar && (
+        <ModalEliminarDecision
+          cliente={decisionParaEliminar.cliente}
+          reporte={decisionParaEliminar.reporte}
+          onConfirm={confirmEliminarDecision}
+          onCancel={() => setDecisionParaEliminar(null)}
         />
       )}
 

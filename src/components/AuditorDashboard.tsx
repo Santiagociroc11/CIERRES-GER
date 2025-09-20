@@ -68,6 +68,7 @@ interface ClientesAsesorModalProps {
   onResolverDisputa: (grupo: Cliente[]) => void;
   onVerChat: (cliente: Cliente) => void;
   onResolverConflicto: (cliente: Cliente) => void;
+  onVerHistorialResolucion: (cliente: Cliente) => void;
 }
 
 // Componente para renderizar cada fila de cliente y usar memo para actualizar solo esa fila
@@ -80,6 +81,7 @@ const ClienteRow = React.memo(({
   onDesverificarVenta,
   onVerChat,
   onResolverConflicto,
+  onVerHistorialResolucion,
   enDisputa
 }: {
   cliente: Cliente;
@@ -90,6 +92,7 @@ const ClienteRow = React.memo(({
   onDesverificarVenta: (cliente: Cliente) => void;
   onVerChat: (cliente: Cliente) => void;
   onResolverConflicto: (cliente: Cliente) => void;
+  onVerHistorialResolucion: (cliente: Cliente) => void;
   enDisputa: boolean;
 }) => {
   // Función para obtener el texto del estado, incluyendo detalle de verificación doble
@@ -225,12 +228,23 @@ const ClienteRow = React.memo(({
                   case 'aprobada':
                   case 'rechazada':
                     return (
-                      <button
-                        onClick={() => onDesverificarVenta(cliente)}
-                        className="px-3 py-1 rounded border bg-red-100 text-red-800 hover:bg-red-200"
-                      >
-                        Quitar verificación
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => onDesverificarVenta(cliente)}
+                          className="px-3 py-1 rounded border bg-red-100 text-red-800 hover:bg-red-200"
+                        >
+                          Quitar verificación
+                        </button>
+                        {/* Mostrar botón de historial si la venta fue resuelta por supervisor */}
+                        {(reporte.supervisor_resolution_timestamp || (reporte.auditor1_decision && reporte.auditor2_decision)) && (
+                          <button
+                            onClick={() => onVerHistorialResolucion(cliente)}
+                            className="px-3 py-1 rounded border bg-blue-100 text-blue-800 hover:bg-blue-200"
+                          >
+                            Ver Historial
+                          </button>
+                        )}
+                      </div>
                     );
                   case 'conflicto':
                     return (
@@ -296,6 +310,7 @@ function ClientesAsesorModal({
   onResolverDisputa,
   onVerChat,
   onResolverConflicto,
+  onVerHistorialResolucion,
 }: ClientesAsesorModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -425,6 +440,7 @@ function ClientesAsesorModal({
                     onDesverificarVenta={onDesverificarVenta}
                     onVerChat={onVerChat}
                     onResolverConflicto={onResolverConflicto}
+                    onVerHistorialResolucion={onVerHistorialResolucion}
                     enDisputa={enDisputa}
                   />
                 );
@@ -574,6 +590,204 @@ function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverifi
   );
 }
 
+
+/* ––––––– MODAL: Ver Historial de Resolución ––––––– */
+interface ModalVerHistorialResolucionProps {
+  cliente: Cliente;
+  reporte: Reporte;
+  onClose: () => void;
+}
+
+function ModalVerHistorialResolucion({ cliente, reporte, onClose }: ModalVerHistorialResolucionProps) {
+  const formatTimestamp = (timestamp: number | null) => {
+    if (!timestamp) return 'Fecha no disponible';
+    return new Date(timestamp * 1000).toLocaleString();
+  };
+
+  const getAuditorName = (auditorId: string | null) => {
+    if (!auditorId) return 'Auditor desconocido';
+    // Mapeo de IDs a nombres de auditores
+    const auditorNames: { [key: string]: string } = {
+      '0911': 'Auditor Principal',
+      '092501': 'Auditor Secundario',
+      '09250001': 'Supervisor'
+    };
+    return auditorNames[auditorId] || `Auditor ${auditorId}`;
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-700 bg-opacity-70 flex items-center justify-center z-50">
+      <div className="bg-white p-8 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-green-600">
+            ✅ Historial de Resolución - {cliente.NOMBRE}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="mb-6">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h3 className="font-bold text-green-800 mb-2">📋 Estado Final</h3>
+            <p className="text-green-700">
+              <strong>Decisión:</strong> <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                reporte.estado_verificacion === 'aprobada' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                {reporte.estado_verificacion?.toUpperCase()}
+              </span>
+            </p>
+            {reporte.supervisor_resolution_timestamp && (
+              <p className="text-green-700 mt-1">
+                <strong>Resuelto por supervisor el:</strong> {formatTimestamp(reporte.supervisor_resolution_timestamp)}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Cronología de decisiones */}
+        <div className="space-y-6">
+          <h3 className="text-xl font-bold text-gray-800 border-b pb-2">
+            📈 Cronología de Decisiones
+          </h3>
+
+          {/* Decisión del Auditor 1 */}
+          {reporte.auditor1_decision && (
+            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-blue-800 flex items-center">
+                  <span className="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-2 text-sm">1</span>
+                  {getAuditorName(reporte.auditor1_id)} - Primera Revisión
+                </h4>
+                <span className="text-sm text-blue-600">
+                  {formatTimestamp(reporte.auditor1_timestamp)}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1"><strong>Decisión:</strong></p>
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                    reporte.auditor1_decision === 'aprobada' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {reporte.auditor1_decision?.toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1"><strong>Comentario:</strong></p>
+                  <p className="text-sm text-gray-800 bg-white p-2 rounded border">
+                    {reporte.auditor1_comentario || 'Sin comentario'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Decisión del Auditor 2 */}
+          {reporte.auditor2_decision && (
+            <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-purple-800 flex items-center">
+                  <span className="bg-purple-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-2 text-sm">2</span>
+                  {getAuditorName(reporte.auditor2_id)} - Segunda Revisión
+                </h4>
+                <span className="text-sm text-purple-600">
+                  {formatTimestamp(reporte.auditor2_timestamp)}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1"><strong>Decisión:</strong></p>
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                    reporte.auditor2_decision === 'aprobada' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {reporte.auditor2_decision?.toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1"><strong>Comentario:</strong></p>
+                  <p className="text-sm text-gray-800 bg-white p-2 rounded border">
+                    {reporte.auditor2_comentario || 'Sin comentario'}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Mostrar si hubo conflicto */}
+              {reporte.auditor1_decision !== reporte.auditor2_decision && (
+                <div className="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded">
+                  <p className="text-yellow-800 text-sm font-semibold">
+                    ⚠️ CONFLICTO DETECTADO: Los auditores no coincidieron en sus decisiones
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Resolución del Supervisor (solo si hubo conflicto) */}
+          {reporte.supervisor_resolution_timestamp && (
+            <div className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-amber-800 flex items-center">
+                  <span className="bg-amber-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-2 text-sm">👑</span>
+                  Resolución Final del Supervisor
+                </h4>
+                <span className="text-sm text-amber-600">
+                  {formatTimestamp(reporte.supervisor_resolution_timestamp)}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1"><strong>Decisión Final:</strong></p>
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                    reporte.estado_verificacion === 'aprobada' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {reporte.estado_verificacion?.toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1"><strong>Comentario de Resolución:</strong></p>
+                  <p className="text-sm text-gray-800 bg-white p-2 rounded border">
+                    {reporte.supervisor_resolution_comment || 'Sin comentario de resolución'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Resumen del proceso */}
+        <div className="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <h4 className="font-bold text-gray-800 mb-2">📊 Resumen del Proceso</h4>
+          <div className="text-sm text-gray-600 space-y-1">
+            <p>• <strong>Total de revisiones:</strong> {[reporte.auditor1_decision, reporte.auditor2_decision].filter(Boolean).length} auditores</p>
+            <p>• <strong>Hubo conflicto:</strong> {reporte.auditor1_decision !== reporte.auditor2_decision ? 'Sí' : 'No'}</p>
+            <p>• <strong>Requirió resolución de supervisor:</strong> {reporte.supervisor_resolution_timestamp ? 'Sí' : 'No'}</p>
+            <p>• <strong>Estado final:</strong> {reporte.estado_verificacion?.toUpperCase()}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ––––––– MODAL: Resolver Conflicto de Auditores ––––––– */
 interface ModalResolverConflictoProps {
@@ -942,6 +1156,7 @@ function AuditorDashboard() {
   const [ventaDesverificar, setVentaDesverificar] = useState<Cliente | null>(null);
   const [clienteParaChat, setClienteParaChat] = useState<Cliente | null>(null);
   const [conflictoParaResolver, setConflictoParaResolver] = useState<{cliente: Cliente, reporte: Reporte} | null>(null);
+  const [historialResolucionParaVer, setHistorialResolucionParaVer] = useState<{cliente: Cliente, reporte: Reporte} | null>(null);
 
   // Estados para duplicados, progresos y modales
   const [duplicados, setDuplicados] = useState<Cliente[][]>([]);
@@ -1499,6 +1714,13 @@ function AuditorDashboard() {
     }
   };
 
+  const handleVerHistorialResolucion = (cliente: Cliente) => {
+    const reporte = reportes.find(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
+    if (reporte) {
+      setHistorialResolucionParaVer({ cliente, reporte });
+    }
+  };
+
   const confirmResolverConflicto = async (decision: 'aprobada' | 'rechazada', comentario: string) => {
     if (!conflictoParaResolver) return;
     
@@ -1914,6 +2136,7 @@ function AuditorDashboard() {
           onResolverDisputa={handleResolverDisputa}
           onVerChat={(cliente) => setClienteParaChat(cliente)}
           onResolverConflicto={handleResolverConflicto}
+          onVerHistorialResolucion={handleVerHistorialResolucion}
           registros={registros}
         />
       )}
@@ -2023,6 +2246,15 @@ function AuditorDashboard() {
           reporte={conflictoParaResolver.reporte}
           onResolve={confirmResolverConflicto}
           onCancel={() => setConflictoParaResolver(null)}
+        />
+      )}
+
+      {/* Modal para ver historial de resolución */}
+      {historialResolucionParaVer && (
+        <ModalVerHistorialResolucion
+          cliente={historialResolucionParaVer.cliente}
+          reporte={historialResolucionParaVer.reporte}
+          onClose={() => setHistorialResolucionParaVer(null)}
         />
       )}
 

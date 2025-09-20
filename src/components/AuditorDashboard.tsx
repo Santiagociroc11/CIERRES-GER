@@ -1752,6 +1752,101 @@ function AuditorDashboard() {
 
   const sortedAsesores = [...asesoresFiltrados].sort((a, b) => a.NOMBRE.localeCompare(b.NOMBRE));
 
+  // Calcular estadísticas globales
+  const estadisticasGlobales = useMemo(() => {
+    let totalConsolidado = 0;
+    let totalAprobadas = 0;
+    let totalRechazadas = 0;
+    let totalPorVerificar = 0;
+    let totalReportadas = 0;
+
+    asesores.forEach(asesor => {
+      const stats = getEstadisticasAsesor(asesor.ID);
+      totalReportadas += stats.ventasReportadas;
+      totalConsolidado += stats.ventasConsolidadas;
+      totalAprobadas += stats.ventasAprobadas;
+      totalRechazadas += stats.ventasRechazadas;
+      totalPorVerificar += stats.ventasPorVerificar;
+    });
+
+    const porcentajeVerificacion = totalConsolidado > 0 
+      ? ((totalAprobadas + totalRechazadas) / totalConsolidado * 100).toFixed(1)
+      : '0';
+
+    const porcentajeAprobacion = (totalAprobadas + totalRechazadas) > 0
+      ? (totalAprobadas / (totalAprobadas + totalRechazadas) * 100).toFixed(1)
+      : '0';
+
+    // Analizar verificaciones por auditor específico
+    const verificacionesPorAuditor: { [key: string]: number } = {};
+    let verificacionesSupervisor = 0;
+
+    const reportesConsolidados = reportesFiltrados.filter(r => 
+      r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA'
+    );
+
+    reportesConsolidados.forEach(reporte => {
+      if (reporte.verificada && (reporte.estado_verificacion === 'aprobada' || reporte.estado_verificacion === 'rechazada')) {
+        // Si fue resuelto por supervisor
+        if (reporte.supervisor_resolution_timestamp) {
+          verificacionesSupervisor++;
+        }
+        // Si tiene decisiones de auditores (sistema de doble verificación)
+        else {
+          // Contar participación de auditor1
+          if (reporte.auditor1_decision && reporte.auditor1_id) {
+            const auditorId = reporte.auditor1_id;
+            verificacionesPorAuditor[auditorId] = (verificacionesPorAuditor[auditorId] || 0) + 1;
+          }
+          
+          // Contar participación de auditor2
+          if (reporte.auditor2_decision && reporte.auditor2_id) {
+            const auditorId = reporte.auditor2_id;
+            verificacionesPorAuditor[auditorId] = (verificacionesPorAuditor[auditorId] || 0) + 1;
+          }
+        }
+      }
+    });
+
+    const totalVerificadas = totalAprobadas + totalRechazadas;
+
+    // Función para obtener nombre del auditor
+    const getAuditorName = (auditorId: string) => {
+      const auditorNames: { [key: string]: string } = {
+        '0911': 'Auditor Principal',
+        '092501': 'Auditor Secundario'
+      };
+      return auditorNames[auditorId] || `Auditor ${auditorId}`;
+    };
+
+    // Calcular porcentajes por auditor y preparar datos
+    const auditoresData = Object.entries(verificacionesPorAuditor).map(([auditorId, count]) => ({
+      id: auditorId,
+      nombre: getAuditorName(auditorId),
+      verificaciones: count,
+      porcentaje: totalVerificadas > 0 ? ((count / totalVerificadas) * 100).toFixed(1) : '0'
+    }));
+
+    const porcentajeSupervisor = totalVerificadas > 0 
+      ? ((verificacionesSupervisor / totalVerificadas) * 100).toFixed(1)
+      : '0';
+
+    return {
+      totalReportadas,
+      totalConsolidado,
+      totalAprobadas,
+      totalRechazadas,
+      totalPorVerificar,
+      totalVerificadas,
+      porcentajeVerificacion,
+      porcentajeAprobacion,
+      // Nuevas métricas por auditor
+      auditoresData,
+      verificacionesSupervisor,
+      porcentajeSupervisor
+    };
+  }, [asesores, reportesFiltrados]);
+
   // Usa tu función getReporteForCliente para obtener el último reporte
   function isVentaVerificada(cliente: Cliente, reportes: Reporte[]): boolean {
     // Filtramos solo los reportes de "VENTA CONSOLIDADA" para el cliente
@@ -1898,41 +1993,74 @@ function AuditorDashboard() {
         ? ((ventasConsolidadas / ventasReportadas) * 100).toFixed(1)
         : '0';
 
+    // Calcular tasas de verificación
+    const totalVerificadas = ventasAprobadas + ventasRechazadas;
+    const porcentajeVerificacion = ventasConsolidadas > 0
+      ? ((totalVerificadas / ventasConsolidadas) * 100).toFixed(1)
+      : '0';
+
+    const porcentajeAprobacion = totalVerificadas > 0
+      ? ((ventasAprobadas / totalVerificadas) * 100).toFixed(1)
+      : '0';
+
     return (
       <div
-        className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
+        className="px-6 py-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
         onClick={onClick}
         style={style}
       >
         <div className="flex items-center justify-between">
-          <div>
+          <div className="min-w-[200px]">
             <h3 className="text-sm font-medium text-gray-900">{asesor.NOMBRE}</h3>
             <p className="text-sm text-gray-500">WhatsApp: {asesor.WHATSAPP}</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <div className="text-center p-2 rounded-lg min-w-[80px]">
-              <span className="block text-xl font-semibold text-green-600">{ventasReportadas}</span>
+          <div className="flex items-center space-x-3">
+            {/* Ventas Reportadas */}
+            <div className="text-center p-2 rounded-lg min-w-[70px]">
+              <span className="block text-lg font-semibold text-green-600">{ventasReportadas}</span>
               <span className="text-xs text-gray-500">Reportadas</span>
             </div>
-            <div className="text-center p-2 rounded-lg min-w-[80px]">
-              <span className="block text-xl font-semibold text-purple-600">{ventasConsolidadas}</span>
+            
+            {/* Ventas Consolidadas */}
+            <div className="text-center p-2 rounded-lg min-w-[70px]">
+              <span className="block text-lg font-semibold text-purple-600">{ventasConsolidadas}</span>
               <span className="text-xs text-gray-500">Consolidadas</span>
             </div>
-            <div className="text-center p-2 rounded-lg min-w-[80px]">
-              <span className="block text-xl font-semibold text-blue-600">{porcentajeConsolidacion}%</span>
-              <span className="text-xs text-gray-500">Consolidación</span>
+            
+            {/* Tasa Consolidación */}
+            <div className="text-center p-2 rounded-lg min-w-[70px]">
+              <span className="block text-lg font-semibold text-blue-600">{porcentajeConsolidacion}%</span>
+              <span className="text-xs text-gray-500">% Consol.</span>
             </div>
-            <div className="text-center p-2 rounded-lg bg-yellow-100 min-w-[80px]">
-              <span className="block text-xl font-semibold text-yellow-800">{ventasPorVerificar}</span>
-              <span className="text-xs text-yellow-600">Por Verificar</span>
+            
+            {/* Por Verificar */}
+            <div className="text-center p-2 rounded-lg bg-yellow-100 min-w-[70px]">
+              <span className="block text-lg font-semibold text-yellow-800">{ventasPorVerificar}</span>
+              <span className="text-xs text-yellow-600">Pendientes</span>
             </div>
-            <div className="text-center p-2 rounded-lg bg-green-100 min-w-[80px]">
-              <span className="block text-xl font-semibold text-green-800">{ventasAprobadas}</span>
+            
+            {/* Aprobadas */}
+            <div className="text-center p-2 rounded-lg bg-green-100 min-w-[70px]">
+              <span className="block text-lg font-semibold text-green-800">{ventasAprobadas}</span>
               <span className="text-xs text-green-600">Aprobadas</span>
             </div>
-            <div className="text-center p-2 rounded-lg bg-red-100 min-w-[80px]">
-              <span className="block text-xl font-semibold text-red-800">{ventasRechazadas}</span>
+            
+            {/* Rechazadas */}
+            <div className="text-center p-2 rounded-lg bg-red-100 min-w-[70px]">
+              <span className="block text-lg font-semibold text-red-800">{ventasRechazadas}</span>
               <span className="text-xs text-red-600">Rechazadas</span>
+            </div>
+
+            {/* Tasa de Verificación */}
+            <div className="text-center p-2 rounded-lg bg-indigo-100 min-w-[70px]">
+              <span className="block text-lg font-semibold text-indigo-800">{porcentajeVerificacion}%</span>
+              <span className="text-xs text-indigo-600">% Verif.</span>
+            </div>
+
+            {/* Tasa de Aprobación */}
+            <div className="text-center p-2 rounded-lg bg-emerald-100 min-w-[70px]">
+              <span className="block text-lg font-semibold text-emerald-800">{porcentajeAprobacion}%</span>
+              <span className="text-xs text-emerald-600">% Aprob.</span>
             </div>
           </div>
         </div>
@@ -2375,6 +2503,107 @@ function AuditorDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Cards de Resumen Global */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Total Reportadas */}
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
+                    <span className="text-white text-lg font-bold">📊</span>
+                  </div>
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">
+                      Ventas Reportadas
+                    </dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {estadisticasGlobales.totalReportadas}
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Consolidadas */}
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-purple-500 rounded-md flex items-center justify-center">
+                    <span className="text-white text-lg font-bold">🔄</span>
+                  </div>
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">
+                      Total Consolidadas
+                    </dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {estadisticasGlobales.totalConsolidado}
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Verificadas */}
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-green-500 rounded-md flex items-center justify-center">
+                    <span className="text-white text-lg font-bold">✅</span>
+                  </div>
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">
+                      Total Verificadas
+                    </dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {estadisticasGlobales.totalVerificadas}
+                      <span className="text-sm text-gray-500 ml-2">
+                        ({estadisticasGlobales.porcentajeVerificacion}%)
+                      </span>
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tasa de Aprobación */}
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-emerald-500 rounded-md flex items-center justify-center">
+                    <span className="text-white text-lg font-bold">📈</span>
+                  </div>
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">
+                      Tasa Aprobación
+                    </dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {estadisticasGlobales.porcentajeAprobacion}%
+                      <span className="text-sm text-gray-500 block">
+                        {estadisticasGlobales.totalAprobadas} aprobadas
+                      </span>
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Buscador de asesores */}
         <div className="mb-6">
           <div className="relative">
@@ -2407,10 +2636,46 @@ function AuditorDashboard() {
         {/* Lista de Asesores con virtualización */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900">Asesores y sus Ventas</h2>
+            <h2 className="text-lg font-medium text-gray-900">Asesores y sus Ventas - Métricas de Verificación</h2>
           </div>
+          
+          {/* Header de la tabla */}
+          <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="min-w-[200px]">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Asesor</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="text-center min-w-[70px]">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Reportadas</span>
+                </div>
+                <div className="text-center min-w-[70px]">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Consolidadas</span>
+                </div>
+                <div className="text-center min-w-[70px]">
+                  <span className="text-xs font-medium text-gray-500 uppercase">% Consol.</span>
+                </div>
+                <div className="text-center min-w-[70px]">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Pendientes</span>
+                </div>
+                <div className="text-center min-w-[70px]">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Aprobadas</span>
+                </div>
+                <div className="text-center min-w-[70px]">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Rechazadas</span>
+                </div>
+                <div className="text-center min-w-[70px]">
+                  <span className="text-xs font-medium text-gray-500 uppercase">% Verif.</span>
+                </div>
+                <div className="text-center min-w-[70px]">
+                  <span className="text-xs font-medium text-gray-500 uppercase">% Aprob.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {asesoresFiltrados.length > 0 ? (
-            <div className="divide-y divide-gray-200">
+            <div>
               {sortedAsesores.map((asesor) => {
                 const { ventasReportadas, ventasConsolidadas, ventasAprobadas, ventasRechazadas, ventasPorVerificar } = getEstadisticasAsesor(asesor.ID);
                 return (
@@ -2423,7 +2688,7 @@ function AuditorDashboard() {
                     ventasRechazadas={ventasRechazadas}
                     ventasPorVerificar={ventasPorVerificar}
                     onClick={() => setAsesorSeleccionado(asesor)}
-                    style={{ height: '100px' }}
+                    style={{ minHeight: '80px' }}
                   />
                 );
               })}

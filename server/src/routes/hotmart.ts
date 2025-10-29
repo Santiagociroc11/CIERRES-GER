@@ -763,20 +763,42 @@ router.post('/webhook', async (req, res) => {
     // 4. Procesar Flodesk
     if (datosProcesados.correo && datosProcesados.grupoflodesk) {
       try {
-        flodeskSegmentId = datosProcesados.grupoflodesk;
+        // ✅ Asegurar que siempre usamos el ID real del segmento, no el nombre
+        const config = await getHotmartConfig();
+        let realSegmentId = datosProcesados.grupoflodesk;
+        
+        // Si grupoflodesk es un nombre de segmento (clave de config), mapearlo al ID real
+        if (config.flodesk && typeof datosProcesados.grupoflodesk === 'string' && 
+            datosProcesados.grupoflodesk in config.flodesk) {
+          realSegmentId = config.flodesk[datosProcesados.grupoflodesk as keyof typeof config.flodesk];
+          logger.warn('⚠️ Grupoflodesk era un nombre, mapeado al ID real', {
+            nombreSegmento: datosProcesados.grupoflodesk,
+            idReal: realSegmentId,
+            flujo
+          });
+        }
+        
+        // Validar que el ID no sea 0 o vacío
+        if (!realSegmentId || realSegmentId === '0' || realSegmentId === 0) {
+          throw new Error(`Segment ID inválido para flujo ${flujo}: ${datosProcesados.grupoflodesk}`);
+        }
+        
+        flodeskSegmentId = realSegmentId as string;
         logger.info('📧 Procesando Flodesk', { 
           email: datosProcesados.correo, 
-          segmentId: datosProcesados.grupoflodesk,
+          segmentId: realSegmentId,
+          segmentIdOriginal: datosProcesados.grupoflodesk,
           flujo 
         });
         
-        const flodeskResult = await addSubscriberToFlodesk(datosProcesados.correo, datosProcesados.grupoflodesk);
+        const flodeskResult = await addSubscriberToFlodesk(datosProcesados.correo, realSegmentId as string);
         
         if (flodeskResult.success) {
           flodeskStatus = 'success';
           logger.info('✅ Subscriber agregado a Flodesk exitosamente', { 
             email: datosProcesados.correo,
-            segmentId: datosProcesados.grupoflodesk 
+            segmentId: realSegmentId,
+            flujo 
           });
         } else {
           flodeskStatus = 'error';
@@ -784,7 +806,8 @@ router.post('/webhook', async (req, res) => {
           logger.error('❌ Error agregando subscriber a Flodesk', { 
             error: flodeskResult.error,
             email: datosProcesados.correo,
-            segmentId: datosProcesados.grupoflodesk 
+            segmentId: realSegmentId,
+            flujo 
           });
         }
       } catch (error) {
@@ -793,7 +816,8 @@ router.post('/webhook', async (req, res) => {
         logger.error('❌ Error procesando Flodesk', { 
           error: flodeskError,
           email: datosProcesados.correo,
-          segmentId: datosProcesados.grupoflodesk 
+          segmentId: datosProcesados.grupoflodesk,
+          flujo 
         });
       }
     } else {
@@ -2055,13 +2079,29 @@ router.post('/test-flodesk', async (req, res) => {
     }
     
     const config = await getHotmartConfig();
-    const result = await addSubscriberToFlodesk(email, segmentId);
+    
+    // ✅ Mapear el nombre del segmento al ID real
+    const realSegmentId = config.flodesk[segmentId as keyof typeof config.flodesk];
+    
+    if (!realSegmentId) {
+      return res.status(400).json({
+        success: false,
+        error: `No hay segment ID configurado para el segmento: ${segmentId}`,
+        segmentName: segmentId,
+        segmentsDisponibles: Object.keys(config.flodesk || {}),
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // ✅ Usar el ID real para agregar el subscriber
+    const result = await addSubscriberToFlodesk(email, realSegmentId);
     
     res.json({
       success: true,
       data: {
         email,
-        segmentId,
+        segmentId: realSegmentId, // ✅ Devolver el ID real usado
+        segmentName: segmentId, // ✅ También devolver el nombre para referencia
         result: result,
         addedSuccessfully: result.success
       },

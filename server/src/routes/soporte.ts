@@ -321,7 +321,7 @@ router.get('/', async (_req, res) => {
         /* Estilo del botón */
         button {
             width: 100%;
-            background: ${primaryColor};
+            background: ${primaryColor} !important;
             color: white;
             padding: 0.75rem;
             border-radius: 8px;
@@ -334,7 +334,7 @@ router.get('/', async (_req, res) => {
             align-items: center;
         }
         button:hover {
-            background: #005ecb;
+            background: #005ecb !important;
         }
         .hidden {
             display: none;
@@ -687,7 +687,7 @@ router.get('/', async (_req, res) => {
             </div>
             
             
-            <button type="submit" id="submitButton">
+            <button type="submit" id="submitButton" style="background: ${primaryColor};">
                 <div id="spinner" class="spinner hidden"></div>
                 <span id="buttonText">IR A SOPORTE</span>
             </button>

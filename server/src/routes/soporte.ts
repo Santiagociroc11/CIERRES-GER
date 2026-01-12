@@ -332,15 +332,9 @@ router.get('/', async (_req, res) => {
             display: flex;
             justify-content: center;
             align-items: center;
-            border: none;
-            cursor: pointer;
         }
         button:hover {
             background: #005ecb;
-        }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
         }
         .hidden {
             display: none;

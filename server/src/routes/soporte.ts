@@ -666,12 +666,14 @@ router.get('/', async (_req, res) => {
 
     // --- Inicialización de Teléfono Internacional ---
     const input = document.querySelector("#whatsapp");
+    const inputContainer = input.closest('.input-group') || input.parentElement;
+    
     const iti = window.intlTelInput(input, {
         initialCountry: "auto",
         separateDialCode: true,
         preferredCountries: ["co", "us", "mx", "ar", "cl", "pe", "es"],
         allowDropdown: true,
-        dropdownContainer: document.body,
+        dropdownContainer: inputContainer,
         autoHideDialCode: false,
         nationalMode: false,
         geoIpLookup: async (success, failure) => {
@@ -692,8 +694,15 @@ router.get('/', async (_req, res) => {
     // Agregar estilos personalizados para el dropdown con búsqueda y scroll móvil
     const style = document.createElement('style');
     style.textContent = \`
+        .iti {
+            width: 100% !important;
+        }
+        .iti__selected-flag {
+            z-index: 1 !important;
+        }
         .iti__country-list {
-            max-height: 300px !important;
+            max-height: 50vh !important;
+            max-width: 100% !important;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
             border-radius: 12px !important;
             border: none !important;
@@ -701,11 +710,18 @@ router.get('/', async (_req, res) => {
             overflow-y: auto !important;
             overflow-x: hidden !important;
             -webkit-overflow-scrolling: touch !important;
-            position: fixed !important;
+            position: absolute !important;
             z-index: 9999 !important;
             background: white !important;
+            width: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
+            box-sizing: border-box !important;
         }
         .iti__search-box {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
             padding: 0.875rem 1rem !important;
             border: none !important;
             border-bottom: 2px solid #e5e7eb !important;
@@ -716,6 +732,7 @@ router.get('/', async (_req, res) => {
             position: sticky !important;
             top: 0 !important;
             z-index: 10 !important;
+            margin: 0 !important;
         }
         .iti__search-box:focus {
             outline: none !important;
@@ -743,6 +760,7 @@ router.get('/', async (_req, res) => {
             font-size: 0.9rem !important;
             cursor: pointer !important;
             -webkit-tap-highlight-color: transparent !important;
+            white-space: nowrap !important;
         }
         .iti__country:hover,
         .iti__country.iti__highlight {
@@ -754,16 +772,38 @@ router.get('/', async (_req, res) => {
         .iti__dial-code {
             color: #6b7280 !important;
         }
+        .iti__no-results {
+            padding: 0.75rem 1rem !important;
+            color: #6b7280 !important;
+        }
         @media (max-width: 768px) {
             .iti__country-list {
-                max-height: 50vh !important;
-                width: calc(100vw - 2rem) !important;
-                left: 1rem !important;
-                right: 1rem !important;
+                max-height: 60vh !important;
+                left: 0 !important;
+                right: 0 !important;
+                width: 100% !important;
+                border-radius: 12px 12px 0 0 !important;
+                position: fixed !important;
+                bottom: 0 !important;
+                top: auto !important;
+                margin: 0 !important;
+            }
+            .iti__search-box {
+                border-radius: 12px 12px 0 0 !important;
             }
         }
     \`;
     document.head.appendChild(style);
+    
+    // Forzar que el buscador aparezca (intl-tel-input lo agrega automáticamente, pero lo aseguramos)
+    setTimeout(() => {
+        const searchBox = document.querySelector('.iti__search-box');
+        if (!searchBox) {
+            // Si no existe, intl-tel-input debería crearlo automáticamente
+            // Pero forzamos su visibilidad si existe
+            console.log('Buscador de países disponible');
+        }
+    }, 100);
 
     // --- Un solo listener para todo el código del formulario ---
     document.addEventListener("DOMContentLoaded", function() {

@@ -322,29 +322,37 @@ router.get('/', async (_req, res) => {
         
         button {
             width: 100%;
-            background: ${primaryColor};
-            color: white;
-            padding: 1rem;
-            border: none;
+            background: ${primaryColor} !important;
+            color: white !important;
+            padding: 1rem 1.5rem;
+            border: none !important;
             border-radius: 12px;
             font-size: 1rem;
             font-weight: 600;
             transition: all 0.2s ease;
-            margin-top: 0.5rem;
+            margin-top: 1rem;
             display: flex;
             justify-content: center;
             align-items: center;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+            box-shadow: 0 4px 12px ${primaryColor}40;
+            min-height: 48px;
         }
         
         button:hover {
+            background: ${primaryColor} !important;
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+            box-shadow: 0 6px 20px ${primaryColor}60;
         }
         
         button:active {
             transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
         }
         
         .hidden {
@@ -639,7 +647,7 @@ router.get('/', async (_req, res) => {
             </div>
             
             
-            <button type="submit" id="submitButton">
+            <button type="submit" id="submitButton" style="background: ${primaryColor}; color: white;">
                 <div id="spinner" class="spinner hidden"></div>
                 <span id="buttonText">IR A SOPORTE</span>
             </button>
@@ -661,6 +669,9 @@ router.get('/', async (_req, res) => {
     const iti = window.intlTelInput(input, {
         initialCountry: "auto",
         separateDialCode: true,
+        preferredCountries: ["co", "us", "mx", "ar", "cl", "pe", "es"],
+        allowDropdown: true,
+        dropdownContainer: document.body,
         geoIpLookup: async (success, failure) => {
             for (let token of CONFIG.tokens) {
                 try {
@@ -675,6 +686,45 @@ router.get('/', async (_req, res) => {
         },
         utilsScript: CONFIG.intlTelInputUtilsScript
     });
+    
+    // Agregar estilos personalizados para el dropdown con búsqueda
+    const style = document.createElement('style');
+    style.textContent = \`
+        .iti__country-list {
+            max-height: 300px !important;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+            border-radius: 12px !important;
+            border: none !important;
+            margin-top: 4px !important;
+            overflow: hidden !important;
+        }
+        .iti__search-box {
+            padding: 0.75rem 1rem !important;
+            border-bottom: 2px solid #e5e7eb !important;
+            font-size: 0.9rem !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .iti__search-box:focus {
+            outline: none !important;
+            border-bottom-color: ${primaryColor} !important;
+        }
+        .iti__country {
+            padding: 0.625rem 1rem !important;
+            font-size: 0.9rem !important;
+        }
+        .iti__country:hover,
+        .iti__country.iti__highlight {
+            background-color: #f0f7ff !important;
+        }
+        .iti__country-name {
+            color: #1a1a1a !important;
+        }
+        .iti__dial-code {
+            color: #6b7280 !important;
+        }
+    \`;
+    document.head.appendChild(style);
 
     // --- Un solo listener para todo el código del formulario ---
     document.addEventListener("DOMContentLoaded", function() {

@@ -213,199 +213,203 @@ router.get('/', async (_req, res) => {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.min.css">
 
     <style>
-        /* Indicador de scroll */
-        .scroll-indicator {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 20px;
-            background: linear-gradient(transparent, white);
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
+        * {
+            box-sizing: border-box;
         }
         
-        .form-container.has-scroll .scroll-indicator {
-            opacity: 1;
-        }
-        
-        /* Ajustar el body para mejor centrado */
         body {
-            background: linear-gradient(to right, #4A90E2, ${primaryColor});
+            background: linear-gradient(135deg, #667eea 0%, ${primaryColor} 100%);
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            padding: 1rem;
-            font-family: 'Poppins', sans-serif;
+            padding: 1.5rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            margin: 0;
         }
+        
         .form-container {
             background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
             text-align: center;
             max-height: 90vh;
             overflow-y: auto;
-            transition: all 0.3s ease;
             position: relative;
         }
         
-        /* Scrollbar personalizado */
         .form-container::-webkit-scrollbar {
-            width: 6px;
+            width: 4px;
         }
         
         .form-container::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 3px;
+            background: transparent;
         }
         
         .form-container::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 3px;
+            background: #e0e0e0;
+            border-radius: 2px;
         }
         
         .form-container::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
+            background: #bdbdbd;
         }
+        
         .form-container h2 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #333;
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin: 0 0 0.5rem 0;
+            letter-spacing: -0.5px;
         }
-        .form-container p {
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 1.5rem;
+        
+        .form-container > p {
+            color: #6b7280;
+            font-size: 0.95rem;
+            margin: 0 0 2rem 0;
+            line-height: 1.5;
         }
-        input, select {
-            width: 100%;
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
-        }
-        .error-message {
-            color: red;
-            font-size: 0.85rem;
-            display: none;
-            margin-bottom: 1rem;
-            text-align: left;
-        }
+        
         .input-group {
+            margin-bottom: 1.5rem;
             text-align: left;
-            margin-bottom: 1rem;
         }
-        /* Spinner al estilo Tailwind */
+        
+        input[type="text"],
+        input[type="tel"] {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            background: #fafafa;
+            color: #1a1a1a;
+        }
+        
+        input[type="text"]:focus,
+        input[type="tel"]:focus {
+            outline: none;
+            border-color: ${primaryColor};
+            background: white;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+        
+        .error-message {
+            color: #ef4444;
+            font-size: 0.875rem;
+            display: none;
+            margin-top: 0.5rem;
+        }
+        
         .spinner {
             display: inline-block;
-            height: 1.5rem;
-            width: 1.5rem;
-            border: 2px solid #fff;
+            height: 1.25rem;
+            width: 1.25rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 0.6s linear infinite;
-            margin-right: 8px;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            margin-right: 0.5rem;
         }
+        
         @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
+            to { transform: rotate(360deg); }
         }
-
-        /* Estilo del botón */
+        
         button {
             width: 100%;
-            background: ${primaryColor} !important;
+            background: ${primaryColor};
             color: white;
-            padding: 0.75rem;
-            border-radius: 8px;
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
             font-size: 1rem;
             font-weight: 600;
-            transition: background 0.3s;
-            margin-top: 1rem;
+            transition: all 0.2s ease;
+            margin-top: 0.5rem;
             display: flex;
             justify-content: center;
             align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
         }
+        
         button:hover {
-            background: #005ecb !important;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
         }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
         .hidden {
             display: none;
         }
         
-        /* Estilos para las opciones de estado del curso */
         .course-status-label {
             display: block;
             font-weight: 600;
-            color: #333;
-            margin-bottom: 1rem;
-            text-align: left;
-            font-size: 1rem;
+            color: #1a1a1a;
+            margin-bottom: 0.75rem;
+            font-size: 0.95rem;
         }
         
         .course-status-label::after {
             content: ' *';
             color: #ef4444;
-            font-weight: bold;
         }
         
         .course-status-options {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
+            gap: 0.75rem;
         }
         
         .course-status-option {
             display: flex;
             align-items: center;
-            padding: 0.75rem 1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
+            padding: 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s ease;
-            background: white;
-            position: relative;
-            text-align: left;
+            background: #fafafa;
         }
         
         .course-status-option:hover {
             border-color: ${primaryColor};
-            background: #f8fafc;
+            background: #f0f7ff;
+            transform: translateY(-1px);
         }
         
         .course-status-option.selected {
             border-color: ${primaryColor};
-            background: #f0f8ff;
+            background: linear-gradient(135deg, rgba(0, 122, 255, 0.1) 0%, rgba(0, 122, 255, 0.05) 100%);
         }
         
         .status-icon {
-            font-size: 1.125rem;
-            margin-right: 0.75rem;
-            flex-shrink: 0;
+            font-size: 1.25rem;
+            margin-right: 0.875rem;
         }
         
         .status-text {
             font-weight: 500;
-            color: #333;
+            color: #1a1a1a;
             font-size: 0.95rem;
             flex: 1;
         }
         
         .course-status-checkbox {
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             border: 2px solid #d1d5db;
-            border-radius: 4px;
+            border-radius: 6px;
             margin-left: auto;
-            flex-shrink: 0;
             transition: all 0.2s ease;
             position: relative;
             background: white;
@@ -423,71 +427,47 @@ router.get('/', async (_req, res) => {
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
-            line-height: 1;
         }
         
-        /* Responsive para móviles */
-        @media (max-width: 480px) {
-            .course-status-option {
-                padding: 0.625rem 0.875rem;
-            }
-            
-            .status-icon {
-                font-size: 1rem;
-                margin-right: 0.625rem;
-            }
-            
-            .status-text {
-                font-size: 0.875rem;
-            }
-            
-            .course-status-checkbox {
-                width: 16px;
-                height: 16px;
-            }
-            
-            .course-status-option.selected .course-status-checkbox::after {
-                font-size: 10px;
-            }
-        }
-        
-        /* Estilos para las opciones de duda */
         .doubt-label {
             display: block;
             font-weight: 600;
-            color: #333;
-            margin-bottom: 1rem;
-            text-align: left;
-            font-size: 1rem;
+            color: #1a1a1a;
+            margin-bottom: 0.75rem;
+            font-size: 0.95rem;
         }
         
         .doubt-label::after {
             content: ' *';
             color: #ef4444;
-            font-weight: bold;
         }
         
         .doubt-options {
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
-            margin-bottom: 1rem;
         }
         
-        /* Animación de entrada para cada opción de duda */
         .doubt-option {
-            animation: slideInUp 0.4s ease forwards;
+            display: flex;
+            align-items: flex-start;
+            padding: 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #fafafa;
+            animation: slideInUp 0.3s ease forwards;
             opacity: 0;
-            transform: translateY(20px);
         }
         
-        .doubt-option:nth-child(1) { animation-delay: 0.1s; }
-        .doubt-option:nth-child(2) { animation-delay: 0.2s; }
-        .doubt-option:nth-child(3) { animation-delay: 0.3s; }
-        .doubt-option:nth-child(4) { animation-delay: 0.4s; }
-        .doubt-option:nth-child(5) { animation-delay: 0.5s; }
+        .doubt-option:nth-child(1) { animation-delay: 0.05s; }
+        .doubt-option:nth-child(2) { animation-delay: 0.1s; }
+        .doubt-option:nth-child(3) { animation-delay: 0.15s; }
+        .doubt-option:nth-child(4) { animation-delay: 0.2s; }
+        .doubt-option:nth-child(5) { animation-delay: 0.25s; }
         
         @keyframes slideInUp {
             to {
@@ -496,32 +476,22 @@ router.get('/', async (_req, res) => {
             }
         }
         
-        .doubt-option {
-            display: flex;
-            align-items: center;
-            padding: 0.75rem 1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            background: white;
-            position: relative;
-        }
-        
         .doubt-option:hover {
             border-color: ${primaryColor};
-            background: #f8fafc;
+            background: #f0f7ff;
+            transform: translateY(-1px);
         }
         
         .doubt-option.selected {
             border-color: ${primaryColor};
-            background: #f0f8ff;
+            background: linear-gradient(135deg, rgba(0, 122, 255, 0.1) 0%, rgba(0, 122, 255, 0.05) 100%);
         }
         
         .doubt-icon {
-            font-size: 1.125rem;
-            margin-right: 0.75rem;
+            font-size: 1.5rem;
+            margin-right: 0.875rem;
             flex-shrink: 0;
+            margin-top: 0.125rem;
         }
         
         .doubt-content {
@@ -530,29 +500,30 @@ router.get('/', async (_req, res) => {
         }
         
         .doubt-content h4 {
-            margin: 0 0 0.25rem 0;
+            margin: 0 0 0.375rem 0;
             font-weight: 600;
-            color: #333;
+            color: #1a1a1a;
             font-size: 0.95rem;
         }
         
         .doubt-content p {
             margin: 0;
-            color: #666;
-            font-size: 0.85rem;
-            line-height: 1.4;
+            color: #6b7280;
+            font-size: 0.875rem;
+            line-height: 1.5;
         }
         
         .doubt-checkbox {
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             border: 2px solid #d1d5db;
-            border-radius: 4px;
-            margin-left: auto;
+            border-radius: 6px;
+            margin-left: 0.75rem;
             flex-shrink: 0;
             transition: all 0.2s ease;
             position: relative;
             background: white;
+            margin-top: 0.125rem;
         }
         
         .doubt-option.selected .doubt-checkbox {
@@ -567,37 +538,18 @@ router.get('/', async (_req, res) => {
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
-            line-height: 1;
         }
         
-        /* Responsive para móviles */
         @media (max-width: 480px) {
-            .doubt-option {
-                padding: 0.625rem 0.875rem;
+            .form-container {
+                padding: 1.5rem;
+                border-radius: 16px;
             }
             
-            .doubt-icon {
-                font-size: 1rem;
-                margin-right: 0.625rem;
-            }
-            
-            .doubt-content h4 {
-                font-size: 0.875rem;
-            }
-            
-            .doubt-content p {
-                font-size: 0.8rem;
-            }
-            
-            .doubt-checkbox {
-                width: 16px;
-                height: 16px;
-            }
-            
-            .doubt-option.selected .doubt-checkbox::after {
-                font-size: 10px;
+            .form-container h2 {
+                font-size: 1.5rem;
             }
         }
     </style>
@@ -687,7 +639,7 @@ router.get('/', async (_req, res) => {
             </div>
             
             
-            <button type="submit" id="submitButton" style="background: ${primaryColor};">
+            <button type="submit" id="submitButton">
                 <div id="spinner" class="spinner hidden"></div>
                 <span id="buttonText">IR A SOPORTE</span>
             </button>

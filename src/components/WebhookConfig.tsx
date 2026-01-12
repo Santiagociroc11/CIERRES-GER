@@ -55,6 +55,11 @@ interface SoporteConfig {
   phoneNumbers: {
     academySupport: string;
   };
+  pageConfig?: {
+    title?: string;
+    subtitle?: string;
+    primaryColor?: string;
+  };
 }
 
 interface Advisor {
@@ -151,6 +156,11 @@ const WebhookConfig: React.FC = () => {
       setSoporteConfig({
         phoneNumbers: {
           academySupport: ''
+        },
+        pageConfig: {
+          title: 'SOPORTE GERSSON LOPEZ',
+          subtitle: 'Antes de ingresar al chat con el asesor, proporciona estos datos para que te podamos atender rápidamente.',
+          primaryColor: '#007AFF'
         }
       });
     } finally {
@@ -343,6 +353,18 @@ const WebhookConfig: React.FC = () => {
       ...soporteConfig,
       phoneNumbers: {
         ...soporteConfig.phoneNumbers,
+        [field]: value
+      }
+    });
+  };
+
+  const handlePageConfigChange = (field: string, value: string) => {
+    if (!soporteConfig) return;
+    
+    setSoporteConfig({
+      ...soporteConfig,
+      pageConfig: {
+        ...(soporteConfig.pageConfig || {}),
         [field]: value
       }
     });
@@ -968,6 +990,75 @@ const WebhookConfig: React.FC = () => {
                 </Grid>
               </Grid>
 
+              <Divider sx={{ my: 3 }} />
+
+              {/* Configuración de la Página */}
+              <Typography variant="h6" gutterBottom sx={{ mt: 3, mb: 2 }}>
+                <Chip label="Página" color="primary" size="small" sx={{ mr: 1 }} />
+                Personalización de la Página de Soporte
+              </Typography>
+              
+              <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+                Personaliza el título, subtítulo y color principal de la página de soporte que verán tus clientes.
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Título de la Página"
+                    value={soporteConfig.pageConfig?.title || 'SOPORTE GERSSON LOPEZ'}
+                    onChange={(e) => handlePageConfigChange('title', e.target.value)}
+                    size="small"
+                    helperText="Título que aparecerá en la parte superior del formulario"
+                    placeholder="SOPORTE GERSSON LOPEZ"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={2}
+                    label="Subtítulo / Descripción"
+                    value={soporteConfig.pageConfig?.subtitle || 'Antes de ingresar al chat con el asesor, proporciona estos datos para que te podamos atender rápidamente.'}
+                    onChange={(e) => handlePageConfigChange('subtitle', e.target.value)}
+                    size="small"
+                    helperText="Texto descriptivo que aparece debajo del título"
+                    placeholder="Antes de ingresar al chat con el asesor..."
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Color Principal"
+                    value={soporteConfig.pageConfig?.primaryColor || '#007AFF'}
+                    onChange={(e) => handlePageConfigChange('primaryColor', e.target.value)}
+                    size="small"
+                    helperText="Color en formato hexadecimal (ej: #007AFF)"
+                    placeholder="#007AFF"
+                    inputProps={{ pattern: '^#[0-9A-Fa-f]{6}$' }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box
+                    sx={{
+                      width: '100%',
+                      height: 56,
+                      backgroundColor: soporteConfig.pageConfig?.primaryColor || '#007AFF',
+                      borderRadius: 1,
+                      border: '1px solid #ddd',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    Vista Previa del Color
+                  </Box>
+                </Grid>
+              </Grid>
+
               <Box display="flex" justifyContent="flex-end" mt={3}>
                 <Button
                   variant="contained"
@@ -987,7 +1078,30 @@ const WebhookConfig: React.FC = () => {
                 Información de Endpoint
               </Typography>
               <Typography variant="body2" color="text.secondary" paragraph>
-                URL del formulario de soporte para integrar en tu sitio web:
+                URL de la página de soporte para compartir con tus clientes:
+              </Typography>
+              <Box
+                component="code"
+                sx={{
+                  display: 'block',
+                  p: 2,
+                  bgcolor: 'grey.100',
+                  borderRadius: 1,
+                  fontFamily: 'monospace',
+                  fontSize: '0.875rem',
+                  mb: 2
+                }}
+              >
+                {window.location.origin}/soporte
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
+                💡 Esta es la URL pública de la página de soporte. Los clientes pueden acceder directamente a este enlace.
+              </Typography>
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <Typography variant="body2" color="text.secondary" paragraph sx={{ mt: 2 }}>
+                URL del endpoint API del formulario (para integraciones avanzadas):
               </Typography>
               <Box
                 component="code"

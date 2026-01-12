@@ -186,6 +186,709 @@ ${segmentacion.tipo === 'PROSPECTO_CALIENTE' ? '💡 *OPORTUNIDAD DE CIERRE* - L
   };
 }
 
+// Endpoint GET que genera la página HTML de soporte
+router.get('/', async (_req, res) => {
+  try {
+    // Obtener configuración de soporte
+    let config = null;
+    try {
+      config = await getSoporteConfig();
+    } catch (error) {
+      logger.warn('No se pudo obtener configuración de soporte, usando valores por defecto:', error);
+    }
+
+    // Valores por defecto o desde configuración
+    const pageTitle = config?.pageConfig?.title || 'SOPORTE GERSSON LOPEZ';
+    const pageSubtitle = config?.pageConfig?.subtitle || 'Antes de ingresar al chat con el asesor, proporciona estos datos para que te podamos atender rápidamente.';
+    const primaryColor = config?.pageConfig?.primaryColor || '#007AFF';
+    const endpointUrl = '/api/soporte/formulario-soporte';
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${pageTitle}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.min.css">
+
+    <style>
+        /* Indicador de scroll */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: linear-gradient(transparent, white);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .form-container.has-scroll .scroll-indicator {
+            opacity: 1;
+        }
+        
+        /* Ajustar el body para mejor centrado */
+        body {
+            background: linear-gradient(to right, #4A90E2, ${primaryColor});
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+            font-family: 'Poppins', sans-serif;
+        }
+        .form-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            max-height: 90vh;
+            overflow-y: auto;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        /* Scrollbar personalizado */
+        .form-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .form-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .form-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        
+        .form-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        .form-container h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+        }
+        .form-container p {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+        input, select {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        .error-message {
+            color: red;
+            font-size: 0.85rem;
+            display: none;
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+        .input-group {
+            text-align: left;
+            margin-bottom: 1rem;
+        }
+        /* Spinner al estilo Tailwind */
+        .spinner {
+            display: inline-block;
+            height: 1.5rem;
+            width: 1.5rem;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Estilo del botón */
+        button {
+            width: 100%;
+            background: ${primaryColor};
+            color: white;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background 0.3s;
+            margin-top: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005ecb;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .hidden {
+            display: none;
+        }
+        
+        /* Estilos para las opciones de estado del curso */
+        .course-status-label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 1rem;
+            text-align: left;
+            font-size: 1rem;
+        }
+        
+        .course-status-label::after {
+            content: ' *';
+            color: #ef4444;
+            font-weight: bold;
+        }
+        
+        .course-status-options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .course-status-option {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+            position: relative;
+            text-align: left;
+        }
+        
+        .course-status-option:hover {
+            border-color: ${primaryColor};
+            background: #f8fafc;
+        }
+        
+        .course-status-option.selected {
+            border-color: ${primaryColor};
+            background: #f0f8ff;
+        }
+        
+        .status-icon {
+            font-size: 1.125rem;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+        
+        .status-text {
+            font-weight: 500;
+            color: #333;
+            font-size: 0.95rem;
+            flex: 1;
+        }
+        
+        .course-status-checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #d1d5db;
+            border-radius: 4px;
+            margin-left: auto;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+            position: relative;
+            background: white;
+        }
+        
+        .course-status-option.selected .course-status-checkbox {
+            border-color: ${primaryColor};
+            background: ${primaryColor};
+        }
+        
+        .course-status-option.selected .course-status-checkbox::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1;
+        }
+        
+        /* Responsive para móviles */
+        @media (max-width: 480px) {
+            .course-status-option {
+                padding: 0.625rem 0.875rem;
+            }
+            
+            .status-icon {
+                font-size: 1rem;
+                margin-right: 0.625rem;
+            }
+            
+            .status-text {
+                font-size: 0.875rem;
+            }
+            
+            .course-status-checkbox {
+                width: 16px;
+                height: 16px;
+            }
+            
+            .course-status-option.selected .course-status-checkbox::after {
+                font-size: 10px;
+            }
+        }
+        
+        /* Estilos para las opciones de duda */
+        .doubt-label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 1rem;
+            text-align: left;
+            font-size: 1rem;
+        }
+        
+        .doubt-label::after {
+            content: ' *';
+            color: #ef4444;
+            font-weight: bold;
+        }
+        
+        .doubt-options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* Animación de entrada para cada opción de duda */
+        .doubt-option {
+            animation: slideInUp 0.4s ease forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        
+        .doubt-option:nth-child(1) { animation-delay: 0.1s; }
+        .doubt-option:nth-child(2) { animation-delay: 0.2s; }
+        .doubt-option:nth-child(3) { animation-delay: 0.3s; }
+        .doubt-option:nth-child(4) { animation-delay: 0.4s; }
+        .doubt-option:nth-child(5) { animation-delay: 0.5s; }
+        
+        @keyframes slideInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .doubt-option {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+            position: relative;
+        }
+        
+        .doubt-option:hover {
+            border-color: ${primaryColor};
+            background: #f8fafc;
+        }
+        
+        .doubt-option.selected {
+            border-color: ${primaryColor};
+            background: #f0f8ff;
+        }
+        
+        .doubt-icon {
+            font-size: 1.125rem;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+        
+        .doubt-content {
+            flex: 1;
+            text-align: left;
+        }
+        
+        .doubt-content h4 {
+            margin: 0 0 0.25rem 0;
+            font-weight: 600;
+            color: #333;
+            font-size: 0.95rem;
+        }
+        
+        .doubt-content p {
+            margin: 0;
+            color: #666;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        
+        .doubt-checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #d1d5db;
+            border-radius: 4px;
+            margin-left: auto;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+            position: relative;
+            background: white;
+        }
+        
+        .doubt-option.selected .doubt-checkbox {
+            border-color: ${primaryColor};
+            background: ${primaryColor};
+        }
+        
+        .doubt-option.selected .doubt-checkbox::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1;
+        }
+        
+        /* Responsive para móviles */
+        @media (max-width: 480px) {
+            .doubt-option {
+                padding: 0.625rem 0.875rem;
+            }
+            
+            .doubt-icon {
+                font-size: 1rem;
+                margin-right: 0.625rem;
+            }
+            
+            .doubt-content h4 {
+                font-size: 0.875rem;
+            }
+            
+            .doubt-content p {
+                font-size: 0.8rem;
+            }
+            
+            .doubt-checkbox {
+                width: 16px;
+                height: 16px;
+            }
+            
+            .doubt-option.selected .doubt-checkbox::after {
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h2>${pageTitle}</h2>
+        <p>${pageSubtitle}</p>
+        <form id="supportForm">
+            <div class="input-group">
+                <input type="text" id="name" placeholder="TU NOMBRE COMPLETO" required>
+                <p class="error-message" id="nameError">Por favor, ingresa tu nombre.</p>
+            </div>
+            <div class="input-group">
+                <input type="tel" id="whatsapp" placeholder="TU WHASTAPP" required>
+                <p class="error-message" id="whatsappError">Número de WhatsApp inválido.</p>
+            </div>
+            <div class="input-group">
+                <label class="course-status-label">¿YA COMPRASTE EL CURSO?</label>
+                <div class="course-status-options">
+                    <div class="course-status-option" data-value="si">
+                        <div class="status-icon">✅</div>
+                        <div class="status-text">Sí, ya compré el curso</div>
+                        <div class="course-status-checkbox"></div>
+                    </div>
+                    <div class="course-status-option" data-value="no">
+                        <div class="status-icon">❌</div>
+                        <div class="status-text">No, aún no he comprado</div>
+                        <div class="course-status-checkbox"></div>
+                    </div>
+                </div>
+                <input type="hidden" id="courseStatus" required>
+                <p class="error-message" id="courseStatusError">Selecciona una opción.</p>
+            </div>
+            
+            <!-- Campo condicional para usuarios "No Compradores" -->
+            <div class="input-group hidden" id="doubtField">
+                <label class="doubt-label">CUÉNTANOS, ¿CUÁL ES TU DUDA PRINCIPAL?</label>
+                <div class="doubt-options">
+                    <div class="doubt-option" data-value="precio">
+                        <div class="doubt-icon">💰</div>
+                        <div class="doubt-content">
+                            <h4>Quiero saber más sobre el precio</h4>
+                            <p>Me interesa pero necesito entender mejor los costos y formas de pago</p>
+                        </div>
+                        <div class="doubt-checkbox"></div>
+                    </div>
+                    
+                    <div class="doubt-option" data-value="adecuacion">
+                        <div class="doubt-icon">🎯</div>
+                        <div class="doubt-content">
+                            <h4>¿Realmente me servirá?</h4>
+                            <p>Quiero estar seguro de que este curso es lo que necesito para mi situación</p>
+                        </div>
+                        <div class="doubt-checkbox"></div>
+                    </div>
+                    
+                    <div class="doubt-option" data-value="contenido">
+                        <div class="doubt-icon">📚</div>
+                        <div class="doubt-content">
+                            <h4>¿Qué incluye exactamente?</h4>
+                            <p>Necesito más detalles sobre qué aprenderé y cómo está organizado</p>
+                        </div>
+                        <div class="doubt-checkbox"></div>
+                    </div>
+                    
+                    <div class="doubt-option" data-value="tecnico">
+                        <div class="doubt-icon">🔧</div>
+                        <div class="doubt-content">
+                            <h4>Tengo un problema al pagar</h4>
+                            <p>Quiero comprar pero algo no funciona, necesito ayuda urgente</p>
+                        </div>
+                        <div class="doubt-checkbox"></div>
+                    </div>
+                    
+                    <div class="doubt-option" data-value="otra">
+                        <div class="doubt-icon">❓</div>
+                        <div class="doubt-content">
+                            <h4>Otra cosa que me preocupa</h4>
+                            <p>Tengo otra duda o inquietud que quiero resolver</p>
+                        </div>
+                        <div class="doubt-checkbox"></div>
+                    </div>
+                </div>
+                <input type="hidden" id="mainDoubt" required>
+                <p class="error-message" id="doubtError">Por favor, selecciona tu duda principal.</p>
+            </div>
+            
+            
+            <button type="submit" id="submitButton">
+                <div id="spinner" class="spinner hidden"></div>
+                <span id="buttonText">IR A SOPORTE</span>
+            </button>
+        </form>
+        <div class="scroll-indicator"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/intlTelInput.min.js"></script>
+    <script>
+    const CONFIG = {
+        tokens: ["c7ff5b3c8eb6c3", "5fdbd1d4249fe3", "4e9bbfeb1e2938"],
+        defaultCountry: "co",
+        endpointUrl: "${endpointUrl}",
+        intlTelInputUtilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js"
+    };
+
+    // --- Inicialización de Teléfono Internacional ---
+    const input = document.querySelector("#whatsapp");
+    const iti = window.intlTelInput(input, {
+        initialCountry: "auto",
+        separateDialCode: true,
+        geoIpLookup: async (success, failure) => {
+            for (let token of CONFIG.tokens) {
+                try {
+                    const res = await fetch(\`https://ipinfo.io/json?token=\${token}\`);
+                    if (res.status === 429) continue;
+                    if (!res.ok) throw new Error(\`Error \${res.status}\`);
+                    const data = await res.json();
+                    if (data?.country) return success(data.country);
+                } catch (err) {}
+            }
+            success(CONFIG.defaultCountry);
+        },
+        utilsScript: CONFIG.intlTelInputUtilsScript
+    });
+
+    // --- Un solo listener para todo el código del formulario ---
+    document.addEventListener("DOMContentLoaded", function() {
+        const form = document.querySelector("#supportForm");
+        const submitButton = document.querySelector("#submitButton");
+        const spinner = document.querySelector("#spinner");
+        const buttonText = document.querySelector("#buttonText");
+        const formContainer = document.querySelector(".form-container");
+
+        // --- Lógica del Indicador de Scroll (CORREGIDA) ---
+        formContainer.addEventListener("scroll", () => {
+            // Revisa si el scroll está cerca del final
+            const isAtBottom = formContainer.scrollHeight - formContainer.scrollTop <= formContainer.clientHeight + 2;
+            if (formContainer.scrollHeight > formContainer.clientHeight && !isAtBottom) {
+                formContainer.classList.add("has-scroll");
+            } else {
+                formContainer.classList.remove("has-scroll");
+            }
+        });
+
+        // --- Lógica para las opciones de ESTADO DEL CURSO ---
+        const courseStatusOptions = document.querySelectorAll(".course-status-option");
+        const courseStatusInput = document.querySelector("#courseStatus");
+        const doubtField = document.querySelector("#doubtField");
+        const mainDoubtInput = document.querySelector("#mainDoubt");
+
+        courseStatusOptions.forEach(option => {
+            option.addEventListener("click", function() {
+                courseStatusOptions.forEach(opt => opt.classList.remove("selected"));
+                this.classList.add("selected");
+                courseStatusInput.value = this.dataset.value;
+                document.querySelector("#courseStatusError").style.display = "none";
+
+                if (this.dataset.value === "no") {
+                    doubtField.classList.remove("hidden");
+                    mainDoubtInput.required = true;
+                    setTimeout(() => {
+                        if (formContainer.scrollHeight > formContainer.clientHeight) {
+                            formContainer.classList.add("has-scroll");
+                        }
+                        doubtField.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 500);
+                } else {
+                    doubtField.classList.add("hidden");
+                    mainDoubtInput.required = false;
+                    mainDoubtInput.value = "";
+                    document.querySelectorAll(".doubt-option").forEach(opt => opt.classList.remove("selected"));
+                    if (formContainer.scrollHeight <= formContainer.clientHeight) {
+                        formContainer.classList.remove("has-scroll");
+                    }
+                }
+            });
+        });
+
+        // --- Lógica para las opciones de DUDA ---
+        const doubtOptions = document.querySelectorAll(".doubt-option");
+        doubtOptions.forEach(option => {
+            option.addEventListener("click", function() {
+                doubtOptions.forEach(opt => opt.classList.remove("selected"));
+                this.classList.add("selected");
+                mainDoubtInput.value = this.dataset.value;
+                document.querySelector("#doubtError").style.display = "none";
+            });
+        });
+
+        // --- Lógica para el envío del FORMULARIO ---
+        form.addEventListener("submit", async function(event) {
+            event.preventDefault();
+            document.querySelectorAll(".error-message").forEach(e => e.style.display = "none");
+
+            let valid = true;
+
+            if (!document.querySelector("#name").value.trim()) {
+                document.querySelector("#nameError").style.display = "block";
+                valid = false;
+            }
+            if (!courseStatusInput.value) {
+                document.querySelector("#courseStatusError").style.display = "block";
+                valid = false;
+            }
+            if (mainDoubtInput.required && !mainDoubtInput.value) {
+                document.querySelector("#doubtError").style.display = "block";
+                valid = false;
+            }
+            if (!iti.isValidNumber()) {
+                document.querySelector("#whatsappError").style.display = "block";
+                valid = false;
+            }
+
+            if (!valid) return;
+
+            spinner.classList.remove("hidden");
+            buttonText.textContent = "Enviando...";
+            submitButton.disabled = true;
+
+            const formData = {
+                name: document.querySelector("#name").value,
+                courseStatus: courseStatusInput.value,
+                whatsapp: iti.getNumber()
+            };
+
+            if (formData.courseStatus === "no") {
+                formData.mainDoubt = mainDoubtInput.value;
+                const doubtLabels = {
+                    'precio': '[Objeción Precio]',
+                    'adecuacion': '[Lead Cualificación]',
+                    'contenido': '[Duda Producto]',
+                    'tecnico': '[URGENTE - Venta Fallida]',
+                    'otra': '[Consulta General]'
+                };
+                formData.crmLabel = doubtLabels[formData.mainDoubt] || '[Consulta General]';
+            }
+
+            try {
+                const response = await fetch(CONFIG.endpointUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(\`Error HTTP: \${response.status}\`);
+                }
+                
+                const result = await response.json();
+                console.log(result);
+
+                if (result.success && result.url) {
+                    window.location.href = result.url;
+                } else {
+                    throw new Error(result.error || "No se recibió una URL de redirección.");
+                }
+            } catch (error) {
+                console.error("Error al enviar el formulario:", error);
+                alert("Hubo un error al enviar tu solicitud. Inténtalo de nuevo.");
+                spinner.classList.add("hidden");
+                buttonText.textContent = "IR A SOPORTE";
+                submitButton.disabled = false;
+            }
+        });
+    });
+</script>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (error) {
+    logger.error('Error generando página de soporte:', error);
+    res.status(500).send(`
+      <html>
+        <body>
+          <h1>Error al cargar la página de soporte</h1>
+          <p>Por favor, intenta más tarde.</p>
+        </body>
+      </html>
+    `);
+  }
+});
+
 // Endpoint principal para formularios de soporte
 router.post('/formulario-soporte', async (req, res) => {
   const startTime = Date.now();

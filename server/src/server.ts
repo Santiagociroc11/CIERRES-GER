@@ -109,6 +109,9 @@ app.use('/api/hotmart', hotmartRoutes);
 // Usar las rutas de Soporte
 app.use('/api/soporte', soporteRoutes);
 
+// Ruta pública para la página de soporte (sin prefijo /api)
+app.use('/soporte', soporteRoutes);
+
 // Usar las rutas de Reasignación
 app.use('/api', reasignacionRoutes);
 // Usar las rutas de Duplicados
@@ -163,9 +166,9 @@ if (process.env.NODE_ENV === 'production') {
   frontendPath = path.join(__dirname, '../../dist');
   app.use(express.static(frontendPath));
   
-  // Para SPA, redirigir todas las rutas no-API al index.html
+  // Para SPA, redirigir todas las rutas no-API al index.html (excepto /soporte)
   app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/soporte')) {
       res.sendFile(path.join(frontendPath!, 'index.html'));
     }
   });

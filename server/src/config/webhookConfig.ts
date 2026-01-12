@@ -39,6 +39,11 @@ export interface WebhookConfig {
     phoneNumbers: {
       academySupport?: string; // Número para clientes que ya compraron
     };
+    pageConfig?: {
+      title?: string;
+      subtitle?: string;
+      primaryColor?: string;
+    };
   };
   // Aquí puedes agregar más plataformas en el futuro
   // stripe: { ... }
@@ -80,7 +85,8 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
           api: hotmartConfig.api || {}
         },
         soporte: {
-          phoneNumbers: soporteConfig?.phoneNumbers || {}
+          phoneNumbers: soporteConfig?.phoneNumbers || {},
+          pageConfig: soporteConfig?.pageConfig || undefined
         }
       };
       
@@ -97,7 +103,8 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
           api: {}
         },
         soporte: {
-          phoneNumbers: {}
+          phoneNumbers: {},
+          pageConfig: undefined
         }
       };
     }
@@ -247,13 +254,24 @@ export async function updateSoporteConfig(soporteConfig: WebhookConfig['soporte'
   try {
     console.log('Actualizando configuración de Soporte en BD...');
     
-    // Actualizar configuración de soporte
+    // Actualizar configuración de soporte - phoneNumbers
     let updateResult = false;
     try {
       updateResult = await updateWebhookConfigInDB('soporte', 'phoneNumbers', soporteConfig.phoneNumbers, 'system');
       console.log('Sección phoneNumbers actualizada:', updateResult);
     } catch (error) {
       console.error('Error actualizando phoneNumbers:', error);
+    }
+    
+    // Actualizar configuración de la página si existe
+    if (soporteConfig.pageConfig) {
+      try {
+        const pageConfigResult = await updateWebhookConfigInDB('soporte', 'pageConfig', soporteConfig.pageConfig, 'system');
+        console.log('Sección pageConfig actualizada:', pageConfigResult);
+        updateResult = updateResult && pageConfigResult;
+      } catch (error) {
+        console.error('Error actualizando pageConfig:', error);
+      }
     }
     
     if (updateResult) {

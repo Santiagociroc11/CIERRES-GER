@@ -779,12 +779,12 @@ router.get('/', async (_req, res) => {
         @media (max-width: 768px) {
             .iti__country-list {
                 max-height: 60vh !important;
-                left: 0 !important;
-                right: 0 !important;
-                width: 100% !important;
-                border-radius: 12px 12px 0 0 !important;
+                width: 80% !important;
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+                border-radius: 12px !important;
                 position: fixed !important;
-                bottom: 0 !important;
+                bottom: 10% !important;
                 top: auto !important;
                 margin: 0 !important;
             }

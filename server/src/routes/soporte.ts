@@ -666,14 +666,13 @@ router.get('/', async (_req, res) => {
 
     // --- Inicialización de Teléfono Internacional ---
     const input = document.querySelector("#whatsapp");
-    const inputContainer = input.closest('.input-group') || input.parentElement;
     
     const iti = window.intlTelInput(input, {
         initialCountry: "auto",
         separateDialCode: true,
         preferredCountries: ["co", "us", "mx", "ar", "cl", "pe", "es"],
         allowDropdown: true,
-        dropdownContainer: inputContainer,
+        dropdownContainer: null, // Usar null para que se posicione automáticamente
         autoHideDialCode: false,
         nationalMode: false,
         geoIpLookup: async (success, failure) => {
@@ -701,7 +700,7 @@ router.get('/', async (_req, res) => {
             z-index: 1 !important;
         }
         .iti__country-list {
-            max-height: 50vh !important;
+            max-height: 300px !important;
             max-width: 100% !important;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
             border-radius: 12px !important;
@@ -714,8 +713,7 @@ router.get('/', async (_req, res) => {
             z-index: 9999 !important;
             background: white !important;
             width: 100% !important;
-            left: 0 !important;
-            right: 0 !important;
+            min-width: 300px !important;
             box-sizing: border-box !important;
         }
         .iti__search-box {

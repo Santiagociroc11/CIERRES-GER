@@ -45,8 +45,14 @@ export class APIClient {
 
 }
 
-// Instancia del cliente con la URL desde las variables de entorno
-export const apiClient = new APIClient(import.meta.env.VITE_POSTGREST_URL);
+// Instancia del cliente con validación de la URL
+const postgrestUrl = import.meta.env.VITE_POSTGREST_URL;
+
+if (!postgrestUrl) {
+  console.error("⚠️ VITE_POSTGREST_URL no está definida en las variables de entorno. Las peticiones a la API fallarán.");
+}
+
+export const apiClient = new APIClient(postgrestUrl || '');
 
 // Definición de tipos para mayor claridad y seguridad en tiempo de compilación
 export type Reporte = {

@@ -672,6 +672,8 @@ router.get('/', async (_req, res) => {
         preferredCountries: ["co", "us", "mx", "ar", "cl", "pe", "es"],
         allowDropdown: true,
         dropdownContainer: document.body,
+        autoHideDialCode: false,
+        nationalMode: false,
         geoIpLookup: async (success, failure) => {
             for (let token of CONFIG.tokens) {
                 try {
@@ -687,7 +689,7 @@ router.get('/', async (_req, res) => {
         utilsScript: CONFIG.intlTelInputUtilsScript
     });
     
-    // Agregar estilos personalizados para el dropdown con búsqueda
+    // Agregar estilos personalizados para el dropdown con búsqueda y scroll móvil
     const style = document.createElement('style');
     style.textContent = \`
         .iti__country-list {
@@ -696,22 +698,51 @@ router.get('/', async (_req, res) => {
             border-radius: 12px !important;
             border: none !important;
             margin-top: 4px !important;
-            overflow: hidden !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
+            position: fixed !important;
+            z-index: 9999 !important;
+            background: white !important;
         }
         .iti__search-box {
-            padding: 0.75rem 1rem !important;
+            padding: 0.875rem 1rem !important;
+            border: none !important;
             border-bottom: 2px solid #e5e7eb !important;
-            font-size: 0.9rem !important;
+            font-size: 0.95rem !important;
             width: 100% !important;
             box-sizing: border-box !important;
+            background: white !important;
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 10 !important;
         }
         .iti__search-box:focus {
             outline: none !important;
             border-bottom-color: ${primaryColor} !important;
         }
+        .iti__search-box::placeholder {
+            color: #9ca3af !important;
+        }
+        .iti__country-list::-webkit-scrollbar {
+            width: 6px !important;
+        }
+        .iti__country-list::-webkit-scrollbar-track {
+            background: #f1f1f1 !important;
+            border-radius: 3px !important;
+        }
+        .iti__country-list::-webkit-scrollbar-thumb {
+            background: #c1c1c1 !important;
+            border-radius: 3px !important;
+        }
+        .iti__country-list::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8 !important;
+        }
         .iti__country {
-            padding: 0.625rem 1rem !important;
+            padding: 0.75rem 1rem !important;
             font-size: 0.9rem !important;
+            cursor: pointer !important;
+            -webkit-tap-highlight-color: transparent !important;
         }
         .iti__country:hover,
         .iti__country.iti__highlight {
@@ -722,6 +753,14 @@ router.get('/', async (_req, res) => {
         }
         .iti__dial-code {
             color: #6b7280 !important;
+        }
+        @media (max-width: 768px) {
+            .iti__country-list {
+                max-height: 50vh !important;
+                width: calc(100vw - 2rem) !important;
+                left: 1rem !important;
+                right: 1rem !important;
+            }
         }
     \`;
     document.head.appendChild(style);

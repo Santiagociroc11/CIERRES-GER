@@ -710,13 +710,21 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       console.log('Cargando datos para asesor:', asesor.ID);
       const clientesData = await apiClient.request<Cliente[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}`);
       
-      // Cargar reportes con select anidado
-      // PostgREST puede tener problemas con order cuando hay selects anidados,
-      // así que cargamos sin order y ordenamos en el cliente
+      // Validar que clientesData sea un array antes de usarlo
+      if (!Array.isArray(clientesData)) {
+        console.error('❌ clientesData no es un array:', clientesData);
+        setClientes([]);
+        setReportes([]);
+        setClientesSinReporte([]);
+        return;
+      }
+      
+      // Cargar reportes sin select anidado (PostgREST requiere foreign key para selects anidados)
+      // Haremos el join manualmente con los clientes ya cargados
       let reportesData: Reporte[] = [];
       try {
         const reportesSinOrder = await apiClient.request<Reporte[]>(
-          `/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*,cliente:GERSSON_CLIENTES(*)`
+          `/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*`
         );
         
         // Validar que sea un array
@@ -724,8 +732,15 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           console.error('❌ reportesSinOrder no es un array:', reportesSinOrder);
           reportesData = [];
         } else {
+          // Hacer join manual con los clientes
+          const clientesMap = new Map(clientesData.map(c => [c.ID, c]));
+          reportesData = reportesSinOrder.map(reporte => ({
+            ...reporte,
+            cliente: clientesMap.get(reporte.ID_CLIENTE) || null
+          }));
+          
           // Ordenar por FECHA_SEGUIMIENTO en el cliente (ascendente, nulls al final)
-          reportesData = reportesSinOrder.sort((a, b) => {
+          reportesData.sort((a, b) => {
             const fechaA = a.FECHA_SEGUIMIENTO || 0;
             const fechaB = b.FECHA_SEGUIMIENTO || 0;
             return fechaA - fechaB;
@@ -734,15 +749,6 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       } catch (orderError: any) {
         console.error('❌ Error cargando reportes:', orderError);
         reportesData = [];
-      }
-
-      // Validar que las respuestas sean arrays
-      if (!Array.isArray(clientesData)) {
-        console.error('❌ clientesData no es un array:', clientesData);
-        setClientes([]);
-        setReportes([]);
-        setClientesSinReporte([]);
-        return;
       }
 
       if (!Array.isArray(reportesData)) {

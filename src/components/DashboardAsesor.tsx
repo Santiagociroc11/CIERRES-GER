@@ -709,7 +709,49 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     try {
       console.log('Cargando datos para asesor:', asesor.ID);
       const clientesData = await apiClient.request<Cliente[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}`);
-      const reportesData = await apiClient.request<Reporte[]>(`/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*,cliente:GERSSON_CLIENTES(*)&order=FECHA_SEGUIMIENTO.asc`);
+      
+      // Cargar reportes con select anidado
+      // PostgREST puede tener problemas con order cuando hay selects anidados,
+      // así que cargamos sin order y ordenamos en el cliente
+      let reportesData: Reporte[] = [];
+      try {
+        const reportesSinOrder = await apiClient.request<Reporte[]>(
+          `/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*,cliente:GERSSON_CLIENTES(*)`
+        );
+        
+        // Validar que sea un array
+        if (!Array.isArray(reportesSinOrder)) {
+          console.error('❌ reportesSinOrder no es un array:', reportesSinOrder);
+          reportesData = [];
+        } else {
+          // Ordenar por FECHA_SEGUIMIENTO en el cliente (ascendente, nulls al final)
+          reportesData = reportesSinOrder.sort((a, b) => {
+            const fechaA = a.FECHA_SEGUIMIENTO || 0;
+            const fechaB = b.FECHA_SEGUIMIENTO || 0;
+            return fechaA - fechaB;
+          });
+        }
+      } catch (orderError: any) {
+        console.error('❌ Error cargando reportes:', orderError);
+        reportesData = [];
+      }
+
+      // Validar que las respuestas sean arrays
+      if (!Array.isArray(clientesData)) {
+        console.error('❌ clientesData no es un array:', clientesData);
+        setClientes([]);
+        setReportes([]);
+        setClientesSinReporte([]);
+        return;
+      }
+
+      if (!Array.isArray(reportesData)) {
+        console.error('❌ reportesData no es un array:', reportesData);
+        setClientes(clientesData);
+        setReportes([]);
+        setClientesSinReporte(clientesData);
+        return;
+      }
 
       if (clientesData && reportesData) {
         const clientesProcesados = clientesData.map(cliente => {
@@ -788,9 +830,43 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           tasaRespuesta
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error cargando datos:', error);
-      showToast('Error al cargar los datos', 'error');
+      
+      // Inicializar estados vacíos para evitar errores de .map() o .filter()
+      setClientes([]);
+      setReportes([]);
+      setClientesSinReporte([]);
+      
+      // Manejar errores de API de forma más específica
+      let errorMessage = 'Error al cargar los datos';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // Si es un error de API con código de estado, mostrar información más detallada
+        if ('status' in error && error.status) {
+          errorMessage = `Error ${error.status}: ${error.message}`;
+        }
+      }
+      
+      showToast(errorMessage, 'error');
+      
+      // Establecer valores por defecto para evitar errores en el renderizado
+      setClientes([]);
+      setReportes([]);
+      setClientesSinReporte([]);
+      setEstadisticas({
+        totalClientes: 0,
+        clientesReportados: 0,
+        ventasRealizadas: 0,
+        ventasPrincipal: 0,
+        ventasDownsell: 0,
+        seguimientosPendientes: 0,
+        seguimientosCompletados: 0,
+        porcentajeCierre: 0,
+        ventasPorMes: 0,
+        tiempoPromedioConversion: 0,
+        tasaRespuesta: 0
+      });
     }
   };
 

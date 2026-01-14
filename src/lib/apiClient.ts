@@ -33,6 +33,32 @@ export class APIClient {
       return {} as T; // Retorna un objeto vacío para evitar errores
     }
 
+    // ✅ Validar códigos de estado HTTP - lanzar error si no es exitoso (2xx)
+    if (!response.ok) {
+      const responseText = await response.text();
+      let errorMessage = `Error ${response.status}: ${response.statusText}`;
+      
+      // Intentar parsear el mensaje de error si es JSON
+      try {
+        const errorJson = JSON.parse(responseText);
+        if (errorJson.message) {
+          errorMessage = errorJson.message;
+        } else if (errorJson.error) {
+          errorMessage = errorJson.error;
+        } else if (typeof errorJson === 'string') {
+          errorMessage = errorJson;
+        }
+      } catch {
+        // Si no es JSON, usar el texto directamente
+        if (responseText) {
+          errorMessage = `${errorMessage} - ${responseText}`;
+        }
+      }
+      
+      console.error(`❌ Error ${response.status} en ${endpoint}:`, errorMessage);
+      throw new APIError(errorMessage, response.status);
+    }
+
     // ✅ Intentar parsear JSON, pero manejar errores si la respuesta no es JSON
     const responseText = await response.text();
     try {

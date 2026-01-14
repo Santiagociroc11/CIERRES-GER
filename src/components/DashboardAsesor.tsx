@@ -719,12 +719,13 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         return;
       }
       
-      // Cargar reportes sin select anidado (PostgREST requiere foreign key para selects anidados)
-      // Haremos el join manualmente con los clientes ya cargados
+      // Cargar reportes con select anidado (requiere foreign key en BD)
+      // Si falla, hacemos fallback a join manual
       let reportesData: Reporte[] = [];
       try {
+        // Intentar con select anidado (más eficiente si hay foreign key)
         const reportesSinOrder = await apiClient.request<Reporte[]>(
-          `/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*`
+          `/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*,cliente:GERSSON_CLIENTES(*)`
         );
         
         // Validar que sea un array
@@ -732,23 +733,42 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           console.error('❌ reportesSinOrder no es un array:', reportesSinOrder);
           reportesData = [];
         } else {
-          // Hacer join manual con los clientes
-          const clientesMap = new Map(clientesData.map(c => [c.ID, c]));
-          reportesData = reportesSinOrder.map(reporte => ({
-            ...reporte,
-            cliente: clientesMap.get(reporte.ID_CLIENTE) || null
-          }));
-          
           // Ordenar por FECHA_SEGUIMIENTO en el cliente (ascendente, nulls al final)
-          reportesData.sort((a, b) => {
+          reportesData = reportesSinOrder.sort((a, b) => {
             const fechaA = a.FECHA_SEGUIMIENTO || 0;
             const fechaB = b.FECHA_SEGUIMIENTO || 0;
             return fechaA - fechaB;
           });
         }
-      } catch (orderError: any) {
-        console.error('❌ Error cargando reportes:', orderError);
-        reportesData = [];
+      } catch (error: any) {
+        // Fallback: cargar sin select anidado y hacer join manual
+        console.warn('⚠️ Select anidado falló, usando fallback con join manual:', error.message);
+        try {
+          const reportesSinOrder = await apiClient.request<Reporte[]>(
+            `/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*`
+          );
+          
+          if (Array.isArray(reportesSinOrder)) {
+            // Hacer join manual con los clientes
+            const clientesMap = new Map(clientesData.map(c => [c.ID, c]));
+            reportesData = reportesSinOrder.map(reporte => ({
+              ...reporte,
+              cliente: clientesMap.get(reporte.ID_CLIENTE) || null
+            }));
+            
+            // Ordenar por FECHA_SEGUIMIENTO
+            reportesData.sort((a, b) => {
+              const fechaA = a.FECHA_SEGUIMIENTO || 0;
+              const fechaB = b.FECHA_SEGUIMIENTO || 0;
+              return fechaA - fechaB;
+            });
+          } else {
+            reportesData = [];
+          }
+        } catch (fallbackError: any) {
+          console.error('❌ Error en fallback de carga de reportes:', fallbackError);
+          reportesData = [];
+        }
       }
 
       if (!Array.isArray(reportesData)) {

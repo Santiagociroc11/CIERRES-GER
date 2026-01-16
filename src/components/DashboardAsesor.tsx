@@ -709,7 +709,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     try {
       console.log('Cargando datos para asesor:', asesor.ID);
       const clientesData = await apiClient.request<Cliente[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}`);
-      
+
       // Validar que clientesData sea un array antes de usarlo
       if (!Array.isArray(clientesData)) {
         console.error('❌ clientesData no es un array:', clientesData);

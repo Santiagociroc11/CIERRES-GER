@@ -15,6 +15,9 @@ import {
   ChevronLeft,
   ChevronRight,
   FileVideo,
+  Flame,
+  ThermometerSun,
+  Snowflake,
 } from 'lucide-react';
 import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
@@ -114,6 +117,54 @@ export default function ListaGeneralClientes({
     // Los clientes VIP pueden identificarse por su estado o por tener un registro específico
     // Por ahora, usamos el estado como indicador
     return cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP';
+  };
+
+  // Renderizar badge de temperatura
+  const renderTemperatura = (cliente: Cliente) => {
+    if (!cliente.temperatura) return null;
+    
+    const config = {
+      CALIENTE: { icon: Flame, color: 'text-red-500', bg: 'bg-red-50', label: '🔥' },
+      TIBIO: { icon: ThermometerSun, color: 'text-yellow-500', bg: 'bg-yellow-50', label: '🌡️' },
+      FRIO: { icon: Snowflake, color: 'text-blue-500', bg: 'bg-blue-50', label: '❄️' },
+    };
+    
+    const temp = config[cliente.temperatura];
+    if (!temp) return null;
+    
+    return (
+      <span 
+        className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs ${temp.bg} ${temp.color}`}
+        title={`Temperatura: ${cliente.temperatura}`}
+      >
+        {temp.label}
+      </span>
+    );
+  };
+
+  // Renderizar etiquetas del cliente (nombres separados por coma)
+  const renderEtiquetas = (cliente: Cliente) => {
+    if (!cliente.etiquetas) return null;
+    
+    const etiquetasArray = cliente.etiquetas.split(',').filter(e => e.trim());
+    if (etiquetasArray.length === 0) return null;
+    
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {etiquetasArray.slice(0, 3).map((nombreEtiqueta, index) => (
+          <span 
+            key={index}
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600 border border-gray-200"
+            title={nombreEtiqueta}
+          >
+            {nombreEtiqueta.length > 15 ? `${nombreEtiqueta.substring(0, 15)}...` : nombreEtiqueta}
+          </span>
+        ))}
+        {etiquetasArray.length > 3 && (
+          <span className="text-xs text-gray-400">+{etiquetasArray.length - 3}</span>
+        )}
+      </div>
+    );
   };
 
   // Modificamos getEstadoTexto para incluir el tipo de producto en ventas
@@ -387,9 +438,13 @@ export default function ListaGeneralClientes({
                         {cliente.soporte_prioridad}
                       </span>
                     )}
+                    {/* Badge de temperatura */}
+                    {renderTemperatura(cliente)}
                     {!ultimoReporte && <AlertCircle className="h-4 w-4 text-red-500" aria-label="Sin reporte" />}
                     {tieneSeguimiento && <Clock className="h-4 w-4 text-blue-500" aria-label="Seguimiento pendiente" />}
                   </div>
+                  {/* Etiquetas del cliente */}
+                  {renderEtiquetas(cliente)}
                 </div>
                 <button onClick={() => setClienteAcciones(clienteAcciones === cliente.ID ? null : cliente.ID)} className="p-1 hover:bg-gray-100 rounded-full">
                   <Menu className="h-5 w-5 text-gray-500" />
@@ -540,7 +595,11 @@ export default function ListaGeneralClientes({
                             {cliente.soporte_prioridad}
                           </span>
                         )}
+                        {/* Badge de temperatura */}
+                        {renderTemperatura(cliente)}
                       </div>
+                      {/* Etiquetas del cliente */}
+                      {renderEtiquetas(cliente)}
                       {(() => {
                         const ultimoRpt = obtenerUltimoReporte(cliente.ID);
                         if (

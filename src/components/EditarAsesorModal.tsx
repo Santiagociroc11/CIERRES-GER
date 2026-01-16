@@ -53,14 +53,22 @@ const EditarAsesorModal: React.FC<EditarAsesorModalProps> = ({
     setError('');
 
     try {
-      const asesorActualizado = {
+      // Construir objeto de actualización
+      // ID_TG es NOT NULL en la BD, así que solo incluirlo si tiene valor
+      const asesorActualizado: Record<string, any> = {
         NOMBRE: nombre.trim(),
         WHATSAPP: whatsapp.trim(),
-        ID_TG: idTg.trim() || null,
         ES_ADMIN: esAdmin,
         PRIORIDAD: prioridad,
-        LIMITE_DIARIO: limiteDiario ? parseInt(limiteDiario) : null
+        LIMITE_DIARIO: limiteDiario ? parseInt(limiteDiario.toString()) : null
       };
+      
+      // Solo actualizar ID_TG si tiene valor (la columna es NOT NULL)
+      if (idTg.trim()) {
+        asesorActualizado.ID_TG = idTg.trim();
+      }
+      // Si no hay ID_TG y el asesor ya tenía uno, mantener el actual
+      // (no enviar el campo para que no lo sobreescriba)
 
       await apiClient.request(`/GERSSON_ASESORES?ID=eq.${asesor.ID}`, 'PATCH', asesorActualizado);
 

@@ -1,5 +1,3 @@
-import React from 'react';
-
 export interface Asesor {
   ID: number;
   NOMBRE: string;
@@ -67,7 +65,39 @@ export interface Cliente {
   soporte_duda?: string | null;
   soporte_descripcion?: string | null;
   soporte_fecha_ultimo?: number | null;
+  // Campos de temperatura y etiquetas para seguimientos
+  temperatura?: 'CALIENTE' | 'TIBIO' | 'FRIO' | null;
+  etiquetas?: string | null; // Separadas por comas
+  temperatura_fecha?: number | null;
 }
+
+// Tipos de temperatura para leads
+export type TemperaturaLead = 'CALIENTE' | 'TIBIO' | 'FRIO';
+
+// Interface para etiquetas personalizadas (creadas por cada asesor)
+export interface EtiquetaCliente {
+  id: number;
+  id_asesor: number;
+  nombre: string;
+  color: string;
+  emoji?: string | null;
+  uso_count: number;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Colores disponibles para etiquetas
+export const COLORES_ETIQUETAS = [
+  { id: 'red', nombre: 'Rojo', class: 'bg-red-100 text-red-800 border-red-300' },
+  { id: 'orange', nombre: 'Naranja', class: 'bg-orange-100 text-orange-800 border-orange-300' },
+  { id: 'yellow', nombre: 'Amarillo', class: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  { id: 'green', nombre: 'Verde', class: 'bg-green-100 text-green-800 border-green-300' },
+  { id: 'blue', nombre: 'Azul', class: 'bg-blue-100 text-blue-800 border-blue-300' },
+  { id: 'purple', nombre: 'Morado', class: 'bg-purple-100 text-purple-800 border-purple-300' },
+  { id: 'pink', nombre: 'Rosa', class: 'bg-pink-100 text-pink-800 border-pink-300' },
+  { id: 'gray', nombre: 'Gris', class: 'bg-gray-100 text-gray-800 border-gray-300' },
+] as const;
 
 export interface Reporte {
   ID_REPORTE: number;
@@ -116,6 +146,9 @@ export interface Reporte {
   estado_doble_verificacion: string | null;
   supervisor_resolution_timestamp: number | null;
   supervisor_resolution_comment: string | null;
+  // Campos de temperatura y etiquetas
+  temperatura?: 'CALIENTE' | 'TIBIO' | 'FRIO' | null;
+  etiquetas?: string | null;
 }
 
 export interface Registro {

@@ -6,28 +6,26 @@
 -- ============================================
 
 -- 1. Actualizar foreign key en conversaciones (mantener historial, usar SET NULL)
-DO $$
-BEGIN
-    -- Eliminar la constraint existente si existe
-    IF EXISTS (
-        SELECT 1 
-        FROM information_schema.table_constraints 
-        WHERE constraint_name LIKE '%id_asesor%'
-        AND table_name = 'conversaciones'
-        AND constraint_type = 'FOREIGN KEY'
-    ) THEN
-        ALTER TABLE "public"."conversaciones" 
-        DROP CONSTRAINT IF EXISTS "conversaciones_id_asesor_fkey";
-    END IF;
-    
-    -- Crear nueva constraint con ON DELETE SET NULL
-    ALTER TABLE "public"."conversaciones" 
-    ADD CONSTRAINT "conversaciones_id_asesor_fkey" 
-    FOREIGN KEY ("id_asesor") 
-    REFERENCES "public"."GERSSON_ASESORES"("ID") 
-    ON DELETE SET NULL 
-    ON UPDATE NO ACTION;
-END $$;
+-- NOTA: La constraint puede tener varios nombres: "id_asesor", "ids", etc.
+
+-- Primero, hacer la columna nullable si no lo es
+ALTER TABLE "public"."conversaciones" 
+ALTER COLUMN "id_asesor" DROP NOT NULL;
+
+-- Eliminar TODAS las constraints posibles con diferentes nombres
+ALTER TABLE "public"."conversaciones" DROP CONSTRAINT IF EXISTS "id_asesor";
+ALTER TABLE "public"."conversaciones" DROP CONSTRAINT IF EXISTS "ids";
+ALTER TABLE "public"."conversaciones" DROP CONSTRAINT IF EXISTS "conversaciones_id_asesor_fkey";
+ALTER TABLE "public"."conversaciones" DROP CONSTRAINT IF EXISTS "fk_id_asesor";
+ALTER TABLE "public"."conversaciones" DROP CONSTRAINT IF EXISTS "conversaciones_asesor_fkey";
+
+-- Crear nueva constraint con ON DELETE SET NULL
+ALTER TABLE "public"."conversaciones" 
+ADD CONSTRAINT "conversaciones_id_asesor_fkey" 
+FOREIGN KEY ("id_asesor") 
+REFERENCES "public"."GERSSON_ASESORES"("ID") 
+ON DELETE SET NULL 
+ON UPDATE NO ACTION;
 
 -- 2. Actualizar foreign key en GERSSON_CUPOS_VIP (usar SET NULL para mantener datos)
 DO $$

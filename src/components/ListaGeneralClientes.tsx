@@ -18,6 +18,8 @@ import {
   Flame,
   ThermometerSun,
   Snowflake,
+  ArrowUpDown,
+  Tag,
 } from 'lucide-react';
 import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
@@ -49,6 +51,9 @@ export default function ListaGeneralClientes({
 }: ListaGeneralClientesProps) {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<EstadoCliente | 'TODOS'>('TODOS');
+  const [filtroTemperatura, setFiltroTemperatura] = useState<'TODAS' | 'CALIENTE' | 'TIBIO' | 'FRIO'>('TODAS');
+  const [filtroEtiqueta, setFiltroEtiqueta] = useState<string>('');
+  const [ordenamiento, setOrdenamiento] = useState<'default' | 'temperatura' | 'etiquetas'>('default');
   const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);
   const [mostrarSoloCriticos, setMostrarSoloCriticos] = useState(false);
   const [mostrarSoloVIPs, setMostrarSoloVIPs] = useState(false);
@@ -59,6 +64,20 @@ export default function ListaGeneralClientes({
   const [clienteConsolidar, setClienteConsolidar] = useState<Cliente | null>(null);
   const [reporteConsolidar, setReporteConsolidar] = useState<Reporte | null>(null);
   const clientesPorPagina = 20;
+  
+  // Obtener todas las etiquetas únicas de los clientes para el filtro
+  const etiquetasUnicas = React.useMemo(() => {
+    const etiquetas = new Set<string>();
+    clientes.forEach(cliente => {
+      if (cliente.etiquetas) {
+        cliente.etiquetas.split(',').forEach(e => {
+          const etiqueta = e.trim();
+          if (etiqueta) etiquetas.add(etiqueta);
+        });
+      }
+    });
+    return Array.from(etiquetas).sort();
+  }, [clientes]);
 
   useEffect(() => {
     setForzarBusqueda(clientes.length > 1000);
@@ -207,17 +226,46 @@ export default function ListaGeneralClientes({
       filtroEstado === 'TODOS' || cliente.ESTADO === filtroEstado;
     const coincideCriticos = !mostrarSoloCriticos || esEstadoCritico(cliente.ESTADO, cliente);
     const coincideVIPs = !mostrarSoloVIPs || esClienteVIP(cliente);
+    
+    // Filtro por temperatura
+    const coincideTemperatura = 
+      filtroTemperatura === 'TODAS' || cliente.temperatura === filtroTemperatura;
+    
+    // Filtro por etiqueta
+    const coincideEtiqueta = !filtroEtiqueta || 
+      (cliente.etiquetas && cliente.etiquetas.split(',').some(e => 
+        e.trim().toLowerCase().includes(filtroEtiqueta.toLowerCase())
+      ));
 
-    return coincideBusqueda && coincideEstado && coincideCriticos && coincideVIPs;
+    return coincideBusqueda && coincideEstado && coincideCriticos && coincideVIPs && 
+           coincideTemperatura && coincideEtiqueta;
   });
 
   const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
-    const sortA = getSortValue(a);
-    const sortB = getSortValue(b);
-    if (sortA === sortB) {
-      return (b.FECHA_CREACION as number) - (a.FECHA_CREACION as number);
+    // Ordenamiento por temperatura
+    if (ordenamiento === 'temperatura') {
+      const tempOrder: Record<string, number> = { 'CALIENTE': 1, 'TIBIO': 2, 'FRIO': 3 };
+      const aTemp = tempOrder[a.temperatura || ''] || 999;
+      const bTemp = tempOrder[b.temperatura || ''] || 999;
+      if (aTemp !== bTemp) return aTemp - bTemp;
     }
-    return sortA - sortB;
+    
+    // Ordenamiento por etiquetas (más etiquetas primero, luego por nombre)
+    if (ordenamiento === 'etiquetas') {
+      const aEtiquetas = a.etiquetas ? a.etiquetas.split(',').length : 0;
+      const bEtiquetas = b.etiquetas ? b.etiquetas.split(',').length : 0;
+      if (aEtiquetas !== bEtiquetas) return bEtiquetas - aEtiquetas;
+    }
+    
+    // Ordenamiento por defecto (estado)
+    if (ordenamiento === 'default') {
+      const sortA = getSortValue(a);
+      const sortB = getSortValue(b);
+      if (sortA !== sortB) return sortA - sortB;
+    }
+    
+    // Ordenamiento secundario: por fecha de creación (más recientes primero)
+    return (b.FECHA_CREACION as number) - (a.FECHA_CREACION as number);
   });
 
   const totalPaginas = Math.ceil(clientesOrdenados.length / clientesPorPagina);
@@ -367,8 +415,8 @@ export default function ListaGeneralClientes({
               </div>
             )}
           </div>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1 min-w-[200px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="relative">
               <select
                 value={filtroEstado}
                 onChange={(e) => setFiltroEstado(e.target.value as EstadoCliente | 'TODOS')}
@@ -387,6 +435,56 @@ export default function ListaGeneralClientes({
               </select>
               <Filter className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
             </div>
+            
+            {/* Filtro por temperatura */}
+            <div className="relative">
+              <select
+                value={filtroTemperatura}
+                onChange={(e) => setFiltroTemperatura(e.target.value as 'TODAS' | 'CALIENTE' | 'TIBIO' | 'FRIO')}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 appearance-none"
+              >
+                <option value="TODAS">🌡️ Todas las temperaturas</option>
+                <option value="CALIENTE">🔥 Caliente</option>
+                <option value="TIBIO">🌡️ Tibio</option>
+                <option value="FRIO">❄️ Frío</option>
+              </select>
+              <ThermometerSun className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+            </div>
+            
+            {/* Filtro por etiqueta */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Filtrar por etiqueta..."
+                value={filtroEtiqueta}
+                onChange={(e) => setFiltroEtiqueta(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                list="etiquetas-lista"
+              />
+              <Tag className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              <datalist id="etiquetas-lista">
+                {etiquetasUnicas.map(etiqueta => (
+                  <option key={etiqueta} value={etiqueta} />
+                ))}
+              </datalist>
+            </div>
+            
+            {/* Ordenamiento */}
+            <div className="relative">
+              <select
+                value={ordenamiento}
+                onChange={(e) => setOrdenamiento(e.target.value as 'default' | 'temperatura' | 'etiquetas')}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 appearance-none"
+              >
+                <option value="default">Orden por estado</option>
+                <option value="temperatura">Orden por temperatura</option>
+                <option value="etiquetas">Orden por etiquetas</option>
+              </select>
+              <ArrowUpDown className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={() => setMostrarSoloCriticos(!mostrarSoloCriticos)}
               className={`px-4 py-2 rounded-lg border ${mostrarSoloCriticos ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-700 border-gray-300'}`}
@@ -401,6 +499,20 @@ export default function ListaGeneralClientes({
               <CheckCircle className={`inline-block h-4 w-4 mr-2 ${mostrarSoloVIPs ? 'text-blue-500' : 'text-gray-400'}`} />
               Solo VIPs
             </button>
+            
+            {/* Botones de reset de filtros */}
+            {(filtroTemperatura !== 'TODAS' || filtroEtiqueta || ordenamiento !== 'default') && (
+              <button
+                onClick={() => {
+                  setFiltroTemperatura('TODAS');
+                  setFiltroEtiqueta('');
+                  setOrdenamiento('default');
+                }}
+                className="px-4 py-2 rounded-lg border bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100"
+              >
+                Limpiar filtros
+              </button>
+            )}
           </div>
         </div>
       </div>

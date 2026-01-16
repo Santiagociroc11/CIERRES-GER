@@ -88,10 +88,25 @@ const EditarAsesorModal: React.FC<EditarAsesorModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error('Error eliminando asesor:', err);
-      if (err.message?.includes('foreign key') || err.message?.includes('constraint')) {
-        setError('No se puede eliminar el asesor porque tiene clientes asignados. Reasigna primero a sus clientes.');
+      const errorMessage = err.message || '';
+      
+      // Detectar diferentes tipos de violaciones de foreign key
+      if (errorMessage.includes('foreign key') || errorMessage.includes('constraint')) {
+        if (errorMessage.includes('conversaciones')) {
+          setError('No se puede eliminar el asesor porque tiene conversaciones asociadas. Las conversaciones se mantendrán en el historial.');
+        } else if (errorMessage.includes('reportes') || errorMessage.includes('GERSSON_REPORTES')) {
+          setError('No se puede eliminar el asesor porque tiene reportes históricos asociados. Los reportes son importantes para mantener el historial de ventas.');
+        } else if (errorMessage.includes('clientes') || errorMessage.includes('GERSSON_CLIENTES')) {
+          setError('No se puede eliminar el asesor porque tiene clientes asignados. Reasigna primero a sus clientes antes de eliminar.');
+        } else if (errorMessage.includes('cupos') || errorMessage.includes('GERSSON_CUPOS_VIP')) {
+          setError('No se puede eliminar el asesor porque tiene cupos VIP asignados.');
+        } else {
+          setError('No se puede eliminar el asesor porque tiene datos asociados en otras tablas. Verifica que no tenga clientes, reportes o conversaciones activas.');
+        }
+      } else if (err.status === 409) {
+        setError('Conflicto: No se puede eliminar el asesor porque tiene referencias en otras tablas. Verifica las relaciones antes de eliminar.');
       } else {
-        setError('Error al eliminar el asesor. Intenta nuevamente.');
+        setError(`Error al eliminar el asesor: ${errorMessage || 'Error desconocido'}. Intenta nuevamente.`);
       }
     } finally {
       setLoadingEliminar(false);

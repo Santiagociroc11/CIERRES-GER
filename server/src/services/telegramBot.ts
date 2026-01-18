@@ -35,6 +35,24 @@ interface TelegramUpdate {
       type: string;
     }>;
   };
+  callback_query?: {
+    id: string;
+    from: {
+      id: number;
+      is_bot: boolean;
+      first_name: string;
+      last_name?: string;
+      username?: string;
+    };
+    message?: {
+      message_id: number;
+      chat: {
+        id: number;
+        type: string;
+      };
+    };
+    data: string;
+  };
 }
 
 class TelegramBot {
@@ -106,9 +124,38 @@ class TelegramBot {
     try {
       console.log(`🔍 [TelegramBot] Procesando update ${update.update_id}...`);
       
+      // Manejar callback_query (botones inline)
+      if (update.callback_query) {
+        const callbackQuery = update.callback_query;
+        const chatId = callbackQuery.message?.chat.id;
+        const userId = callbackQuery.from.id;
+        const firstName = callbackQuery.from.first_name;
+        const data = callbackQuery.data;
+        
+        if (!chatId) {
+          console.warn(`⚠️ [TelegramBot] Callback query sin chat ID`);
+          return;
+        }
+        
+        console.log(`🔘 [TelegramBot] Callback query recibido:`);
+        console.log(`   - Update ID: ${update.update_id}`);
+        console.log(`   - Callback ID: ${callbackQuery.id}`);
+        console.log(`   - De: ${firstName} (${userId})`);
+        console.log(`   - Chat ID: ${chatId}`);
+        console.log(`   - Data: "${data}"`);
+        
+        // Responder al callback para quitar el "cargando" del botón
+        await this.answerCallbackQuery(callbackQuery.id);
+        
+        // Procesar el callback
+        await this.handleCallbackQuery(chatId, data, firstName, userId);
+        return;
+      }
+      
+      // Manejar mensajes de texto
       const message = update.message;
       if (!message) {
-        console.log(`⚠️ [TelegramBot] Update ${update.update_id} no tiene mensaje (puede ser otro tipo de update)`);
+        console.log(`⚠️ [TelegramBot] Update ${update.update_id} no tiene mensaje ni callback_query`);
         return;
       }
       
@@ -145,6 +192,52 @@ class TelegramBot {
   }
 
   /**
+   * Responder a un callback query (quitar el estado "cargando" del botón)
+   */
+  private async answerCallbackQuery(callbackQueryId: string) {
+    if (!this.botToken) return;
+
+    try {
+      await fetch(`https://api.telegram.org/bot${this.botToken}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          callback_query_id: callbackQueryId
+        })
+      });
+    } catch (error) {
+      console.error('❌ [TelegramBot] Error respondiendo callback query:', error);
+    }
+  }
+
+  /**
+   * Manejar callback queries (botones inline)
+   */
+  private async handleCallbackQuery(chatId: number, data: string, firstName: string, userId: number) {
+    console.log(`🔘 [TelegramBot] Procesando callback: ${data}`);
+    
+    switch (data) {
+      case 'get_autoid':
+        await this.sendAutoIdMessage(chatId, firstName, userId);
+        break;
+      
+      case 'help':
+        await this.sendHelpMessage(chatId);
+        break;
+      
+      case 'start_menu':
+        await this.sendStartMessage(chatId, firstName);
+        break;
+      
+      default:
+        console.warn(`⚠️ [TelegramBot] Callback desconocido: ${data}`);
+        break;
+    }
+  }
+
+  /**
    * Manejar comandos del bot
    */
   private async handleCommand(chatId: number, command: string, firstName: string, userId: number) {
@@ -155,21 +248,21 @@ class TelegramBot {
       console.log(`🔧 [TelegramBot] Ejecutando comando: ${commandBase}`);
       
       switch (commandBase) {
-        case '/start':
-          await this.sendStartMessage(chatId, firstName);
-          break;
-        
-        case '/autoid':
-          await this.sendAutoIdMessage(chatId, firstName, userId);
-          break;
-        
-        case '/help':
-          await this.sendHelpMessage(chatId);
-          break;
-        
-        default:
-          await this.sendUnknownCommandMessage(chatId);
-          break;
+      case '/start':
+        await this.sendStartMessage(chatId, firstName);
+        break;
+      
+      case '/autoid':
+        await this.sendAutoIdMessage(chatId, firstName, userId);
+        break;
+      
+      case '/help':
+        await this.sendHelpMessage(chatId);
+        break;
+      
+      default:
+        await this.sendUnknownCommandMessage(chatId);
+        break;
       }
     } catch (error) {
       console.error(`❌ [TelegramBot] Error en handleCommand:`, error);
@@ -195,9 +288,26 @@ class TelegramBot {
 💡 **¿Para qué sirve?**
 Con tu ID de Telegram podrás recibir notificaciones automáticas cuando tengas nuevos clientes asignados.
 
-🚀 **¡Escribe** \`/autoid\` **para comenzar!**`;
+🚀 **¡Presiona el botón de abajo para obtener tu ID!**`;
 
-    await this.sendMessage(chatId, message, 'Markdown');
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: '🆔 Obtener mi ID de Telegram',
+            callback_data: 'get_autoid'
+          }
+        ],
+        [
+          {
+            text: '❓ Ayuda',
+            callback_data: 'help'
+          }
+        ]
+      ]
+    };
+
+    await this.sendMessage(chatId, message, 'Markdown', replyMarkup);
   }
 
   /**
@@ -220,7 +330,24 @@ Con tu ID de Telegram podrás recibir notificaciones automáticas cuando tengas 
 
 💡 **Nota:** Este es tu ID único de Telegram que nunca cambia.`;
 
-    await this.sendMessage(chatId, message, 'Markdown');
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: '🔄 Obtener ID nuevamente',
+            callback_data: 'get_autoid'
+          }
+        ],
+        [
+          {
+            text: '🏠 Menú principal',
+            callback_data: 'start_menu'
+          }
+        ]
+      ]
+    };
+
+    await this.sendMessage(chatId, message, 'Markdown', replyMarkup);
   }
 
   /**
@@ -240,9 +367,26 @@ Con tu ID de Telegram podrás recibir notificaciones automáticas cuando tengas 
 🤔 **¿Qué hace este bot?**
 Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir notificaciones automáticas de nuevos clientes.
 
-🚀 **Usar:** \`/autoid\``;
+🚀 **Usa los botones de abajo o escribe** \`/autoid\``;
 
-    await this.sendMessage(chatId, message, 'Markdown');
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: '🆔 Obtener mi ID',
+            callback_data: 'get_autoid'
+          }
+        ],
+        [
+          {
+            text: '🏠 Menú principal',
+            callback_data: 'start_menu'
+          }
+        ]
+      ]
+    };
+
+    await this.sendMessage(chatId, message, 'Markdown', replyMarkup);
   }
 
   /**
@@ -263,7 +407,12 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
   /**
    * Enviar mensaje a un chat
    */
-  private async sendMessage(chatId: number, text: string, parseMode: string = 'Markdown') {
+  private async sendMessage(
+    chatId: number, 
+    text: string, 
+    parseMode: string = 'Markdown',
+    replyMarkup?: any
+  ) {
     if (!this.botToken) {
       console.error('❌ [TelegramBot] No hay token configurado, no se puede enviar mensaje');
       return;
@@ -271,17 +420,27 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
 
     try {
       console.log(`📤 [TelegramBot] Enviando mensaje a chat ${chatId}...`);
+      if (replyMarkup) {
+        console.log(`📤 [TelegramBot] Incluyendo menú con botones`);
+      }
+      
+      const body: any = {
+        chat_id: chatId,
+        text,
+        parse_mode: parseMode,
+        disable_web_page_preview: true
+      };
+      
+      if (replyMarkup) {
+        body.reply_markup = replyMarkup;
+      }
+      
       const response = await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          parse_mode: parseMode,
-          disable_web_page_preview: true
-        })
+        body: JSON.stringify(body)
       });
 
       const data = await response.json();

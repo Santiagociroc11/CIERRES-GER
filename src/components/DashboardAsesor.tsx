@@ -453,6 +453,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [telegramId, setTelegramId] = useState('');
   const [currentTelegramId, setCurrentTelegramId] = useState<string | null>(null);
   const [isLoadingTelegram, setIsLoadingTelegram] = useState(false);
+  const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
   const [verificandoWhatsApp, setVerificandoWhatsApp] = useState(false);
   const [refreshAttempts, setRefreshAttempts] = useState(0);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
@@ -471,6 +472,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
   useEffect(() => {
     loadCurrentTelegramId();
+    loadTelegramBotConfig();
     cargarDatos();
   }, [asesor.ID]);
 
@@ -1357,6 +1359,19 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
+  const loadTelegramBotConfig = async () => {
+    try {
+      const response = await fetch('/api/hotmart/config');
+      const data = await response.json();
+      
+      if (data.success && data.data?.telegram?.botUsername) {
+        setTelegramBotUsername(data.data.telegram.botUsername);
+      }
+    } catch (error) {
+      console.error('Error cargando configuración del bot de Telegram:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header Moderno */}
@@ -1716,12 +1731,16 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                   <h3 className="font-semibold text-blue-900 mb-2">Instrucciones:</h3>
                   <ol className="text-sm text-blue-800 space-y-1">
-                    <li>1. Ve a Telegram y busca: <a 
-                      href="https://t.me/Repartidor_td_bot" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="font-bold text-blue-600 hover:text-blue-800 underline hover:no-underline transition-colors duration-200"
-                    >@Repartidor_td_bot</a></li>
+                    <li>1. Ve a Telegram y busca: {telegramBotUsername ? (
+                      <a 
+                        href={`https://t.me/${telegramBotUsername}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="font-bold text-blue-600 hover:text-blue-800 underline hover:no-underline transition-colors duration-200"
+                      >@{telegramBotUsername}</a>
+                    ) : (
+                      <span className="font-bold text-blue-600">el bot configurado</span>
+                    )}</li>
                     <li>2. Presiona el botón <strong>"Iniciar"</strong> o escribe el comando <strong>/start</strong></li>
                     <li>3. Presiona el MENÚ y selecciona<strong>"/autoid"</strong></li>
                     <li>4. El bot te enviará un número, cópialo y pégalo aquí:</li>

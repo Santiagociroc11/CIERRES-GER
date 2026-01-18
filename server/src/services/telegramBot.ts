@@ -257,8 +257,11 @@ class TelegramBot {
     const firstName = message.from.first_name;
     const username = message.from.username;
 
+    console.log(`📨 [TelegramBot] Mensaje recibido de ${firstName} (${userId}): "${text}"`);
+
     // Responder a comandos
     if (text.startsWith('/')) {
+      console.log(`🔧 [TelegramBot] Comando detectado: "${text}"`);
       await this.handleCommand(chatId, text, firstName, userId);
     }
   }
@@ -267,7 +270,10 @@ class TelegramBot {
    * Manejar comandos del bot
    */
   private async handleCommand(chatId: number, command: string, firstName: string, userId: number) {
-    switch (command.toLowerCase()) {
+    // Extraer el comando base (sin parámetros) y convertir a minúsculas
+    const commandBase = command.toLowerCase().split(' ')[0].split('@')[0];
+    
+    switch (commandBase) {
       case '/start':
         await this.sendStartMessage(chatId, firstName);
         break;
@@ -290,9 +296,12 @@ class TelegramBot {
    * Enviar mensaje de bienvenida
    */
   private async sendStartMessage(chatId: number, firstName: string) {
+    const config = await getHotmartConfig();
+    const botName = config.telegram?.botName || 'este bot';
+    
     const message = `👋 ¡Hola ${firstName}!
 
-🤖 Soy el bot de **Repartidor TD** para ayudarte a configurar tu ID de Telegram.
+🤖 Soy ${botName} para ayudarte a configurar tu ID de Telegram.
 
 📋 **Comandos disponibles:**
 • \`/autoid\` - Obtener tu ID de Telegram
@@ -310,13 +319,16 @@ Con tu ID de Telegram podrás recibir notificaciones automáticas cuando tengas 
    * Enviar mensaje con el ID de Telegram del usuario
    */
   private async sendAutoIdMessage(chatId: number, firstName: string, userId: number) {
+    const config = await getHotmartConfig();
+    const systemName = config.telegram?.botName || 'el sistema';
+    
     const message = `🆔 **Tu ID de Telegram es:**
 
 \`${userId}\`
 
 📋 **Instrucciones:**
 1. **Copia** el número de arriba (toca para seleccionar)
-2. Ve al sistema web de Repartidor TD
+2. Ve al sistema web
 3. Pega el número en el campo "ID de Telegram"
 4. ¡Listo! Ya recibirás notificaciones automáticas
 
@@ -331,7 +343,10 @@ Con tu ID de Telegram podrás recibir notificaciones automáticas cuando tengas 
    * Enviar mensaje de ayuda
    */
   private async sendHelpMessage(chatId: number) {
-    const message = `🆘 **Ayuda - Bot Repartidor TD**
+    const config = await getHotmartConfig();
+    const botName = config.telegram?.botName || 'Bot de ayuda';
+    
+    const message = `🆘 **Ayuda - ${botName}**
 
 📋 **Comandos disponibles:**
 • \`/start\` - Mensaje de bienvenida
@@ -365,9 +380,13 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
    * Enviar mensaje a un chat
    */
   private async sendMessage(chatId: number, text: string, parseMode: string = 'Markdown') {
-    if (!this.botToken) return;
+    if (!this.botToken) {
+      console.error('❌ [TelegramBot] No hay token configurado, no se puede enviar mensaje');
+      return;
+    }
 
     try {
+      console.log(`📤 [TelegramBot] Enviando mensaje a chat ${chatId}...`);
       const response = await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
         method: 'POST',
         headers: {
@@ -385,6 +404,9 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
       
       if (!data.ok) {
         console.error('❌ [TelegramBot] Error enviando mensaje:', data);
+        console.error('❌ [TelegramBot] Detalles:', JSON.stringify(data, null, 2));
+      } else {
+        console.log(`✅ [TelegramBot] Mensaje enviado exitosamente a chat ${chatId}`);
       }
     } catch (error) {
       console.error('❌ [TelegramBot] Error enviando mensaje:', error);

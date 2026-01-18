@@ -44,6 +44,8 @@ interface HotmartConfig {
   telegram: {
     groupChatId: string;
     threadId: string;
+    botName?: string;
+    botUsername?: string;
   };
   api?: {
     client_id: string;
@@ -636,8 +638,39 @@ const WebhookConfig: React.FC = () => {
       console.log('Respuesta de getMe:', data);
       
       if (data.ok) {
-        toast.success(`Bot válido: ${data.result.username}`);
-        console.log('Bot info:', data.result);
+        const botInfo = data.result;
+        const botUsername = botInfo.username || '';
+        const botName = botInfo.first_name || '';
+        
+        // Actualizar automáticamente el botName y botUsername si están vacíos o diferentes
+        const needsUpdate = 
+          !config.telegram.botUsername || 
+          config.telegram.botUsername !== botUsername ||
+          (!config.telegram.botName || config.telegram.botName !== botName);
+        
+        if (needsUpdate) {
+          setConfig({
+            ...config,
+            telegram: {
+              ...config.telegram,
+              botUsername: botUsername,
+              botName: botName || config.telegram.botName // Mantener el nombre si ya existe uno personalizado
+            }
+          });
+          toast.success(`✅ Bot válido: @${botUsername}. Configuración actualizada automáticamente.`);
+          
+          // Reiniciar el bot para que use la nueva configuración
+          try {
+            await fetch('/api/telegram/restart', { method: 'POST' });
+            toast.success('Bot reiniciado con la nueva configuración');
+          } catch (restartError) {
+            console.warn('No se pudo reiniciar el bot automáticamente:', restartError);
+          }
+        } else {
+          toast.success(`✅ Bot válido: @${botUsername}`);
+        }
+        
+        console.log('Bot info:', botInfo);
       } else {
         toast.error(`Token inválido: ${data.description}`);
         console.error('Error del bot:', data);
@@ -827,6 +860,28 @@ const WebhookConfig: React.FC = () => {
                 helperText="ID del hilo/tema específico dentro del grupo (ej: 807)"
                 placeholder="807"
                 type="number"
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Nombre del Bot"
+                value={config.telegram.botName || ''}
+                onChange={(e) => handleTelegramChange('botName', e.target.value)}
+                size="small"
+                helperText="Nombre del bot para mostrar en los mensajes (ej: Bot de CIERRES-GER)"
+                placeholder="Bot de CIERRES-GER"
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Username del Bot"
+                value={config.telegram.botUsername || ''}
+                onChange={(e) => handleTelegramChange('botUsername', e.target.value)}
+                size="small"
+                helperText="Username del bot sin @ (ej: cierres_ger_bot)"
+                placeholder="cierres_ger_bot"
               />
             </Grid>
           </Grid>

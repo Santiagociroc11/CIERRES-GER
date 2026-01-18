@@ -29,6 +29,8 @@ export interface WebhookConfig {
     telegram: {
       groupChatId?: string;
       threadId?: string;
+      botName?: string;
+      botUsername?: string;
     };
     api?: {
       client_id?: string;

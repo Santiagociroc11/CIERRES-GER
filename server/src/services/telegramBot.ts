@@ -154,17 +154,24 @@ class TelegramBot {
       const webhookResponse = await fetch(`https://api.telegram.org/bot${this.botToken}/getWebhookInfo`);
       const webhookData = await webhookResponse.json();
       
-      if (webhookData.ok && webhookData.result.url) {
-        console.warn(`⚠️ [TelegramBot] Webhook detectado: ${webhookData.result.url}`);
+      if (webhookData.ok) {
+        const webhookInfo = webhookData.result;
         
-        // Eliminar webhook para usar polling
-        const deleteResponse = await fetch(`https://api.telegram.org/bot${this.botToken}/deleteWebhook`);
-        const deleteData = await deleteResponse.json();
-        
-        if (deleteData.ok) {
-          console.log('✅ [TelegramBot] Webhook eliminado exitosamente');
+        if (webhookInfo.url) {
+          console.warn(`⚠️ [TelegramBot] Webhook detectado: ${webhookInfo.url}`);
+          console.warn(`⚠️ [TelegramBot] Esto causará conflictos con polling. Eliminando webhook...`);
+          
+          // Eliminar webhook para usar polling
+          const deleteResponse = await fetch(`https://api.telegram.org/bot${this.botToken}/deleteWebhook?drop_pending_updates=true`);
+          const deleteData = await deleteResponse.json();
+          
+          if (deleteData.ok) {
+            console.log('✅ [TelegramBot] Webhook eliminado exitosamente');
+          } else {
+            console.error('❌ [TelegramBot] Error eliminando webhook:', deleteData);
+          }
         } else {
-          console.error('❌ [TelegramBot] Error eliminando webhook:', deleteData);
+          console.log('✅ [TelegramBot] No hay webhooks configurados');
         }
       }
     } catch (error) {
@@ -179,8 +186,18 @@ class TelegramBot {
     this.conflictRetries++;
     
     if (this.conflictRetries >= this.maxConflictRetries) {
-      console.error(`❌ [TelegramBot] Máximo de reintentos alcanzado (${this.maxConflictRetries}). Deteniendo bot por conflictos.`);
+      console.error(`❌ [TelegramBot] Máximo de reintentos alcanzado (${this.maxConflictRetries}). Pausando temporalmente por conflictos.`);
+      console.warn(`⚠️ [TelegramBot] El bot se reiniciará automáticamente en 60 segundos.`);
+      
+      // En lugar de detener permanentemente, pausar y dejar que el health check lo reinicie
       this.stopPolling();
+      
+      // Resetear contador después de un tiempo para permitir reintento
+      setTimeout(() => {
+        this.conflictRetries = 0;
+        console.log('🔄 [TelegramBot] Contador de conflictos reseteado, listo para reintentar');
+      }, 60000); // Resetear después de 60 segundos
+      
       return false;
     }
 
@@ -228,9 +245,11 @@ class TelegramBot {
       if (!data.ok) {
         // Manejar específicamente el error 409 (conflicto de instancias)
         if (data.error_code === 409) {
+          console.warn(`⚠️ [TelegramBot] Error 409: Conflicto detectado. Esto puede indicar múltiples instancias o un webhook activo.`);
           const shouldContinue = await this.handleConflict();
           if (!shouldContinue) {
-            return; // Bot detenido por demasiados conflictos
+            // El bot se detuvo temporalmente, el health check lo reiniciará
+            return;
           }
           return; // Saltar esta iteración y esperar el siguiente polling
         }
@@ -238,6 +257,14 @@ class TelegramBot {
         // Para otros errores, resetear contador de conflictos
         this.conflictRetries = 0;
         console.error('❌ [TelegramBot] Error en getUpdates:', data);
+        
+        // Si es un error de autenticación (401), no seguir intentando
+        if (data.error_code === 401) {
+          console.error('❌ [TelegramBot] Token inválido. Deteniendo bot.');
+          this.stopPolling();
+          return;
+        }
+        
         return;
       }
 
@@ -483,8 +510,29 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
    * Verificar y reiniciar polling si se detuvo inesperadamente
    */
   async ensurePolling() {
+    if (!this.botToken) {
+      // Intentar recargar el token si no está disponible
+      try {
+        const config = await getHotmartConfig();
+        this.botToken = config.tokens.telegram || null;
+        if (!this.botToken) {
+          return; // No hay token, no hacer nada
+        }
+      } catch (error) {
+        console.error('❌ [TelegramBot] Error recargando token en ensurePolling:', error);
+        return;
+      }
+    }
+    
     if (this.botToken && !this.isRunning && !this.pollingInterval) {
       console.warn('⚠️ [TelegramBot] Polling detenido inesperadamente, reiniciando...');
+      
+      // Resetear contador de conflictos antes de reiniciar
+      this.conflictRetries = 0;
+      
+      // Limpiar webhooks antes de reiniciar
+      await this.clearWebhooks();
+      
       await this.startPolling();
     }
   }

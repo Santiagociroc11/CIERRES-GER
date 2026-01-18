@@ -199,14 +199,19 @@ router.get('/search', (req, res) => {
 });
 
 // Telegram Bot Management
-router.get('/telegram/status', (req, res) => {
+router.get('/telegram/status', async (req, res) => {
   try {
     const telegramBot = require('../services/telegramBot').default;
     const status = telegramBot.getStatus();
+    const webhookInfo = await telegramBot.getWebhookInfo();
     
     res.json({
       success: true,
-      data: status,
+      data: {
+        ...status,
+        webhookUrl: webhookInfo?.url || null,
+        pendingUpdates: webhookInfo?.pending_update_count || 0
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -219,21 +224,69 @@ router.get('/telegram/status', (req, res) => {
   }
 });
 
-router.post('/telegram/restart', async (req, res) => {
+// Configurar webhook de Telegram
+router.post('/telegram/set-webhook', async (req, res) => {
   try {
     const telegramBot = require('../services/telegramBot').default;
-    await telegramBot.restart();
+    const { webhookUrl } = req.body;
     
-    res.json({
-      success: true,
-      message: 'Bot de Telegram reiniciado exitosamente',
-      timestamp: new Date().toISOString()
-    });
+    if (!webhookUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere webhookUrl en el body',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const result = await telegramBot.setWebhook(webhookUrl);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: result.message,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.message,
+        timestamp: new Date().toISOString()
+      });
+    }
   } catch (error) {
-    logger.error('Error reiniciando bot:', error);
+    logger.error('Error configurando webhook:', error);
     res.status(500).json({
       success: false,
-      error: 'Error reiniciando bot de Telegram',
+      error: 'Error configurando webhook de Telegram',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Eliminar webhook de Telegram
+router.post('/telegram/delete-webhook', async (req, res) => {
+  try {
+    const telegramBot = require('../services/telegramBot').default;
+    const result = await telegramBot.deleteWebhook();
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: result.message,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    logger.error('Error eliminando webhook:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error eliminando webhook de Telegram',
       timestamp: new Date().toISOString()
     });
   }

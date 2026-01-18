@@ -33,6 +33,7 @@ import {
 } from '../services/telegramService';
 import { getCompleteBuyerData } from '../services/hotmartApiService';
 import { checkWhatsAppNumber } from '../services/evolutionService';
+import telegramBot from '../services/telegramBot';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -1652,6 +1653,24 @@ router.put('/config', async (req, res) => {
       });
     }
 
+    // Verificar si el token de Telegram cambió
+    let telegramTokenChanged = false;
+    try {
+      const currentConfig = await getHotmartConfig();
+      const oldToken = currentConfig.tokens?.telegram || '';
+      const newToken = body.tokens?.telegram || '';
+      
+      if (oldToken !== newToken && newToken) {
+        telegramTokenChanged = true;
+        logger.info('Token de Telegram detectado como cambiado', {
+          oldTokenLength: oldToken.length,
+          newTokenLength: newToken.length
+        });
+      }
+    } catch (error) {
+      logger.warn('No se pudo verificar cambio de token de Telegram:', error);
+    }
+
     // Actualizar configuración
     const success = await updateHotmartConfig(body);
     
@@ -1660,6 +1679,30 @@ router.put('/config', async (req, res) => {
         updatedBy: req.ip,
         timestamp: new Date().toISOString()
       });
+      
+      // Si el token de Telegram cambió, reconfigurear el webhook automáticamente
+      if (telegramTokenChanged) {
+        logger.info('🔧 Token de Telegram cambiado, reconfigurando webhook...');
+        
+        // Recargar token en el bot
+        await telegramBot.reloadToken();
+        
+        // Auto-configurar webhook si hay URL pública configurada
+        const publicUrl = process.env.PUBLIC_URL || process.env.TELEGRAM_WEBHOOK_URL || null;
+        if (publicUrl) {
+          telegramBot.autoConfigureWebhook(publicUrl).then(result => {
+            if (result.success) {
+              logger.info(`✅ Webhook reconfigurado: ${result.message}`);
+            } else {
+              logger.warn(`⚠️ No se pudo reconfigurar webhook: ${result.message}`);
+            }
+          }).catch(error => {
+            logger.error('❌ Error reconfigurando webhook:', error);
+          });
+        } else {
+          logger.warn('⚠️ No se encontró PUBLIC_URL para auto-configurar webhook');
+        }
+      }
       
       res.json({
         success: true,

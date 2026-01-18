@@ -77,17 +77,37 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Ruta pública para recibir webhooks de Telegram
+app.post('/webhook/telegram', async (req, res) => {
+  try {
+    const update = req.body;
+    
+    // Responder inmediatamente a Telegram (200 OK) para evitar reintentos
+    res.status(200).json({ ok: true });
+    
+    // Procesar el update de forma asíncrona
+    telegramBot.processWebhookUpdate(update).catch(error => {
+      console.error('❌ [TelegramBot] Error procesando update:', error);
+    });
+  } catch (error) {
+    console.error('❌ [TelegramBot] Error en webhook handler:', error);
+    res.status(200).json({ ok: true }); // Siempre responder 200 a Telegram
+  }
+});
+
 // Ruta para verificar estado del bot de Telegram
-app.get('/telegram-bot-status', (req, res) => {
+app.get('/telegram-bot-status', async (req, res) => {
   const botStatus = telegramBot.getStatus();
+  const webhookInfo = await telegramBot.getWebhookInfo();
+  
   res.json({
     status: 'OK',
     telegramBot: {
-      isRunning: botStatus.isRunning,
       hasToken: botStatus.hasToken,
-      lastUpdateId: botStatus.lastUpdateId,
+      webhookUrl: webhookInfo?.url || null,
+      pendingUpdates: webhookInfo?.pending_update_count || 0,
       message: botStatus.hasToken 
-        ? (botStatus.isRunning ? 'Bot funcionando correctamente' : 'Bot detenido')
+        ? (webhookInfo?.url ? 'Bot funcionando con webhook' : 'Token configurado pero webhook no configurado')
         : 'Token no configurado - revisa webhookconfig'
     },
     timestamp: new Date().toISOString()
@@ -225,11 +245,35 @@ app.listen(PORT, () => {
     console.log(`🌍 Frontend servido desde: ${frontendPath}`);
   }
   
-  // Inicializar bot de Telegram para responder a /autoid
+  // Auto-configurar webhook de Telegram
   console.log('🤖 Inicializando bot de Telegram...');
   const botStatus = telegramBot.getStatus();
+  
   if (botStatus.hasToken) {
     console.log('✅ Bot de Telegram configurado correctamente');
+    
+    // Obtener URL pública desde variable de entorno o usar la URL del request
+    const publicUrl = process.env.PUBLIC_URL || process.env.TELEGRAM_WEBHOOK_URL || null;
+    
+    if (publicUrl) {
+      console.log(`🔧 Auto-configurando webhook con URL: ${publicUrl}`);
+      telegramBot.autoConfigureWebhook(publicUrl).then(result => {
+        if (result.success) {
+          console.log(`✅ ${result.message}`);
+        } else {
+          console.warn(`⚠️ ${result.message}`);
+          console.warn('💡 Puedes configurar el webhook manualmente con: POST /api/telegram/set-webhook');
+        }
+      }).catch(error => {
+        console.error('❌ Error auto-configurando webhook:', error);
+        console.warn('💡 Puedes configurar el webhook manualmente con: POST /api/telegram/set-webhook');
+      });
+    } else {
+      console.warn('⚠️ No se encontró PUBLIC_URL o TELEGRAM_WEBHOOK_URL en variables de entorno');
+      console.warn('💡 Configura PUBLIC_URL o TELEGRAM_WEBHOOK_URL para auto-configurar el webhook');
+      console.warn('   Ejemplo: PUBLIC_URL=https://tu-dominio.com');
+      console.warn('   O configura manualmente con: POST /api/telegram/set-webhook');
+    }
   } else {
     console.log('⚠️ Bot de Telegram sin token configurado - revisa webhookconfig');
   }
@@ -240,7 +284,6 @@ process.on('SIGINT', () => {
   logger.info('Cerrando servidor...');
   console.log('🛑 Cerrando servidor...');
   scheduledMessageService.stop();
-  telegramBot.stopPolling();
   socket.disconnect();
   process.exit(0);
 });
@@ -249,7 +292,6 @@ process.on('SIGTERM', () => {
   logger.info('Cerrando servidor...');
   console.log('🛑 Cerrando servidor...');
   scheduledMessageService.stop();
-  telegramBot.stopPolling();
   socket.disconnect();
   process.exit(0);
 });

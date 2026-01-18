@@ -67,32 +67,23 @@ class TelegramBot {
    */
   private async initializeBot() {
     try {
-      console.log('🔧 [TelegramBot] Iniciando inicialización del bot...');
       const config = await getHotmartConfig();
       this.botToken = config.tokens.telegram || null;
       
       if (!this.botToken) {
         console.warn('⚠️ [TelegramBot] Token no configurado en webhookconfig');
-        console.warn('⚠️ [TelegramBot] Configura el token en la sección de configuración de webhooks');
         return;
       }
 
-      console.log(`✅ [TelegramBot] Token cargado (longitud: ${this.botToken.length} caracteres)`);
-
       // Verificar información del bot
       try {
-        console.log('🔍 [TelegramBot] Verificando información del bot con Telegram API...');
         const botInfo = await this.getBotInfo();
-        console.log(`✅ [TelegramBot] Bot conectado correctamente:`);
-        console.log(`   - Username: @${botInfo.username}`);
-        console.log(`   - Nombre: ${botInfo.first_name}`);
-        console.log(`   - ID: ${botInfo.id}`);
+        console.log(`✅ [TelegramBot] Bot conectado: @${botInfo.username} (${botInfo.first_name})`);
         
         // Configurar comandos del menú del bot
         await this.setBotCommands();
       } catch (error) {
         console.error('❌ [TelegramBot] Error obteniendo info del bot:', error);
-        console.error('❌ [TelegramBot] El token podría ser inválido o hay un problema de conexión');
       }
     } catch (error) {
       console.error('❌ [TelegramBot] Error inicializando bot:', error);
@@ -107,7 +98,6 @@ class TelegramBot {
       throw new Error('Token no configurado');
     }
 
-    console.log('📡 [TelegramBot] Llamando a Telegram API: getMe');
     const response = await fetch(`https://api.telegram.org/bot${this.botToken}/getMe`);
     const data = await response.json();
     
@@ -116,7 +106,6 @@ class TelegramBot {
       throw new Error(`Error obteniendo info del bot: ${data.description}`);
     }
     
-    console.log(`✅ [TelegramBot] Respuesta de getMe recibida correctamente`);
     return data.result;
   }
 
@@ -125,8 +114,6 @@ class TelegramBot {
    */
   async processWebhookUpdate(update: TelegramUpdate): Promise<void> {
     try {
-      console.log(`🔍 [TelegramBot] Procesando update ${update.update_id}...`);
-      
       // Manejar callback_query (botones inline)
       if (update.callback_query) {
         const callbackQuery = update.callback_query;
@@ -136,16 +123,8 @@ class TelegramBot {
         const data = callbackQuery.data;
         
         if (!chatId) {
-          console.warn(`⚠️ [TelegramBot] Callback query sin chat ID`);
           return;
         }
-        
-        console.log(`🔘 [TelegramBot] Callback query recibido:`);
-        console.log(`   - Update ID: ${update.update_id}`);
-        console.log(`   - Callback ID: ${callbackQuery.id}`);
-        console.log(`   - De: ${firstName} (${userId})`);
-        console.log(`   - Chat ID: ${chatId}`);
-        console.log(`   - Data: "${data}"`);
         
         // Responder al callback para quitar el "cargando" del botón
         await this.answerCallbackQuery(callbackQuery.id);
@@ -157,13 +136,7 @@ class TelegramBot {
       
       // Manejar mensajes de texto
       const message = update.message;
-      if (!message) {
-        console.log(`⚠️ [TelegramBot] Update ${update.update_id} no tiene mensaje ni callback_query`);
-        return;
-      }
-      
-      if (!message.text) {
-        console.log(`⚠️ [TelegramBot] Mensaje ${message.message_id} no tiene texto (puede ser foto, sticker, etc.)`);
+      if (!message || !message.text) {
         return;
       }
 
@@ -172,25 +145,12 @@ class TelegramBot {
       const text = message.text.trim();
       const firstName = message.from.first_name;
 
-      console.log(`📨 [TelegramBot] Mensaje recibido:`);
-      console.log(`   - Update ID: ${update.update_id}`);
-      console.log(`   - Message ID: ${message.message_id}`);
-      console.log(`   - De: ${firstName} (${userId})`);
-      console.log(`   - Chat ID: ${chatId}`);
-      console.log(`   - Texto: "${text}"`);
-
       // Responder a comandos
       if (text.startsWith('/')) {
-        console.log(`🔧 [TelegramBot] Comando detectado: "${text}"`);
         await this.handleCommand(chatId, text, firstName, userId);
-        } else {
-        console.log(`💬 [TelegramBot] Mensaje de texto normal (no es comando), ignorando`);
       }
     } catch (error) {
-      console.error(`❌ [TelegramBot] Error procesando update ${update.update_id}:`, error);
-      if (error instanceof Error) {
-        console.error(`   Stack: ${error.stack}`);
-      }
+      console.error(`❌ [TelegramBot] Error procesando update:`, error);
     }
   }
 
@@ -219,8 +179,6 @@ class TelegramBot {
    * Manejar callback queries (botones inline)
    */
   private async handleCallbackQuery(chatId: number, data: string, firstName: string, userId: number) {
-    console.log(`🔘 [TelegramBot] Procesando callback: ${data}`);
-    
     switch (data) {
       case 'get_autoid':
         await this.sendAutoIdMessage(chatId, firstName, userId);
@@ -235,7 +193,6 @@ class TelegramBot {
         break;
       
       default:
-        console.warn(`⚠️ [TelegramBot] Callback desconocido: ${data}`);
         break;
     }
   }
@@ -247,8 +204,6 @@ class TelegramBot {
     try {
       // Extraer el comando base (sin parámetros) y convertir a minúsculas
       const commandBase = command.toLowerCase().split(' ')[0].split('@')[0];
-      
-      console.log(`🔧 [TelegramBot] Ejecutando comando: ${commandBase}`);
       
       switch (commandBase) {
       case '/start':
@@ -422,11 +377,6 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
     }
 
     try {
-      console.log(`📤 [TelegramBot] Enviando mensaje a chat ${chatId}...`);
-      if (replyMarkup) {
-        console.log(`📤 [TelegramBot] Incluyendo menú con botones`);
-      }
-      
       const body: any = {
         chat_id: chatId,
         text,
@@ -450,9 +400,6 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
       
       if (!data.ok) {
         console.error('❌ [TelegramBot] Error enviando mensaje:', data);
-        console.error('❌ [TelegramBot] Detalles:', JSON.stringify(data, null, 2));
-      } else {
-        console.log(`✅ [TelegramBot] Mensaje enviado exitosamente a chat ${chatId}`);
       }
     } catch (error) {
       console.error('❌ [TelegramBot] Error enviando mensaje:', error);
@@ -463,8 +410,6 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
    * Configurar webhook en Telegram
    */
   async setWebhook(webhookUrl: string): Promise<{ success: boolean; message: string }> {
-    console.log(`🔧 [TelegramBot] setWebhook llamado con URL: ${webhookUrl}`);
-    
     if (!this.botToken) {
       console.error('❌ [TelegramBot] No se puede configurar webhook: token no configurado');
       return {
@@ -483,50 +428,27 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
     }
 
     try {
-      console.log('📡 [TelegramBot] Llamando a Telegram API: setWebhook');
-      console.log(`   URL: ${webhookUrl}`);
-      console.log(`   Token: ${this.botToken.substring(0, 10)}...`);
-      
-      const requestBody = {
-        url: webhookUrl,
-        drop_pending_updates: true
-      };
-      
-      console.log(`📤 [TelegramBot] Enviando request:`, JSON.stringify(requestBody, null, 2));
-
       const response = await fetch(`https://api.telegram.org/bot${this.botToken}/setWebhook`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({
+          url: webhookUrl,
+          drop_pending_updates: true
+        })
       });
 
       const data = await response.json();
       
-      console.log(`📥 [TelegramBot] Respuesta de setWebhook:`, JSON.stringify(data, null, 2));
-      
       if (data.ok) {
-        console.log(`✅ [TelegramBot] Webhook configurado exitosamente: ${webhookUrl}`);
-        console.log(`✅ [TelegramBot] Telegram ahora enviará updates a: ${webhookUrl}`);
-        
-        // Verificar que quedó configurado correctamente
-        const verifyInfo = await this.getWebhookInfo();
-        if (verifyInfo?.url === webhookUrl) {
-          console.log(`✅ [TelegramBot] Webhook verificado: ${verifyInfo.url}`);
-        } else {
-          console.warn(`⚠️ [TelegramBot] Webhook configurado pero verificación no coincide`);
-        }
-        
+        console.log(`✅ [TelegramBot] Webhook configurado: ${webhookUrl}`);
         return {
           success: true,
           message: `Webhook configurado exitosamente: ${webhookUrl}`
         };
       } else {
-        console.error('❌ [TelegramBot] Error configurando webhook:');
-        console.error(`   Código: ${data.error_code}`);
-        console.error(`   Descripción: ${data.description}`);
-        console.error(`   Parámetros: ${JSON.stringify(data.parameters || {})}`);
+        console.error('❌ [TelegramBot] Error configurando webhook:', data.description);
         return {
           success: false,
           message: `Error: ${data.description || 'Error desconocido'}`
@@ -546,28 +468,15 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
    */
   async getWebhookInfo(): Promise<{ url?: string; pending_update_count?: number } | null> {
     if (!this.botToken) {
-      console.warn('⚠️ [TelegramBot] No se puede obtener info del webhook: token no configurado');
       return null;
     }
 
     try {
-      console.log('📡 [TelegramBot] Llamando a Telegram API: getWebhookInfo');
       const response = await fetch(`https://api.telegram.org/bot${this.botToken}/getWebhookInfo`);
       const data = await response.json();
       
-      console.log(`📥 [TelegramBot] Respuesta de getWebhookInfo:`, JSON.stringify(data, null, 2));
-      
       if (data.ok) {
-        const result = data.result;
-        if (result.url) {
-          console.log(`✅ [TelegramBot] Webhook configurado: ${result.url}`);
-          console.log(`   - Updates pendientes: ${result.pending_update_count || 0}`);
-          console.log(`   - Último error: ${result.last_error_message || 'ninguno'}`);
-          console.log(`   - Última fecha de error: ${result.last_error_date || 'nunca'}`);
-        } else {
-          console.log(`⚠️ [TelegramBot] No hay webhook configurado`);
-        }
-        return result;
+        return data.result;
       }
       return null;
     } catch (error) {
@@ -581,13 +490,10 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
    */
   private async setBotCommands(): Promise<void> {
     if (!this.botToken) {
-      console.warn('⚠️ [TelegramBot] No se puede configurar comandos: token no configurado');
       return;
     }
 
     try {
-      console.log('🔧 [TelegramBot] Configurando comandos del menú...');
-      
       const commands = [
         {
           command: 'start',
@@ -615,12 +521,7 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
 
       const data = await response.json();
       
-      if (data.ok) {
-        console.log('✅ [TelegramBot] Comandos del menú configurados correctamente');
-        console.log(`   - /start - ${commands[0].description}`);
-        console.log(`   - /autoid - ${commands[1].description}`);
-        console.log(`   - /help - ${commands[2].description}`);
-      } else {
+      if (!data.ok) {
         console.error('❌ [TelegramBot] Error configurando comandos:', data);
       }
     } catch (error) {
@@ -695,10 +596,7 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
    * Auto-configurar webhook usando URL pública
    */
   async autoConfigureWebhook(publicUrl: string): Promise<{ success: boolean; message: string }> {
-    console.log(`🔧 [TelegramBot] autoConfigureWebhook llamado con URL pública: ${publicUrl}`);
-    
     if (!this.botToken) {
-      console.error('❌ [TelegramBot] No se puede auto-configurar: token no configurado');
       return {
         success: false,
         message: 'Token no configurado'
@@ -709,33 +607,15 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
     const cleanPublicUrl = publicUrl.replace(/\/$/, '');
     const webhookUrl = `${cleanPublicUrl}/webhook/telegram`;
     
-    console.log(`🔍 [TelegramBot] Verificando webhook actual...`);
-    
     // Verificar si ya está configurado con la misma URL
     const currentWebhook = await this.getWebhookInfo();
     
-    if (currentWebhook?.url) {
-      console.log(`🔍 [TelegramBot] Webhook actual detectado: ${currentWebhook.url}`);
-      
-      if (currentWebhook.url === webhookUrl) {
-        console.log(`✅ [TelegramBot] Webhook ya está configurado correctamente: ${webhookUrl}`);
-        console.log(`   No es necesario reconfigurar.`);
-        return {
-          success: true,
-          message: `Webhook ya estaba configurado: ${webhookUrl}`
-        };
-      } else {
-        console.log(`⚠️ [TelegramBot] Webhook configurado con URL diferente:`);
-        console.log(`   Actual: ${currentWebhook.url}`);
-        console.log(`   Esperado: ${webhookUrl}`);
-        console.log(`   Reconfigurando...`);
-      }
-    } else {
-      console.log(`⚠️ [TelegramBot] No hay webhook configurado actualmente`);
-      console.log(`   Configurando nuevo webhook...`);
+    if (currentWebhook?.url === webhookUrl) {
+      return {
+        success: true,
+        message: `Webhook ya estaba configurado: ${webhookUrl}`
+      };
     }
-    
-    console.log(`🔧 [TelegramBot] Auto-configurando webhook: ${webhookUrl}`);
     
     return await this.setWebhook(webhookUrl);
   }

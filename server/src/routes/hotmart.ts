@@ -1682,38 +1682,24 @@ router.put('/config', async (req, res) => {
       
       // Si el token de Telegram cambió, reconfigurear el webhook automáticamente
       if (telegramTokenChanged) {
-        console.log('🔄 [TelegramBot] Token de Telegram detectado como cambiado');
-        console.log('🔧 [TelegramBot] Iniciando reconfiguración del webhook...');
         logger.info('🔧 Token de Telegram cambiado, reconfigurando webhook...');
         
         // Recargar token en el bot
-        console.log('🔄 [TelegramBot] Recargando token en el bot...');
-        const tokenReloaded = await telegramBot.reloadToken();
-        if (tokenReloaded) {
-          console.log('✅ [TelegramBot] Token recargado exitosamente');
-        } else {
-          console.error('❌ [TelegramBot] Error recargando token');
-        }
+        await telegramBot.reloadToken();
         
         // Auto-configurar webhook si hay URL pública configurada
         const publicUrl = process.env.PUBLIC_URL || process.env.TELEGRAM_WEBHOOK_URL || null;
         if (publicUrl) {
-          console.log(`🔧 [TelegramBot] URL pública encontrada: ${publicUrl}`);
           telegramBot.autoConfigureWebhook(publicUrl).then(result => {
             if (result.success) {
-              console.log(`✅ [TelegramBot] Webhook reconfigurado exitosamente`);
               logger.info(`✅ Webhook reconfigurado: ${result.message}`);
             } else {
-              console.error(`❌ [TelegramBot] Error reconfigurando webhook: ${result.message}`);
               logger.warn(`⚠️ No se pudo reconfigurar webhook: ${result.message}`);
             }
           }).catch(error => {
-            console.error('❌ [TelegramBot] Excepción al reconfigurar webhook:', error);
             logger.error('❌ Error reconfigurando webhook:', error);
           });
         } else {
-          console.warn('⚠️ [TelegramBot] No se encontró PUBLIC_URL o TELEGRAM_WEBHOOK_URL');
-          console.warn('⚠️ [TelegramBot] El webhook no se reconfigurará automáticamente');
           logger.warn('⚠️ No se encontró PUBLIC_URL para auto-configurar webhook');
         }
       }

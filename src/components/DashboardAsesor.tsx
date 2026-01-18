@@ -420,7 +420,7 @@ interface DashboardAsesorProps {
 }
 
 export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAsesorProps) {
-  const [asesor] = useState<Asesor>(asesorInicial);
+  const [asesor, setAsesor] = useState<Asesor>(asesorInicial);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clientesSinReporte, setClientesSinReporte] = useState<Cliente[]>([]);
   const [reportes, setReportes] = useState<Reporte[]>([]);
@@ -469,6 +469,50 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     localStorage.removeItem('userSession');
     onLogout();
   };
+
+  // ✅ ACTUALIZACIÓN: Sincronizar estado del asesor cuando cambie asesorInicial
+  useEffect(() => {
+    setAsesor(asesorInicial);
+  }, [asesorInicial]);
+
+  // ✅ ACTUALIZACIÓN: Refrescar datos del asesor desde la base de datos al montar el componente
+  // Esto asegura que siempre tengamos los datos más actualizados, incluso si el usuario recargó la página
+  useEffect(() => {
+    const refrescarDatosAsesor = async () => {
+      try {
+        const asesorActualizado = await apiClient.request<Asesor[]>(
+          `/GERSSON_ASESORES?ID=eq.${asesorInicial.ID}&select=*`
+        );
+        
+        if (asesorActualizado && asesorActualizado.length > 0) {
+          const datosActualizados = asesorActualizado[0];
+          
+          // Verificar si hay cambios y actualizar el estado
+          if (JSON.stringify(datosActualizados) !== JSON.stringify(asesorInicial)) {
+            console.log(`🔄 [Asesor] Datos actualizados desde la base de datos`);
+            setAsesor(datosActualizados);
+            
+            // Actualizar también localStorage para mantener la sesión sincronizada
+            const sessionData = localStorage.getItem('userSession');
+            if (sessionData) {
+              try {
+                const parsedSession = JSON.parse(sessionData);
+                parsedSession.asesor = datosActualizados;
+                localStorage.setItem('userSession', JSON.stringify(parsedSession));
+              } catch (err) {
+                console.warn('⚠️ [Asesor] No se pudo actualizar localStorage:', err);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ [Asesor] Error refrescando datos del asesor:', error);
+        // No mostrar error al usuario, usar datos iniciales como fallback
+      }
+    };
+    
+    refrescarDatosAsesor();
+  }, []); // Solo se ejecuta una vez al montar el componente
 
   useEffect(() => {
     loadCurrentTelegramId();
@@ -899,19 +943,38 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   };
 
   const handleCreateInstance = async () => {
-    const payload = {
-      instanceName: asesor.NOMBRE,
-      integration: "WHATSAPP-BAILEYS",
-      qrcode: true,
-      rejectCall: false,
-      msgCall: "",
-      groupsIgnore: true,
-      alwaysOnline: true,
-      readMessages: false,
-      readStatus: false,
-      syncFullHistory: false,
-    };
     try {
+      // ✅ ACTUALIZACIÓN: Obtener datos actualizados del asesor desde la base de datos
+      // Esto asegura que siempre usemos el nombre más reciente al crear la instancia
+      const asesorActualizado = await apiClient.request<Asesor[]>(
+        `/GERSSON_ASESORES?ID=eq.${asesor.ID}&select=*`
+      );
+      
+      if (!asesorActualizado || asesorActualizado.length === 0) {
+        throw new Error("No se pudo obtener la información actualizada del asesor");
+      }
+      
+      const nombreActualizado = asesorActualizado[0].NOMBRE;
+      
+      // Actualizar el estado local del asesor con los datos frescos
+      if (nombreActualizado !== asesor.NOMBRE) {
+        console.log(`🔄 [Asesor] Nombre actualizado: "${asesor.NOMBRE}" -> "${nombreActualizado}"`);
+        setAsesor({ ...asesor, NOMBRE: nombreActualizado });
+      }
+      
+      const payload = {
+        instanceName: nombreActualizado,
+        integration: "WHATSAPP-BAILEYS",
+        qrcode: true,
+        rejectCall: false,
+        msgCall: "",
+        groupsIgnore: true,
+        alwaysOnline: true,
+        readMessages: false,
+        readStatus: false,
+        syncFullHistory: false,
+      };
+      
       setIsLoadingWhatsApp(true);
       setShowWhatsAppModal(true);
       const response = await fetch(`${evolutionServerUrl}/instance/create`, {
@@ -924,7 +987,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       });
       if (!response.ok) throw new Error("No se pudo crear la instancia");
       await response.json();
-      await setChatwootIntegration(asesor.NOMBRE);
+      await setChatwootIntegration(nombreActualizado);
       
       // ✅ CORREGIDO: Lógica inteligente para estado post-creación
       try {

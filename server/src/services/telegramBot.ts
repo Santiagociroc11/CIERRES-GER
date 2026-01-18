@@ -49,6 +49,7 @@ class TelegramBot {
   private isRunning = false;
   private lastUpdateId = 0;
   private pollingInterval: NodeJS.Timeout | null = null;
+  private healthCheckInterval: NodeJS.Timeout | null = null;
   private conflictRetries = 0;
   private maxConflictRetries = 3;
 
@@ -103,8 +104,14 @@ class TelegramBot {
         await this.pollUpdates();
       } catch (error) {
         console.error('❌ [TelegramBot] Error en polling:', error);
+        // No detener el polling por errores, seguir intentando
       }
     }, 2000);
+
+    // Health check cada 30 segundos para verificar que el polling siga activo
+    this.healthCheckInterval = setInterval(async () => {
+      await this.ensurePolling();
+    }, 30000);
   }
 
   /**
@@ -115,8 +122,11 @@ class TelegramBot {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
     }
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+    }
     this.isRunning = false;
-  
   }
 
   /**
@@ -236,11 +246,23 @@ class TelegramBot {
 
       // Procesar cada actualización
       for (const update of data.result) {
-        this.lastUpdateId = update.update_id;
-        await this.processUpdate(update);
+        // Actualizar el lastUpdateId inmediatamente para evitar procesar el mismo update dos veces
+        if (update.update_id >= this.lastUpdateId) {
+          this.lastUpdateId = update.update_id;
+        }
+        
+        // Procesar la actualización con manejo de errores individual
+        // para que un error en un mensaje no detenga el procesamiento de los demás
+        try {
+          await this.processUpdate(update);
+        } catch (error) {
+          console.error(`❌ [TelegramBot] Error procesando update ${update.update_id}:`, error);
+          // Continuar con el siguiente update incluso si este falla
+        }
       }
     } catch (error) {
       console.error('❌ [TelegramBot] Error en polling:', error);
+      // No detener el polling por errores de red/conexión, seguir intentando
     }
   }
 
@@ -248,21 +270,32 @@ class TelegramBot {
    * Procesar una actualización recibida
    */
   private async processUpdate(update: TelegramUpdate) {
-    const message = update.message;
-    if (!message || !message.text) return;
+    try {
+      const message = update.message;
+      if (!message || !message.text) return;
 
-    const chatId = message.chat.id;
-    const userId = message.from.id;
-    const text = message.text.trim();
-    const firstName = message.from.first_name;
-    const username = message.from.username;
+      const chatId = message.chat.id;
+      const userId = message.from.id;
+      const text = message.text.trim();
+      const firstName = message.from.first_name;
+      const username = message.from.username;
 
-    console.log(`📨 [TelegramBot] Mensaje recibido de ${firstName} (${userId}): "${text}"`);
+      console.log(`📨 [TelegramBot] Mensaje recibido de ${firstName} (${userId}): "${text}"`);
 
-    // Responder a comandos
-    if (text.startsWith('/')) {
-      console.log(`🔧 [TelegramBot] Comando detectado: "${text}"`);
-      await this.handleCommand(chatId, text, firstName, userId);
+      // Responder a comandos
+      if (text.startsWith('/')) {
+        console.log(`🔧 [TelegramBot] Comando detectado: "${text}"`);
+        try {
+          await this.handleCommand(chatId, text, firstName, userId);
+        } catch (error) {
+          console.error(`❌ [TelegramBot] Error manejando comando "${text}":`, error);
+          // Enviar mensaje de error genérico al usuario
+          await this.sendMessage(chatId, '❌ Ocurrió un error al procesar tu comando. Por favor, intenta nuevamente.');
+        }
+      }
+    } catch (error) {
+      console.error(`❌ [TelegramBot] Error en processUpdate:`, error);
+      throw error; // Re-lanzar para que el caller pueda manejarlo
     }
   }
 
@@ -270,25 +303,32 @@ class TelegramBot {
    * Manejar comandos del bot
    */
   private async handleCommand(chatId: number, command: string, firstName: string, userId: number) {
-    // Extraer el comando base (sin parámetros) y convertir a minúsculas
-    const commandBase = command.toLowerCase().split(' ')[0].split('@')[0];
-    
-    switch (commandBase) {
-      case '/start':
-        await this.sendStartMessage(chatId, firstName);
-        break;
+    try {
+      // Extraer el comando base (sin parámetros) y convertir a minúsculas
+      const commandBase = command.toLowerCase().split(' ')[0].split('@')[0];
       
-      case '/autoid':
-        await this.sendAutoIdMessage(chatId, firstName, userId);
-        break;
+      console.log(`🔧 [TelegramBot] Ejecutando comando: ${commandBase}`);
       
-      case '/help':
-        await this.sendHelpMessage(chatId);
-        break;
-      
-      default:
-        await this.sendUnknownCommandMessage(chatId);
-        break;
+      switch (commandBase) {
+        case '/start':
+          await this.sendStartMessage(chatId, firstName);
+          break;
+        
+        case '/autoid':
+          await this.sendAutoIdMessage(chatId, firstName, userId);
+          break;
+        
+        case '/help':
+          await this.sendHelpMessage(chatId);
+          break;
+        
+        default:
+          await this.sendUnknownCommandMessage(chatId);
+          break;
+      }
+    } catch (error) {
+      console.error(`❌ [TelegramBot] Error en handleCommand:`, error);
+      throw error; // Re-lanzar para que el caller pueda manejarlo
     }
   }
 
@@ -432,10 +472,21 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
     return {
       isRunning: this.isRunning,
       hasToken: !!this.botToken,
+      hasPollingInterval: !!this.pollingInterval,
       lastUpdateId: this.lastUpdateId,
       conflictRetries: this.conflictRetries,
       maxConflictRetries: this.maxConflictRetries
     };
+  }
+
+  /**
+   * Verificar y reiniciar polling si se detuvo inesperadamente
+   */
+  async ensurePolling() {
+    if (this.botToken && !this.isRunning && !this.pollingInterval) {
+      console.warn('⚠️ [TelegramBot] Polling detenido inesperadamente, reiniciando...');
+      await this.startPolling();
+    }
   }
 }
 

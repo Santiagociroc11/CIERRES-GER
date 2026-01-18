@@ -80,7 +80,17 @@ app.get('/health', (req, res) => {
 // Ruta pública para recibir webhooks de Telegram
 app.post('/webhook/telegram', async (req, res) => {
   try {
+    console.log('📥 [TelegramBot] Webhook recibido desde:', req.ip);
+    console.log('📦 [TelegramBot] Body recibido:', JSON.stringify(req.body, null, 2));
+    
     const update = req.body;
+    
+    if (!update || !update.update_id) {
+      console.warn('⚠️ [TelegramBot] Update inválido recibido:', update);
+      return res.status(200).json({ ok: true }); // Responder OK aunque esté mal formado
+    }
+    
+    console.log(`✅ [TelegramBot] Update válido recibido: ${update.update_id}`);
     
     // Responder inmediatamente a Telegram (200 OK) para evitar reintentos
     res.status(200).json({ ok: true });

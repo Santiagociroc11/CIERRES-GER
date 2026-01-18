@@ -87,6 +87,9 @@ class TelegramBot {
         console.log(`   - Username: @${botInfo.username}`);
         console.log(`   - Nombre: ${botInfo.first_name}`);
         console.log(`   - ID: ${botInfo.id}`);
+        
+        // Configurar comandos del menú del bot
+        await this.setBotCommands();
       } catch (error) {
         console.error('❌ [TelegramBot] Error obteniendo info del bot:', error);
         console.error('❌ [TelegramBot] El token podría ser inválido o hay un problema de conexión');
@@ -180,7 +183,7 @@ class TelegramBot {
       if (text.startsWith('/')) {
         console.log(`🔧 [TelegramBot] Comando detectado: "${text}"`);
         await this.handleCommand(chatId, text, firstName, userId);
-      } else {
+        } else {
         console.log(`💬 [TelegramBot] Mensaje de texto normal (no es comando), ignorando`);
       }
     } catch (error) {
@@ -196,7 +199,7 @@ class TelegramBot {
    */
   private async answerCallbackQuery(callbackQueryId: string) {
     if (!this.botToken) return;
-
+    
     try {
       await fetch(`https://api.telegram.org/bot${this.botToken}/answerCallbackQuery`, {
         method: 'POST',
@@ -570,6 +573,58 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
     } catch (error) {
       console.error('❌ [TelegramBot] Error obteniendo info del webhook:', error);
       return null;
+    }
+  }
+
+  /**
+   * Configurar comandos del menú del bot en Telegram
+   */
+  private async setBotCommands(): Promise<void> {
+    if (!this.botToken) {
+      console.warn('⚠️ [TelegramBot] No se puede configurar comandos: token no configurado');
+      return;
+    }
+
+    try {
+      console.log('🔧 [TelegramBot] Configurando comandos del menú...');
+      
+      const commands = [
+        {
+          command: 'start',
+          description: 'Iniciar el bot y ver el menú principal'
+        },
+        {
+          command: 'autoid',
+          description: 'Obtener tu ID de Telegram para configurarlo'
+        },
+        {
+          command: 'help',
+          description: 'Ver ayuda y comandos disponibles'
+        }
+      ];
+
+      const response = await fetch(`https://api.telegram.org/bot${this.botToken}/setMyCommands`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          commands: commands
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.ok) {
+        console.log('✅ [TelegramBot] Comandos del menú configurados correctamente');
+        console.log(`   - /start - ${commands[0].description}`);
+        console.log(`   - /autoid - ${commands[1].description}`);
+        console.log(`   - /help - ${commands[2].description}`);
+      } else {
+        console.error('❌ [TelegramBot] Error configurando comandos:', data);
+      }
+    } catch (error) {
+      console.error('❌ [TelegramBot] Error configurando comandos del menú:', error);
     }
   }
 

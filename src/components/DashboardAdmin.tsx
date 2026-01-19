@@ -5600,6 +5600,29 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             : null;
 
                           const fueAtendido = tieneMensajesSalientes(cliente);
+                          
+                          // Debug temporal: verificar los primeros 5 clientes
+                          if (paginatedClients.indexOf(cliente) < 5) {
+                            const conversacionesSalientes = conversaciones.filter((c: any) => c.modo === 'saliente');
+                            const coincidenciasPorId = conversacionesSalientes.filter((c: any) => c.id_cliente === cliente.ID);
+                            const coincidenciasPorWha = conversacionesSalientes.filter((c: any) => {
+                              const normalizeWhatsApp = (wha: string | null | undefined): string => {
+                                if (!wha) return '';
+                                const soloNumeros = wha.replace(/\D/g, '');
+                                return soloNumeros.slice(-7);
+                              };
+                              const clienteWhaNorm = normalizeWhatsApp(cliente.WHATSAPP);
+                              const convWhaNorm = normalizeWhatsApp(c.wha_cliente);
+                              return convWhaNorm && convWhaNorm === clienteWhaNorm && convWhaNorm.length >= 7;
+                            });
+                            console.log(`🔍 Cliente ${cliente.ID} (${cliente.NOMBRE}):`, {
+                              fueAtendido,
+                              whatsapp: cliente.WHATSAPP,
+                              coincidenciasPorId: coincidenciasPorId.length,
+                              coincidenciasPorWha: coincidenciasPorWha.length,
+                              ejemploConv: coincidenciasPorId[0] || coincidenciasPorWha[0] || null
+                            });
+                          }
 
                           return (
                             <tr key={cliente.ID} className="hover:bg-gray-50">

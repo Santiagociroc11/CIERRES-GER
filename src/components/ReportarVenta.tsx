@@ -115,7 +115,7 @@ export default function ReportarVenta({
       }
 
       const response = await fetch(
-        import.meta.env.VITE_ENDPOINT_VENTAEXTERNA,
+        '/api/pagosexternos-reisy',
         {
           method: 'POST',
           headers: {
@@ -125,15 +125,19 @@ export default function ReportarVenta({
         }
       );
 
-      if (!response.ok) {
-        throw new Error('Error al enviar la venta a la API');
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.details || 'Error al enviar la venta a Telegram');
       }
+
+      console.log('✅ Pago externo enviado exitosamente a Telegram:', data);
     } catch (apiError) {
-      console.error('Error al enviar la venta:', apiError);
+      console.error('Error al enviar la venta a Telegram:', apiError);
       setError(
         apiError instanceof Error
           ? apiError.message
-          : 'Error desconocido al enviar a la API'
+          : 'Error desconocido al enviar a Telegram'
       );
     } finally {
       setLoading(false);

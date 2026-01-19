@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Cliente, Reporte, Registro, AdminRole } from '../types';
-import { Clock, MessageSquare, DollarSign, AlertCircle, CheckCircle, X, Activity, FileVideo, Image as ImageIcon } from 'lucide-react';
+import { Clock, MessageSquare, DollarSign, AlertCircle, CheckCircle, X, Activity, FileVideo, Image as ImageIcon, Send } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import { apiClient, eliminarReporte, eliminarRegistro } from '../lib/apiClient';
 
@@ -38,6 +38,7 @@ export default function HistorialCliente({
   const [contrasenaInput, setContrasenaInput] = useState('');
   const [mensajeModal, setMensajeModal] = useState('');
   const [tipoMensaje, setTipoMensaje] = useState<'success' | 'error'>('success');
+  const [reenviandoPago, setReenviandoPago] = useState<number | null>(null);
 
   // Actualizar el estado local si la prop "reportes" cambia
   useEffect(() => {
@@ -150,6 +151,36 @@ export default function HistorialCliente({
     setMostrarModalContrasena(false);
     setRegistroAEliminar(null);
     setContrasenaInput('');
+  };
+
+  const handleReenviarPagoExterno = async (reporteId: number) => {
+    if (!window.confirm('¿Reenviar este pago externo al grupo de Telegram?')) {
+      return;
+    }
+
+    setReenviandoPago(reporteId);
+    try {
+      const response = await fetch('/api/pagos-externos/reenviar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reporteId })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert('✅ Pago externo reenviado exitosamente al grupo de Telegram');
+      } else {
+        alert(`❌ Error reenviando pago: ${data.error || data.details || 'Error desconocido'}`);
+      }
+    } catch (error: any) {
+      console.error('Error reenviando pago externo:', error);
+      alert(`❌ Error de conexión: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setReenviandoPago(null);
+    }
   };
 
   const getEstadoColor = (estado: string) => {
@@ -440,6 +471,33 @@ export default function HistorialCliente({
                                       </div>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-1">Clic para ver en grande</p>
+                                    
+                                    {/* Botón para reenviar pago externo al grupo de Telegram */}
+                                    {item.data.TIPO_VENTA === 'EXTERNA' && (
+                                      <div className="mt-2">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleReenviarPagoExterno(item.data.ID);
+                                          }}
+                                          disabled={reenviandoPago === item.data.ID}
+                                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                                          title="Reenviar este pago externo al grupo de Telegram"
+                                        >
+                                          {reenviandoPago === item.data.ID ? (
+                                            <>
+                                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                                              Reenviando...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Send className="h-3 w-3 mr-1.5" />
+                                              Reenviar al Grupo
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </>

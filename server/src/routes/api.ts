@@ -1167,6 +1167,205 @@ router.post('/pagos-externos/test', async (_req, res) => {
   }
 });
 
+// Endpoint para reenviar un pago externo al grupo de Telegram
+router.post('/pagos-externos/reenviar', async (req, res) => {
+  try {
+    const { reporteId } = req.body;
+
+    if (!reporteId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere reporteId',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    logger.info('Reenvío de pago externo solicitado', { reporteId });
+
+    // Obtener el reporte desde la base de datos
+    const POSTGREST_URL = process.env.POSTGREST_URL;
+    if (!POSTGREST_URL) {
+      throw new Error('POSTGREST_URL no configurada');
+    }
+
+    const reporteResponse = await fetch(
+      `${POSTGREST_URL}/GERSSON_REPORTES?ID=eq.${reporteId}&select=*&limit=1`
+    );
+
+    if (!reporteResponse.ok) {
+      throw new Error(`Error obteniendo reporte: ${reporteResponse.status}`);
+    }
+
+    const reportes = await reporteResponse.json();
+    if (!reportes || reportes.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Reporte no encontrado',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const reporte = reportes[0];
+
+    // Validar que sea un pago externo con imagen
+    if (reporte.TIPO_VENTA !== 'EXTERNA' || !reporte.IMAGEN_PAGO_URL) {
+      return res.status(400).json({
+        success: false,
+        error: 'Este reporte no es un pago externo o no tiene imagen de pago',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Obtener datos del cliente
+    const cliente = await getClienteById(reporte.ID_CLIENTE);
+    if (!cliente) {
+      return res.status(404).json({
+        success: false,
+        error: 'Cliente no encontrado',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Obtener configuración de Telegram para pagos externos
+    const hotmartConfig = await getHotmartConfig();
+    const TELEGRAM_BOT_TOKEN = hotmartConfig.tokens.telegram;
+    
+    const pagosExternosConfig = await getPagosExternosConfig();
+    const groupChatId = pagosExternosConfig.telegram.groupChatId || hotmartConfig.telegram.groupChatId || '-1003694709837';
+    const threadId = pagosExternosConfig.telegram.threadId 
+      ? parseInt(pagosExternosConfig.telegram.threadId, 10) 
+      : (hotmartConfig.telegram.threadId ? parseInt(hotmartConfig.telegram.threadId, 10) : 5);
+
+    if (!TELEGRAM_BOT_TOKEN) {
+      return res.status(500).json({
+        success: false,
+        error: 'Token de Telegram no configurado',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Importar utilidades
+    const { escapeHtml } = await import('../utils/telegramFormat');
+    const FormData = require('form-data');
+
+    // Construir el caption del mensaje en HTML
+    const caption = `<b>Notificación de Pago Externo (Reenviado)</b>\n\n` +
+      `<b>Nombre:</b> ${escapeHtml(cliente.NOMBRE)}\n` +
+      `<b>País:</b> ${escapeHtml(reporte.PAIS_CLIENTE || 'N/A')}\n` +
+      `<b>Medio:</b> ${escapeHtml(reporte.MEDIO_PAGO || 'N/A')}\n` +
+      `<b>Teléfono:</b> ${escapeHtml(reporte.TELEFONO_CLIENTE || cliente.WHATSAPP || 'N/A')}\n` +
+      `<b>Correo inscripción:</b> ${escapeHtml(reporte.CORREO_INSCRIPCION || 'N/A')}\n` +
+      `<b>Correo Pago (stripe):</b> ${escapeHtml(reporte.CORREO_PAGO || 'no aplica')}\n` +
+      `<b>ASESOR QUE REPORTA:</b> ${escapeHtml(reporte.NOMBRE_ASESOR || 'N/A')}\n\n` +
+      `-> <b>CONFIRMAR INGRESO E INSCRIBIR</b> <- 🔥`;
+
+    // Descargar la imagen desde la URL y enviarla como FormData
+    try {
+      logger.info('Descargando imagen desde URL para reenvío', {
+        imagenPagoUrl: reporte.IMAGEN_PAGO_URL.substring(0, 100) + '...'
+      });
+
+      const imageResponse = await fetch(reporte.IMAGEN_PAGO_URL);
+      if (!imageResponse.ok) {
+        throw new Error(`Error descargando imagen: ${imageResponse.status} ${imageResponse.statusText}`);
+      }
+
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      const imageBuffer = Buffer.from(arrayBuffer);
+      
+      const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+      const extension = contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : 'jpg';
+
+      // Crear FormData para enviar la imagen como multipart/form-data
+      const form = new FormData();
+      form.append('chat_id', groupChatId);
+      form.append('photo', imageBuffer, {
+        filename: `pago-externo-reenviado.${extension}`,
+        contentType: contentType
+      });
+      form.append('caption', caption);
+      form.append('parse_mode', 'HTML');
+
+      if (threadId && !isNaN(threadId) && threadId > 0) {
+        form.append('message_thread_id', threadId.toString());
+      }
+
+      logger.info('Reenviando foto a Telegram', {
+        groupChatId,
+        threadId,
+        imageSize: imageBuffer.length,
+        reporteId
+      });
+
+      // Usar axios para enviar
+      const axios = require('axios');
+      const telegramResponse = await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+        form,
+        { headers: form.getHeaders() }
+      );
+
+      const telegramData = telegramResponse.data;
+
+      if (!telegramData.ok) {
+        logger.error('Error de Telegram API en reenvío', {
+          status: telegramResponse.status,
+          telegramData,
+          groupChatId,
+          threadId
+        });
+        throw new Error(`Error de Telegram: ${JSON.stringify(telegramData)}`);
+      }
+
+      logger.info('Pago externo reenviado exitosamente', {
+        reporteId,
+        clienteID: cliente.ID,
+        telegramMessageId: telegramData.result?.message_id,
+        groupChatId,
+        threadId
+      });
+
+      res.json({
+        success: true,
+        message: 'Pago externo reenviado exitosamente',
+        data: {
+          reporteId,
+          clienteID: cliente.ID,
+          clienteNombre: cliente.NOMBRE,
+          telegramMessageId: telegramData.result?.message_id,
+          telegramChatId: groupChatId,
+          telegramThreadId: threadId
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error reenviando foto a Telegram', {
+        error: error instanceof Error ? error.message : 'Error desconocido',
+        stack: error instanceof Error ? error.stack : undefined,
+        reporteId,
+        groupChatId,
+        threadId
+      });
+      res.status(500).json({
+        success: false,
+        error: 'Error reenviando foto a Telegram',
+        details: error instanceof Error ? error.message : 'Error desconocido',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error en reenvío de pago externo', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Endpoint para obtener la configuración de pagos externos
 router.get('/pagos-externos/config', async (_req, res) => {
   try {

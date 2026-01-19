@@ -891,6 +891,7 @@ router.post('/pagosexternos-reisy', async (req, res) => {
     const FormData = require('form-data');
 
     // Construir el caption del mensaje en HTML
+    // Nota: Evitar usar "->" y "<-" ya que Telegram los interpreta como tags HTML
     const caption = `<b>Notificación de Pago Externo</b>\n\n` +
       `<b>Nombre:</b> ${escapeHtml(cliente.NOMBRE)}\n` +
       `<b>País:</b> ${escapeHtml(pais || 'N/A')}\n` +
@@ -901,7 +902,7 @@ router.post('/pagosexternos-reisy', async (req, res) => {
       `<b>CEDULA:</b> ${escapeHtml(cedulaComprador || 'no aplica')}\n` +
       `<b>Actividad económica:</b> ${escapeHtml(actividadEconomica || 'no aplica')}\n` +
       `<b>ASESOR QUE REPORTA:</b> ${escapeHtml(nombreAsesor || 'N/A')}\n\n` +
-      `-> <b>CONFIRMAR INGRESO E INSCRIBIR</b> <- 🔥`;
+      `▶️ <b>CONFIRMAR INGRESO E INSCRIBIR</b> 🔥`;
 
     // Descargar la imagen desde la URL y enviarla como FormData
     try {
@@ -1282,6 +1283,7 @@ router.post('/pagos-externos/reenviar', async (req, res) => {
     const FormData = require('form-data');
 
     // Construir el caption del mensaje en HTML
+    // Nota: Evitar usar "->" y "<-" ya que Telegram los interpreta como tags HTML
     const caption = `<b>Notificación de Pago Externo (Reenviado)</b>\n\n` +
       `<b>Nombre:</b> ${escapeHtml(cliente.NOMBRE)}\n` +
       `<b>País:</b> ${escapeHtml(reporte.PAIS_CLIENTE || 'N/A')}\n` +
@@ -1290,7 +1292,7 @@ router.post('/pagos-externos/reenviar', async (req, res) => {
       `<b>Correo inscripción:</b> ${escapeHtml(reporte.CORREO_INSCRIPCION || 'N/A')}\n` +
       `<b>Correo Pago (stripe):</b> ${escapeHtml(reporte.CORREO_PAGO || 'no aplica')}\n` +
       `<b>ASESOR QUE REPORTA:</b> ${escapeHtml(reporte.NOMBRE_ASESOR || 'N/A')}\n\n` +
-      `-> <b>CONFIRMAR INGRESO E INSCRIBIR</b> <- 🔥`;
+      `▶️ <b>CONFIRMAR INGRESO E INSCRIBIR</b> 🔥`;
 
     // Descargar la imagen desde la URL y enviarla como FormData
     try {

@@ -28,7 +28,6 @@ import {
   Edit,
   Grid3X3,
   List,
-  CheckCircle,
   Copy,
   Crown,
   Upload,
@@ -1483,10 +1482,6 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         registros: registrosData.length,
         conversaciones: conversacionesData.length
       });
-      
-      // Debug: Verificar conversaciones salientes
-      const conversacionesSalientes = conversacionesData.filter((c: any) => c.modo === 'saliente');
-      console.log(`📊 Conversaciones salientes cargadas: ${conversacionesSalientes.length} de ${conversacionesData.length} totales`);
 
       // Paso 3: Actualizar estado inmediatamente
       setClientes(clientesData);
@@ -2104,45 +2099,6 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       default:
         return 'bg-gray-100 text-gray-800';
     }
-  };
-
-  // Función para verificar si un cliente tiene mensajes salientes (ha sido atendido)
-  const tieneMensajesSalientes = (cliente: any): boolean => {
-    if (!conversaciones || conversaciones.length === 0) {
-      return false;
-    }
-    
-    // Normalizar WhatsApp para comparación (últimos 7 dígitos)
-    const normalizeWhatsApp = (wha: string | null | undefined): string => {
-      if (!wha) return '';
-      const soloNumeros = wha.replace(/\D/g, '');
-      return soloNumeros.slice(-7);
-    };
-    
-    const clienteWhaNormalizado = normalizeWhatsApp(cliente.WHATSAPP);
-    
-    // Filtrar solo conversaciones salientes una vez
-    const conversacionesSalientes = conversaciones.filter((conv: any) => conv.modo === 'saliente');
-    
-    // Verificar si hay conversaciones salientes por ID de cliente o por WhatsApp
-    const tieneMensaje = conversacionesSalientes.some((conv: any) => {
-      // Verificar por ID de cliente (comparación exacta)
-      if (conv.id_cliente != null && conv.id_cliente === cliente.ID) {
-        return true;
-      }
-      
-      // Verificar por WhatsApp normalizado
-      if (conv.wha_cliente) {
-        const convWhaNormalizado = normalizeWhatsApp(conv.wha_cliente);
-        if (convWhaNormalizado && convWhaNormalizado === clienteWhaNormalizado && convWhaNormalizado.length >= 7) {
-          return true;
-        }
-      }
-      
-      return false;
-    });
-    
-    return tieneMensaje;
   };
 
   // Función para obtener asesores inactivos (sin mensajes salientes en las últimas 2 horas)
@@ -5599,44 +5555,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             })
                             : null;
 
-                          const fueAtendido = tieneMensajesSalientes(cliente);
-                          
-                          // Debug temporal: verificar los primeros 5 clientes
-                          if (paginatedClients.indexOf(cliente) < 5) {
-                            const conversacionesSalientes = conversaciones.filter((c: any) => c.modo === 'saliente');
-                            const coincidenciasPorId = conversacionesSalientes.filter((c: any) => c.id_cliente === cliente.ID);
-                            const coincidenciasPorWha = conversacionesSalientes.filter((c: any) => {
-                              const normalizeWhatsApp = (wha: string | null | undefined): string => {
-                                if (!wha) return '';
-                                const soloNumeros = wha.replace(/\D/g, '');
-                                return soloNumeros.slice(-7);
-                              };
-                              const clienteWhaNorm = normalizeWhatsApp(cliente.WHATSAPP);
-                              const convWhaNorm = normalizeWhatsApp(c.wha_cliente);
-                              return convWhaNorm && convWhaNorm === clienteWhaNorm && convWhaNorm.length >= 7;
-                            });
-                            console.log(`🔍 Cliente ${cliente.ID} (${cliente.NOMBRE}):`, {
-                              fueAtendido,
-                              whatsapp: cliente.WHATSAPP,
-                              coincidenciasPorId: coincidenciasPorId.length,
-                              coincidenciasPorWha: coincidenciasPorWha.length,
-                              ejemploConv: coincidenciasPorId[0] || coincidenciasPorWha[0] || null
-                            });
-                          }
-
                           return (
                             <tr key={cliente.ID} className="hover:bg-gray-50">
                               <td className={`px-4 py-3 text-sm text-gray-800 ${borderClass}`}>
-                                <div className="flex items-center gap-2 break-words max-w-[150px]">
-                                  {fueAtendido ? (
-                                    <CheckCircle 
-                                      className="h-4 w-4 text-green-500 flex-shrink-0" 
-                                      title="Cliente atendido"
-                                    />
-                                  ) : (
-                                    <div className="h-4 w-4 flex-shrink-0" />
-                                  )}
-                                  <span>{cliente.NOMBRE}</span>
+                                <div className="break-words max-w-[150px]">
+                                  {cliente.NOMBRE}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-700">

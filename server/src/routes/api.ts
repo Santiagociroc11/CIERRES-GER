@@ -4,7 +4,7 @@ import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guar
 import telegramQueue from '../services/telegramQueueService';
 import { getPlatformUrl } from '../utils/platformUrl';
 import { markdownToHtml } from '../utils/telegramFormat';
-import { getHotmartConfig } from '../config/webhookConfig';
+import { getHotmartConfig, getPagosExternosConfig } from '../config/webhookConfig';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -857,11 +857,16 @@ router.post('/pagosexternos-reisy', async (req, res) => {
       });
     }
 
-    // Obtener configuración de Telegram
-    const config = await getHotmartConfig();
-    const TELEGRAM_BOT_TOKEN = config.tokens.telegram;
-    const groupChatId = config.telegram.groupChatId || '-1003694709837'; // Usar el del n8n como fallback
-    const threadId = config.telegram.threadId ? parseInt(config.telegram.threadId, 10) : 5; // Usar 5 como fallback
+    // Obtener configuración de Telegram para pagos externos (configuración específica)
+    const hotmartConfig = await getHotmartConfig();
+    const TELEGRAM_BOT_TOKEN = hotmartConfig.tokens.telegram;
+    
+    // Obtener configuración específica de pagos externos
+    const pagosExternosConfig = await getPagosExternosConfig();
+    const groupChatId = pagosExternosConfig.telegram.groupChatId || hotmartConfig.telegram.groupChatId || '-1003694709837';
+    const threadId = pagosExternosConfig.telegram.threadId 
+      ? parseInt(pagosExternosConfig.telegram.threadId, 10) 
+      : (hotmartConfig.telegram.threadId ? parseInt(hotmartConfig.telegram.threadId, 10) : 5);
 
     if (!TELEGRAM_BOT_TOKEN) {
       return res.status(500).json({
@@ -945,6 +950,91 @@ ASESOR QUE REPORTA: ${nombreAsesor || 'No especificado'}
       error: 'Error interno del servidor',
       details: {
         message: error instanceof Error ? error.message : 'Error desconocido'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para obtener la configuración de pagos externos
+router.get('/pagos-externos/config', async (_req, res) => {
+  try {
+    const { getPagosExternosConfig } = await import('../config/webhookConfig');
+    const config = await getPagosExternosConfig();
+    res.json({
+      success: true,
+      data: config,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo configuración de pagos externos', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para actualizar la configuración de pagos externos
+router.put('/pagos-externos/config', async (req, res) => {
+  try {
+    const { body } = req;
+    
+    // Validar estructura de la configuración
+    if (!body || !body.telegram) {
+      return res.status(400).json({
+        success: false,
+        error: 'Estructura de configuración inválida. Debe incluir: telegram',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Actualizar configuración
+    const { updatePagosExternosConfig } = await import('../config/webhookConfig');
+    const success = await updatePagosExternosConfig(body);
+    
+    if (success) {
+      logger.info('Configuración de Pagos Externos actualizada', { 
+        updatedBy: req.ip,
+        timestamp: new Date().toISOString()
+      });
+      
+      const { getPagosExternosConfig } = await import('../config/webhookConfig');
+      res.json({
+        success: true,
+        message: 'Configuración de pagos externos actualizada exitosamente',
+        data: await getPagosExternosConfig(),
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Error guardando configuración de pagos externos',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error actualizando configuración de pagos externos', error);
+    
+    // Intentar obtener la configuración actual para verificar si algunos datos se guardaron
+    let currentConfig = null;
+    try {
+      const { getPagosExternosConfig } = await import('../config/webhookConfig');
+      currentConfig = await getPagosExternosConfig();
+    } catch (configError) {
+      logger.warn('No se pudo obtener configuración actual para verificación:', configError);
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: {
+        message: error instanceof Error ? error.message : 'Error desconocido',
+        stack: error instanceof Error ? error.stack : undefined,
+        note: 'Algunos cambios podrían haberse guardado parcialmente. Revisa la configuración actual.',
+        currentConfig: currentConfig || 'No disponible'
       },
       timestamp: new Date().toISOString()
     });

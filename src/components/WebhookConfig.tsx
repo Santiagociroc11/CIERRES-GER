@@ -64,6 +64,13 @@ interface SoporteConfig {
   };
 }
 
+interface PagosExternosConfig {
+  telegram: {
+    groupChatId: string;
+    threadId: string;
+  };
+}
+
 interface Advisor {
   id: number;
   nombre: string;
@@ -82,10 +89,13 @@ const WebhookConfig: React.FC = () => {
   console.log('Componente WebhookConfig renderizando...');
   const [config, setConfig] = useState<HotmartConfig | null>(null);
   const [soporteConfig, setSoporteConfig] = useState<SoporteConfig | null>(null);
+  const [pagosExternosConfig, setPagosExternosConfig] = useState<PagosExternosConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [soporteLoading, setSoporteLoading] = useState(true);
+  const [pagosExternosLoading, setPagosExternosLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [soporteSaving, setSoporteSaving] = useState(false);
+  const [pagosExternosSaving, setPagosExternosSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -111,6 +121,7 @@ const WebhookConfig: React.FC = () => {
   useEffect(() => {
     loadConfig();
     loadSoporteConfig();
+    loadPagosExternosConfig();
   }, []);
 
   // Cargar asesores con Telegram cuando se muestren las secciones de test
@@ -167,6 +178,31 @@ const WebhookConfig: React.FC = () => {
       });
     } finally {
       setSoporteLoading(false);
+    }
+  };
+
+  const loadPagosExternosConfig = async () => {
+    try {
+      setPagosExternosLoading(true);
+      const response = await fetch('/api/pagos-externos/config');
+      const data = await response.json();
+      
+      if (data.success) {
+        setPagosExternosConfig(data.data);
+      } else {
+        throw new Error(data.error || 'Error cargando configuración de pagos externos');
+      }
+    } catch (error) {
+      console.error('Error cargando configuración de pagos externos:', error);
+      // Inicializar configuración vacía si no existe
+      setPagosExternosConfig({
+        telegram: {
+          groupChatId: '',
+          threadId: ''
+        }
+      });
+    } finally {
+      setPagosExternosLoading(false);
     }
   };
 
@@ -372,6 +408,18 @@ const WebhookConfig: React.FC = () => {
     });
   };
 
+  const handlePagosExternosTelegramChange = (field: string, value: string) => {
+    if (!pagosExternosConfig) return;
+    
+    setPagosExternosConfig({
+      ...pagosExternosConfig,
+      telegram: {
+        ...pagosExternosConfig.telegram,
+        [field]: value
+      }
+    });
+  };
+
   const saveSoporteConfig = async () => {
     if (!soporteConfig) return;
     
@@ -404,6 +452,35 @@ const WebhookConfig: React.FC = () => {
       toast.error('Error guardando configuración de soporte');
     } finally {
       setSoporteSaving(false);
+    }
+  };
+
+  const savePagosExternosConfig = async () => {
+    if (!pagosExternosConfig) return;
+    
+    try {
+      setPagosExternosSaving(true);
+      const response = await fetch('/api/pagos-externos/config', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(pagosExternosConfig)
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success('Configuración de pagos externos guardada exitosamente');
+        setPagosExternosConfig(data.data);
+      } else {
+        throw new Error(data.error || 'Error guardando configuración de pagos externos');
+      }
+    } catch (error) {
+      console.error('Error guardando configuración de pagos externos:', error);
+      toast.error('Error guardando configuración de pagos externos');
+    } finally {
+      setPagosExternosSaving(false);
     }
   };
 
@@ -688,7 +765,7 @@ const WebhookConfig: React.FC = () => {
     }));
   };
 
-  if (loading || soporteLoading) {
+  if (loading || soporteLoading || pagosExternosLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography>Cargando configuración...</Typography>
@@ -1179,6 +1256,113 @@ const WebhookConfig: React.FC = () => {
           ) : (
             <Alert severity="info">
               No se pudo cargar la configuración de soporte. Verifica la conexión.
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Configuración de Pagos Externos */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">
+              Configuración de Pagos Externos
+            </Typography>
+            <Box>
+              <Tooltip title="Recargar configuración de pagos externos">
+                <IconButton onClick={loadPagosExternosConfig} disabled={pagosExternosLoading}>
+                  <Refresh />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+          
+          <Typography variant="body2" color="textSecondary" paragraph>
+            Configura el grupo y tema de Telegram donde se enviarán las notificaciones de pagos externos reportados por los asesores.
+          </Typography>
+
+          {pagosExternosLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress />
+            </Box>
+          ) : pagosExternosConfig ? (
+            <>
+              <Typography variant="h6" gutterBottom sx={{ mt: 3, mb: 2 }}>
+                <Chip label="Telegram" color="info" size="small" sx={{ mr: 1 }} />
+                Grupo y Tema
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="ID del Grupo de Telegram"
+                    value={pagosExternosConfig.telegram.groupChatId || ''}
+                    onChange={(e) => handlePagosExternosTelegramChange('groupChatId', e.target.value)}
+                    size="small"
+                    helperText="ID del grupo (ej: -1001234567890). Si no se configura, usará el grupo de Hotmart."
+                    placeholder="-1001234567890"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="ID del Tema/Hilo"
+                    value={pagosExternosConfig.telegram.threadId || ''}
+                    onChange={(e) => handlePagosExternosTelegramChange('threadId', e.target.value)}
+                    size="small"
+                    helperText="ID del tema/hilo dentro del grupo (ej: 5). Si no se configura, usará el tema de Hotmart."
+                    placeholder="5"
+                    type="number"
+                  />
+                </Grid>
+              </Grid>
+
+              <Box display="flex" justifyContent="flex-end" mt={3}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={savePagosExternosConfig}
+                  disabled={pagosExternosSaving}
+                  startIcon={pagosExternosSaving ? <CircularProgress size={20} /> : <Save />}
+                >
+                  {pagosExternosSaving ? 'Guardando...' : 'Guardar Configuración de Pagos Externos'}
+                </Button>
+              </Box>
+
+              <Divider sx={{ my: 3 }} />
+
+              {/* Información del Endpoint */}
+              <Typography variant="h6" gutterBottom>
+                Información de Endpoint
+              </Typography>
+              <Typography variant="body2" color="text.secondary" paragraph>
+                URL del endpoint para reportar pagos externos:
+              </Typography>
+              <Box
+                component="code"
+                sx={{
+                  display: 'block',
+                  p: 2,
+                  bgcolor: 'grey.100',
+                  borderRadius: 1,
+                  fontFamily: 'monospace',
+                  fontSize: '0.875rem',
+                  mb: 2
+                }}
+              >
+                {window.location.origin}/api/pagosexternos-reisy
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
+                💡 <strong>Método:</strong> POST | <strong>Campos requeridos:</strong> clienteID, imagenPagoUrl
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
+                <strong>Campos opcionales:</strong> asesorID, nombreAsesor, tipoVenta, comentario, medioPago, pais, correoInscripcion, telefono, correoPago, cedulaComprador, actividadEconomica
+              </Typography>
+            </>
+          ) : (
+            <Alert severity="info">
+              No se pudo cargar la configuración de pagos externos. Verifica la conexión.
             </Alert>
           )}
         </CardContent>

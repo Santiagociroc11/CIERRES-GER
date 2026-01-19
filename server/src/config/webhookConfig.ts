@@ -47,6 +47,12 @@ export interface WebhookConfig {
       primaryColor?: string;
     };
   };
+  pagosExternos: {
+    telegram: {
+      groupChatId?: string; // ID del grupo de Telegram para pagos externos
+      threadId?: string; // ID del tema/hilo dentro del grupo
+    };
+  };
   // Aquí puedes agregar más plataformas en el futuro
   // stripe: { ... }
   // paypal: { ... }
@@ -74,6 +80,15 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
       soporteConfig = {};
     }
     
+    // Intentar cargar configuración de pagos externos
+    let pagosExternosConfig;
+    try {
+      pagosExternosConfig = await getWebhookConfigFromDB('pagosExternos');
+    } catch (error) {
+      console.log('No hay configuración de pagos externos en BD, usando vacía');
+      pagosExternosConfig = {};
+    }
+    
     if (hotmartConfig && Object.keys(hotmartConfig).length > 0) {
       console.log('Configuración cargada exitosamente desde base de datos');
       
@@ -89,6 +104,9 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
         soporte: {
           phoneNumbers: soporteConfig?.phoneNumbers || {},
           pageConfig: soporteConfig?.pageConfig || undefined
+        },
+        pagosExternos: {
+          telegram: pagosExternosConfig?.telegram || {}
         }
       };
       
@@ -107,6 +125,9 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
         soporte: {
           phoneNumbers: {},
           pageConfig: undefined
+        },
+        pagosExternos: {
+          telegram: {}
         }
       };
     }
@@ -285,6 +306,45 @@ export async function updateSoporteConfig(soporteConfig: WebhookConfig['soporte'
     return updateResult;
   } catch (error) {
     console.error('Error actualizando configuración de Soporte:', error);
+    return false;
+  }
+}
+
+// Función para obtener configuración específica de Pagos Externos
+export async function getPagosExternosConfig() {
+  console.log('getPagosExternosConfig() llamado');
+  const config = await loadWebhookConfig();
+  console.log('Configuración de pagos externos cargada:', {
+    hasTelegram: !!config.pagosExternos.telegram,
+    groupChatId: config.pagosExternos.telegram.groupChatId ? '***configurado***' : 'no configurado',
+    threadId: config.pagosExternos.telegram.threadId ? '***configurado***' : 'no configurado'
+  });
+  return config.pagosExternos;
+}
+
+// Función para actualizar configuración específica de Pagos Externos
+export async function updatePagosExternosConfig(pagosExternosConfig: WebhookConfig['pagosExternos']): Promise<boolean> {
+  try {
+    console.log('Actualizando configuración de Pagos Externos en BD...');
+    
+    // Actualizar configuración de telegram
+    let updateResult = false;
+    try {
+      updateResult = await updateWebhookConfigInDB('pagosExternos', 'telegram', pagosExternosConfig.telegram, 'system');
+      console.log('Sección telegram actualizada:', updateResult);
+    } catch (error) {
+      console.error('Error actualizando telegram:', error);
+    }
+    
+    if (updateResult) {
+      console.log('Configuración de Pagos Externos actualizada exitosamente en BD');
+    } else {
+      console.error('Error actualizando configuración de Pagos Externos');
+    }
+    
+    return updateResult;
+  } catch (error) {
+    console.error('Error actualizando configuración de Pagos Externos:', error);
     return false;
   }
 }

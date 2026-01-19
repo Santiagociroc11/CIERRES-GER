@@ -16,6 +16,7 @@ import {
 import { sendTelegramMessage } from '../services/telegramService';
 import telegramQueue from '../services/telegramQueueService';
 import { getSoporteConfig, updateSoporteConfig } from '../config/webhookConfig';
+import { getPlatformUrl } from '../utils/platformUrl';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -171,7 +172,7 @@ ${segmentacion.tipo === 'PROSPECTO_CALIENTE' ? '💡 *OPORTUNIDAD DE CIERRE* - L
     [
       {
         text: "📊 REPORTAR EN SISTEMA", 
-        url: "https://sistema-cierres-ger.automscc.com/"
+        url: `${getPlatformUrl()}/`
       }
     ]
   ];

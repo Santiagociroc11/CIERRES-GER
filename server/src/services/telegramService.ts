@@ -19,6 +19,7 @@ export interface TelegramResponse {
 }
 
 import { getHotmartConfig } from '../config/webhookConfig';
+import { getPlatformUrl } from '../utils/platformUrl';
 
 export async function sendTelegramMessage(message: TelegramMessage): Promise<TelegramResponse> {
   const config = await getHotmartConfig();
@@ -99,7 +100,7 @@ export function createAsesorNotificationMessage(
         }],
         [{
           text: 'REPORTAR ESTADO',
-          url: 'https://sistema-cierres-ger.automscc.com/'
+          url: `${getPlatformUrl()}/`
         }]
       ]
     }

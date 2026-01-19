@@ -2,6 +2,7 @@ import { Router } from 'express';
 import winston from 'winston';
 import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData, getTodosClientesVIPPorAsesor } from '../dbClient';
 import telegramQueue from '../services/telegramQueueService';
+import { getPlatformUrl } from '../utils/platformUrl';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -594,7 +595,7 @@ router.post('/vips/asignar-masivo', async (req, res) => {
                   inline_keyboard: [[
                     {
                       text: "🚀 Ir a la Plataforma",
-                      url: "https://sistema-cierres-ger.automscc.com"
+                      url: getPlatformUrl()
                     }
                   ]]
                 }

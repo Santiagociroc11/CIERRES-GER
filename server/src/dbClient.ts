@@ -1,5 +1,6 @@
 const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
 import telegramQueue from './services/telegramQueueService';
+import { getPlatformUrl } from './utils/platformUrl';
 
 // Interfaces para webhook logs
 export interface WebhookLogEntry {
@@ -1345,7 +1346,7 @@ export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise
             inline_keyboard: [[
               {
                 text: "🚀 Ir a la Plataforma",
-                url: "https://sistema-cierres-ger.automscc.com"
+                url: getPlatformUrl()
               }
             ]]
           }

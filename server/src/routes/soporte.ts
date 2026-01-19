@@ -1413,7 +1413,7 @@ router.post('/formulario-soporte', async (req, res) => {
             
           case 'otra':
           default:
-            mensajePersonalizado = `❓ Hola! Soy ${nombre}. Tengo algunas consultas sobre la terapia del dolor y me gustaría conversar contigo. ¿Tienes un momento?`;
+            mensajePersonalizado = `❓ Hola! Soy ${nombre}. Tengo algunas consultas sobre el programay me gustaría conversar contigo. ¿Tienes un momento?`;
             break;
         }
       }

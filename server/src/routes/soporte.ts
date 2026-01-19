@@ -1327,9 +1327,13 @@ router.post('/formulario-soporte', async (req, res) => {
         telegramChatId = asesorAsignado.ID_TG;
         
         // Usar cola en lugar de envío directo
+        // ✅ Convertir Markdown a HTML para telegramQueueService (que usa parse_mode: 'HTML')
+        const { markdownToHtml } = await import('../utils/telegramFormat');
+        const mensajeHtml = markdownToHtml(notificationMessage.text);
+        
         const messageId = telegramQueue.enqueueMessage(
           asesorAsignado.ID_TG,
-          notificationMessage.text,
+          mensajeHtml,
           webhookLogId || undefined,
           { 
             type: 'soporte',

@@ -1,6 +1,7 @@
 const POSTGREST_URL = process.env.VITE_POSTGREST_URL || process.env.POSTGREST_URL;
 import telegramQueue from './services/telegramQueueService';
 import { getPlatformUrl } from './utils/platformUrl';
+import { markdownToHtml } from './utils/telegramFormat';
 
 // Interfaces para webhook logs
 export interface WebhookLogEntry {
@@ -1330,10 +1331,12 @@ export async function asignarVIPAsesor(vipId: number, asesorId: number, skipNoti
     // 5. Enviar notificación por Telegram si el asesor tiene ID_TG (solo si no se omite)
     if (!skipNotification && asesor?.ID_TG) {
       try {
-        const mensaje = crearMensajeVIPAsignado(vip);
+        const mensajeMarkdown = crearMensajeVIPAsignado(vip);
+        // ✅ Convertir Markdown a HTML para telegramQueueService (que usa parse_mode: 'HTML')
+        const mensajeHtml = markdownToHtml(mensajeMarkdown);
         const messageId = telegramQueue.enqueueMessage(
           asesor.ID_TG,
-          mensaje,
+          mensajeHtml,
           undefined, // No hay webhookLogId para VIPs
           {
             type: 'vip_assignment',

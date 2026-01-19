@@ -962,18 +962,18 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         setAsesor({ ...asesor, NOMBRE: nombreActualizado });
       }
       
-      const payload = {
+    const payload = {
         instanceName: nombreActualizado,
-        integration: "WHATSAPP-BAILEYS",
-        qrcode: true,
-        rejectCall: false,
-        msgCall: "",
-        groupsIgnore: true,
-        alwaysOnline: true,
-        readMessages: false,
-        readStatus: false,
-        syncFullHistory: false,
-      };
+      integration: "WHATSAPP-BAILEYS",
+      qrcode: true,
+      rejectCall: false,
+      msgCall: "",
+      groupsIgnore: true,
+      alwaysOnline: true,
+      readMessages: false,
+      readStatus: false,
+      syncFullHistory: false,
+    };
       
       setIsLoadingWhatsApp(true);
       setShowWhatsAppModal(true);

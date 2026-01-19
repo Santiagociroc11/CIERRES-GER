@@ -3,6 +3,7 @@ import winston from 'winston';
 import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData, getTodosClientesVIPPorAsesor } from '../dbClient';
 import telegramQueue from '../services/telegramQueueService';
 import { getPlatformUrl } from '../utils/platformUrl';
+import { markdownToHtml } from '../utils/telegramFormat';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -582,10 +583,12 @@ router.post('/vips/asignar-masivo', async (req, res) => {
             const asesor = asesores[0];
             
             if (asesor?.ID_TG) {
-              const mensaje = crearMensajeVIPsMasivos(vipsAsignadosAsesor, asesor.NOMBRE);
+              const mensajeMarkdown = crearMensajeVIPsMasivos(vipsAsignadosAsesor, asesor.NOMBRE);
+              // ✅ Convertir Markdown a HTML para telegramQueueService (que usa parse_mode: 'HTML')
+              const mensajeHtml = markdownToHtml(mensajeMarkdown);
               const messageId = telegramQueue.enqueueMessage(
                 asesor.ID_TG,
-                mensaje,
+                mensajeHtml,
                 undefined,
                 {
                   type: 'mass_vip_assignment',

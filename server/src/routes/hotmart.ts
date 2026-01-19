@@ -910,9 +910,13 @@ router.post('/webhook', async (req, res) => {
           
           try {
             // Enviar a cola en lugar de directamente
+            // ✅ Convertir Markdown a HTML para telegramQueueService (que usa parse_mode: 'HTML')
+            const { markdownToHtml } = await import('../utils/telegramFormat');
+            const mensajeHtml = markdownToHtml(asesorMessage.text);
+            
             const messageId = telegramQueue.enqueueMessage(
               asesorMessage.chat_id,
-              asesorMessage.text,
+              mensajeHtml,
               webhookLogId || undefined,
               { 
                 type: 'asesor_notification',
@@ -2300,9 +2304,13 @@ router.post('/test-telegram', async (req, res) => {
     }
     
     // Usar cola en lugar de envío directo
+    // ✅ Convertir Markdown a HTML para telegramQueueService (que usa parse_mode: 'HTML')
+    const { markdownToHtml } = await import('../utils/telegramFormat');
+    const mensajeHtml = markdownToHtml(message.text);
+    
     const messageId = telegramQueue.enqueueMessage(
       message.chat_id,
-      message.text,
+      mensajeHtml,
       undefined, // Sin webhookLogId para mensajes de prueba
       { 
         type: 'test',
@@ -2611,9 +2619,13 @@ async function retryTelegramIntegration(originalLog: any) {
             originalLog.raw_webhook_data?.data?.purchase?.recusal_reason || 'Retry manual'
           );
 
+          // ✅ Convertir Markdown a HTML para telegramQueueService (que usa parse_mode: 'HTML')
+          const { markdownToHtml } = await import('../utils/telegramFormat');
+          const mensajeHtml = markdownToHtml(asesorMessage.text);
+
           const messageId = telegramQueue.enqueueMessage(
             asesorMessage.chat_id,
-            asesorMessage.text,
+            mensajeHtml,
             originalLog.id,
             { 
               type: 'asesor_notification_retry',

@@ -1103,18 +1103,51 @@ router.post('/pagos-externos/test', async (_req, res) => {
 
     // Usar axios en lugar de fetch para manejar correctamente FormData
     const axios = require('axios');
-    const telegramResponse = await axios.post(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
-      form,
-      { headers: form.getHeaders() }
-    );
+    let telegramResponse;
+    let telegramData;
+    
+    try {
+      telegramResponse = await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+        form,
+        { 
+          headers: form.getHeaders(),
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity
+        }
+      );
+      telegramData = telegramResponse.data;
+    } catch (axiosError: any) {
+      // Capturar el error de axios para obtener más detalles
+      const errorDetails = axiosError.response?.data || axiosError.message;
+      logger.error('Error de axios en prueba de Telegram', {
+        status: axiosError.response?.status,
+        statusText: axiosError.response?.statusText,
+        errorData: errorDetails,
+        errorMessage: axiosError.message,
+        groupChatId,
+        threadId,
+        imageSize: imageBuffer.length
+      });
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Error enviando mensaje de prueba a Telegram',
+        details: errorDetails?.description || JSON.stringify(errorDetails),
+        debug: {
+          groupChatId,
+          threadId,
+          tieneToken: !!TELEGRAM_BOT_TOKEN,
+          imageSize: imageBuffer.length
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
 
-    const telegramData = telegramResponse.data;
-
-    if (!telegramData.ok) {
+    if (!telegramData || !telegramData.ok) {
       logger.error('Error en prueba de Telegram', {
-        status: telegramResponse.status,
-        statusText: telegramResponse.statusText,
+        status: telegramResponse?.status,
+        statusText: telegramResponse?.statusText,
         telegramData,
         groupChatId,
         threadId
@@ -1123,7 +1156,7 @@ router.post('/pagos-externos/test', async (_req, res) => {
       return res.status(500).json({
         success: false,
         error: 'Error enviando mensaje de prueba a Telegram',
-        details: telegramData.description || JSON.stringify(telegramData),
+        details: telegramData?.description || JSON.stringify(telegramData),
         debug: {
           groupChatId,
           threadId,
@@ -1299,22 +1332,71 @@ router.post('/pagos-externos/reenviar', async (req, res) => {
 
       // Usar axios para enviar
       const axios = require('axios');
-      const telegramResponse = await axios.post(
-        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
-        form,
-        { headers: form.getHeaders() }
-      );
+      let telegramResponse;
+      let telegramData;
+      
+      try {
+        telegramResponse = await axios.post(
+          `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+          form,
+          { 
+            headers: form.getHeaders(),
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
+          }
+        );
+        telegramData = telegramResponse.data;
+      } catch (axiosError: any) {
+        // Capturar el error de axios para obtener más detalles
+        const errorDetails = axiosError.response?.data || axiosError.message;
+        logger.error('Error de axios enviando a Telegram (reenvío)', {
+          status: axiosError.response?.status,
+          statusText: axiosError.response?.statusText,
+          errorData: errorDetails,
+          errorMessage: axiosError.message,
+          groupChatId,
+          threadId,
+          imageSize: imageBuffer.length,
+          captionLength: caption.length
+        });
+        
+        // Devolver el error directamente sin lanzar excepción
+        res.status(500).json({
+          success: false,
+          error: 'Error reenviando foto a Telegram',
+          details: errorDetails?.description || errorDetails?.message || JSON.stringify(errorDetails),
+          debug: {
+            groupChatId,
+            threadId,
+            imageSize: imageBuffer.length,
+            captionLength: caption.length,
+            tieneToken: !!TELEGRAM_BOT_TOKEN,
+            telegramError: errorDetails
+          },
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
 
-      const telegramData = telegramResponse.data;
-
-      if (!telegramData.ok) {
+      if (!telegramData || !telegramData.ok) {
         logger.error('Error de Telegram API en reenvío', {
-          status: telegramResponse.status,
+          status: telegramResponse?.status,
           telegramData,
           groupChatId,
           threadId
         });
-        throw new Error(`Error de Telegram: ${JSON.stringify(telegramData)}`);
+        res.status(500).json({
+          success: false,
+          error: 'Error de Telegram API',
+          details: telegramData?.description || JSON.stringify(telegramData),
+          debug: {
+            groupChatId,
+            threadId,
+            telegramError: telegramData
+          },
+          timestamp: new Date().toISOString()
+        });
+        return;
       }
 
       logger.info('Pago externo reenviado exitosamente', {
@@ -1340,19 +1422,21 @@ router.post('/pagos-externos/reenviar', async (req, res) => {
       });
 
     } catch (error) {
-      logger.error('Error reenviando foto a Telegram', {
-        error: error instanceof Error ? error.message : 'Error desconocido',
-        stack: error instanceof Error ? error.stack : undefined,
-        reporteId,
-        groupChatId,
-        threadId
-      });
-      res.status(500).json({
-        success: false,
-        error: 'Error reenviando foto a Telegram',
-        details: error instanceof Error ? error.message : 'Error desconocido',
-        timestamp: new Date().toISOString()
-      });
+      // Este catch solo debería ejecutarse si hay un error antes de enviar a Telegram
+      // Si ya se envió la respuesta (con return), este catch no debería ejecutarse
+      if (!res.headersSent) {
+        logger.error('Error antes de enviar a Telegram (reenvío)', {
+          error: error instanceof Error ? error.message : 'Error desconocido',
+          stack: error instanceof Error ? error.stack : undefined,
+          reporteId
+        });
+        res.status(500).json({
+          success: false,
+          error: 'Error procesando reenvío',
+          details: error instanceof Error ? error.message : 'Error desconocido',
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
   } catch (error) {

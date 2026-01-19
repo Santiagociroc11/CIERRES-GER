@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Cliente, Reporte, Asesor, EstadisticasDetalladas, Registro, AdminRole } from '../types';
+import { apiClient } from '../services/apiClient';
 import {
   Users,
   TrendingUp,
@@ -70,6 +71,24 @@ export default function DetalleAsesor({
   onReasignSuccess
 }: DetalleAsesorProps) {
   const [vistaActual, setVistaActual] = useState<VistaDetalle>('general');
+  const [conversaciones, setConversaciones] = useState<any[]>([]);
+
+  // Cargar conversaciones salientes del asesor para el filtro de "no atendidos"
+  useEffect(() => {
+    const cargarConversaciones = async () => {
+      try {
+        const conversacionesData = await apiClient.request<any[]>(
+          `/conversaciones?id_asesor=eq.${asesor.ID}&modo=eq.saliente&select=id_cliente,wha_cliente`
+        );
+        setConversaciones(conversacionesData || []);
+      } catch (error) {
+        console.warn('⚠️ Error cargando conversaciones en DetalleAsesor:', error);
+        setConversaciones([]);
+      }
+    };
+    
+    cargarConversaciones();
+  }, [asesor.ID]);
 
   // Cálculo de distribución de estados para el gráfico de pastel
   const distribucionEstados = useMemo(() => {
@@ -289,6 +308,7 @@ export default function DetalleAsesor({
         <ListaGeneralClientes
           clientes={clientes}
           reportes={reportes}
+          conversaciones={conversaciones}
           onActualizarEstado={() => { }}
           onReportarVenta={() => { }}
           onChat={onChat || (() => {})}

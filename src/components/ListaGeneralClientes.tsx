@@ -237,10 +237,16 @@ export default function ListaGeneralClientes({
 
   const getSortValue = (cliente: Cliente): number => {
     const ultimoRpt = obtenerUltimoReporte(cliente.ID);
+    
+    // VIP tienen prioridad alta (antes de SEGUIMIENTO)
+    if (cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP') {
+      return 1; // Entre NO CONTESTÓ (1) y SEGUIMIENTO (2)
+    }
+    
     if ((!ultimoRpt || cliente.ESTADO !== ultimoRpt.ESTADO_NUEVO) && cliente.ESTADO !== 'PAGADO') {
       return 0;
     }
-    if (cliente.ESTADO === 'NO CONTESTÓ') return 1;
+    if (cliente.ESTADO === 'NO CONTESTÓ') return 1.5;
     if (cliente.ESTADO === 'SEGUIMIENTO') return 2;
     if (cliente.ESTADO === 'PAGADO') return 3;
     if (cliente.ESTADO === 'VENTA CONSOLIDADA') return 4;
@@ -276,7 +282,54 @@ export default function ListaGeneralClientes({
            coincideTemperatura && coincideEtiqueta && coincideNoAtendidos;
   });
 
+  // Función para determinar el tipo de cliente (para ordenamiento de "no atendidos")
+  const getTipoClienteNoAtendido = (cliente: Cliente): number => {
+    // 1. Eventos Hotmart (críticos): CARRITOS, RECHAZADOS, TICKETS
+    if (['CARRITOS', 'RECHAZADOS', 'TICKETS'].includes(cliente.ESTADO)) {
+      return 1;
+    }
+    
+    // 2. Link soporte: estado LINK con soporte_tipo o soporte_prioridad
+    if (cliente.ESTADO === 'LINK' && (cliente.soporte_tipo || cliente.soporte_prioridad)) {
+      return 2;
+    }
+    
+    // 3. VIP: LISTA-VIP o VIP
+    if (cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP') {
+      return 3;
+    }
+    
+    // 4. Otros (por defecto)
+    return 4;
+  };
+
   const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
+    // Si el filtro "no atendidos" está activo, usar ordenamiento especial
+    if (mostrarSoloNoAtendidos) {
+      const tipoA = getTipoClienteNoAtendido(a);
+      const tipoB = getTipoClienteNoAtendido(b);
+      
+      // Ordenar primero por tipo (Hotmart > Link soporte > VIP > Otros)
+      if (tipoA !== tipoB) {
+        return tipoA - tipoB;
+      }
+      
+      // Si son del mismo tipo, ordenar por prioridad de soporte (si aplica)
+      if (tipoA === 2 && tipoB === 2) {
+        // Ambos son Link soporte, ordenar por prioridad
+        const prioridadOrder: Record<string, number> = { 'ALTA': 1, 'MEDIA': 2, 'BAJA': 3 };
+        const prioridadA = prioridadOrder[a.soporte_prioridad || ''] || 999;
+        const prioridadB = prioridadOrder[b.soporte_prioridad || ''] || 999;
+        if (prioridadA !== prioridadB) {
+          return prioridadA - prioridadB;
+        }
+      }
+      
+      // Ordenamiento secundario: por fecha de creación (más recientes primero)
+      return (b.FECHA_CREACION as number) - (a.FECHA_CREACION as number);
+    }
+    
+    // Ordenamiento normal (sin filtro "no atendidos")
     // Ordenamiento por temperatura
     if (ordenamiento === 'temperatura') {
       const tempOrder: Record<string, number> = { 'CALIENTE': 1, 'TIBIO': 2, 'FRIO': 3 };

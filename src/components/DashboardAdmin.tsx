@@ -1483,6 +1483,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         registros: registrosData.length,
         conversaciones: conversacionesData.length
       });
+      
+      // Debug: Verificar conversaciones salientes
+      const conversacionesSalientes = conversacionesData.filter((c: any) => c.modo === 'saliente');
+      console.log(`📊 Conversaciones salientes cargadas: ${conversacionesSalientes.length} de ${conversacionesData.length} totales`);
 
       // Paso 3: Actualizar estado inmediatamente
       setClientes(clientesData);
@@ -2104,36 +2108,41 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
   // Función para verificar si un cliente tiene mensajes salientes (ha sido atendido)
   const tieneMensajesSalientes = (cliente: any): boolean => {
-    if (!conversaciones || conversaciones.length === 0) return false;
+    if (!conversaciones || conversaciones.length === 0) {
+      return false;
+    }
     
     // Normalizar WhatsApp para comparación (últimos 7 dígitos)
-    const normalizeWhatsApp = (wha: string): string => {
+    const normalizeWhatsApp = (wha: string | null | undefined): string => {
+      if (!wha) return '';
       const soloNumeros = wha.replace(/\D/g, '');
       return soloNumeros.slice(-7);
     };
     
-    const clienteWhaNormalizado = normalizeWhatsApp(cliente.WHATSAPP || '');
+    const clienteWhaNormalizado = normalizeWhatsApp(cliente.WHATSAPP);
     
     // Verificar si hay conversaciones salientes por ID de cliente o por WhatsApp
-    return conversaciones.some((conv: any) => {
+    const tieneMensaje = conversaciones.some((conv: any) => {
       // Solo contar mensajes salientes (modo='saliente')
       if (conv.modo !== 'saliente') return false;
       
       // Verificar por ID de cliente
-      if (conv.id_cliente === cliente.ID) {
+      if (conv.id_cliente && conv.id_cliente === cliente.ID) {
         return true;
       }
       
       // Verificar por WhatsApp normalizado
       if (conv.wha_cliente) {
         const convWhaNormalizado = normalizeWhatsApp(conv.wha_cliente);
-        if (convWhaNormalizado === clienteWhaNormalizado) {
+        if (convWhaNormalizado && convWhaNormalizado === clienteWhaNormalizado) {
           return true;
         }
       }
       
       return false;
     });
+    
+    return tieneMensaje;
   };
 
   // Función para obtener asesores inactivos (sin mensajes salientes en las últimas 2 horas)
@@ -5596,11 +5605,13 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             <tr key={cliente.ID} className="hover:bg-gray-50">
                               <td className={`px-4 py-3 text-sm text-gray-800 ${borderClass}`}>
                                 <div className="flex items-center gap-2 break-words max-w-[150px]">
-                                  {fueAtendido && (
+                                  {fueAtendido ? (
                                     <CheckCircle 
                                       className="h-4 w-4 text-green-500 flex-shrink-0" 
                                       title="Cliente atendido"
                                     />
+                                  ) : (
+                                    <div className="h-4 w-4 flex-shrink-0" />
                                   )}
                                   <span>{cliente.NOMBRE}</span>
                                 </div>

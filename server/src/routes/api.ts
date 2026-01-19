@@ -888,6 +888,7 @@ router.post('/pagosexternos-reisy', async (req, res) => {
 
     // Importar escapeHtml para formatear el caption
     const { escapeHtml } = await import('../utils/telegramFormat');
+    const FormData = require('form-data');
 
     // Construir el caption del mensaje en HTML
     const caption = `<b>Notificación de Pago Externo</b>\n\n` +
@@ -902,33 +903,56 @@ router.post('/pagosexternos-reisy', async (req, res) => {
       `<b>ASESOR QUE REPORTA:</b> ${escapeHtml(nombreAsesor || 'N/A')}\n\n` +
       `-> <b>CONFIRMAR INGRESO E INSCRIBIR</b> <- 🔥`;
 
-    // Enviar foto a Telegram usando la URL directamente
+    // Descargar la imagen desde la URL y enviarla como FormData
     try {
-      const telegramPayload: any = {
-        chat_id: groupChatId,
-        photo: imagenPagoUrl, // Telegram puede descargar la imagen desde la URL
-        caption: caption,
-        parse_mode: 'HTML' // Usar HTML para el caption
-      };
+      logger.info('Descargando imagen desde URL', {
+        imagenPagoUrl: imagenPagoUrl.substring(0, 100) + '...'
+      });
+
+      // Descargar la imagen desde la URL
+      const imageResponse = await fetch(imagenPagoUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Error descargando imagen: ${imageResponse.status} ${imageResponse.statusText}`);
+      }
+
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      const imageBuffer = Buffer.from(arrayBuffer);
+      
+      // Obtener el content-type de la respuesta o inferirlo
+      const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+      const extension = contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : 'jpg';
+
+      logger.info('Imagen descargada exitosamente', {
+        size: imageBuffer.length,
+        contentType,
+        extension
+      });
+
+      // Crear FormData para enviar la imagen como multipart/form-data
+      const form = new FormData();
+      form.append('chat_id', groupChatId);
+      form.append('photo', imageBuffer, {
+        filename: `pago-externo.${extension}`,
+        contentType: contentType
+      });
+      form.append('caption', caption);
+      form.append('parse_mode', 'HTML');
 
       // Solo agregar message_thread_id si threadId es válido
       if (threadId && !isNaN(threadId) && threadId > 0) {
-        telegramPayload.message_thread_id = threadId;
+        form.append('message_thread_id', threadId.toString());
       }
 
       logger.info('Enviando foto a Telegram', {
         groupChatId,
         threadId,
-        imagenPagoUrl: imagenPagoUrl.substring(0, 100) + '...', // Solo primeros 100 caracteres para logging
-        payloadKeys: Object.keys(telegramPayload)
+        imageSize: imageBuffer.length,
+        usandoFormData: true
       });
 
       const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(telegramPayload)
+        headers: form.getHeaders()
       });
 
       const telegramData = await telegramResponse.json();
@@ -1008,6 +1032,7 @@ router.post('/pagos-externos/test', async (_req, res) => {
     const { getHotmartConfig } = await import('../config/webhookConfig');
     const { getPagosExternosConfig } = await import('../config/webhookConfig');
     const { escapeHtml } = await import('../utils/telegramFormat');
+    const FormData = require('form-data');
     
     const hotmartConfig = await getHotmartConfig();
     const TELEGRAM_BOT_TOKEN = hotmartConfig.tokens.telegram;
@@ -1026,8 +1051,25 @@ router.post('/pagos-externos/test', async (_req, res) => {
       ? parseInt(pagosExternosConfig.telegram.threadId, 10) 
       : (hotmartConfig.telegram.threadId ? parseInt(hotmartConfig.telegram.threadId, 10) : 5);
 
-    // URL de una imagen de prueba (puedes usar una imagen pública de prueba)
-    const testImageUrl = 'https://via.placeholder.com/800x600/4CAF50/FFFFFF?text=Prueba+de+Pago+Externo';
+    // Crear una imagen de prueba simple (1x1 pixel PNG en base64)
+    // Esto es más confiable que depender de una URL externa
+    const testImageBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const testImageBuffer = Buffer.from(testImageBase64, 'base64');
+    
+    // Alternativa: descargar una imagen de prueba desde una URL confiable
+    let imageBuffer = testImageBuffer;
+    try {
+      // Intentar descargar una imagen de prueba más visible
+      const imageResponse = await fetch('https://picsum.photos/800/600');
+      if (imageResponse.ok) {
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        imageBuffer = Buffer.from(arrayBuffer);
+        logger.info('Imagen de prueba descargada exitosamente desde picsum.photos');
+      }
+    } catch (downloadError) {
+      logger.warn('No se pudo descargar imagen de prueba, usando imagen mínima', downloadError);
+      // Usar la imagen base64 mínima como fallback
+    }
     
     const caption = `<b>🧪 Prueba de Configuración de Pagos Externos</b>\n\n` +
       `<b>Grupo:</b> ${escapeHtml(groupChatId)}\n` +
@@ -1035,29 +1077,30 @@ router.post('/pagos-externos/test', async (_req, res) => {
       `<b>Fecha:</b> ${new Date().toLocaleString('es-ES')}\n\n` +
       `✅ Si recibes este mensaje, la configuración está correcta.`;
 
-    const telegramPayload: any = {
-      chat_id: groupChatId,
-      photo: testImageUrl,
-      caption: caption,
-      parse_mode: 'HTML'
-    };
+    // Crear FormData para enviar la imagen como multipart/form-data
+    const form = new FormData();
+    form.append('chat_id', groupChatId);
+    form.append('photo', imageBuffer, {
+      filename: 'test-image.jpg',
+      contentType: 'image/jpeg'
+    });
+    form.append('caption', caption);
+    form.append('parse_mode', 'HTML');
 
     if (threadId && !isNaN(threadId) && threadId > 0) {
-      telegramPayload.message_thread_id = threadId;
+      form.append('message_thread_id', threadId.toString());
     }
 
     logger.info('Enviando mensaje de prueba de pagos externos', {
       groupChatId,
       threadId,
-      payloadKeys: Object.keys(telegramPayload)
+      imageSize: imageBuffer.length,
+      usandoFormData: true
     });
 
     const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(telegramPayload)
+      headers: form.getHeaders()
     });
 
     const telegramData = await telegramResponse.json();
@@ -1077,7 +1120,8 @@ router.post('/pagos-externos/test', async (_req, res) => {
         debug: {
           groupChatId,
           threadId,
-          tieneToken: !!TELEGRAM_BOT_TOKEN
+          tieneToken: !!TELEGRAM_BOT_TOKEN,
+          imageSize: imageBuffer.length
         },
         timestamp: new Date().toISOString()
       });

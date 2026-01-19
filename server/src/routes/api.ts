@@ -950,14 +950,17 @@ router.post('/pagosexternos-reisy', async (req, res) => {
         usandoFormData: true
       });
 
-      const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-        method: 'POST',
-        headers: form.getHeaders()
-      });
+      // Usar axios en lugar de fetch para manejar correctamente FormData
+      const axios = require('axios');
+      const telegramResponse = await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+        form,
+        { headers: form.getHeaders() }
+      );
 
-      const telegramData = await telegramResponse.json();
+      const telegramData = telegramResponse.data;
 
-      if (!telegramResponse.ok || !telegramData.ok) {
+      if (!telegramData.ok) {
         logger.error('Error de Telegram API', {
           status: telegramResponse.status,
           statusText: telegramResponse.statusText,
@@ -1098,16 +1101,20 @@ router.post('/pagos-externos/test', async (_req, res) => {
       usandoFormData: true
     });
 
-    const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-      method: 'POST',
-      headers: form.getHeaders()
-    });
+    // Usar axios en lugar de fetch para manejar correctamente FormData
+    const axios = require('axios');
+    const telegramResponse = await axios.post(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+      form,
+      { headers: form.getHeaders() }
+    );
 
-    const telegramData = await telegramResponse.json();
+    const telegramData = telegramResponse.data;
 
-    if (!telegramResponse.ok || !telegramData.ok) {
+    if (!telegramData.ok) {
       logger.error('Error en prueba de Telegram', {
         status: telegramResponse.status,
+        statusText: telegramResponse.statusText,
         telegramData,
         groupChatId,
         threadId

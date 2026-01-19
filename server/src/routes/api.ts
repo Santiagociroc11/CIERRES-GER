@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import winston from 'winston';
-import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData, getTodosClientesVIPPorAsesor } from '../dbClient';
+import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData, getTodosClientesVIPPorAsesor, getClienteById } from '../dbClient';
 import telegramQueue from '../services/telegramQueueService';
 import { getPlatformUrl } from '../utils/platformUrl';
 import { markdownToHtml } from '../utils/telegramFormat';
+import { getHotmartConfig } from '../config/webhookConfig';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -805,6 +806,146 @@ router.get('/vips/asesor/:asesorId/todos', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para reportar pagos externos (migrado de n8n)
+router.post('/pagosexternos-reisy', async (req, res) => {
+  try {
+    const { 
+      clienteID, 
+      asesorID, 
+      nombreAsesor, 
+      tipoVenta, 
+      comentario, 
+      imagenPagoUrl, 
+      medioPago, 
+      pais, 
+      correoInscripcion, 
+      telefono,
+      correoPago,
+      cedulaComprador,
+      actividadEconomica
+    } = req.body;
+
+    // Validar datos requeridos
+    if (!clienteID || !imagenPagoUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere clienteID e imagenPagoUrl',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    logger.info('Reporte de pago externo recibido', {
+      clienteID,
+      asesorID,
+      nombreAsesor,
+      tipoVenta,
+      imagenPagoUrl
+    });
+
+    // Obtener datos del cliente
+    const cliente = await getClienteById(clienteID);
+    if (!cliente) {
+      return res.status(404).json({
+        success: false,
+        error: 'Cliente no encontrado',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Obtener configuración de Telegram
+    const config = await getHotmartConfig();
+    const TELEGRAM_BOT_TOKEN = config.tokens.telegram;
+    const groupChatId = config.telegram.groupChatId || '-1003694709837'; // Usar el del n8n como fallback
+    const threadId = config.telegram.threadId ? parseInt(config.telegram.threadId, 10) : 5; // Usar 5 como fallback
+
+    if (!TELEGRAM_BOT_TOKEN) {
+      return res.status(500).json({
+        success: false,
+        error: 'Token de Telegram no configurado',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Construir el caption del mensaje
+    const caption = `Nombre: ${cliente.NOMBRE}
+Pais: ${pais || 'No especificado'}
+Medio: ${medioPago || 'No especificado'}
+Telefono: ${telefono || 'No especificado'}
+Correo inscripción: ${correoInscripcion || 'No especificado'}
+Correo Pago (stripe): ${correoPago || 'no aplica'}
+CEDULA: ${cedulaComprador || 'no aplica'}
+Actividad economica: ${actividadEconomica || 'no aplica'}
+ASESOR QUE REPORTA: ${nombreAsesor || 'No especificado'}
+
+-> CONFIRMAR INGRESO E INSCRIBIR <- 🔥`;
+
+    // Enviar foto a Telegram usando la URL directamente
+    try {
+      const telegramPayload = {
+        chat_id: groupChatId,
+        photo: imagenPagoUrl, // Telegram puede descargar la imagen desde la URL
+        caption: caption,
+        message_thread_id: threadId
+      };
+
+      const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(telegramPayload)
+      });
+
+      const telegramData = await telegramResponse.json();
+
+      if (!telegramResponse.ok) {
+        throw new Error(`Error de Telegram: ${JSON.stringify(telegramData)}`);
+      }
+
+      logger.info('Foto de pago externo enviada a Telegram exitosamente', {
+        clienteID,
+        clienteNombre: cliente.NOMBRE,
+        asesorNombre: nombreAsesor,
+        telegramMessageId: telegramData.result?.message_id
+      });
+
+      res.json({
+        success: true,
+        message: 'Pago externo reportado exitosamente',
+        data: {
+          clienteID,
+          clienteNombre: cliente.NOMBRE,
+          asesorNombre: nombreAsesor,
+          tipoVenta,
+          telegramMessageId: telegramData.result?.message_id,
+          telegramChatId: groupChatId
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error enviando foto a Telegram', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error enviando foto a Telegram',
+        details: error instanceof Error ? error.message : 'Error desconocido',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error en reporte de pago externo', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: {
+        message: error instanceof Error ? error.message : 'Error desconocido'
+      },
       timestamp: new Date().toISOString()
     });
   }

@@ -96,6 +96,7 @@ const WebhookConfig: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [soporteSaving, setSoporteSaving] = useState(false);
   const [pagosExternosSaving, setPagosExternosSaving] = useState(false);
+  const [pagosExternosTesting, setPagosExternosTesting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -481,6 +482,33 @@ const WebhookConfig: React.FC = () => {
       toast.error('Error guardando configuración de pagos externos');
     } finally {
       setPagosExternosSaving(false);
+    }
+  };
+
+  const testPagosExternos = async () => {
+    try {
+      setPagosExternosTesting(true);
+      const response = await fetch('/api/pagos-externos/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success('✅ Mensaje de prueba enviado exitosamente. Revisa el grupo de Telegram.');
+        console.log('Resultado de la prueba:', data);
+      } else {
+        toast.error(`❌ Error en la prueba: ${data.error || data.details || 'Error desconocido'}`);
+        console.error('Error en prueba de pagos externos:', data);
+      }
+    } catch (error) {
+      console.error('Error probando pagos externos:', error);
+      toast.error('Error de conexión al probar pagos externos');
+    } finally {
+      setPagosExternosTesting(false);
     }
   };
 
@@ -1318,7 +1346,16 @@ const WebhookConfig: React.FC = () => {
                 </Grid>
               </Grid>
 
-              <Box display="flex" justifyContent="flex-end" mt={3}>
+              <Box display="flex" justifyContent="flex-end" gap={2} mt={3}>
+                <Button
+                  variant="outlined"
+                  color="info"
+                  onClick={testPagosExternos}
+                  disabled={pagosExternosTesting}
+                  startIcon={pagosExternosTesting ? <CircularProgress size={20} /> : <Telegram />}
+                >
+                  {pagosExternosTesting ? 'Probando...' : 'Probar Configuración'}
+                </Button>
                 <Button
                   variant="contained"
                   color="primary"

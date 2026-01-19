@@ -868,7 +868,17 @@ router.post('/pagosexternos-reisy', async (req, res) => {
       ? parseInt(pagosExternosConfig.telegram.threadId, 10) 
       : (hotmartConfig.telegram.threadId ? parseInt(hotmartConfig.telegram.threadId, 10) : 5);
 
+    logger.info('Configuración de pagos externos cargada', {
+      groupChatId,
+      threadId,
+      tieneGroupChatId: !!pagosExternosConfig.telegram.groupChatId,
+      tieneThreadId: !!pagosExternosConfig.telegram.threadId,
+      fallbackGroupChatId: hotmartConfig.telegram.groupChatId,
+      fallbackThreadId: hotmartConfig.telegram.threadId
+    });
+
     if (!TELEGRAM_BOT_TOKEN) {
+      logger.error('Token de Telegram no configurado');
       return res.status(500).json({
         success: false,
         error: 'Token de Telegram no configurado',
@@ -876,27 +886,42 @@ router.post('/pagosexternos-reisy', async (req, res) => {
       });
     }
 
-    // Construir el caption del mensaje
-    const caption = `Nombre: ${cliente.NOMBRE}
-Pais: ${pais || 'No especificado'}
-Medio: ${medioPago || 'No especificado'}
-Telefono: ${telefono || 'No especificado'}
-Correo inscripción: ${correoInscripcion || 'No especificado'}
-Correo Pago (stripe): ${correoPago || 'no aplica'}
-CEDULA: ${cedulaComprador || 'no aplica'}
-Actividad economica: ${actividadEconomica || 'no aplica'}
-ASESOR QUE REPORTA: ${nombreAsesor || 'No especificado'}
+    // Importar escapeHtml para formatear el caption
+    const { escapeHtml } = await import('../utils/telegramFormat');
 
--> CONFIRMAR INGRESO E INSCRIBIR <- 🔥`;
+    // Construir el caption del mensaje en HTML
+    const caption = `<b>Notificación de Pago Externo</b>\n\n` +
+      `<b>Nombre:</b> ${escapeHtml(cliente.NOMBRE)}\n` +
+      `<b>País:</b> ${escapeHtml(pais || 'N/A')}\n` +
+      `<b>Medio:</b> ${escapeHtml(medioPago || 'N/A')}\n` +
+      `<b>Teléfono:</b> ${escapeHtml(telefono || cliente.WHATSAPP || 'N/A')}\n` +
+      `<b>Correo inscripción:</b> ${escapeHtml(correoInscripcion || 'N/A')}\n` +
+      `<b>Correo Pago (stripe):</b> ${escapeHtml(correoPago || 'no aplica')}\n` +
+      `<b>CEDULA:</b> ${escapeHtml(cedulaComprador || 'no aplica')}\n` +
+      `<b>Actividad económica:</b> ${escapeHtml(actividadEconomica || 'no aplica')}\n` +
+      `<b>ASESOR QUE REPORTA:</b> ${escapeHtml(nombreAsesor || 'N/A')}\n\n` +
+      `-> <b>CONFIRMAR INGRESO E INSCRIBIR</b> <- 🔥`;
 
     // Enviar foto a Telegram usando la URL directamente
     try {
-      const telegramPayload = {
+      const telegramPayload: any = {
         chat_id: groupChatId,
         photo: imagenPagoUrl, // Telegram puede descargar la imagen desde la URL
         caption: caption,
-        message_thread_id: threadId
+        parse_mode: 'HTML' // Usar HTML para el caption
       };
+
+      // Solo agregar message_thread_id si threadId es válido
+      if (threadId && !isNaN(threadId) && threadId > 0) {
+        telegramPayload.message_thread_id = threadId;
+      }
+
+      logger.info('Enviando foto a Telegram', {
+        groupChatId,
+        threadId,
+        imagenPagoUrl: imagenPagoUrl.substring(0, 100) + '...', // Solo primeros 100 caracteres para logging
+        payloadKeys: Object.keys(telegramPayload)
+      });
 
       const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
         method: 'POST',
@@ -908,7 +933,14 @@ ASESOR QUE REPORTA: ${nombreAsesor || 'No especificado'}
 
       const telegramData = await telegramResponse.json();
 
-      if (!telegramResponse.ok) {
+      if (!telegramResponse.ok || !telegramData.ok) {
+        logger.error('Error de Telegram API', {
+          status: telegramResponse.status,
+          statusText: telegramResponse.statusText,
+          telegramData,
+          groupChatId,
+          threadId
+        });
         throw new Error(`Error de Telegram: ${JSON.stringify(telegramData)}`);
       }
 
@@ -916,7 +948,9 @@ ASESOR QUE REPORTA: ${nombreAsesor || 'No especificado'}
         clienteID,
         clienteNombre: cliente.NOMBRE,
         asesorNombre: nombreAsesor,
-        telegramMessageId: telegramData.result?.message_id
+        telegramMessageId: telegramData.result?.message_id,
+        groupChatId,
+        threadId
       });
 
       res.json({
@@ -928,17 +962,29 @@ ASESOR QUE REPORTA: ${nombreAsesor || 'No especificado'}
           asesorNombre: nombreAsesor,
           tipoVenta,
           telegramMessageId: telegramData.result?.message_id,
-          telegramChatId: groupChatId
+          telegramChatId: groupChatId,
+          telegramThreadId: threadId
         },
         timestamp: new Date().toISOString()
       });
 
     } catch (error) {
-      logger.error('Error enviando foto a Telegram', error);
+      logger.error('Error enviando foto a Telegram', {
+        error: error instanceof Error ? error.message : 'Error desconocido',
+        stack: error instanceof Error ? error.stack : undefined,
+        groupChatId,
+        threadId,
+        imagenPagoUrl: imagenPagoUrl?.substring(0, 100)
+      });
       res.status(500).json({
         success: false,
         error: 'Error enviando foto a Telegram',
         details: error instanceof Error ? error.message : 'Error desconocido',
+        debug: {
+          groupChatId,
+          threadId,
+          tieneToken: !!TELEGRAM_BOT_TOKEN
+        },
         timestamp: new Date().toISOString()
       });
     }
@@ -956,14 +1002,143 @@ ASESOR QUE REPORTA: ${nombreAsesor || 'No especificado'}
   }
 });
 
+// Endpoint para probar la configuración de pagos externos
+router.post('/pagos-externos/test', async (_req, res) => {
+  try {
+    const { getHotmartConfig } = await import('../config/webhookConfig');
+    const { getPagosExternosConfig } = await import('../config/webhookConfig');
+    const { escapeHtml } = await import('../utils/telegramFormat');
+    
+    const hotmartConfig = await getHotmartConfig();
+    const TELEGRAM_BOT_TOKEN = hotmartConfig.tokens.telegram;
+    
+    if (!TELEGRAM_BOT_TOKEN) {
+      return res.status(500).json({
+        success: false,
+        error: 'Token de Telegram no configurado',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const pagosExternosConfig = await getPagosExternosConfig();
+    const groupChatId = pagosExternosConfig.telegram.groupChatId || hotmartConfig.telegram.groupChatId || '-1003694709837';
+    const threadId = pagosExternosConfig.telegram.threadId 
+      ? parseInt(pagosExternosConfig.telegram.threadId, 10) 
+      : (hotmartConfig.telegram.threadId ? parseInt(hotmartConfig.telegram.threadId, 10) : 5);
+
+    // URL de una imagen de prueba (puedes usar una imagen pública de prueba)
+    const testImageUrl = 'https://via.placeholder.com/800x600/4CAF50/FFFFFF?text=Prueba+de+Pago+Externo';
+    
+    const caption = `<b>🧪 Prueba de Configuración de Pagos Externos</b>\n\n` +
+      `<b>Grupo:</b> ${escapeHtml(groupChatId)}\n` +
+      `<b>Tema/Hilo:</b> ${threadId}\n` +
+      `<b>Fecha:</b> ${new Date().toLocaleString('es-ES')}\n\n` +
+      `✅ Si recibes este mensaje, la configuración está correcta.`;
+
+    const telegramPayload: any = {
+      chat_id: groupChatId,
+      photo: testImageUrl,
+      caption: caption,
+      parse_mode: 'HTML'
+    };
+
+    if (threadId && !isNaN(threadId) && threadId > 0) {
+      telegramPayload.message_thread_id = threadId;
+    }
+
+    logger.info('Enviando mensaje de prueba de pagos externos', {
+      groupChatId,
+      threadId,
+      payloadKeys: Object.keys(telegramPayload)
+    });
+
+    const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(telegramPayload)
+    });
+
+    const telegramData = await telegramResponse.json();
+
+    if (!telegramResponse.ok || !telegramData.ok) {
+      logger.error('Error en prueba de Telegram', {
+        status: telegramResponse.status,
+        telegramData,
+        groupChatId,
+        threadId
+      });
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Error enviando mensaje de prueba a Telegram',
+        details: telegramData.description || JSON.stringify(telegramData),
+        debug: {
+          groupChatId,
+          threadId,
+          tieneToken: !!TELEGRAM_BOT_TOKEN
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    logger.info('Mensaje de prueba enviado exitosamente', {
+      telegramMessageId: telegramData.result?.message_id,
+      groupChatId,
+      threadId
+    });
+
+    res.json({
+      success: true,
+      message: 'Mensaje de prueba enviado exitosamente',
+      data: {
+        telegramMessageId: telegramData.result?.message_id,
+        groupChatId,
+        threadId,
+        config: {
+          groupChatId: pagosExternosConfig.telegram.groupChatId,
+          threadId: pagosExternosConfig.telegram.threadId,
+          usandoFallback: !pagosExternosConfig.telegram.groupChatId
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Error en prueba de pagos externos', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Endpoint para obtener la configuración de pagos externos
 router.get('/pagos-externos/config', async (_req, res) => {
   try {
     const { getPagosExternosConfig } = await import('../config/webhookConfig');
+    const { getHotmartConfig } = await import('../config/webhookConfig');
+    
     const config = await getPagosExternosConfig();
+    const hotmartConfig = await getHotmartConfig();
+    
+    // Mostrar también los valores de fallback
     res.json({
       success: true,
       data: config,
+      fallback: {
+        groupChatId: hotmartConfig.telegram.groupChatId,
+        threadId: hotmartConfig.telegram.threadId
+      },
+      final: {
+        groupChatId: config.telegram.groupChatId || hotmartConfig.telegram.groupChatId || '-1003694709837',
+        threadId: config.telegram.threadId 
+          ? parseInt(config.telegram.threadId, 10) 
+          : (hotmartConfig.telegram.threadId ? parseInt(hotmartConfig.telegram.threadId, 10) : 5)
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -971,6 +1146,7 @@ router.get('/pagos-externos/config', async (_req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
       timestamp: new Date().toISOString()
     });
   }

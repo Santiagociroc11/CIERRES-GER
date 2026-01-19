@@ -2121,20 +2121,20 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     
     const clienteWhaNormalizado = normalizeWhatsApp(cliente.WHATSAPP);
     
+    // Filtrar solo conversaciones salientes una vez
+    const conversacionesSalientes = conversaciones.filter((conv: any) => conv.modo === 'saliente');
+    
     // Verificar si hay conversaciones salientes por ID de cliente o por WhatsApp
-    const tieneMensaje = conversaciones.some((conv: any) => {
-      // Solo contar mensajes salientes (modo='saliente')
-      if (conv.modo !== 'saliente') return false;
-      
-      // Verificar por ID de cliente
-      if (conv.id_cliente && conv.id_cliente === cliente.ID) {
+    const tieneMensaje = conversacionesSalientes.some((conv: any) => {
+      // Verificar por ID de cliente (comparación exacta)
+      if (conv.id_cliente != null && conv.id_cliente === cliente.ID) {
         return true;
       }
       
       // Verificar por WhatsApp normalizado
       if (conv.wha_cliente) {
         const convWhaNormalizado = normalizeWhatsApp(conv.wha_cliente);
-        if (convWhaNormalizado && convWhaNormalizado === clienteWhaNormalizado) {
+        if (convWhaNormalizado && convWhaNormalizado === clienteWhaNormalizado && convWhaNormalizado.length >= 7) {
           return true;
         }
       }

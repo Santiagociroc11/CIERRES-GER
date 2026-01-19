@@ -8,6 +8,7 @@ import {
 } from '../dbClient';
 import { sendTelegramMessage } from '../services/telegramService';
 import telegramQueue from '../services/telegramQueueService';
+import { markdownToHtml } from '../utils/telegramFormat';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -83,11 +84,14 @@ router.post('/reasigna-cierres', async (req, res) => {
     if (asesorViejo.ID_TG) {
       try {
         const textoMensajeViejo = `*CLIENTE DESASIGNADO* ⚠️ \n\nnombre: ${cliente.NOMBRE}\nWha: ${cliente.WHATSAPP}\n\nSe reasignó tu cliente por decisión de la gerencia 🚨`;
+        
+        // Convertir Markdown a HTML para telegramQueueService
+        const mensajeHtmlViejo = markdownToHtml(textoMensajeViejo);
 
         // Usar cola en lugar de envío directo
         const messageIdViejo = telegramQueue.enqueueMessage(
           asesorViejo.ID_TG,
-          textoMensajeViejo,
+          mensajeHtmlViejo,
           undefined, // Sin webhookLogId para reasignaciones
           { 
             type: 'reasignacion_desasignado',
@@ -116,21 +120,18 @@ router.post('/reasigna-cierres', async (req, res) => {
     // Notificar al asesor nuevo (asignación)
     if (asesorNuevo.ID_TG) {
       try {
-        // Nota: Los botones inline no son compatibles con la cola simplificada
-        // El mensaje incluirá el enlace de WhatsApp directamente
-        const textoMensajeNuevo = `*CLIENTE REASIGNADO A TI* ⚠️ 
+        const textoMensajeNuevo = `*CLIENTE REASIGNADO A TI* ⚠️ \n\nnombre: ${cliente.NOMBRE}\nWha: ${cliente.WHATSAPP}\n\nSe reasignó este cliente a ti por decisión de la gerencia 🚨`;
+        
+        // Convertir Markdown a HTML para telegramQueueService
+        const mensajeHtmlNuevo = markdownToHtml(textoMensajeNuevo);
+        
+        // Limpiar WhatsApp para el enlace (solo números)
+        const whatsappLimpio = cliente.WHATSAPP.replace(/\D/g, '');
 
-👤 Nombre: ${cliente.NOMBRE}
-📱 WhatsApp: ${cliente.WHATSAPP}
-
-Se reasignó este cliente a ti por decisión de la gerencia 🚨
-
-💬 Ve al chat: https://wa.me/${cliente.WHATSAPP}`;
-
-        // Usar cola en lugar de envío directo
+        // Usar cola con botón inline como en n8n
         const messageIdNuevo = telegramQueue.enqueueMessage(
           asesorNuevo.ID_TG,
-          textoMensajeNuevo,
+          mensajeHtmlNuevo,
           undefined, // Sin webhookLogId para reasignaciones
           { 
             type: 'reasignacion_asignado',
@@ -138,6 +139,14 @@ Se reasignó este cliente a ti por decisión de la gerencia 🚨
             asesorNuevo: asesorNuevo.NOMBRE,
             cliente: cliente.NOMBRE,
             whatsapp: cliente.WHATSAPP
+          },
+          {
+            inline_keyboard: [[
+              {
+                text: "IR AL CHAT",
+                url: `https://wa.me/${whatsappLimpio}`
+              }
+            ]]
           }
         );
         
@@ -280,10 +289,13 @@ router.post('/reasigna-automatico', async (req, res) => {
     if (asesorViejo.ID_TG) {
       try {
         const textoMensajeViejo = `*CLIENTE DESASIGNADO* ⚠️ \n\nnombre: ${cliente.NOMBRE}\nWha: ${cliente.WHATSAPP}\n\nSe reasignó tu cliente automáticamente por decisión de la gerencia 🚨`;
+        
+        // Convertir Markdown a HTML para telegramQueueService
+        const mensajeHtmlViejo = markdownToHtml(textoMensajeViejo);
 
         const messageIdViejo = telegramQueue.enqueueMessage(
           asesorViejo.ID_TG,
-          textoMensajeViejo,
+          mensajeHtmlViejo,
           undefined,
           { 
             type: 'reasignacion_automatica_desasignado',
@@ -311,18 +323,17 @@ router.post('/reasigna-automatico', async (req, res) => {
     // Notificar al asesor nuevo (asignación)
     if (asesorNuevo.ID_TG) {
       try {
-        const textoMensajeNuevo = `*CLIENTE REASIGNADO A TI* ⚠️ 
-
-👤 Nombre: ${cliente.NOMBRE}
-📱 WhatsApp: ${cliente.WHATSAPP}
-
-Se reasignó este cliente a ti automáticamente por decisión de la gerencia 🚨
-
-💬 Ve al chat: https://wa.me/${cliente.WHATSAPP}`;
+        const textoMensajeNuevo = `*CLIENTE REASIGNADO A TI* ⚠️ \n\nnombre: ${cliente.NOMBRE}\nWha: ${cliente.WHATSAPP}\n\nSe reasignó este cliente a ti automáticamente por decisión de la gerencia 🚨`;
+        
+        // Convertir Markdown a HTML para telegramQueueService
+        const mensajeHtmlNuevo = markdownToHtml(textoMensajeNuevo);
+        
+        // Limpiar WhatsApp para el enlace (solo números)
+        const whatsappLimpio = cliente.WHATSAPP.replace(/\D/g, '');
 
         const messageIdNuevo = telegramQueue.enqueueMessage(
           asesorNuevo.ID_TG,
-          textoMensajeNuevo,
+          mensajeHtmlNuevo,
           undefined,
           { 
             type: 'reasignacion_automatica_asignado',
@@ -330,6 +341,14 @@ Se reasignó este cliente a ti automáticamente por decisión de la gerencia �
             asesorNuevo: asesorNuevo.NOMBRE,
             cliente: cliente.NOMBRE,
             whatsapp: cliente.WHATSAPP
+          },
+          {
+            inline_keyboard: [[
+              {
+                text: "IR AL CHAT",
+                url: `https://wa.me/${whatsappLimpio}`
+              }
+            ]]
           }
         );
         

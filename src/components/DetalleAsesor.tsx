@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Cliente, Reporte, Asesor, EstadisticasDetalladas, Registro, AdminRole } from '../types';
-import { apiClient } from '../services/apiClient';
+import { apiClient } from '../lib/apiClient';
 import {
   Users,
   TrendingUp,

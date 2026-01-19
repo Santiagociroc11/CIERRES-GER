@@ -554,7 +554,7 @@ router.post('/vips/asignar-masivo', async (req, res) => {
         // Tomar los siguientes VIPs en orden de prioridad
         const vipsParaAsesor = vipsPendientes.slice(indiceProcesado, indiceProcesado + cantidadVips);
         
-        // Asignar cada VIP individualmente
+        // Asignar cada VIP individualmente (sin notificaciones individuales, solo masiva)
         let vipsAsignadosAsesor = 0;
         for (const vip of vipsParaAsesor) {
           try {
@@ -562,7 +562,9 @@ router.post('/vips/asignar-masivo', async (req, res) => {
               errores.push(`VIP sin ID válido para asesor ${asesorId}`);
               continue;
             }
-            await asignarVIPAsesor(vip.ID, asesorId);
+            // ✅ CORREGIDO: Omitir notificaciones individuales en asignación masiva
+            // Solo se enviará la notificación masiva al final
+            await asignarVIPAsesor(vip.ID, asesorId, true); // skipNotification = true
             totalAsignados++;
             vipsAsignadosAsesor++;
           } catch (error) {

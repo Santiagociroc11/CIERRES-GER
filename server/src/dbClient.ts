@@ -1281,7 +1281,8 @@ export async function crearClienteDesdeVIP(vip: any, asesorId: number): Promise<
 }
 
 // Asignar VIP a un asesor y crear cliente automáticamente
-export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise<void> {
+// skipNotification: si es true, no envía notificación individual (útil para asignaciones masivas)
+export async function asignarVIPAsesor(vipId: number, asesorId: number, skipNotification: boolean = false): Promise<void> {
   try {
     // 1. Obtener datos del VIP
     const vipResponse = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP?ID=eq.${vipId}&select=*`);
@@ -1326,8 +1327,8 @@ export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise
     const asesores = await asesorResponse.json();
     const asesor = asesores[0];
     
-    // 5. Enviar notificación por Telegram si el asesor tiene ID_TG
-    if (asesor?.ID_TG) {
+    // 5. Enviar notificación por Telegram si el asesor tiene ID_TG (solo si no se omite)
+    if (!skipNotification && asesor?.ID_TG) {
       try {
         const mensaje = crearMensajeVIPAsignado(vip);
         const messageId = telegramQueue.enqueueMessage(
@@ -1356,8 +1357,10 @@ export async function asignarVIPAsesor(vipId: number, asesorId: number): Promise
         console.error(`❌ Error encolando notificación VIP para asesor ${asesorId}:`, error);
         // No falla la asignación por un error de notificación
       }
-    } else {
+    } else if (!skipNotification && !asesor?.ID_TG) {
       console.warn(`⚠️ Asesor ${asesorId} sin ID de Telegram configurado, no se envió notificación VIP`);
+    } else if (skipNotification) {
+      console.log(`ℹ️ Notificación individual omitida para VIP ${vipId} (asignación masiva)`);
     }
     
     console.log(`✅ VIP ${vipId} asignado a asesor ${asesorId} y convertido a cliente ${clienteId}`);

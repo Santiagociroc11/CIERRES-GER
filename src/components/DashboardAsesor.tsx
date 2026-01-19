@@ -424,6 +424,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clientesSinReporte, setClientesSinReporte] = useState<Cliente[]>([]);
   const [reportes, setReportes] = useState<Reporte[]>([]);
+  const [conversaciones, setConversaciones] = useState<any[]>([]);
   const [clienteParaEstado, setClienteParaEstado] = useState<Cliente | null>(null);
   const [clienteParaVenta, setClienteParaVenta] = useState<Cliente | null>(null);
   const [clienteParaChat, setClienteParaChat] = useState<Cliente | null>(null);
@@ -755,6 +756,18 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     try {
       console.log('Cargando datos para asesor:', asesor.ID);
       const clientesData = await apiClient.request<Cliente[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}`);
+      
+      // Cargar conversaciones salientes del asesor para determinar clientes atendidos
+      // Solo mensajes salientes (modo='saliente') indican que el asesor escribió primero
+      try {
+        const conversacionesData = await apiClient.request<any[]>(
+          `/conversaciones?id_asesor=eq.${asesor.ID}&modo=eq.saliente&select=id_cliente,wha_cliente`
+        );
+        setConversaciones(conversacionesData || []);
+      } catch (error) {
+        console.warn('⚠️ Error cargando conversaciones:', error);
+        setConversaciones([]);
+      }
 
       // Validar que clientesData sea un array antes de usarlo
       if (!Array.isArray(clientesData)) {
@@ -1642,6 +1655,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           <ListaGeneralClientes
             clientes={clientes}
             reportes={reportes}
+            conversaciones={conversaciones}
             onActualizarEstado={setClienteParaEstado}
             onReportarVenta={setClienteParaVenta}
             onChat={setClienteParaChat}

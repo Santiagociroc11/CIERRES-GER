@@ -29,6 +29,7 @@ import ConsolidarVenta from './ConsolidarVenta';
 interface ListaGeneralClientesProps {
   clientes: Cliente[];
   reportes: Reporte[];
+  conversaciones?: any[]; // Conversaciones del asesor para determinar clientes atendidos
   onActualizarEstado: (cliente: Cliente) => void;
   onReportarVenta: (cliente: Cliente) => void;
   onChat: (cliente: Cliente) => void;
@@ -41,6 +42,7 @@ interface ListaGeneralClientesProps {
 export default function ListaGeneralClientes({
   clientes,
   reportes,
+  conversaciones = [],
   onActualizarEstado,
   onReportarVenta,
   onChat,
@@ -57,6 +59,7 @@ export default function ListaGeneralClientes({
   const [clienteHistorial, setClienteHistorial] = useState<Cliente | null>(null);
   const [mostrarSoloCriticos, setMostrarSoloCriticos] = useState(false);
   const [mostrarSoloVIPs, setMostrarSoloVIPs] = useState(false);
+  const [mostrarSoloNoAtendidos, setMostrarSoloNoAtendidos] = useState(false);
   const [clienteAcciones, setClienteAcciones] = useState<number | null>(null);
   const [pagina, setPagina] = useState(1);
   const [forzarBusqueda, setForzarBusqueda] = useState(false);
@@ -136,6 +139,37 @@ export default function ListaGeneralClientes({
     // Los clientes VIP pueden identificarse por su estado o por tener un registro específico
     // Por ahora, usamos el estado como indicador
     return cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP';
+  };
+
+  // Función para verificar si un cliente tiene mensajes salientes del asesor (ha sido atendido)
+  // Solo cuenta mensajes salientes (modo='saliente'), no mensajes entrantes del cliente
+  const tieneMensajesSalientes = (cliente: Cliente): boolean => {
+    if (!conversaciones || conversaciones.length === 0) return false;
+    
+    // Normalizar WhatsApp para comparación (últimos 7 dígitos)
+    const normalizeWhatsApp = (wha: string): string => {
+      const soloNumeros = wha.replace(/\D/g, '');
+      return soloNumeros.slice(-7);
+    };
+    
+    const clienteWhaNormalizado = normalizeWhatsApp(cliente.WHATSAPP || '');
+    
+    // Verificar si hay mensajes salientes por ID de cliente o por WhatsApp
+    // Las conversaciones ya están filtradas por modo='saliente' desde el backend
+    return conversaciones.some((conv: any) => {
+      // Verificar por ID de cliente
+      if (conv.id_cliente === cliente.ID) {
+        return true;
+      }
+      
+      // Verificar por WhatsApp normalizado
+      if (conv.wha_cliente) {
+        const convWhaNormalizado = normalizeWhatsApp(conv.wha_cliente);
+        return convWhaNormalizado === clienteWhaNormalizado;
+      }
+      
+      return false;
+    });
   };
 
   // Renderizar badge de temperatura
@@ -226,6 +260,7 @@ export default function ListaGeneralClientes({
       filtroEstado === 'TODOS' || cliente.ESTADO === filtroEstado;
     const coincideCriticos = !mostrarSoloCriticos || esEstadoCritico(cliente.ESTADO, cliente);
     const coincideVIPs = !mostrarSoloVIPs || esClienteVIP(cliente);
+    const coincideNoAtendidos = !mostrarSoloNoAtendidos || !tieneMensajesSalientes(cliente);
     
     // Filtro por temperatura
     const coincideTemperatura = 
@@ -238,7 +273,7 @@ export default function ListaGeneralClientes({
       ));
 
     return coincideBusqueda && coincideEstado && coincideCriticos && coincideVIPs && 
-           coincideTemperatura && coincideEtiqueta;
+           coincideTemperatura && coincideEtiqueta && coincideNoAtendidos;
   });
 
   const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
@@ -499,14 +534,22 @@ export default function ListaGeneralClientes({
               <CheckCircle className={`inline-block h-4 w-4 mr-2 ${mostrarSoloVIPs ? 'text-blue-500' : 'text-gray-400'}`} />
               Solo VIPs
             </button>
+            <button
+              onClick={() => setMostrarSoloNoAtendidos(!mostrarSoloNoAtendidos)}
+              className={`px-4 py-2 rounded-lg border ${mostrarSoloNoAtendidos ? 'bg-red-50 text-red-700 border-red-200' : 'bg-white text-gray-700 border-gray-300'}`}
+            >
+              <MessageSquare className={`inline-block h-4 w-4 mr-2 ${mostrarSoloNoAtendidos ? 'text-red-500' : 'text-gray-400'}`} />
+              No Atendidos
+            </button>
             
             {/* Botones de reset de filtros */}
-            {(filtroTemperatura !== 'TODAS' || filtroEtiqueta || ordenamiento !== 'default') && (
+            {(filtroTemperatura !== 'TODAS' || filtroEtiqueta || ordenamiento !== 'default' || mostrarSoloNoAtendidos) && (
               <button
                 onClick={() => {
                   setFiltroTemperatura('TODAS');
                   setFiltroEtiqueta('');
                   setOrdenamiento('default');
+                  setMostrarSoloNoAtendidos(false);
                 }}
                 className="px-4 py-2 rounded-lg border bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100"
               >

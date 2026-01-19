@@ -953,23 +953,72 @@ router.post('/pagosexternos-reisy', async (req, res) => {
 
       // Usar axios en lugar de fetch para manejar correctamente FormData
       const axios = require('axios');
-      const telegramResponse = await axios.post(
-        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
-        form,
-        { headers: form.getHeaders() }
-      );
+      let telegramResponse;
+      let telegramData;
+      
+      try {
+        telegramResponse = await axios.post(
+          `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+          form,
+          { 
+            headers: form.getHeaders(),
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
+          }
+        );
+        telegramData = telegramResponse.data;
+      } catch (axiosError: any) {
+        // Capturar el error de axios para obtener más detalles
+        const errorDetails = axiosError.response?.data || axiosError.message;
+        logger.error('Error de axios enviando a Telegram (reporte inicial)', {
+          status: axiosError.response?.status,
+          statusText: axiosError.response?.statusText,
+          errorData: errorDetails,
+          errorMessage: axiosError.message,
+          groupChatId,
+          threadId,
+          imageSize: imageBuffer.length,
+          captionLength: caption.length
+        });
+        
+        // Devolver el error directamente sin lanzar excepción
+        res.status(500).json({
+          success: false,
+          error: 'Error enviando foto a Telegram',
+          details: errorDetails?.description || errorDetails?.message || JSON.stringify(errorDetails),
+          debug: {
+            groupChatId,
+            threadId,
+            imageSize: imageBuffer.length,
+            captionLength: caption.length,
+            tieneToken: !!TELEGRAM_BOT_TOKEN,
+            telegramError: errorDetails
+          },
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
 
-      const telegramData = telegramResponse.data;
-
-      if (!telegramData.ok) {
+      if (!telegramData || !telegramData.ok) {
         logger.error('Error de Telegram API', {
-          status: telegramResponse.status,
-          statusText: telegramResponse.statusText,
+          status: telegramResponse?.status,
+          statusText: telegramResponse?.statusText,
           telegramData,
           groupChatId,
           threadId
         });
-        throw new Error(`Error de Telegram: ${JSON.stringify(telegramData)}`);
+        res.status(500).json({
+          success: false,
+          error: 'Error de Telegram API',
+          details: telegramData?.description || JSON.stringify(telegramData),
+          debug: {
+            groupChatId,
+            threadId,
+            telegramError: telegramData
+          },
+          timestamp: new Date().toISOString()
+        });
+        return;
       }
 
       logger.info('Foto de pago externo enviada a Telegram exitosamente', {
@@ -997,24 +1046,22 @@ router.post('/pagosexternos-reisy', async (req, res) => {
       });
 
     } catch (error) {
-      logger.error('Error enviando foto a Telegram', {
-        error: error instanceof Error ? error.message : 'Error desconocido',
-        stack: error instanceof Error ? error.stack : undefined,
-        groupChatId,
-        threadId,
-        imagenPagoUrl: imagenPagoUrl?.substring(0, 100)
-      });
-      res.status(500).json({
-        success: false,
-        error: 'Error enviando foto a Telegram',
-        details: error instanceof Error ? error.message : 'Error desconocido',
-        debug: {
-          groupChatId,
-          threadId,
-          tieneToken: !!TELEGRAM_BOT_TOKEN
-        },
-        timestamp: new Date().toISOString()
-      });
+      // Este catch solo debería ejecutarse si hay un error antes de enviar a Telegram
+      // Si ya se envió la respuesta (con return), este catch no debería ejecutarse
+      if (!res.headersSent) {
+        logger.error('Error antes de enviar a Telegram (reporte inicial)', {
+          error: error instanceof Error ? error.message : 'Error desconocido',
+          stack: error instanceof Error ? error.stack : undefined,
+          clienteID,
+          imagenPagoUrl: imagenPagoUrl?.substring(0, 100)
+        });
+        res.status(500).json({
+          success: false,
+          error: 'Error procesando reporte de pago externo',
+          details: error instanceof Error ? error.message : 'Error desconocido',
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
   } catch (error) {

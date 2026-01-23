@@ -63,6 +63,8 @@ import WebhookConfig from './WebhookConfig';
 import WebhookLogs from './WebhookLogs';
 import DashboardAsesor from './DashboardAsesor';
 import DuplicateModal from './DuplicateModal';
+import { useToast } from '../hooks/useToast';
+import Toast from './Toast';
 
 interface DashboardAdminProps {
   asesor: Asesor;
@@ -71,6 +73,7 @@ interface DashboardAdminProps {
 }
 
 export default function DashboardAdmin({ asesor, adminRole, onLogout }: DashboardAdminProps) {
+  const { toast, showToast, hideToast } = useToast();
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   const [estadisticas, setEstadisticas] = useState<Record<number, EstadisticasDetalladas>>({});
   const [clientes, setClientes] = useState<any[]>([]);
@@ -646,7 +649,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 const headerLower = header.toLowerCase().trim();
                 const valor = valores[index]?.trim() || '';
                 
-                // Mapear headers exactos del CSV que me mostraste
+                // Mapear headers exactos del CSV
                 if (headerLower === 'id') {
                   vip.ID_CSV = valor;
                 } else if (headerLower === 'nombre') {
@@ -656,10 +659,18 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 } else if (headerLower === 'whatsapp') {
                   vip.WHATSAPP = valor;
                 } else {
-                  // Fallback para otros formatos posibles
+                  // Fallback para otros formatos posibles (más flexible)
                   if (headerLower.includes('nombre')) vip.NOMBRE = valor;
                   else if (headerLower.includes('correo') || headerLower.includes('email')) vip.CORREO = valor;
-                  else if (headerLower.includes('whatsapp') || headerLower.includes('telefono') || headerLower.includes('phone')) vip.WHATSAPP = valor;
+                  // Detectar WhatsApp con variaciones comunes (whastapp, whatsapp, etc.)
+                  else if (headerLower.includes('whatsapp') || 
+                           headerLower.includes('whastapp') || 
+                           headerLower.includes('whatsap') ||
+                           headerLower.includes('telefono') || 
+                           headerLower.includes('phone') ||
+                           headerLower.includes('tel')) {
+                    vip.WHATSAPP = valor;
+                  }
                   else vip[header] = valor;
                 }
               });
@@ -718,7 +729,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
   const manejarProcesarCSV = async () => {
     if (!archivoCsv) {
-      alert('Por favor selecciona un archivo CSV');
+      showToast('Por favor selecciona un archivo CSV', 'error');
       return;
     }
 
@@ -737,16 +748,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       
       // Mostrar advertencia si hay duplicados
       if (duplicadosEnCSV.length > 0) {
-        const mensajeDuplicados = `⚠️ Se detectaron ${duplicadosEnCSV.length} duplicado(s) dentro del CSV.\n\n` +
-          `Los duplicados fueron excluidos del procesamiento.\n` +
-          `Solo se procesarán los ${vipsDelCsv.length} VIPs únicos.\n\n` +
-          `Duplicados encontrados:\n` +
-          duplicadosEnCSV.slice(0, 5).map(d => 
-            `  • Línea ${d.lineaActual}: ${d.nombre} (${d.whatsapp}) - ya aparece en línea ${d.primeraAparicion}`
-          ).join('\n') +
-          (duplicadosEnCSV.length > 5 ? `\n  ... y ${duplicadosEnCSV.length - 5} más` : '');
-        
-        alert(mensajeDuplicados);
+        const mensajeDuplicados = `Se detectaron ${duplicadosEnCSV.length} duplicado(s) dentro del CSV. Los duplicados fueron excluidos del procesamiento. Solo se procesarán los ${vipsDelCsv.length} VIPs únicos.`;
+        showToast(mensajeDuplicados, 'info');
         console.warn('⚠️ Duplicados en CSV:', duplicadosEnCSV);
       }
       
@@ -821,7 +824,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
     } catch (error) {
       console.error('❌ Error procesando CSV:', error);
-      alert('Error procesando el archivo CSV');
+      showToast('Error procesando el archivo CSV', 'error');
     } finally {
       setProcesandoCsv(false);
     }
@@ -829,7 +832,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
   const guardarVIPsNuevos = async () => {
     if (!resultadoProceso?.nuevosVIPs?.length) {
-      alert('No hay VIPs nuevos para guardar');
+      showToast('No hay VIPs nuevos para guardar', 'info');
       return;
     }
 
@@ -866,7 +869,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       }
 
       console.log(`✅ Todos los VIPs guardados: ${totalInsertados} total`);
-      alert(`${totalInsertados} VIPs guardados exitosamente`);
+      showToast(`${totalInsertados} VIPs guardados exitosamente`, 'success');
       
       // Limpiar el resultado y archivo
       setResultadoProceso(null);
@@ -879,7 +882,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
     } catch (error) {
       console.error('❌ Error guardando VIPs:', error);
-      alert('Error guardando los VIPs');
+      showToast('Error guardando los VIPs', 'error');
     }
   };
 
@@ -896,7 +899,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       }
     } catch (error) {
       console.error('❌ Error cargando VIPs pendientes:', error);
-      alert('Error cargando VIPs pendientes');
+      showToast('Error cargando VIPs pendientes', 'error');
     } finally {
       setCargandoVips(false);
     }
@@ -915,13 +918,13 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       if (!response.ok) {
         throw new Error('Error asignando VIP');
       }
-
-      alert('VIP asignado exitosamente');
+      
+      showToast('VIP asignado exitosamente', 'success');
       cargarVIPsPendientes(); // Recargar la lista
       
     } catch (error) {
       console.error('❌ Error asignando VIP:', error);
-      alert('Error asignando VIP');
+      showToast('Error asignando VIP', 'error');
     }
   };
 
@@ -939,12 +942,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         throw new Error('Error actualizando estado VIP');
       }
 
-      alert('Estado actualizado exitosamente');
+      showToast('Estado actualizado exitosamente', 'success');
       cargarVIPsPendientes(); // Recargar la lista
       
     } catch (error) {
       console.error('❌ Error actualizando estado VIP:', error);
-      alert('Error actualizando estado VIP');
+      showToast('Error actualizando estado VIP', 'error');
     }
   };
 
@@ -960,7 +963,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       }
       
       if (totalVips > vipsPendientes.length) {
-        alert(`No hay suficientes VIPs pendientes. Disponibles: ${vipsPendientes.length}, Solicitados: ${totalVips}`);
+        showToast(`No hay suficientes VIPs pendientes. Disponibles: ${vipsPendientes.length}, Solicitados: ${totalVips}`, 'error');
         return;
       }
       
@@ -984,7 +987,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       const resultado = await response.json();
       console.log('✅ Asignación masiva completada:', resultado);
       
-      alert(`${resultado.data.asignados} VIPs asignados exitosamente`);
+      showToast(`${resultado.data.asignados} VIPs asignados exitosamente`, 'success');
       
       // Limpiar formulario y recargar
       setAsignacionMasiva({});
@@ -1013,7 +1016,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       }
     } catch (error) {
       console.error('❌ Error cargando VIPs en sistema:', error);
-      alert('Error cargando VIPs en sistema');
+      showToast('Error cargando VIPs en sistema', 'error');
     } finally {
       setCargandoVipsEnSistema(false);
     }
@@ -1032,7 +1035,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       }
     } catch (error) {
       console.error('❌ Error cargando VIPs en pipeline por asesor:', error);
-      alert('Error cargando VIPs en pipeline por asesor');
+      showToast('Error cargando VIPs en pipeline por asesor', 'error');
     } finally {
       setCargandoPipeline(false);
     }
@@ -1051,7 +1054,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       }
     } catch (error) {
       console.error('❌ Error cargando datos de tabla VIP:', error);
-      alert('Error cargando datos de tabla VIP');
+      showToast('Error cargando datos de tabla VIP', 'error');
     } finally {
       setCargandoTablaVips(false);
     }
@@ -5908,5 +5911,15 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       
     </div>
     </div>
+    
+    {/* Toast para notificaciones */}
+    {toast.visible && (
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        onClose={hideToast}
+      />
+    )}
+  </div>
   );
 }

@@ -602,7 +602,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
 
 
   // 🆕 Funciones para gestión de VIPs
-  const procesarArchivoCSV = (archivo: File): Promise<any[]> => {
+  const procesarArchivoCSV = (archivo: File): Promise<{ vips: any[]; duplicados: any[]; totalLineas: number }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -627,7 +627,17 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
           const headers = lineas[0].split(',').map(h => h.trim().replace(/"/g, ''));
           console.log('📊 Headers detectados:', headers);
           
-          const vips = [];
+          // Función para normalizar WhatsApp (igual que el sistema)
+          const normalizarWhatsApp = (wha: string): string => {
+            if (!wha) return '';
+            const soloNumeros = wha.replace(/\D/g, '');
+            return soloNumeros.slice(-7); // Últimos 7 dígitos
+          };
+          
+          const vips: any[] = [];
+          const duplicados: any[] = [];
+          const whatsappsVistos = new Map<string, { primeraAparicion: number; vip: any }>(); // Map<ultimos7digitos, {linea, vip}>
+          
           for (let i = 1; i < lineas.length; i++) {
             const valores = lineas[i].split(',').map(v => v.trim().replace(/"/g, ''));
             if (valores.length >= headers.length) {
@@ -655,13 +665,47 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
               });
               
               if (vip.WHATSAPP) {
-                vips.push(vip);
+                const whaNormalizado = normalizarWhatsApp(vip.WHATSAPP);
+                
+                // Verificar duplicados dentro del CSV
+                if (whaNormalizado && whatsappsVistos.has(whaNormalizado)) {
+                  // Es un duplicado
+                  const primeraAparicion = whatsappsVistos.get(whaNormalizado)!;
+                  duplicados.push({
+                    whatsapp: vip.WHATSAPP,
+                    whatsappNormalizado: whaNormalizado,
+                    nombre: vip.NOMBRE || 'Sin nombre',
+                    correo: vip.CORREO || '',
+                    lineaActual: i + 1, // +1 porque empezamos desde línea 2 (después del header)
+                    primeraAparicion: primeraAparicion.primeraAparicion,
+                    vipPrimeraAparicion: primeraAparicion.vip
+                  });
+                  console.log(`⚠️ Duplicado detectado en línea ${i + 1}: ${vip.WHATSAPP} (ya aparece en línea ${primeraAparicion.primeraAparicion})`);
+                } else {
+                  // Es único, agregarlo
+                  vip.LINEA_CSV = i + 1; // Guardar número de línea original
+                  vips.push(vip);
+                  if (whaNormalizado) {
+                    whatsappsVistos.set(whaNormalizado, {
+                      primeraAparicion: i + 1,
+                      vip: vip
+                    });
+                  }
+                }
               }
             }
           }
           
-          console.log(`✅ ${vips.length} VIPs extraídos del CSV`);
-          resolve(vips);
+          console.log(`✅ ${vips.length} VIPs únicos extraídos del CSV`);
+          if (duplicados.length > 0) {
+            console.log(`⚠️ ${duplicados.length} duplicados detectados dentro del CSV`);
+          }
+          
+          resolve({ 
+            vips, 
+            duplicados, 
+            totalLineas: lineas.length - 1 // -1 porque no contamos el header
+          });
         } catch (error) {
           console.error('❌ Error procesando CSV:', error);
           reject(error);
@@ -684,9 +728,27 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     try {
       console.log('🔄 Iniciando procesamiento de CSV...');
       
-      // 1. Extraer datos del CSV
-      const vipsDelCsv = await procesarArchivoCSV(archivoCsv);
-      console.log(`📋 ${vipsDelCsv.length} VIPs extraídos del CSV`);
+      // 1. Extraer datos del CSV (ahora incluye detección de duplicados)
+      const resultadoCSV = await procesarArchivoCSV(archivoCsv);
+      const vipsDelCsv = resultadoCSV.vips;
+      const duplicadosEnCSV = resultadoCSV.duplicados;
+      
+      console.log(`📋 ${vipsDelCsv.length} VIPs únicos extraídos del CSV (de ${resultadoCSV.totalLineas} líneas totales)`);
+      
+      // Mostrar advertencia si hay duplicados
+      if (duplicadosEnCSV.length > 0) {
+        const mensajeDuplicados = `⚠️ Se detectaron ${duplicadosEnCSV.length} duplicado(s) dentro del CSV.\n\n` +
+          `Los duplicados fueron excluidos del procesamiento.\n` +
+          `Solo se procesarán los ${vipsDelCsv.length} VIPs únicos.\n\n` +
+          `Duplicados encontrados:\n` +
+          duplicadosEnCSV.slice(0, 5).map(d => 
+            `  • Línea ${d.lineaActual}: ${d.nombre} (${d.whatsapp}) - ya aparece en línea ${d.primeraAparicion}`
+          ).join('\n') +
+          (duplicadosEnCSV.length > 5 ? `\n  ... y ${duplicadosEnCSV.length - 5} más` : '');
+        
+        alert(mensajeDuplicados);
+        console.warn('⚠️ Duplicados en CSV:', duplicadosEnCSV);
+      }
       
       // 2. Asignar posición y nivel de conciencia basado en porcentajes
       const totalVips = vipsDelCsv.length;
@@ -715,13 +777,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       });
 
       // 3. Procesar VIPs en lotes (comparar con clientes existentes)
-      console.log(`🔄 Procesando ${vipsDelCsv.length} VIPs en lotes de 100...`);
+      console.log(`🔄 Procesando ${vipsDelCsv.length} VIPs únicos en lotes de 100...`);
       
       const tamanioLote = 100;
       const resultadoFinal = {
         yaEnSistema: [] as any[],
         nuevosVIPs: [] as any[],
-        errores: [] as string[]
+        errores: [] as string[],
+        duplicadosEnCSV: duplicadosEnCSV, // Incluir duplicados detectados en el CSV
+        totalLineasCSV: resultadoCSV.totalLineas,
+        vipsUnicosProcesados: vipsDelCsv.length
       };
 
       for (let i = 0; i < vipsDelCsv.length; i += tamanioLote) {
@@ -4422,7 +4487,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   {/* Resultado del procesamiento */}
                   {resultadoProceso && (
                     <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Resumen de estadísticas */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         {/* VIPs ya en sistema */}
                         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                           <div className="flex items-center">
@@ -4449,6 +4515,21 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           </div>
                         </div>
 
+                        {/* Duplicados en CSV */}
+                        {resultadoProceso.duplicadosEnCSV && resultadoProceso.duplicadosEnCSV.length > 0 && (
+                          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                            <div className="flex items-center">
+                              <AlertTriangle className="h-8 w-8 text-yellow-500 mr-3" />
+                              <div>
+                                <p className="text-2xl font-bold text-yellow-700">
+                                  {resultadoProceso.duplicadosEnCSV.length}
+                                </p>
+                                <p className="text-sm text-yellow-600">Duplicados en CSV</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Errores */}
                         <div className="bg-red-50 p-4 rounded-lg border border-red-200">
                           <div className="flex items-center">
@@ -4462,6 +4543,52 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                           </div>
                         </div>
                       </div>
+
+                      {/* Información sobre duplicados en CSV */}
+                      {resultadoProceso.duplicadosEnCSV && resultadoProceso.duplicadosEnCSV.length > 0 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <div className="flex items-start">
+                            <AlertTriangle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <h4 className="text-sm font-semibold text-yellow-800 mb-2">
+                                Duplicados detectados en el CSV
+                              </h4>
+                              <p className="text-sm text-yellow-700 mb-3">
+                                Se encontraron {resultadoProceso.duplicadosEnCSV.length} registro(s) duplicado(s) dentro del archivo CSV. 
+                                Estos fueron excluidos automáticamente del procesamiento. 
+                                Solo se procesaron {resultadoProceso.vipsUnicosProcesados} VIPs únicos de {resultadoProceso.totalLineasCSV} líneas totales.
+                              </p>
+                              <div className="max-h-48 overflow-y-auto bg-white rounded border border-yellow-200">
+                                <table className="min-w-full text-xs">
+                                  <thead className="bg-yellow-100">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left font-medium text-yellow-800">Línea</th>
+                                      <th className="px-3 py-2 text-left font-medium text-yellow-800">Nombre</th>
+                                      <th className="px-3 py-2 text-left font-medium text-yellow-800">WhatsApp</th>
+                                      <th className="px-3 py-2 text-left font-medium text-yellow-800">Primera aparición</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-yellow-100">
+                                    {resultadoProceso.duplicadosEnCSV.slice(0, 20).map((dup: any, index: number) => (
+                                      <tr key={index} className="hover:bg-yellow-50">
+                                        <td className="px-3 py-2 text-yellow-700">{dup.lineaActual}</td>
+                                        <td className="px-3 py-2 text-yellow-700">{dup.nombre}</td>
+                                        <td className="px-3 py-2 text-yellow-700 font-mono">{dup.whatsapp}</td>
+                                        <td className="px-3 py-2 text-yellow-700">Línea {dup.primeraAparicion}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                                {resultadoProceso.duplicadosEnCSV.length > 20 && (
+                                  <div className="px-3 py-2 text-xs text-yellow-600 bg-yellow-50 border-t border-yellow-200">
+                                    ... y {resultadoProceso.duplicadosEnCSV.length - 20} duplicado(s) más
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Botón para guardar VIPs nuevos */}
                       {resultadoProceso.nuevosVIPs.length > 0 && (

@@ -5907,19 +5907,15 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
             onClose={() => setVipModalAsesor(null)}
         />
       )}
-      </div>
       
+      {/* Toast para notificaciones */}
+      {toast.visible && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={hideToast}
+        />
+      )}
     </div>
-    </div>
-    
-    {/* Toast para notificaciones */}
-    {toast.visible && (
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        onClose={hideToast}
-      />
-    )}
-  </div>
   );
 }

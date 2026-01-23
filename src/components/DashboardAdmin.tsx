@@ -5879,6 +5879,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
           </div>
         </div>
       )}
+        </div>
 
       {/* Add the ChatModal component */}
         {clienteParaChat && (

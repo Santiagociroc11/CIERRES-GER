@@ -1081,6 +1081,71 @@ export async function guardarVIPsNuevos(vips: VIP[]): Promise<{ insertados: numb
   }
 }
 
+// Verificar si un VIP ya existe por WhatsApp
+export async function verificarVIPExistente(whatsapp: string): Promise<VIP | null> {
+  try {
+    if (!whatsapp) {
+      return null;
+    }
+
+    // Normalizar WhatsApp (últimos 7 dígitos)
+    const soloNumeros = whatsapp.replace(/\D/g, '');
+    const ultimos7 = soloNumeros.slice(-7);
+
+    // Buscar en GERSSON_CUPOS_VIP por WhatsApp
+    const response = await fetch(
+      `${POSTGREST_URL}/GERSSON_CUPOS_VIP?WHATSAPP=ilike.*${encodeURIComponent(ultimos7)}&select=*&limit=1`
+    );
+
+    if (!response.ok) {
+      console.error('❌ Error verificando VIP existente:', response.status, response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.length > 0 ? data[0] : null;
+  } catch (error) {
+    console.error('❌ Error verificando VIP existente:', error);
+    return null;
+  }
+}
+
+// Insertar un solo VIP en la base de datos
+export async function insertarVIPIndividual(vip: { NOMBRE?: string; CORREO?: string; WHATSAPP: string; ORIGEN_REGISTRO?: string }): Promise<VIP> {
+  try {
+    const vipParaInsertar = {
+      NOMBRE: vip.NOMBRE || null,
+      CORREO: vip.CORREO || null,
+      WHATSAPP: vip.WHATSAPP,
+      ESTADO_CONTACTO: 'sin_asesor',
+      YA_ES_CLIENTE: false,
+      NIVEL_CONCIENCIA: 'media',
+      ORIGEN_REGISTRO: vip.ORIGEN_REGISTRO || 'formulario_web'
+    };
+
+    const response = await fetch(`${POSTGREST_URL}/GERSSON_CUPOS_VIP`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(vipParaInsertar)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error insertando VIP: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ VIP insertado exitosamente: ${vip.NOMBRE || 'Sin nombre'}`);
+    return Array.isArray(data) ? data[0] : data;
+  } catch (error) {
+    console.error('❌ Error insertando VIP individual:', error);
+    throw error;
+  }
+}
+
 // Obtener todos los VIPs pendientes (no clientes aún) - OPTIMIZADO
 export async function getVIPsPendientes(): Promise<VIP[]> {
   try {

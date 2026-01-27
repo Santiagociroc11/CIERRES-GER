@@ -53,6 +53,12 @@ export interface WebhookConfig {
       threadId?: string; // ID del tema/hilo dentro del grupo
     };
   };
+  cuposVip: {
+    telegram: {
+      groupChatId?: string; // ID del grupo de Telegram para cupos VIP
+      threadId?: string; // ID del tema/hilo dentro del grupo
+    };
+  };
   // Aquí puedes agregar más plataformas en el futuro
   // stripe: { ... }
   // paypal: { ... }
@@ -89,6 +95,15 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
       pagosExternosConfig = {};
     }
     
+    // Intentar cargar configuración de cupos VIP
+    let cuposVipConfig;
+    try {
+      cuposVipConfig = await getWebhookConfigFromDB('cuposVip');
+    } catch (error) {
+      console.log('No hay configuración de cupos VIP en BD, usando vacía');
+      cuposVipConfig = {};
+    }
+    
     if (hotmartConfig && Object.keys(hotmartConfig).length > 0) {
       console.log('Configuración cargada exitosamente desde base de datos');
       
@@ -107,6 +122,9 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
         },
         pagosExternos: {
           telegram: pagosExternosConfig?.telegram || {}
+        },
+        cuposVip: {
+          telegram: cuposVipConfig?.telegram || {}
         }
       };
       
@@ -127,6 +145,9 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
           pageConfig: undefined
         },
         pagosExternos: {
+          telegram: {}
+        },
+        cuposVip: {
           telegram: {}
         }
       };
@@ -320,6 +341,45 @@ export async function getPagosExternosConfig() {
     threadId: config.pagosExternos.telegram.threadId ? '***configurado***' : 'no configurado'
   });
   return config.pagosExternos;
+}
+
+// Función para obtener configuración específica de Cupos VIP
+export async function getCuposVipConfig() {
+  console.log('getCuposVipConfig() llamado');
+  const config = await loadWebhookConfig();
+  console.log('Configuración de cupos VIP cargada:', {
+    hasTelegram: !!config.cuposVip.telegram,
+    groupChatId: config.cuposVip.telegram.groupChatId ? '***configurado***' : 'no configurado',
+    threadId: config.cuposVip.telegram.threadId ? '***configurado***' : 'no configurado'
+  });
+  return config.cuposVip;
+}
+
+// Función para actualizar configuración específica de Cupos VIP
+export async function updateCuposVipConfig(cuposVipConfig: WebhookConfig['cuposVip']): Promise<boolean> {
+  try {
+    console.log('Actualizando configuración de Cupos VIP en BD...');
+    
+    // Actualizar configuración de telegram
+    let updateResult = false;
+    try {
+      updateResult = await updateWebhookConfigInDB('cuposVip', 'telegram', cuposVipConfig.telegram, 'system');
+      console.log('Sección telegram actualizada:', updateResult);
+    } catch (error) {
+      console.error('Error actualizando telegram:', error);
+    }
+    
+    if (updateResult) {
+      console.log('Configuración de Cupos VIP actualizada exitosamente en BD');
+    } else {
+      console.error('Error actualizando configuración de Cupos VIP');
+    }
+    
+    return updateResult;
+  } catch (error) {
+    console.error('Error actualizando configuración de Cupos VIP:', error);
+    return false;
+  }
 }
 
 // Función para actualizar configuración específica de Pagos Externos

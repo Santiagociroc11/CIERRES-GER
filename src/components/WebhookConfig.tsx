@@ -71,6 +71,13 @@ interface PagosExternosConfig {
   };
 }
 
+interface CuposVipConfig {
+  telegram: {
+    groupChatId: string;
+    threadId: string;
+  };
+}
+
 interface Advisor {
   id: number;
   nombre: string;
@@ -90,12 +97,15 @@ const WebhookConfig: React.FC = () => {
   const [config, setConfig] = useState<HotmartConfig | null>(null);
   const [soporteConfig, setSoporteConfig] = useState<SoporteConfig | null>(null);
   const [pagosExternosConfig, setPagosExternosConfig] = useState<PagosExternosConfig | null>(null);
+  const [cuposVipConfig, setCuposVipConfig] = useState<CuposVipConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [soporteLoading, setSoporteLoading] = useState(true);
   const [pagosExternosLoading, setPagosExternosLoading] = useState(true);
+  const [cuposVipLoading, setCuposVipLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [soporteSaving, setSoporteSaving] = useState(false);
   const [pagosExternosSaving, setPagosExternosSaving] = useState(false);
+  const [cuposVipSaving, setCuposVipSaving] = useState(false);
   const [pagosExternosTesting, setPagosExternosTesting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [snackbar, setSnackbar] = useState<{
@@ -123,6 +133,7 @@ const WebhookConfig: React.FC = () => {
     loadConfig();
     loadSoporteConfig();
     loadPagosExternosConfig();
+    loadCuposVipConfig();
   }, []);
 
   // Cargar asesores con Telegram cuando se muestren las secciones de test
@@ -204,6 +215,31 @@ const WebhookConfig: React.FC = () => {
       });
     } finally {
       setPagosExternosLoading(false);
+    }
+  };
+
+  const loadCuposVipConfig = async () => {
+    try {
+      setCuposVipLoading(true);
+      const response = await fetch('/api/cupos-vip/config');
+      const data = await response.json();
+      
+      if (data.success) {
+        setCuposVipConfig(data.data);
+      } else {
+        throw new Error(data.error || 'Error cargando configuración de cupos VIP');
+      }
+    } catch (error) {
+      console.error('Error cargando configuración de cupos VIP:', error);
+      // Inicializar configuración vacía si no existe
+      setCuposVipConfig({
+        telegram: {
+          groupChatId: '',
+          threadId: ''
+        }
+      });
+    } finally {
+      setCuposVipLoading(false);
     }
   };
 
@@ -421,6 +457,18 @@ const WebhookConfig: React.FC = () => {
     });
   };
 
+  const handleCuposVipTelegramChange = (field: string, value: string) => {
+    if (!cuposVipConfig) return;
+    
+    setCuposVipConfig({
+      ...cuposVipConfig,
+      telegram: {
+        ...cuposVipConfig.telegram,
+        [field]: value
+      }
+    });
+  };
+
   const saveSoporteConfig = async () => {
     if (!soporteConfig) return;
     
@@ -482,6 +530,35 @@ const WebhookConfig: React.FC = () => {
       toast.error('Error guardando configuración de pagos externos');
     } finally {
       setPagosExternosSaving(false);
+    }
+  };
+
+  const saveCuposVipConfig = async () => {
+    if (!cuposVipConfig) return;
+    
+    try {
+      setCuposVipSaving(true);
+      const response = await fetch('/api/cupos-vip/config', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cuposVipConfig)
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success('Configuración de cupos VIP guardada exitosamente');
+        setCuposVipConfig(data.data);
+      } else {
+        throw new Error(data.error || 'Error guardando configuración de cupos VIP');
+      }
+    } catch (error) {
+      console.error('Error guardando configuración de cupos VIP:', error);
+      toast.error('Error guardando configuración de cupos VIP');
+    } finally {
+      setCuposVipSaving(false);
     }
   };
 
@@ -793,7 +870,7 @@ const WebhookConfig: React.FC = () => {
     }));
   };
 
-  if (loading || soporteLoading || pagosExternosLoading) {
+  if (loading || soporteLoading || pagosExternosLoading || cuposVipLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography>Cargando configuración...</Typography>
@@ -1400,6 +1477,116 @@ const WebhookConfig: React.FC = () => {
           ) : (
             <Alert severity="info">
               No se pudo cargar la configuración de pagos externos. Verifica la conexión.
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Configuración de Cupos VIP */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">
+              Configuración de Cupos VIP
+            </Typography>
+            <Box>
+              <Tooltip title="Recargar configuración de cupos VIP">
+                <IconButton onClick={loadCuposVipConfig} disabled={cuposVipLoading}>
+                  <Refresh />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+          
+          <Typography variant="body2" color="textSecondary" paragraph>
+            Configura el grupo y tema de Telegram donde se enviarán las notificaciones de cupos VIP generados desde el formulario web.
+          </Typography>
+
+          {cuposVipLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress />
+            </Box>
+          ) : cuposVipConfig ? (
+            <>
+              <Typography variant="h6" gutterBottom sx={{ mt: 3, mb: 2 }}>
+                <Chip label="Telegram" color="info" size="small" sx={{ mr: 1 }} />
+                Grupo y Tema
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="ID del Grupo de Telegram"
+                    value={cuposVipConfig.telegram.groupChatId || ''}
+                    onChange={(e) => handleCuposVipTelegramChange('groupChatId', e.target.value)}
+                    size="small"
+                    helperText="ID del grupo (ej: -1001234567890). Si no se configura, usará el grupo de Hotmart."
+                    placeholder="-1001234567890"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="ID del Tema/Hilo"
+                    value={cuposVipConfig.telegram.threadId || ''}
+                    onChange={(e) => handleCuposVipTelegramChange('threadId', e.target.value)}
+                    size="small"
+                    helperText="ID del tema/hilo dentro del grupo (ej: 1738). Si no se configura, usará el tema de Hotmart."
+                    placeholder="1738"
+                    type="number"
+                  />
+                </Grid>
+              </Grid>
+
+              <Box display="flex" justifyContent="flex-end" mt={3}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={saveCuposVipConfig}
+                  disabled={cuposVipSaving}
+                  startIcon={cuposVipSaving ? <CircularProgress size={20} /> : <Save />}
+                >
+                  {cuposVipSaving ? 'Guardando...' : 'Guardar Configuración de Cupos VIP'}
+                </Button>
+              </Box>
+
+              <Divider sx={{ my: 3 }} />
+
+              {/* Información del Endpoint */}
+              <Typography variant="h6" gutterBottom>
+                Información de Endpoint
+              </Typography>
+              <Typography variant="body2" color="textSecondary" paragraph>
+                URL del endpoint para recibir cupos VIP desde formularios web:
+              </Typography>
+              <Box
+                component="code"
+                sx={{
+                  display: 'block',
+                  p: 2,
+                  bgcolor: 'grey.100',
+                  borderRadius: 1,
+                  fontFamily: 'monospace',
+                  fontSize: '0.875rem',
+                  mb: 2
+                }}
+              >
+                {window.location.origin}/api/cupo-vip
+              </Box>
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
+                💡 <strong>Método:</strong> POST | <strong>Campos requeridos:</strong> whatsapp
+              </Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
+                <strong>Campos opcionales:</strong> nombre, correo
+              </Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
+                <strong>Ejemplo de body:</strong> {`{ "nombre": "Juan Pérez", "correo": "juan@ejemplo.com", "whatsapp": "+595994536500" }`}
+              </Typography>
+            </>
+          ) : (
+            <Alert severity="info">
+              No se pudo cargar la configuración de cupos VIP. Verifica la conexión.
             </Alert>
           )}
         </CardContent>

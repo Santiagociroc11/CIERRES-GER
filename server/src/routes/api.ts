@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import winston from 'winston';
-import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData, getTodosClientesVIPPorAsesor, getClienteById } from '../dbClient';
+import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData, getTodosClientesVIPPorAsesor, getClienteById, verificarVIPExistente, insertarVIPIndividual } from '../dbClient';
 import telegramQueue from '../services/telegramQueueService';
 import { getPlatformUrl } from '../utils/platformUrl';
 import { markdownToHtml } from '../utils/telegramFormat';
-import { getHotmartConfig, getPagosExternosConfig } from '../config/webhookConfig';
+import { getHotmartConfig, getPagosExternosConfig, getCuposVipConfig, updateCuposVipConfig } from '../config/webhookConfig';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -419,6 +419,107 @@ router.post('/vips/guardar', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para recibir cupos VIP desde formulario web (reemplaza n8n)
+router.post('/cupo-vip', async (req, res) => {
+  try {
+    const { nombre, correo, whatsapp } = req.body;
+
+    // Validar campos requeridos
+    if (!whatsapp) {
+      return res.status(400).json({
+        success: false,
+        error: 'El campo whatsapp es requerido',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    logger.info(`🔄 Recibiendo cupo VIP: ${nombre || 'Sin nombre'} - ${whatsapp}`);
+
+    // Verificar si el VIP ya existe
+    const vipExistente = await verificarVIPExistente(whatsapp);
+
+    if (vipExistente) {
+      logger.info(`ℹ️ VIP ya existe en el sistema: ${vipExistente.ID}`);
+      return res.json({
+        success: true,
+        message: 'VIP ya existe en el sistema',
+        data: {
+          id: vipExistente.ID,
+          yaExistia: true
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Insertar nuevo VIP
+    const nuevoVIP = await insertarVIPIndividual({
+      NOMBRE: nombre || null,
+      CORREO: correo || null,
+      WHATSAPP: whatsapp,
+      ORIGEN_REGISTRO: 'formulario_web'
+    });
+
+    logger.info(`✅ VIP insertado exitosamente: ID ${nuevoVIP.ID}`);
+
+    // Enviar notificación a Telegram (similar a n8n)
+    try {
+      const hotmartConfig = await getHotmartConfig();
+      const cuposVipConfig = await getCuposVipConfig();
+      const botToken = hotmartConfig.tokens?.telegram;
+      
+      // Usar configuración específica de cupos VIP, o fallback a configuración de Hotmart
+      const telegramConfig = cuposVipConfig.telegram?.groupChatId 
+        ? cuposVipConfig.telegram 
+        : hotmartConfig.telegram;
+
+      if (botToken && telegramConfig?.groupChatId) {
+        // Formato HTML similar al de n8n
+        const mensaje = `<b>CUPO VIP GENERADO</b> 🔥\n\n<b>NOMBRE:</b> ${nombre || 'No proporcionado'}\n<b>CORREO:</b> ${correo || 'No proporcionado'}\n<b>WHATSAPP:</b> ${whatsapp}`;
+
+        // Convertir threadId de string a number si existe
+        const threadIdNumber = telegramConfig.threadId 
+          ? (typeof telegramConfig.threadId === 'string' ? parseInt(telegramConfig.threadId, 10) : telegramConfig.threadId)
+          : undefined;
+
+        telegramQueue.enqueueMessage(
+          telegramConfig.groupChatId,
+          mensaje,
+          undefined, // webhookLogId
+          undefined, // metadata
+          undefined, // reply_markup
+          threadIdNumber // message_thread_id (puede ser undefined)
+        );
+
+        logger.info('✅ Notificación de Telegram encolada');
+      } else {
+        logger.warn('⚠️ Configuración de Telegram no disponible, no se envió notificación');
+      }
+    } catch (telegramError) {
+      // No fallar el endpoint si Telegram falla, solo loguear
+      logger.error('❌ Error enviando notificación a Telegram:', telegramError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Cupo VIP registrado exitosamente',
+      data: {
+        id: nuevoVIP.ID,
+        yaExistia: false
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('❌ Error procesando cupo VIP:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
       timestamp: new Date().toISOString()
     });
   }
@@ -1582,6 +1683,101 @@ router.put('/pagos-externos/config', async (req, res) => {
     try {
       const { getPagosExternosConfig } = await import('../config/webhookConfig');
       currentConfig = await getPagosExternosConfig();
+    } catch (configError) {
+      logger.warn('No se pudo obtener configuración actual para verificación:', configError);
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: {
+        message: error instanceof Error ? error.message : 'Error desconocido',
+        stack: error instanceof Error ? error.stack : undefined,
+        note: 'Algunos cambios podrían haberse guardado parcialmente. Revisa la configuración actual.',
+        currentConfig: currentConfig || 'No disponible'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para obtener la configuración de cupos VIP
+router.get('/cupos-vip/config', async (_req, res) => {
+  try {
+    const config = await getCuposVipConfig();
+    const hotmartConfig = await getHotmartConfig();
+    
+    // Mostrar también los valores de fallback
+    res.json({
+      success: true,
+      data: config,
+      fallback: {
+        groupChatId: hotmartConfig.telegram.groupChatId,
+        threadId: hotmartConfig.telegram.threadId
+      },
+      final: {
+        groupChatId: config.telegram.groupChatId || hotmartConfig.telegram.groupChatId,
+        threadId: config.telegram.threadId 
+          ? parseInt(config.telegram.threadId, 10) 
+          : (hotmartConfig.telegram.threadId ? parseInt(hotmartConfig.telegram.threadId, 10) : undefined)
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo configuración de cupos VIP', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para actualizar la configuración de cupos VIP
+router.put('/cupos-vip/config', async (req, res) => {
+  try {
+    const { body } = req;
+    
+    // Validar estructura de la configuración
+    if (!body || !body.telegram) {
+      return res.status(400).json({
+        success: false,
+        error: 'Estructura de configuración inválida. Debe incluir: telegram',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Actualizar configuración
+    const success = await updateCuposVipConfig(body);
+    
+    if (success) {
+      logger.info('Configuración de Cupos VIP actualizada', { 
+        updatedBy: req.ip,
+        timestamp: new Date().toISOString()
+      });
+      
+      res.json({
+        success: true,
+        message: 'Configuración de cupos VIP actualizada exitosamente',
+        data: await getCuposVipConfig(),
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Error guardando configuración de cupos VIP',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error actualizando configuración de cupos VIP', error);
+    
+    // Intentar obtener la configuración actual para verificar si algunos datos se guardaron
+    let currentConfig = null;
+    try {
+      currentConfig = await getCuposVipConfig();
     } catch (configError) {
       logger.warn('No se pudo obtener configuración actual para verificación:', configError);
     }

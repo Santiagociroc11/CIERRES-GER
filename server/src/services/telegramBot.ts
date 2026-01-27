@@ -13,6 +13,8 @@ interface TelegramUpdate {
   update_id: number;
   message?: {
     message_id: number;
+    message_thread_id?: number;
+    is_topic_message?: boolean;
     from: {
       id: number;
       is_bot: boolean;
@@ -46,6 +48,7 @@ interface TelegramUpdate {
     };
     message?: {
       message_id: number;
+      message_thread_id?: number;
       chat: {
         id: number;
         type: string;
@@ -118,6 +121,7 @@ class TelegramBot {
       if (update.callback_query) {
         const callbackQuery = update.callback_query;
         const chatId = callbackQuery.message?.chat.id;
+        const messageThreadId = callbackQuery.message?.message_thread_id;
         const userId = callbackQuery.from.id;
         const firstName = callbackQuery.from.first_name;
         const data = callbackQuery.data;
@@ -130,7 +134,7 @@ class TelegramBot {
         await this.answerCallbackQuery(callbackQuery.id);
         
         // Procesar el callback
-        await this.handleCallbackQuery(chatId, data, firstName, userId);
+        await this.handleCallbackQuery(chatId, data, firstName, userId, messageThreadId);
         return;
       }
       
@@ -141,13 +145,14 @@ class TelegramBot {
       }
 
       const chatId = message.chat.id;
+      const messageThreadId = message.message_thread_id;
       const userId = message.from.id;
       const text = message.text.trim();
       const firstName = message.from.first_name;
 
       // Responder a comandos
       if (text.startsWith('/')) {
-        await this.handleCommand(chatId, text, firstName, userId);
+        await this.handleCommand(chatId, text, firstName, userId, messageThreadId);
       }
     } catch (error) {
       console.error(`❌ [TelegramBot] Error procesando update:`, error);
@@ -178,18 +183,18 @@ class TelegramBot {
   /**
    * Manejar callback queries (botones inline)
    */
-  private async handleCallbackQuery(chatId: number, data: string, firstName: string, userId: number) {
+  private async handleCallbackQuery(chatId: number, data: string, firstName: string, userId: number, messageThreadId?: number) {
     switch (data) {
       case 'get_autoid':
-        await this.sendAutoIdMessage(chatId, firstName, userId);
+        await this.sendAutoIdMessage(chatId, firstName, userId, messageThreadId);
         break;
       
       case 'help':
-        await this.sendHelpMessage(chatId);
+        await this.sendHelpMessage(chatId, messageThreadId);
         break;
       
       case 'start_menu':
-        await this.sendStartMessage(chatId, firstName);
+        await this.sendStartMessage(chatId, firstName, messageThreadId);
         break;
       
       default:
@@ -200,38 +205,38 @@ class TelegramBot {
   /**
    * Manejar comandos del bot
    */
-  private async handleCommand(chatId: number, command: string, firstName: string, userId: number) {
+  private async handleCommand(chatId: number, command: string, firstName: string, userId: number, messageThreadId?: number) {
     try {
       // Extraer el comando base (sin parámetros) y convertir a minúsculas
       const commandBase = command.toLowerCase().split(' ')[0].split('@')[0];
       
       switch (commandBase) {
       case '/start':
-        await this.sendStartMessage(chatId, firstName);
+        await this.sendStartMessage(chatId, firstName, messageThreadId);
         break;
       
       case '/autoid':
-        await this.sendAutoIdMessage(chatId, firstName, userId);
+        await this.sendAutoIdMessage(chatId, firstName, userId, messageThreadId);
         break;
       
       case '/help':
-        await this.sendHelpMessage(chatId);
+        await this.sendHelpMessage(chatId, messageThreadId);
         break;
       
       default:
-        await this.sendUnknownCommandMessage(chatId);
+        await this.sendUnknownCommandMessage(chatId, messageThreadId);
         break;
       }
     } catch (error) {
       console.error(`❌ [TelegramBot] Error en handleCommand:`, error);
-      await this.sendMessage(chatId, '❌ Ocurrió un error al procesar tu comando. Por favor, intenta nuevamente.');
+      await this.sendMessage(chatId, '❌ Ocurrió un error al procesar tu comando. Por favor, intenta nuevamente.', 'Markdown', undefined, messageThreadId);
     }
   }
 
   /**
    * Enviar mensaje de bienvenida
    */
-  private async sendStartMessage(chatId: number, firstName: string) {
+  private async sendStartMessage(chatId: number, firstName: string, messageThreadId?: number) {
     const config = await getHotmartConfig();
     const botName = config.telegram?.botName || 'este bot';
     
@@ -265,16 +270,16 @@ Con tu ID de Telegram podrás recibir notificaciones automáticas cuando tengas 
       ]
     };
 
-    await this.sendMessage(chatId, message, 'Markdown', replyMarkup);
+    await this.sendMessage(chatId, message, 'Markdown', replyMarkup, messageThreadId);
   }
 
   /**
    * Enviar mensaje con el ID de Telegram del usuario
    */
-  private async sendAutoIdMessage(chatId: number, firstName: string, userId: number) {
+  private async sendAutoIdMessage(chatId: number, firstName: string, userId: number, messageThreadId?: number) {
     const config = await getHotmartConfig();
     
-    const message = `🆔 **Tu ID de Telegram es:**
+    let message = `🆔 **Tu ID de Telegram es:**
 
 \`${userId}\`
 
@@ -287,6 +292,11 @@ Con tu ID de Telegram podrás recibir notificaciones automáticas cuando tengas 
 ✅ **¡${firstName}, ya puedes configurar tu ID en el sistema!**
 
 💡 **Nota:** Este es tu ID único de Telegram que nunca cambia.`;
+
+    // Si estamos en un topic, añadir información del grupo y topic
+    if (messageThreadId) {
+      message += `\n\n📝 **Información del Grupo:**\nChat ID: \`${chatId}\`\nTopic ID: \`${messageThreadId}\``;
+    }
 
     const replyMarkup = {
       inline_keyboard: [
@@ -305,13 +315,13 @@ Con tu ID de Telegram podrás recibir notificaciones automáticas cuando tengas 
       ]
     };
 
-    await this.sendMessage(chatId, message, 'Markdown', replyMarkup);
+    await this.sendMessage(chatId, message, 'Markdown', replyMarkup, messageThreadId);
   }
 
   /**
    * Enviar mensaje de ayuda
    */
-  private async sendHelpMessage(chatId: number) {
+  private async sendHelpMessage(chatId: number, messageThreadId?: number) {
     const config = await getHotmartConfig();
     const botName = config.telegram?.botName || 'Bot de ayuda';
     
@@ -344,13 +354,13 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
       ]
     };
 
-    await this.sendMessage(chatId, message, 'Markdown', replyMarkup);
+    await this.sendMessage(chatId, message, 'Markdown', replyMarkup, messageThreadId);
   }
 
   /**
    * Enviar mensaje de comando desconocido
    */
-  private async sendUnknownCommandMessage(chatId: number) {
+  private async sendUnknownCommandMessage(chatId: number, messageThreadId?: number) {
     const message = `❓ **Comando no reconocido**
 
 📋 **Comandos disponibles:**
@@ -359,7 +369,7 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
 
 💡 Escribe \`/autoid\` para obtener tu ID.`;
 
-    await this.sendMessage(chatId, message, 'Markdown');
+    await this.sendMessage(chatId, message, 'Markdown', undefined, messageThreadId);
   }
 
   /**
@@ -369,7 +379,8 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
     chatId: number, 
     text: string, 
     parseMode: string = 'Markdown',
-    replyMarkup?: any
+    replyMarkup?: any,
+    messageThreadId?: number
   ) {
     if (!this.botToken) {
       console.error('❌ [TelegramBot] No hay token configurado, no se puede enviar mensaje');
@@ -383,6 +394,10 @@ Te ayuda a obtener tu ID de Telegram para configurarlo en el sistema y recibir n
         parse_mode: parseMode,
         disable_web_page_preview: true
       };
+
+      if (messageThreadId) {
+        body.message_thread_id = messageThreadId;
+      }
       
       if (replyMarkup) {
         body.reply_markup = replyMarkup;

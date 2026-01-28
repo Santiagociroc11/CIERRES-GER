@@ -455,6 +455,10 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [currentTelegramId, setCurrentTelegramId] = useState<string | null>(null);
   const [isLoadingTelegram, setIsLoadingTelegram] = useState(false);
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
+  const [telegramVerifyStatus, setTelegramVerifyStatus] = useState<{
+    status: 'idle' | 'checking' | 'ok' | 'no_chat_id' | 'no_token' | 'invalid_token' | 'chat_not_reachable' | 'error';
+    details?: string;
+  }>({ status: 'idle' });
   const [verificandoWhatsApp, setVerificandoWhatsApp] = useState(false);
   const [refreshAttempts, setRefreshAttempts] = useState(0);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
@@ -1435,6 +1439,31 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     }
   };
 
+  const verificarTelegramReal = async () => {
+    try {
+      setTelegramVerifyStatus({ status: 'checking' });
+      const resp = await fetch(`/api/hotmart/telegram/verify-advisor/${asesor.ID}`);
+      const data = await resp.json().catch(() => null);
+      const status = data?.success ? data?.data?.status : 'error';
+      const details = data?.success ? data?.data?.details : (data?.error || 'Error verificando Telegram');
+      setTelegramVerifyStatus({ status: status || 'error', details });
+    } catch (error) {
+      setTelegramVerifyStatus({
+        status: 'error',
+        details: error instanceof Error ? error.message : 'Error verificando Telegram'
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (currentTelegramId && String(currentTelegramId).trim()) {
+      verificarTelegramReal();
+    } else if (currentTelegramId === null) {
+      setTelegramVerifyStatus({ status: 'no_chat_id', details: 'No tienes ID_TG configurado' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTelegramId]);
+
   const loadTelegramBotConfig = async () => {
     try {
       const response = await fetch('/api/hotmart/config');
@@ -1555,7 +1584,11 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                 <span className="hidden lg:inline font-medium">Telegram</span>
                 {/* Indicador verde/rojo - siempre visible */}
                 <div className={`absolute -top-1 -right-1 w-3 h-3 border-2 border-white rounded-full ${
-                  currentTelegramId ? 'bg-green-500' : 'bg-red-500'
+                  telegramVerifyStatus.status === 'checking'
+                    ? 'bg-yellow-400'
+                    : telegramVerifyStatus.status === 'ok'
+                    ? 'bg-green-500'
+                    : 'bg-red-500'
                 }`}></div>
               </button>
 
@@ -1765,6 +1798,43 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
               
               {/* Estado actual */}
               <div className="mb-4">
+                {/* Verificación real */}
+                <div className="mb-3">
+                  <div className={`rounded-lg p-3 border ${
+                    telegramVerifyStatus.status === 'checking'
+                      ? 'bg-yellow-50 border-yellow-200'
+                      : telegramVerifyStatus.status === 'ok'
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-red-50 border-red-200'
+                  }`}>
+                    <p className={`text-sm font-medium ${
+                      telegramVerifyStatus.status === 'checking'
+                        ? 'text-yellow-800'
+                        : telegramVerifyStatus.status === 'ok'
+                        ? 'text-green-800'
+                        : 'text-red-800'
+                    }`}>
+                      {telegramVerifyStatus.status === 'checking' && 'Verificando Telegram...'}
+                      {telegramVerifyStatus.status === 'ok' && 'Telegram verificado (bot y chat accesible)'}
+                      {telegramVerifyStatus.status === 'no_chat_id' && 'Falta configurar tu ID_TG'}
+                      {telegramVerifyStatus.status === 'no_token' && 'El bot de Telegram no está configurado (token)'}
+                      {telegramVerifyStatus.status === 'invalid_token' && 'Token del bot inválido'}
+                      {telegramVerifyStatus.status === 'chat_not_reachable' && 'Tu chat no es alcanzable por el bot (abre el bot y presiona Start)'}
+                      {telegramVerifyStatus.status === 'error' && 'Error verificando Telegram'}
+                    </p>
+                    {telegramVerifyStatus.details && (
+                      <p className="text-xs text-gray-600 mt-1 break-words">{telegramVerifyStatus.details}</p>
+                    )}
+                    <button
+                      onClick={verificarTelegramReal}
+                      className="mt-2 text-xs font-medium text-blue-700 hover:text-blue-900 underline"
+                      type="button"
+                    >
+                      Revalidar ahora
+                    </button>
+                  </div>
+                </div>
+
                 {currentTelegramId ? (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                     <div className="flex items-center">

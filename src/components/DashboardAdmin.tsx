@@ -215,7 +215,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   
   const [conexionesEstado, setConexionesEstado] = useState<Record<number, {
     whatsapp: 'conectado' | 'desconectado' | 'conectando' | 'verificando';
-    telegram: boolean;
+    telegram: {
+      hasId: boolean;
+      status: 'verificando' | 'ok' | 'no_chat_id' | 'no_token' | 'invalid_token' | 'chat_not_reachable' | 'error';
+      details?: string;
+    };
   }>>({});
   
   // 🆕 Estados de carga y rendimiento
@@ -350,14 +354,22 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     
     const nuevosEstados: Record<number, {
       whatsapp: 'conectado' | 'desconectado' | 'conectando' | 'verificando';
-      telegram: boolean;
+      telegram: {
+        hasId: boolean;
+        status: 'verificando' | 'ok' | 'no_chat_id' | 'no_token' | 'invalid_token' | 'chat_not_reachable' | 'error';
+        details?: string;
+      };
     }> = {};
 
     // Inicializar estados
     asesoresData.forEach(asesor => {
+      const hasId = Boolean(asesor.ID_TG && asesor.ID_TG.trim());
       nuevosEstados[asesor.ID] = {
         whatsapp: 'verificando',
-        telegram: Boolean(asesor.ID_TG && asesor.ID_TG.trim())
+        telegram: {
+          hasId,
+          status: hasId ? 'verificando' : 'no_chat_id'
+        }
       };
     });
     
@@ -394,8 +406,52 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         }
       });
 
+      // Telegram: verificar por lote también (si tiene ID_TG)
+      const verificacionesTelegramBatch = batch.map(async (asesor) => {
+        const hasId = Boolean(asesor.ID_TG && asesor.ID_TG.trim());
+        if (!hasId) return;
+
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
+          const resp = await fetch(`/api/hotmart/telegram/verify-advisor/${asesor.ID}`, {
+            method: 'GET',
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          const data = await resp.json().catch(() => null);
+
+          const status = data?.success ? data?.data?.status : 'error';
+          const details = data?.success ? data?.data?.details : (data?.error || 'Error verificando Telegram');
+
+          setConexionesEstado(prev => ({
+            ...prev,
+            [asesor.ID]: {
+              ...prev[asesor.ID],
+              telegram: {
+                hasId: true,
+                status: status || 'error',
+                details
+              }
+            }
+          }));
+        } catch (error) {
+          setConexionesEstado(prev => ({
+            ...prev,
+            [asesor.ID]: {
+              ...prev[asesor.ID],
+              telegram: {
+                hasId: true,
+                status: 'error',
+                details: error instanceof Error ? error.message : 'Error verificando Telegram'
+              }
+            }
+          }));
+        }
+      });
+
       // Esperar que termine el lote antes de continuar con el siguiente
-      await Promise.allSettled(verificacionesBatch);
+      await Promise.allSettled([...verificacionesBatch, ...verificacionesTelegramBatch]);
       
       // Pequeña pausa entre lotes para no sobrecargar la API
       if (batches.indexOf(batch) < batches.length - 1) {
@@ -2658,7 +2714,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                    getAsesoresBajaCierre().length +
                    asesores.filter(asesor => {
                      const estado = conexionesEstado[asesor.ID];
-                     return estado?.whatsapp === 'desconectado' || !estado?.telegram;
+                     const telegramOk = estado?.telegram?.status === 'ok';
+                     return estado?.whatsapp === 'desconectado' || !telegramOk;
                    }).length} alertas
                 </span>
               </div>
@@ -2999,11 +3056,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                 {/* Conexiones Desconectadas */}
                 {asesores.filter(asesor => {
                   const estado = conexionesEstado[asesor.ID];
-                  return estado?.whatsapp === 'desconectado' || !estado?.telegram;
+                  const telegramOk = estado?.telegram?.status === 'ok';
+                  return estado?.whatsapp === 'desconectado' || !telegramOk;
                 }).map((asesor) => {
                   const estado = conexionesEstado[asesor.ID];
                   const whatsappDesconectado = estado?.whatsapp === 'desconectado';
-                  const telegramSinConfigurar = !estado?.telegram;
+                  const telegramSinConfigurar = estado?.telegram?.status !== 'ok';
                   
                   return (
                     <div key={`conexion-${asesor.ID}`} className="p-4 hover:bg-gray-50 transition-colors duration-150">
@@ -3024,7 +3082,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                               {telegramSinConfigurar && (
                                 <p className="text-sm text-orange-600 flex items-center">
                                   <Send className="h-3 w-3 mr-1" />
-                                  Telegram sin configurar
+                                  Telegram no verificado
                                 </p>
                               )}
                             </div>
@@ -3217,7 +3275,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                     <div className="text-right">
                       <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Conexiones COMPLETAS</div>
                       <div className="text-lg font-bold text-gray-900 mt-1">
-                        {Object.values(conexionesEstado).filter(c => c.whatsapp === 'conectado' && c.telegram).length}/
+                        {(Object.values(conexionesEstado) as any[]).filter(c => c.whatsapp === 'conectado' && c.telegram?.status === 'ok').length}/
                         {asesores.length}
                       </div>
                     </div>
@@ -3230,11 +3288,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="text-sm font-medium text-green-600">
-                          {Object.values(conexionesEstado).filter(c => c.whatsapp === 'conectado').length}
+                          {(Object.values(conexionesEstado) as any[]).filter(c => c.whatsapp === 'conectado').length}
                         </span>
                         <span className="text-xs text-gray-500">/</span>
                         <span className="text-sm font-medium text-red-600">
-                          {Object.values(conexionesEstado).filter(c => c.whatsapp === 'desconectado').length}
+                          {(Object.values(conexionesEstado) as any[]).filter(c => c.whatsapp === 'desconectado').length}
                         </span>
                       </div>
                     </div>
@@ -3245,11 +3303,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="text-sm font-medium text-green-600">
-                          {Object.values(conexionesEstado).filter(c => c.telegram).length}
+                          {(Object.values(conexionesEstado) as any[]).filter(c => c.telegram?.status === 'ok').length}
                         </span>
                         <span className="text-xs text-gray-500">/</span>
                         <span className="text-sm font-medium text-red-600">
-                          {Object.values(conexionesEstado).filter(c => !c.telegram).length}
+                          {(Object.values(conexionesEstado) as any[]).filter(c => c.telegram?.status !== 'ok').length}
                         </span>
                       </div>
                     </div>
@@ -3555,16 +3613,16 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                     <span className="text-xs font-medium">Telegram:</span>
                                     <div className="flex items-center space-x-1">
                                       <div className={`w-2 h-2 rounded-full ${
-                                        estadoConexion?.telegram 
+                                        estadoConexion?.telegram?.status === 'ok'
                                           ? 'bg-green-500' 
                                           : 'bg-red-500'
                                       }`}></div>
                                       <span className={`text-xs font-medium ${
-                                        estadoConexion?.telegram 
+                                        estadoConexion?.telegram?.status === 'ok'
                                           ? 'text-green-600' 
                                           : 'text-red-600'
                                       }`}>
-                                        {estadoConexion?.telegram ? 'Configurado' : 'Sin configurar'}
+                                        {estadoConexion?.telegram?.status === 'ok' ? 'Verificado' : 'No verificado'}
                                       </span>
                                     </div>
                                   </div>
@@ -3954,7 +4012,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                     </div>
                                     <div className="flex items-center space-x-2">
                                       <div className={`w-2 h-2 rounded-full ${
-                                        estadoConexion?.telegram ? 'bg-green-500' : 'bg-red-500'
+                                        estadoConexion?.telegram?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'
                                       }`}></div>
                                       <span className="text-xs">Telegram</span>
                                     </div>

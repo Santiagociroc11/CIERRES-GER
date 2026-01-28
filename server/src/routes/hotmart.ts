@@ -1996,6 +1996,146 @@ router.get('/advisors-with-telegram', async (_req, res) => {
   }
 });
 
+// ✅ Verificación REAL de Telegram por asesor (no solo "tiene valor")
+// - Valida que exista token del bot (getMe)
+// - Valida que el bot pueda "ver" el chat_id del asesor (getChat)
+router.get('/telegram/verify-advisor/:advisorId', async (req, res) => {
+  const advisorId = parseInt(req.params.advisorId, 10);
+  if (!advisorId || isNaN(advisorId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'ID del asesor inválido',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    const asesor = await getAsesorById(advisorId);
+    if (!asesor) {
+      return res.status(404).json({
+        success: false,
+        error: 'Asesor no encontrado',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const config = await getHotmartConfig();
+    const botToken = config?.tokens?.telegram;
+
+    if (!botToken) {
+      return res.json({
+        success: true,
+        data: {
+          advisorId,
+          advisorName: asesor.NOMBRE,
+          advisorTelegramId: asesor.ID_TG || null,
+          status: 'no_token',
+          ok: false,
+          details: 'TELEGRAM_BOT_TOKEN no configurado'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (!asesor.ID_TG || !String(asesor.ID_TG).trim()) {
+      return res.json({
+        success: true,
+        data: {
+          advisorId,
+          advisorName: asesor.NOMBRE,
+          advisorTelegramId: null,
+          status: 'no_chat_id',
+          ok: false,
+          details: 'El asesor no tiene ID_TG configurado'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const timeoutMs = 8000;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      // 1) Validar token
+      const meResp = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, {
+        signal: controller.signal
+      });
+      const meData: any = await meResp.json().catch(() => null);
+
+      if (!meResp.ok || !meData?.ok) {
+        return res.json({
+          success: true,
+          data: {
+            advisorId,
+            advisorName: asesor.NOMBRE,
+            advisorTelegramId: asesor.ID_TG,
+            status: 'invalid_token',
+            ok: false,
+            details: meData?.description || `HTTP ${meResp.status}`
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // 2) Validar acceso al chat del asesor
+      const chatId = String(asesor.ID_TG).trim();
+      const chatResp = await fetch(
+        `https://api.telegram.org/bot${botToken}/getChat?chat_id=${encodeURIComponent(chatId)}`,
+        { signal: controller.signal }
+      );
+      const chatData: any = await chatResp.json().catch(() => null);
+
+      if (!chatResp.ok || !chatData?.ok) {
+        return res.json({
+          success: true,
+          data: {
+            advisorId,
+            advisorName: asesor.NOMBRE,
+            advisorTelegramId: asesor.ID_TG,
+            status: 'chat_not_reachable',
+            ok: false,
+            details: chatData?.description || `HTTP ${chatResp.status}`
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          advisorId,
+          advisorName: asesor.NOMBRE,
+          advisorTelegramId: asesor.ID_TG,
+          status: 'ok',
+          ok: true,
+          bot: {
+            id: meData?.result?.id,
+            username: meData?.result?.username
+          },
+          chat: {
+            id: chatData?.result?.id,
+            type: chatData?.result?.type,
+            title: chatData?.result?.title || null,
+            username: chatData?.result?.username || null
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch (error) {
+    logger.error('Error verificando Telegram del asesor:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Error interno verificando Telegram',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Test individual de ManyChat - Buscar subscriber
 router.post('/test-manychat', async (req, res) => {
   try {

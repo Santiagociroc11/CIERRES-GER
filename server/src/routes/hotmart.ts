@@ -29,7 +29,8 @@ import { addSubscriberToFlodesk } from '../services/flodeskService';
 import { 
   sendTelegramMessage, 
   createVentaMessage, 
-  createAsesorNotificationMessage 
+  createAsesorNotificationMessage,
+  createTestConfirmMessage 
 } from '../services/telegramService';
 import { getCompleteBuyerData } from '../services/hotmartApiService';
 import { checkWhatsAppNumber } from '../services/evolutionService';
@@ -2483,6 +2484,98 @@ router.post('/test-telegram', async (req, res) => {
     
   } catch (error) {
     logger.error('Error en test de Telegram:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test de Telegram a TODOS los asesores con ID_TG (opcional: con botón "Confirmar OK")
+router.post('/test-telegram-all', async (req, res) => {
+  try {
+    const { withConfirmButton = false } = req.body;
+
+    const config = await getHotmartConfig();
+    if (!config?.tokens?.telegram) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token de Telegram no configurado',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const asesores = await getAsesores();
+    const asesoresConTelegram: { id: number; nombre: string; telegramId: string }[] = [];
+    for (const a of asesores) {
+      const full = await getAsesorById(a.ID);
+      if (full?.ID_TG && String(full.ID_TG).trim()) {
+        asesoresConTelegram.push({
+          id: full.ID,
+          nombre: full.NOMBRE,
+          telegramId: String(full.ID_TG).trim()
+        });
+      }
+    }
+
+    if (asesoresConTelegram.length === 0) {
+      return res.json({
+        success: true,
+        data: { sent: 0, total: 0, failed: [], withConfirmButton },
+        queueStats: telegramQueue.getQueueStats(),
+        message: 'No hay asesores con Telegram configurado',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const { markdownToHtml } = await import('../utils/telegramFormat');
+    const failed: { advisorId: number; nombre: string; error: string }[] = [];
+    let sent = 0;
+
+    for (const a of asesoresConTelegram) {
+      try {
+        const msg = withConfirmButton
+          ? createTestConfirmMessage(a.id, a.telegramId)
+          : createAsesorNotificationMessage(
+              'CARRITOS',
+              'Cliente de Prueba',
+              '57300000000',
+              a.telegramId,
+              'Test a todos desde Webhooks'
+            );
+        const html = markdownToHtml(msg.text);
+        telegramQueue.enqueueMessage(
+          msg.chat_id,
+          html,
+          undefined,
+          { type: 'test_all', advisorId: a.id, advisorName: a.nombre, withConfirmButton },
+          msg.reply_markup
+        );
+        sent++;
+      } catch (e) {
+        failed.push({
+          advisorId: a.id,
+          nombre: a.nombre,
+          error: e instanceof Error ? e.message : String(e)
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        sent,
+        total: asesoresConTelegram.length,
+        failed,
+        withConfirmButton
+      },
+      queueStats: telegramQueue.getQueueStats(),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error en test-telegram-all:', error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',

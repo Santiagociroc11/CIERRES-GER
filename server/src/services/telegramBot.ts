@@ -184,6 +184,10 @@ class TelegramBot {
    * Manejar callback queries (botones inline)
    */
   private async handleCallbackQuery(chatId: number, data: string, firstName: string, userId: number, messageThreadId?: number) {
+    if (data.startsWith('test_confirm:')) {
+      await this.sendMessage(chatId, '✅ Confirmado. Gracias.', 'Markdown', undefined, messageThreadId);
+      return;
+    }
     switch (data) {
       case 'get_autoid':
         await this.sendAutoIdMessage(chatId, firstName, userId, messageThreadId);

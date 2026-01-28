@@ -106,3 +106,21 @@ export function createAsesorNotificationMessage(
     }
   };
 }
+
+/**
+ * Mensaje de test con botón "Confirmar OK" para que el asesor confirme recepción.
+ * callback_data: test_confirm:{advisorId} (máx 64 bytes).
+ */
+export function createTestConfirmMessage(advisorId: number, chatId: string): TelegramMessage {
+  const text = `🧪 *Test de Telegram*\n\n¿Recibiste bien este mensaje? Presiona el botón para confirmar.`;
+  return {
+    chat_id: chatId,
+    text,
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [[
+        { text: '✅ Confirmar OK', callback_data: `test_confirm:${advisorId}` }
+      ]]
+    }
+  };
+}

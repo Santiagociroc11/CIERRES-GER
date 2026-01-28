@@ -18,7 +18,9 @@ import {
   Select,
   MenuItem,
   CircularProgress,
-  Collapse
+  Collapse,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import { Refresh, Save, RestoreFromTrash, Wifi, Search, Send, PersonAdd, Email, Telegram } from '@mui/icons-material';
 import { toast } from 'react-hot-toast';
@@ -127,6 +129,9 @@ const WebhookConfig: React.FC = () => {
     telegram: { loading: false, advisorId: '', messageType: 'test', clientName: '', result: null as any }
   });
   const [showTestSections, setShowTestSections] = useState(false);
+  const [testAllLoading, setTestAllLoading] = useState(false);
+  const [withConfirmButton, setWithConfirmButton] = useState(false);
+  const [testAllResult, setTestAllResult] = useState<{ sent: number; total: number; failed: { advisorId: number; nombre: string; error: string }[] } | null>(null);
 
   // Cargar configuración al montar el componente
   useEffect(() => {
@@ -802,6 +807,45 @@ const WebhookConfig: React.FC = () => {
         ...prev,
         telegram: { ...prev.telegram, loading: false }
       }));
+    }
+  };
+
+  const testTelegramAll = async () => {
+    if (!config?.tokens?.telegram) {
+      toast.error('No hay token de Telegram configurado');
+      return;
+    }
+    setTestAllLoading(true);
+    setTestAllResult(null);
+    try {
+      const res = await fetch('/api/hotmart/test-telegram-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ withConfirmButton })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        toast.error(data.error || 'Error enviando test a todos');
+        return;
+      }
+      const { sent, total, failed } = data.data || {};
+      setTestAllResult({ sent: sent ?? 0, total: total ?? 0, failed: failed ?? [] });
+      if (sent === 0 && (!total || total === 0)) {
+        toast('No hay asesores con Telegram configurado', { icon: '⚠️' });
+      } else if (failed?.length) {
+        toast(`Enviado a ${sent}/${total} asesores. ${failed.length} fallaron.`, { icon: '⚠️' });
+      } else {
+        toast.success(
+          withConfirmButton
+            ? `Test enviado a ${sent} asesores. Pueden confirmar con el botón.`
+            : `Test enviado a ${sent} asesores.`
+        );
+      }
+    } catch (e) {
+      toast.error('Error enviando test a todos');
+      setTestAllResult(null);
+    } finally {
+      setTestAllLoading(false);
     }
   };
 
@@ -1862,6 +1906,41 @@ const WebhookConfig: React.FC = () => {
                   </Button>
                 </Grid>
               </Grid>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Test a todos los asesores
+              </Typography>
+              <Box display="flex" flexWrap="wrap" alignItems="center" gap={2} mb={1}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={withConfirmButton}
+                      onChange={(e) => setWithConfirmButton(e.target.checked)}
+                      size="small"
+                    />
+                  }
+                  label="Incluir botón para que el asesor confirme (✓ Confirmar OK)"
+                />
+                <Button
+                  variant="contained"
+                  color="primary"
+                  size="small"
+                  onClick={testTelegramAll}
+                  disabled={testAllLoading}
+                  startIcon={testAllLoading ? <CircularProgress size={16} /> : <Send />}
+                >
+                  {testAllLoading ? 'Enviando...' : 'Enviar test a todos'}
+                </Button>
+              </Box>
+              {testAllResult && (
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Enviado a {testAllResult.sent}/{testAllResult.total} asesores
+                  {testAllResult.failed.length ? ` · ${testAllResult.failed.length} fallaron` : ''}
+                  {withConfirmButton ? ' · Los asesores pueden pulsar el botón para confirmar.' : ''}
+                </Typography>
+              )}
 
               {/* Resultado del test */}
               {testStates.telegram.result && (

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import winston from 'winston';
-import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData, getTodosClientesVIPPorAsesor, getClienteById, verificarVIPExistente, insertarVIPIndividual } from '../dbClient';
+import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guardarVIPsNuevos, getVIPsPendientes, asignarVIPAsesor, actualizarEstadoVIP, getVIPsPorAsesor, getVIPsEnSistema, getVIPsEnPipelinePorAsesor, getVIPsTableData, getTodosClientesVIPPorAsesor, getClienteById, getAsesorById, createCliente, verificarVIPExistente, insertarVIPIndividual } from '../dbClient';
 import telegramQueue from '../services/telegramQueueService';
 import { getPlatformUrl } from '../utils/platformUrl';
 import { markdownToHtml } from '../utils/telegramFormat';
@@ -95,6 +95,90 @@ router.post('/data', (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Crear cliente desde plataforma (tab Clientes) y notificar por Telegram al asesor asignado
+router.post('/clientes/crear', async (req, res) => {
+  try {
+    const { nombre, whatsapp, asesorId } = req.body;
+    if (!nombre || !whatsapp || !asesorId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requieren nombre, whatsapp y asesorId',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const asesor = await getAsesorById(Number(asesorId));
+    if (!asesor) {
+      return res.status(404).json({
+        success: false,
+        error: 'Asesor no encontrado',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const clienteData = {
+      NOMBRE: nombre.trim(),
+      WHATSAPP: String(whatsapp).trim(),
+      ID_ASESOR: Number(asesorId),
+      NOMBRE_ASESOR: asesor.NOMBRE,
+      WHA_ASESOR: asesor.WHATSAPP,
+      ESTADO: 'CREADO',
+      FECHA_CREACION: Math.floor(Date.now() / 1000)
+    };
+
+    const created = await createCliente(clienteData);
+    const nuevoCliente = Array.isArray(created) ? created[0] : created;
+    if (!nuevoCliente?.ID) {
+      return res.status(500).json({
+        success: false,
+        error: 'Error al crear el cliente',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (asesor.ID_TG) {
+      try {
+        const texto = `*CLIENTE CREADO Y ASIGNADO A TI* 👋\n\n👤 *Cliente:* ${clienteData.NOMBRE}\n📲 *WhatsApp:* ${clienteData.WHATSAPP}\n\nSe creó desde la plataforma y se te asignó.`;
+        const mensajeHtml = markdownToHtml(texto);
+        const whatsappLimpio = String(clienteData.WHATSAPP).replace(/\D/g, '');
+
+        telegramQueue.enqueueMessage(
+          asesor.ID_TG,
+          mensajeHtml,
+          undefined,
+          { type: 'cliente_creado_plataforma', asesor: asesor.NOMBRE, cliente: clienteData.NOMBRE, whatsapp: clienteData.WHATSAPP },
+          {
+            inline_keyboard: [
+              [{ text: 'IR AL CHAT', url: `https://wa.me/${whatsappLimpio}` }],
+              [{ text: 'Ir a la Plataforma', url: getPlatformUrl() }]
+            ]
+          }
+        );
+        logger.info('Notificación Telegram encolada por cliente creado en plataforma', {
+          asesor: asesor.NOMBRE,
+          cliente: clienteData.NOMBRE,
+          telegramId: asesor.ID_TG
+        });
+      } catch (err) {
+        logger.error('Error encolando notificación Telegram por cliente creado en plataforma', err);
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      data: nuevoCliente,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error en POST /clientes/crear:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al crear cliente',
       timestamp: new Date().toISOString()
     });
   }

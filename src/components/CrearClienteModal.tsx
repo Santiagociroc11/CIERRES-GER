@@ -66,19 +66,20 @@ const CrearClienteModal: React.FC<CrearClienteModalProps> = ({ asesores, onClose
     
     setLoading(true);
     try {
-      const nuevoCliente = {
-        NOMBRE: nombre,
-        WHATSAPP: whatsapp,
-        ID_ASESOR: asesorId,
-        ESTADO: 'CREADO',
-        FECHA_CREACION: Math.floor(Date.now() / 1000) // Agrega la fecha de creación en timestamp
-      };
-      await apiClient.request('/GERSSON_CLIENTES', 'POST', nuevoCliente);
-      onClienteCreado(); // refresca la data si es necesario
+      const res = await fetch('/api/clientes/crear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nombre.trim(), whatsapp: whatsapp.trim(), asesorId: Number(asesorId) })
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error || `Error ${res.status}`);
+      }
+      onClienteCreado();
       onClose();
     } catch (err) {
       console.error(err);
-      setError('Error al crear el cliente');
+      setError(err instanceof Error ? err.message : 'Error al crear el cliente');
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { Asesor, EstadisticasDetalladas, OrdenAsesor, AdminRole } from '../types';
 import { getEvolutionStatusConfig } from '../types/evolutionApi';
@@ -77,7 +77,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   const [reportes, setReportes] = useState<any[]>([]);
   const [registros, setRegistros] = useState<any[]>([]);
   const [conversaciones, setConversaciones] = useState<any[]>([]);
-  
+  const loadIdRef = useRef(0);
+
   // 🆕 Estados para Chat Global
   const [asesorSeleccionadoChat, setAsesorSeleccionadoChat] = useState<Asesor | null>(null);
   const [conversacionesChat, setConversacionesChat] = useState<any[]>([]);
@@ -473,7 +474,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     try {
       // 🚀 OPTIMIZACIÓN 1: Primero hacer un request para estimar el total
       const firstPageUrl = `${endpoint}?${filter}&limit=${pageSize}&offset=0`;
-      const firstPage = await apiClient.request<any[]>(firstPageUrl);
+      const rawFirst = await apiClient.request<any[]>(firstPageUrl);
+      const firstPage = Array.isArray(rawFirst) ? rawFirst : [];
       
       if (firstPage.length === 0) {
         console.log(`✅ ${endpoint}: 0 registros (${Math.round(performance.now() - startTime)}ms)`);
@@ -504,22 +506,25 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       const parallelResults = await Promise.all(parallelPromises);
       let allData = [...firstPage];
       
-      // Combinar resultados y verificar si necesitamos más páginas
+      // Combinar resultados y verificar si necesitamos más páginas (normalizar por si la API devuelve no-array)
       for (const pageData of parallelResults) {
-        if (pageData.length > 0) {
-          allData = [...allData, ...pageData];
+        const arr = Array.isArray(pageData) ? pageData : [];
+        if (arr.length > 0) {
+          allData = [...allData, ...arr];
         }
       }
       
       // 🚀 OPTIMIZACIÓN 4: Si la última página paralela está llena, continuar secuencialmente
       const lastParallelPage = parallelResults[parallelResults.length - 1];
-      if (lastParallelPage && lastParallelPage.length === pageSize) {
+      const lastParallelArr = Array.isArray(lastParallelPage) ? lastParallelPage : [];
+      if (lastParallelArr.length === pageSize) {
         let offset = (maxParallelRequests + 1) * pageSize;
         let hasMore = true;
         
         while (hasMore) {
           const url = `${endpoint}?${filter}&limit=${pageSize}&offset=${offset}`;
-          const pageData = await apiClient.request<any[]>(url);
+          const rawPage = await apiClient.request<any[]>(url);
+          const pageData = Array.isArray(rawPage) ? rawPage : [];
           
           if (pageData.length > 0) {
             allData = [...allData, ...pageData];
@@ -557,11 +562,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     const startTime = performance.now();
     
     try {
-      // Primer request para estimar tamaño
-      const sampleUrl = `${endpoint}?${filter}&limit=1`;
-      await apiClient.request<any[]>(sampleUrl);
-      
-      // Hacer 8 requests paralelos inmediatamente
+      // Hacer 8 requests paralelos desde el inicio (sin request de prueba para ahorrar 1 round-trip)
       const maxParallelRequests = 8;
       const parallelPromises: Promise<any[]>[] = [];
       
@@ -574,16 +575,18 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       const parallelResults = await Promise.all(parallelPromises);
       let allData: any[] = [];
       
-      // Combinar todos los resultados
+      // Combinar todos los resultados (normalizar cada página por si la API devuelve no-array)
       for (const pageData of parallelResults) {
-        if (pageData.length > 0) {
-          allData = [...allData, ...pageData];
+        const arr = Array.isArray(pageData) ? pageData : [];
+        if (arr.length > 0) {
+          allData = [...allData, ...arr];
         }
       }
       
       // Si la última página estaba llena, continuar con más requests
       const lastPage = parallelResults[parallelResults.length - 1];
-      if (lastPage && lastPage.length === pageSize) {
+      const lastPageArr = Array.isArray(lastPage) ? lastPage : [];
+      if (lastPageArr.length === pageSize) {
         let offset = maxParallelRequests * pageSize;
         let hasMore = true;
         
@@ -599,13 +602,15 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
           let foundData = false;
           
           for (const pageData of moreResults) {
-            if (pageData.length > 0) {
-              allData = [...allData, ...pageData];
+            const arr = Array.isArray(pageData) ? pageData : [];
+            if (arr.length > 0) {
+              allData = [...allData, ...arr];
               foundData = true;
             }
           }
-          
-          if (!foundData || moreResults[moreResults.length - 1].length < pageSize) {
+          const lastMore = moreResults[moreResults.length - 1];
+          const lastMoreArr = Array.isArray(lastMore) ? lastMore : [];
+          if (!foundData || lastMoreArr.length < pageSize) {
             hasMore = false;
           } else {
             offset += 4 * pageSize;
@@ -1562,81 +1567,108 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     );
   };
 
+  // Helper: asesores en paralelo (retorna array siempre)
+  const fetchAsesores = async (): Promise<any[]> => {
+    try {
+      const raw = await apiClient.request<any[]>('/GERSSON_ASESORES?select=*&order=NOMBRE');
+      return Array.isArray(raw) ? raw : [];
+    } catch (err) {
+      console.error("❌ Error cargando asesores:", err);
+      return [];
+    }
+  };
+
   const cargarDatos = async () => {
     const inicioTiempo = performance.now();
+    const thisLoadId = ++loadIdRef.current;
     setCargandoDatos(true);
     
     try {
-      console.log("🚀 Cargando datos desde PostgREST...");
+      console.log("🚀 Cargando datos desde PostgREST (optimizado: asesores + 4 en paralelo, conversaciones select mínimo)...");
       
-      // Paso 1: Obtener asesores ordenados por nombre
-      const asesoresData = await apiClient.request<any[]>('/GERSSON_ASESORES?select=*&order=NOMBRE');
-      if (!asesoresData || asesoresData.length === 0) return;
-      setAsesores(asesoresData);
-      console.log("✅ Asesores obtenidos:", asesoresData.length);
+      // 🚀 OPTIMIZACIÓN: Iniciar asesores + datos principales en paralelo (conversaciones con select mínimo)
+      const pAsesores = fetchAsesores();
+      const pClientes = fetchAllPages('/GERSSON_CLIENTES', 'select=*');
+      const pReportes = fetchAllPages('/GERSSON_REPORTES', 'select=*');
+      const pRegistros = fetchAllPages('/GERSSON_REGISTROS', 'select=*');
+      const pConversaciones = fetchAllPagesUltraFast('/conversaciones', 'select=id_asesor,id_cliente,timestamp,modo');
 
-      // 🚀 OPTIMIZACIÓN: Ejecutar verificaciones de conexión EN PARALELO, no en serie
-      // Las verificaciones de conexión se ejecutan en background sin bloquear la carga principal
-      setCargandoConexiones(true);
-      verificarEstadosConexion(asesoresData)
-        .catch(error => {
-          console.warn("⚠️ Error en verificaciones de conexión (no crítico):", error);
-        })
-        .finally(() => {
-          setCargandoConexiones(false);
-        });
-
-      // Paso 2: Cargar datos principales INMEDIATAMENTE (sin esperar verificaciones)
-      console.log("🔄 Cargando datos principales con estrategias optimizadas...");
-      
-      // 🚀 ESTRATEGIA OPTIMIZADA: Usar la función correcta según el tamaño esperado del dataset
-      const [clientesData, reportesData, registrosData, conversacionesData] = await Promise.all([
-        fetchAllPages('/GERSSON_CLIENTES', 'select=*'),           // Optimizada normal (clientes ~5k)
-        fetchAllPages('/GERSSON_REPORTES', 'select=*'),           // Optimizada normal (reportes ~10k)
-        fetchAllPages('/GERSSON_REGISTROS', 'select=*'),          // Optimizada normal (registros ~3k)
-        fetchAllPagesUltraFast('/conversaciones', 'select=*'),   // Ultra-fast (conversaciones >50k)
+      // Fase 1: No esperar conversaciones — pintar UI en cuanto tengamos asesores, clientes, reportes y registros
+      const [asesoresSettled, clientesSettled, reportesSettled, registrosSettled] = await Promise.allSettled([
+        pAsesores,
+        pClientes,
+        pReportes,
+        pRegistros,
       ]);
-      
-      console.log("✅ Datos principales cargados:", {
-        clientes: clientesData.length,
-        reportes: reportesData.length,
-        registros: registrosData.length,
-        conversaciones: conversacionesData.length
-      });
 
-      // Paso 3: Actualizar estado inmediatamente
+      const asesoresData = asesoresSettled.status === 'fulfilled' ? asesoresSettled.value : [];
+      const clientesData = clientesSettled.status === 'fulfilled' ? clientesSettled.value : [];
+      const reportesData = reportesSettled.status === 'fulfilled' ? reportesSettled.value : [];
+      const registrosData = registrosSettled.status === 'fulfilled' ? registrosSettled.value : [];
+
+      if (asesoresSettled.status === 'rejected') console.error("❌ Error cargando asesores:", asesoresSettled.reason);
+      if (clientesSettled.status === 'rejected') console.error("❌ Error cargando clientes:", clientesSettled.reason);
+      if (reportesSettled.status === 'rejected') console.error("❌ Error cargando reportes/ventas:", reportesSettled.reason);
+      if (registrosSettled.status === 'rejected') console.error("❌ Error cargando registros:", registrosSettled.reason);
+
+      setAsesores(asesoresData);
       setClientes(clientesData);
       setReportes(reportesData);
       setRegistros(registrosData);
-      setConversaciones(conversacionesData);
+      setConversaciones([]); // Se rellenará cuando lleguen conversaciones
 
-      // Paso 4: Calcular estadísticas
-      const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
-      asesoresData.forEach((asesor: any) => {
-        const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
-        const reportesAsesor = reportesData.filter((r: any) => r.ID_ASESOR === asesor.ID);
-        const conversacionesAsesor = conversacionesData.filter((c: any) => c.id_asesor === asesor.ID);
-        nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
-          clientesAsesor,
-          reportesAsesor,
-          conversacionesAsesor,
-          periodoSeleccionado,
-          fechaInicio,
-          fechaFin
-        );
-      });
-      setEstadisticas(nuevasEstadisticas);
-      
-      // 📊 Calcular tiempo de carga
-      const tiempoTotal = Math.round(performance.now() - inicioTiempo);
-      setTiempoCarga(tiempoTotal);
+      // Verificaciones de conexión en background (no bloquean)
+      if (asesoresData.length > 0) {
+        setCargandoConexiones(true);
+        verificarEstadosConexion(asesoresData)
+          .catch(error => console.warn("⚠️ Error en verificaciones de conexión (no crítico):", error))
+          .finally(() => setCargandoConexiones(false));
+      }
+
+      // Estadísticas iniciales sin conversaciones (UI usable de inmediato)
+      const aplicarEstadisticas = (conversacionesData: any[]) => {
+        const nuevasEstadisticas: Record<number, EstadisticasDetalladas> = {};
+        (asesoresData || []).forEach((asesor: any) => {
+          const clientesAsesor = clientesData.filter((c: any) => c.ID_ASESOR === asesor.ID);
+          const reportesAsesor = reportesData.filter((r: any) => r.ID_ASESOR === asesor.ID);
+          const conversacionesAsesor = conversacionesData.filter((c: any) => c.id_asesor === asesor.ID);
+          nuevasEstadisticas[asesor.ID] = calcularEstadisticasDetalladas(
+            clientesAsesor,
+            reportesAsesor,
+            conversacionesAsesor,
+            periodoSeleccionado,
+            fechaInicio,
+            fechaFin
+          );
+        });
+        setEstadisticas(nuevasEstadisticas);
+      };
+      aplicarEstadisticas([]);
+
+      const tiempoFase1 = Math.round(performance.now() - inicioTiempo);
+      setTiempoCarga(tiempoFase1);
       setLastUpdated(new Date());
-      
-      console.log(`✅ Dashboard listo en ${tiempoTotal}ms! Las verificaciones de conexión continúan en background.`);
+      setCargandoDatos(false);
+      console.log(`✅ Fase 1 listo en ${tiempoFase1}ms (asesores: ${asesoresData.length}, clientes: ${clientesData.length}, reportes: ${reportesData.length}). Conversaciones en background...`);
+
+      // Fase 2: Cuando lleguen conversaciones, actualizar estado y recalcular estadísticas (solo si sigue siendo la carga actual)
+      pConversaciones
+        .then((conversacionesData) => {
+          if (loadIdRef.current !== thisLoadId) return; // Nueva carga en curso, ignorar
+          setConversaciones(conversacionesData);
+          aplicarEstadisticas(conversacionesData);
+          const tiempoTotal = Math.round(performance.now() - inicioTiempo);
+          setTiempoCarga(tiempoTotal);
+          setLastUpdated(new Date());
+          console.log(`✅ Conversaciones cargadas (${conversacionesData.length}). Dashboard completo en ${tiempoTotal}ms.`);
+        })
+        .catch((err) => {
+          if (loadIdRef.current !== thisLoadId) return;
+          console.error("❌ Error cargando conversaciones:", err);
+        });
       
     } catch (error) {
       console.error("❌ Error al cargar datos:", error);
-    } finally {
       setCargandoDatos(false);
     }
   };

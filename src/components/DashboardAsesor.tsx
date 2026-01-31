@@ -463,6 +463,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [refreshAttempts, setRefreshAttempts] = useState(0);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const [hasShownInitialWarning, setHasShownInitialWarning] = useState(false);
+  const [cargandoDatos, setCargandoDatos] = useState(false);
   const MAX_REFRESH_ATTEMPTS = 10;
 
   const evolutionServerUrl = import.meta.env.VITE_EVOLUTIONAPI_URL;
@@ -757,6 +758,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   };
 
   const cargarDatos = async () => {
+    setCargandoDatos(true);
     try {
       console.log('Cargando datos para asesor:', asesor.ID);
       const clientesData = await apiClient.request<Cliente[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}`);
@@ -956,6 +958,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         tiempoPromedioConversion: 0,
         tasaRespuesta: 0
       });
+    } finally {
+      setCargandoDatos(false);
     }
   };
 
@@ -1683,7 +1687,15 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
       {/* Contenido Principal */}
       <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden relative">
+        {cargandoDatos && (
+          <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center rounded-2xl">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-gray-600">Cargando datos...</span>
+            </div>
+          </div>
+        )}
         {vistaActual === 'general' && (
           <ListaGeneralClientes
             clientes={clientes}

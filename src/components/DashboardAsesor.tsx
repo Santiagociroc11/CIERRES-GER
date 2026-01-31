@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiClient } from '../lib/apiClient';
+import { apiClient, withRetry } from '../lib/apiClient';
 import { Cliente, Asesor, Reporte, EstadisticasAsesor, EstadoCliente } from '../types';
 import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send, User, Smartphone, LogOut, Plus, Search, MessageCircle, Phone, Edit, CheckCircle, ShoppingCart } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
@@ -759,168 +759,127 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
 
   const cargarDatos = async () => {
     setCargandoDatos(true);
+    const retryOpt = { maxAttempts: 3, delayMs: 1500, exponentialBackoff: true };
     try {
       console.log('Cargando datos para asesor:', asesor.ID);
-      const clientesData = await apiClient.request<Cliente[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}`);
-      
-      // Cargar conversaciones salientes del asesor para determinar clientes atendidos
-      // Solo mensajes salientes (modo='saliente') indican que el asesor escribió primero
-      try {
-        const conversacionesData = await apiClient.request<any[]>(
-          `/conversaciones?id_asesor=eq.${asesor.ID}&modo=eq.saliente&select=id_cliente,wha_cliente`
-        );
-        setConversaciones(conversacionesData || []);
-      } catch (error) {
-        console.warn('⚠️ Error cargando conversaciones:', error);
-        setConversaciones([]);
-      }
+      // Carga en paralelo con reintentos (si uno falla, reintenta sin bloquear al resto)
+      const [clientesSettled, reportesSettled, conversacionesSettled] = await Promise.allSettled([
+        withRetry(() => apiClient.request<Cliente[]>(`/GERSSON_CLIENTES?ID_ASESOR=eq.${asesor.ID}`), retryOpt),
+        withRetry(() => apiClient.request<Reporte[]>(`/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*`), retryOpt),
+        withRetry(
+          () => apiClient.request<any[]>(`/conversaciones?id_asesor=eq.${asesor.ID}&modo=eq.saliente&select=id_cliente,wha_cliente`),
+          { ...retryOpt, maxAttempts: 2 }
+        ),
+      ]);
 
-      // Validar que clientesData sea un array antes de usarlo
-      if (!Array.isArray(clientesData)) {
-        console.error('❌ clientesData no es un array:', clientesData);
+      const clientesData = clientesSettled.status === 'fulfilled' ? clientesSettled.value : null;
+      let reportesData: Reporte[] = reportesSettled.status === 'fulfilled' && Array.isArray(reportesSettled.value) ? reportesSettled.value : [];
+      const conversacionesData = conversacionesSettled.status === 'fulfilled' && Array.isArray(conversacionesSettled.value) ? conversacionesSettled.value : [];
+
+      if (clientesSettled.status === 'rejected') console.error('❌ Error cargando clientes:', clientesSettled.reason);
+      if (reportesSettled.status === 'rejected') console.error('❌ Error cargando reportes:', reportesSettled.reason);
+      if (conversacionesSettled.status === 'rejected') console.warn('⚠️ Error cargando conversaciones:', conversacionesSettled.reason);
+
+      setConversaciones(conversacionesData);
+
+      if (!clientesData || !Array.isArray(clientesData)) {
+        console.error('❌ No se pudieron cargar clientes tras reintentos');
         setClientes([]);
         setReportes([]);
         setClientesSinReporte([]);
+        showToast('No se pudieron cargar los clientes. Reintenta en unos segundos.', 'error');
         return;
       }
-      
-      // Cargar reportes con select anidado (requiere foreign key en BD)
-      // Si falla, hacemos fallback a join manual
-      let reportesData: Reporte[] = [];
-      try {
-        // Intentar con select anidado (más eficiente si hay foreign key)
-        const reportesSinOrder = await apiClient.request<Reporte[]>(
-          `/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*,cliente:GERSSON_CLIENTES(*)`
-        );
-        
-        // Validar que sea un array
-        if (!Array.isArray(reportesSinOrder)) {
-          console.error('❌ reportesSinOrder no es un array:', reportesSinOrder);
-          reportesData = [];
-        } else {
-          // Ordenar por FECHA_SEGUIMIENTO en el cliente (ascendente, nulls al final)
-          reportesData = reportesSinOrder.sort((a, b) => {
-            const fechaA = a.FECHA_SEGUIMIENTO || 0;
-            const fechaB = b.FECHA_SEGUIMIENTO || 0;
-            return fechaA - fechaB;
-          });
-        }
-      } catch (error: any) {
-        // Fallback: cargar sin select anidado y hacer join manual
-        console.warn('⚠️ Select anidado falló, usando fallback con join manual:', error.message);
-        try {
-          const reportesSinOrder = await apiClient.request<Reporte[]>(
-            `/GERSSON_REPORTES?ID_ASESOR=eq.${asesor.ID}&select=*`
+
+      // Join manual reportes + clientes (si tenemos reportes)
+      if (reportesData.length > 0) {
+        const clientesMap = new Map(clientesData.map(c => [c.ID, c]));
+        reportesData = reportesData.map(reporte => ({
+          ...reporte,
+          cliente: clientesMap.get(reporte.ID_CLIENTE) || null
+        }));
+        reportesData.sort((a, b) => {
+          const fechaA = a.FECHA_SEGUIMIENTO || 0;
+          const fechaB = b.FECHA_SEGUIMIENTO || 0;
+          return fechaA - fechaB;
+        });
+      }
+
+      const clientesProcesados = clientesData.map(cliente => {
+        if (cliente.ESTADO === 'PAGADO' || cliente.ESTADO === 'VENTA CONSOLIDADA') {
+          const tieneReporteVenta = reportesData.some(r =>
+            r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO')
           );
-          
-          if (Array.isArray(reportesSinOrder)) {
-            // Hacer join manual con los clientes
-            const clientesMap = new Map(clientesData.map(c => [c.ID, c]));
-            reportesData = reportesSinOrder.map(reporte => ({
-              ...reporte,
-              cliente: clientesMap.get(reporte.ID_CLIENTE) || null
-            }));
-            
-            // Ordenar por FECHA_SEGUIMIENTO
-            reportesData.sort((a, b) => {
-              const fechaA = a.FECHA_SEGUIMIENTO || 0;
-              const fechaB = b.FECHA_SEGUIMIENTO || 0;
-              return fechaA - fechaB;
-            });
-          } else {
-            reportesData = [];
+          if (!tieneReporteVenta) {
+            const ultimoReporte = reportesData
+              .filter(r => r.ID_CLIENTE === cliente.ID)
+              .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
+            if (ultimoReporte) return { ...cliente, ESTADO: ultimoReporte.ESTADO_NUEVO as EstadoCliente };
           }
-        } catch (fallbackError: any) {
-          console.error('❌ Error en fallback de carga de reportes:', fallbackError);
-          reportesData = [];
         }
-      }
+        return cliente;
+      });
 
-      if (!Array.isArray(reportesData)) {
-        console.error('❌ reportesData no es un array:', reportesData);
-        setClientes(clientesData);
-        setReportes([]);
-        setClientesSinReporte(clientesData);
-        return;
-      }
+      setClientes(clientesProcesados);
+      setReportes(reportesData);
 
-      if (clientesData && reportesData) {
-        const clientesProcesados = clientesData.map(cliente => {
-          if (cliente.ESTADO === 'PAGADO' || cliente.ESTADO === 'VENTA CONSOLIDADA') {
-            const tieneReporteVenta = reportesData.some(r =>
-              r.ID_CLIENTE === cliente.ID && (r.ESTADO_NUEVO === 'PAGADO')
-            );
-            if (!tieneReporteVenta) {
-              const ultimoReporte = reportesData
-                .filter(r => r.ID_CLIENTE === cliente.ID)
-                .sort((a, b) => b.FECHA_REPORTE - a.FECHA_REPORTE)[0];
-              if (ultimoReporte) return { ...cliente, ESTADO: ultimoReporte.ESTADO_NUEVO as EstadoCliente };
-            }
-          }
-          return cliente;
-        });
+      const clientesConReporte = new Set(reportesData.map(r => r.ID_CLIENTE));
+      setClientesSinReporte(clientesProcesados.filter(c => !clientesConReporte.has(c.ID)));
 
-        setClientes(clientesProcesados);
-        setReportes(reportesData);
+      const uniqueVentasPrincipal = reportesData
+        .filter(r => (r.ESTADO_NUEVO === 'PAGADO') && r.PRODUCTO === 'PRINCIPAL')
+        .reduce((acc: Record<number, boolean>, r) => {
+          acc[r.ID_CLIENTE] = true;
+          return acc;
+        }, {});
+      const ventasPrincipal = Object.keys(uniqueVentasPrincipal).length;
 
-        const clientesConReporte = new Set(reportesData.map(r => r.ID_CLIENTE));
-        setClientesSinReporte(clientesProcesados.filter(c => !clientesConReporte.has(c.ID)));
+      const uniqueVentasDownsell = reportesData
+        .filter(r => (r.ESTADO_NUEVO === 'PAGADO' || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA') && r.PRODUCTO === 'DOWNSELL')
+        .reduce((acc: Record<number, boolean>, r) => {
+          acc[r.ID_CLIENTE] = true;
+          return acc;
+        }, {});
+      const ventasDownsell = Object.keys(uniqueVentasDownsell).length;
 
-        const uniqueVentasPrincipal = reportesData
-          .filter(r => (r.ESTADO_NUEVO === 'PAGADO') && r.PRODUCTO === 'PRINCIPAL')
-          .reduce((acc: Record<number, boolean>, r) => {
-            acc[r.ID_CLIENTE] = true;
-            return acc;
-          }, {});
-        const ventasPrincipal = Object.keys(uniqueVentasPrincipal).length;
+      const ventasRealizadas = ventasPrincipal + ventasDownsell;
+      const seguimientosPendientes = reportesData.filter(r =>
+        r.FECHA_SEGUIMIENTO &&
+        !r.COMPLETADO &&
+        r.FECHA_SEGUIMIENTO >= Math.floor(Date.now() / 1000)
+      ).length;
+      const seguimientosCompletados = reportesData.filter(r => r.COMPLETADO).length;
+      const totalSeguimientos = seguimientosPendientes + seguimientosCompletados;
 
-        const uniqueVentasDownsell = reportesData
-          .filter(r => (r.ESTADO_NUEVO === 'PAGADO' || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA') && r.PRODUCTO === 'DOWNSELL')
-          .reduce((acc: Record<number, boolean>, r) => {
-            acc[r.ID_CLIENTE] = true;
-            return acc;
-          }, {});
-        const ventasDownsell = Object.keys(uniqueVentasDownsell).length;
+      const ventasConFecha = reportesData.filter(r =>
+        (r.ESTADO_NUEVO === 'PAGADO' || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA') &&
+        r.cliente?.FECHA_CREACION &&
+        r.FECHA_REPORTE
+      );
+      const tiempoPromedioConversion = ventasConFecha.length > 0
+        ? ventasConFecha.reduce((acc, venta) => {
+            const tiempoConversion = venta.FECHA_REPORTE -
+              (typeof venta.cliente?.FECHA_CREACION === 'string'
+                ? parseInt(venta.cliente.FECHA_CREACION)
+                : venta.cliente?.FECHA_CREACION || 0);
+            return acc + tiempoConversion;
+          }, 0) / ventasConFecha.length / (24 * 60 * 60)
+        : 0;
+      const tasaRespuesta = totalSeguimientos > 0 ? (seguimientosCompletados / totalSeguimientos) * 100 : 0;
 
-        const ventasRealizadas = ventasPrincipal + ventasDownsell;
-        const seguimientosPendientes = reportesData.filter(r =>
-          r.FECHA_SEGUIMIENTO &&
-          !r.COMPLETADO &&
-          r.FECHA_SEGUIMIENTO >= Math.floor(Date.now() / 1000)
-        ).length;
-        const seguimientosCompletados = reportesData.filter(r => r.COMPLETADO).length;
-        const totalSeguimientos = seguimientosPendientes + seguimientosCompletados;
-
-        const ventasConFecha = reportesData.filter(r =>
-          (r.ESTADO_NUEVO === 'PAGADO' || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA') &&
-          r.cliente?.FECHA_CREACION &&
-          r.FECHA_REPORTE
-        );
-        const tiempoPromedioConversion = ventasConFecha.length > 0
-          ? ventasConFecha.reduce((acc, venta) => {
-              const tiempoConversion = venta.FECHA_REPORTE -
-                (typeof venta.cliente?.FECHA_CREACION === 'string'
-                  ? parseInt(venta.cliente.FECHA_CREACION)
-                  : venta.cliente?.FECHA_CREACION || 0);
-              return acc + tiempoConversion;
-            }, 0) / ventasConFecha.length / (24 * 60 * 60)
-          : 0;
-        const tasaRespuesta = totalSeguimientos > 0 ? (seguimientosCompletados / totalSeguimientos) * 100 : 0;
-
-        setEstadisticas({
-          totalClientes: clientesProcesados.length,
-          clientesReportados: clientesConReporte.size,
-          ventasRealizadas,
-          ventasPrincipal,
-          ventasDownsell,
-          seguimientosPendientes,
-          seguimientosCompletados,
-          porcentajeCierre: clientesProcesados.length ? (ventasRealizadas / clientesProcesados.length) * 100 : 0,
-          ventasPorMes: ventasRealizadas,
-          tiempoPromedioConversion,
-          tasaRespuesta
-        });
-      }
+      setEstadisticas({
+        totalClientes: clientesProcesados.length,
+        clientesReportados: clientesConReporte.size,
+        ventasRealizadas,
+        ventasPrincipal,
+        ventasDownsell,
+        seguimientosPendientes,
+        seguimientosCompletados,
+        porcentajeCierre: clientesProcesados.length ? (ventasRealizadas / clientesProcesados.length) * 100 : 0,
+        ventasPorMes: ventasRealizadas,
+        tiempoPromedioConversion,
+        tasaRespuesta
+      });
     } catch (error: any) {
       console.error('Error cargando datos:', error);
       

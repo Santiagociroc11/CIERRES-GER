@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { apiClient } from '../lib/apiClient';
+import { apiClient, withRetry } from '../lib/apiClient';
 import { Asesor, EstadisticasDetalladas, OrdenAsesor, AdminRole } from '../types';
 import { getEvolutionStatusConfig } from '../types/evolutionApi';
 import {
@@ -1586,12 +1586,13 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     try {
       console.log("🚀 Cargando datos desde PostgREST (optimizado: asesores + 4 en paralelo, conversaciones select mínimo)...");
       
-      // 🚀 OPTIMIZACIÓN: Iniciar asesores + datos principales en paralelo (conversaciones con select mínimo)
-      const pAsesores = fetchAsesores();
-      const pClientes = fetchAllPages('/GERSSON_CLIENTES', 'select=*');
-      const pReportes = fetchAllPages('/GERSSON_REPORTES', 'select=*');
-      const pRegistros = fetchAllPages('/GERSSON_REGISTROS', 'select=*');
-      const pConversaciones = fetchAllPagesUltraFast('/conversaciones', 'select=id_asesor,id_cliente,timestamp,modo');
+      // 🚀 OPTIMIZACIÓN: Iniciar asesores + datos principales en paralelo, con reintentos ante fallos
+      const retryOpt = { maxAttempts: 3, delayMs: 1500, exponentialBackoff: true };
+      const pAsesores = withRetry(() => fetchAsesores(), retryOpt);
+      const pClientes = withRetry(() => fetchAllPages('/GERSSON_CLIENTES', 'select=*'), retryOpt);
+      const pReportes = withRetry(() => fetchAllPages('/GERSSON_REPORTES', 'select=*'), retryOpt);
+      const pRegistros = withRetry(() => fetchAllPages('/GERSSON_REGISTROS', 'select=*'), retryOpt);
+      const pConversaciones = withRetry(() => fetchAllPagesUltraFast('/conversaciones', 'select=id_asesor,id_cliente,timestamp,modo'), { ...retryOpt, maxAttempts: 2 });
 
       // Fase 1: No esperar conversaciones — pintar UI en cuanto tengamos asesores, clientes, reportes y registros
       const [asesoresSettled, clientesSettled, reportesSettled, registrosSettled] = await Promise.allSettled([

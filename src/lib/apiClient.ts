@@ -80,6 +80,28 @@ if (!postgrestUrl) {
 
 export const apiClient = new APIClient(postgrestUrl || '');
 
+/** Reintenta una función que devuelve Promise. Útil para fallos intermitentes de red/servidor. */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: { maxAttempts?: number; delayMs?: number; exponentialBackoff?: boolean } = {}
+): Promise<T> {
+  const { maxAttempts = 3, delayMs = 1500, exponentialBackoff = true } = options;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        const wait = exponentialBackoff ? delayMs * Math.pow(2, attempt - 1) : delayMs;
+        console.warn(`⚠️ Intento ${attempt}/${maxAttempts} falló, reintento en ${wait}ms...`, err);
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+  }
+  throw lastError;
+}
+
 // Definición de tipos para mayor claridad y seguridad en tiempo de compilación
 export type Reporte = {
   ID_CLIENTE: string;

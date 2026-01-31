@@ -294,64 +294,39 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
   //   }
   // };
 
-  // Función para verificar estado de WhatsApp de un asesor
-  const verificarEstadoWhatsApp = async (nombreAsesor: string): Promise<'conectado' | 'desconectado' | 'conectando'> => {
+  /** Una sola llamada a Evolution API: obtiene todas las instancias y devuelve mapa nombre → estado */
+  const fetchAllWhatsAppStates = async (): Promise<Record<string, 'conectado' | 'desconectado' | 'conectando'>> => {
+    const map: Record<string, 'conectado' | 'desconectado' | 'conectando'> = {};
+    if (!evolutionServerUrl || !evolutionApiKey) return map;
     try {
-      if (!evolutionServerUrl || !evolutionApiKey) {
-        return 'desconectado';
-      }
-
-      const instanceName = encodeURIComponent(nombreAsesor);
-      const url = `${evolutionServerUrl}/instance/fetchInstances?instanceName=${instanceName}`;
-      
-      // ⚡ OPTIMIZACIÓN: Agregar timeout de 5 segundos para evitar que una verificación lenta bloquee las demás
-      const timeoutController = new AbortController();
-      const timeoutId = setTimeout(() => timeoutController.abort(), 20000);
-      
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": evolutionApiKey,
-        },
-        signal: timeoutController.signal
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch(`${evolutionServerUrl}/instance/fetchInstances`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+        signal: controller.signal
       });
-
       clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        return 'desconectado';
-      }
-
+      if (!response.ok) return map;
       const data = await response.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const instance = data[0];
-        // const statusConfig = getEvolutionStatusConfig(instance.connectionStatus);
-        
-        // Mapear a los estados simplificados que usa el admin
-        if (instance.connectionStatus === "open") {
-          return 'conectado';
-        } else if (instance.connectionStatus === "connecting") {
-          return 'conectando';
-        } else {
-          return 'desconectado';
-        }
+      if (!Array.isArray(data)) return map;
+      for (const instance of data) {
+        const name = instance.instanceName ?? instance.instance ?? instance.name ?? '';
+        if (!name) continue;
+        const status = instance.connectionStatus;
+        if (status === 'open') map[name] = 'conectado';
+        else if (status === 'connecting' || status === 'qr' || status === 'loading') map[name] = 'conectando';
+        else map[name] = 'desconectado';
       }
-      
-      return 'desconectado';
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.warn(`⏱️ Timeout verificando WhatsApp para ${nombreAsesor} (5s)`);
-      } else {
-        console.warn(`⚠️ Error verificando WhatsApp para ${nombreAsesor}:`, error);
-      }
-      return 'desconectado';
+    } catch (e) {
+      console.warn('⚠️ Error obteniendo instancias WhatsApp:', e);
     }
+    return map;
   };
 
-  // 🚀 OPTIMIZACIÓN: Función para verificar estados de conexión de forma más eficiente
+  // 🚀 Verificación rápida: 1 request WhatsApp (todas las instancias) + Telegram en paralelo sin pausas
   const verificarEstadosConexion = async (asesoresData: Asesor[]) => {
-    console.log(`🔍 Iniciando verificaciones de conexión para ${asesoresData.length} asesores (en background)...`);
+    console.log(`🔍 Verificando conexiones para ${asesoresData.length} asesores (modo rápido)...`);
     
     const nuevosEstados: Record<number, {
       whatsapp: 'conectado' | 'desconectado' | 'conectando' | 'verificando';
@@ -362,78 +337,46 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       };
     }> = {};
 
-    // Inicializar estados
     asesoresData.forEach(asesor => {
       const hasId = Boolean(asesor.ID_TG && asesor.ID_TG.trim());
       nuevosEstados[asesor.ID] = {
         whatsapp: 'verificando',
-        telegram: {
-          hasId,
-          status: hasId ? 'verificando' : 'no_chat_id'
-        }
+        telegram: { hasId, status: hasId ? 'verificando' : 'no_chat_id' }
       };
     });
-    
     setConexionesEstado(nuevosEstados);
 
-    // ⚡ OPTIMIZACIÓN: Procesar verificaciones en lotes de 3 para no sobrecargar la API
-    const BATCH_SIZE = 5;
-    const batches = [];
-    for (let i = 0; i < asesoresData.length; i += BATCH_SIZE) {
-      batches.push(asesoresData.slice(i, i + BATCH_SIZE));
-    }
-
-    for (const batch of batches) {
-      const verificacionesBatch = batch.map(async (asesor) => {
-        try {
-          const estadoWhatsApp = await verificarEstadoWhatsApp(asesor.NOMBRE);
-          setConexionesEstado(prev => ({
-            ...prev,
-            [asesor.ID]: {
-              ...prev[asesor.ID],
-              whatsapp: estadoWhatsApp
-            }
-          }));
-          console.log(`✅ WhatsApp ${asesor.NOMBRE}: ${estadoWhatsApp}`);
-        } catch (error) {
-          console.warn(`❌ Error verificando ${asesor.NOMBRE}:`, error);
-          setConexionesEstado(prev => ({
-            ...prev,
-            [asesor.ID]: {
-              ...prev[asesor.ID],
-              whatsapp: 'desconectado'
-            }
-          }));
-        }
+    // 1) WhatsApp: una sola llamada para todas las instancias
+    const whatsappMap = await fetchAllWhatsAppStates();
+    setConexionesEstado(prev => {
+      const next = { ...prev };
+      asesoresData.forEach(asesor => {
+        const estado = whatsappMap[asesor.NOMBRE] ?? 'desconectado';
+        if (next[asesor.ID]) next[asesor.ID] = { ...next[asesor.ID], whatsapp: estado };
       });
+      return next;
+    });
 
-      // Telegram: verificar por lote también (si tiene ID_TG)
-      const verificacionesTelegramBatch = batch.map(async (asesor) => {
-        const hasId = Boolean(asesor.ID_TG && asesor.ID_TG.trim());
-        if (!hasId) return;
-
+    // 2) Telegram: todos en paralelo (sin lotes ni pausas), timeout 6s
+    const telegramPromises = asesoresData
+      .filter(a => Boolean(a.ID_TG && a.ID_TG.trim()))
+      .map(async (asesor) => {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000);
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
           const resp = await fetch(`/api/hotmart/telegram/verify-advisor/${asesor.ID}`, {
             method: 'GET',
             signal: controller.signal
           });
           clearTimeout(timeoutId);
           const data = await resp.json().catch(() => null);
-
           const status = data?.success ? data?.data?.status : 'error';
           const details = data?.success ? data?.data?.details : (data?.error || 'Error verificando Telegram');
-
           setConexionesEstado(prev => ({
             ...prev,
             [asesor.ID]: {
               ...prev[asesor.ID],
-              telegram: {
-                hasId: true,
-                status: status || 'error',
-                details
-              }
+              telegram: { hasId: true, status: status || 'error', details }
             }
           }));
         } catch (error) {
@@ -451,16 +394,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         }
       });
 
-      // Esperar que termine el lote antes de continuar con el siguiente
-      await Promise.allSettled([...verificacionesBatch, ...verificacionesTelegramBatch]);
-      
-      // Pequeña pausa entre lotes para no sobrecargar la API
-      if (batches.indexOf(batch) < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-    }
-    
-    console.log("✅ Verificaciones de conexión completadas");
+    await Promise.allSettled(telegramPromises);
+    console.log('✅ Verificaciones de conexión completadas');
   };
 
   const fetchAllPages = async (

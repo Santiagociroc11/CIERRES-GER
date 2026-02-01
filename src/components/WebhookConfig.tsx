@@ -20,9 +20,13 @@ import {
   CircularProgress,
   Collapse,
   Checkbox,
-  FormControlLabel
+  FormControlLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
-import { Refresh, Save, RestoreFromTrash, Wifi, Search, Send, PersonAdd, Email, Telegram } from '@mui/icons-material';
+import { Refresh, Save, RestoreFromTrash, Wifi, Search, Send, PersonAdd, Email, Telegram, Lock, Security } from '@mui/icons-material';
 import { toast } from 'react-hot-toast';
 
 interface HotmartConfig {
@@ -80,6 +84,13 @@ interface CuposVipConfig {
   };
 }
 
+interface AuditoriaConfig {
+  claveAccesoModal?: string;
+  claveAccesoPanel?: string;
+  requiereDosAuditores?: boolean;
+  auditores?: Array<{ clave: string; nombre: string }>;
+}
+
 interface Advisor {
   id: number;
   nombre: string;
@@ -132,6 +143,14 @@ const WebhookConfig: React.FC = () => {
   const [testAllLoading, setTestAllLoading] = useState(false);
   const [withConfirmButton, setWithConfirmButton] = useState(false);
   const [testAllResult, setTestAllResult] = useState<{ sent: number; total: number; failed: { advisorId: number; nombre: string; error: string }[] } | null>(null);
+
+  // Estado para configuración de auditoría
+  const [showAuditoriaModal, setShowAuditoriaModal] = useState(false);
+  const [auditoriaUnlocked, setAuditoriaUnlocked] = useState(false);
+  const [auditoriaConfig, setAuditoriaConfig] = useState<AuditoriaConfig | null>(null);
+  const [auditoriaClaveInput, setAuditoriaClaveInput] = useState('');
+  const [auditoriaLoading, setAuditoriaLoading] = useState(false);
+  const [auditoriaSaving, setAuditoriaSaving] = useState(false);
 
   // Cargar configuración al montar el componente
   useEffect(() => {
@@ -246,6 +265,106 @@ const WebhookConfig: React.FC = () => {
     } finally {
       setCuposVipLoading(false);
     }
+  };
+
+  const loadAuditoriaConfig = async () => {
+    try {
+      const response = await fetch('/api/auditoria/config');
+      const data = await response.json();
+      if (data.success) {
+        setAuditoriaConfig(data.data);
+      } else {
+        throw new Error(data.error || 'Error cargando configuración');
+      }
+    } catch (error) {
+      console.error('Error cargando configuración de auditoría:', error);
+      setAuditoriaConfig({
+        claveAccesoModal: 'auditortd2025',
+        claveAccesoPanel: 'auditortd2025',
+        requiereDosAuditores: true,
+        auditores: [
+          { clave: '0911', nombre: 'Auditor Principal' },
+          { clave: '092501', nombre: 'Auditor Secundario' }
+        ]
+      });
+    }
+  };
+
+  const verifyAuditoriaClave = async () => {
+    if (!auditoriaClaveInput.trim()) {
+      toast.error('Ingrese la clave de acceso');
+      return;
+    }
+    try {
+      setAuditoriaLoading(true);
+      const response = await fetch('/api/auditoria/verify-clave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave: auditoriaClaveInput })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAuditoriaUnlocked(true);
+        setAuditoriaClaveInput('');
+        await loadAuditoriaConfig();
+        toast.success('Acceso concedido');
+      } else {
+        toast.error('Clave incorrecta');
+      }
+    } catch (error) {
+      console.error('Error verificando clave:', error);
+      toast.error('Error al verificar la clave');
+    } finally {
+      setAuditoriaLoading(false);
+    }
+  };
+
+  const saveAuditoriaConfig = async () => {
+    if (!auditoriaConfig) return;
+    try {
+      setAuditoriaSaving(true);
+      const response = await fetch('/api/auditoria/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(auditoriaConfig)
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAuditoriaConfig(data.data);
+        toast.success('Configuración de auditoría guardada');
+      } else {
+        throw new Error(data.error || 'Error guardando');
+      }
+    } catch (error) {
+      console.error('Error guardando auditoría:', error);
+      toast.error('Error al guardar la configuración');
+    } finally {
+      setAuditoriaSaving(false);
+    }
+  };
+
+  const handleOpenAuditoriaModal = () => {
+    setShowAuditoriaModal(true);
+    setAuditoriaUnlocked(false);
+    setAuditoriaClaveInput('');
+  };
+
+  const handleCloseAuditoriaModal = () => {
+    setShowAuditoriaModal(false);
+    setAuditoriaUnlocked(false);
+    setAuditoriaClaveInput('');
+  };
+
+  const handleAuditoriaConfigChange = (field: keyof AuditoriaConfig, value: any) => {
+    if (!auditoriaConfig) return;
+    setAuditoriaConfig({ ...auditoriaConfig, [field]: value });
+  };
+
+  const handleAuditorChange = (index: number, field: 'clave' | 'nombre', value: string) => {
+    if (!auditoriaConfig?.auditores) return;
+    const newAuditores = [...auditoriaConfig.auditores];
+    newAuditores[index] = { ...newAuditores[index], [field]: value };
+    setAuditoriaConfig({ ...auditoriaConfig, auditores: newAuditores });
   };
 
   const loadAdvisors = async () => {
@@ -1635,6 +1754,140 @@ const WebhookConfig: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Configuración de Auditoría */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">
+              <Security sx={{ verticalAlign: 'middle', mr: 1 }} />
+              Configuración de Auditoría
+            </Typography>
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<Lock />}
+              onClick={handleOpenAuditoriaModal}
+            >
+              Configurar
+            </Button>
+          </Box>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Configura las claves de auditores, si se requieren 1 o 2 auditores, y la contraseña de acceso al panel de auditoría. Requiere clave para acceder.
+          </Typography>
+        </CardContent>
+      </Card>
+
+      {/* Modal de Configuración de Auditoría */}
+      <Dialog open={showAuditoriaModal} onClose={handleCloseAuditoriaModal} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {auditoriaUnlocked ? 'Configuración de Auditoría' : 'Acceso a Configuración de Auditoría'}
+        </DialogTitle>
+        <DialogContent>
+          {!auditoriaUnlocked ? (
+            <Box pt={1}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Ingrese la clave de acceso para configurar la auditoría.
+              </Typography>
+              <TextField
+                fullWidth
+                type="password"
+                label="Clave de acceso"
+                value={auditoriaClaveInput}
+                onChange={(e) => setAuditoriaClaveInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && verifyAuditoriaClave()}
+                placeholder="Ingrese la clave"
+                disabled={auditoriaLoading}
+              />
+            </Box>
+          ) : auditoriaConfig ? (
+            <Box pt={1}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Configure las claves y opciones del sistema de auditoría.
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    type="password"
+                    label="Clave para abrir este modal"
+                    value={auditoriaConfig.claveAccesoModal || ''}
+                    onChange={(e) => handleAuditoriaConfigChange('claveAccesoModal', e.target.value)}
+                    size="small"
+                    helperText="Clave para acceder a esta configuración en el futuro"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    type="password"
+                    label="Clave de acceso al panel de auditoría"
+                    value={auditoriaConfig.claveAccesoPanel || ''}
+                    onChange={(e) => handleAuditoriaConfigChange('claveAccesoPanel', e.target.value)}
+                    size="small"
+                    helperText="Contraseña para acceder al Panel de Auditoría (AuditorLogin)"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={auditoriaConfig.requiereDosAuditores ?? true}
+                        onChange={(e) => handleAuditoriaConfigChange('requiereDosAuditores', e.target.checked)}
+                      />
+                    }
+                    label="Requerir 2 auditores para verificar ventas"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2" gutterBottom>Claves de auditores (para verificar ventas)</Typography>
+                  {(auditoriaConfig.auditores || []).map((aud, i) => (
+                    <Box key={i} sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                      <TextField
+                        label={`Clave Auditor ${i + 1}`}
+                        value={aud.clave}
+                        onChange={(e) => handleAuditorChange(i, 'clave', e.target.value)}
+                        size="small"
+                        type="password"
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        label="Nombre"
+                        value={aud.nombre}
+                        onChange={(e) => handleAuditorChange(i, 'nombre', e.target.value)}
+                        size="small"
+                        sx={{ flex: 1 }}
+                      />
+                    </Box>
+                  ))}
+                </Grid>
+              </Grid>
+            </Box>
+          ) : (
+            <Box py={3} display="flex" justifyContent="center">
+              <CircularProgress />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {!auditoriaUnlocked ? (
+            <>
+              <Button onClick={handleCloseAuditoriaModal}>Cancelar</Button>
+              <Button variant="contained" onClick={verifyAuditoriaClave} disabled={auditoriaLoading}>
+                {auditoriaLoading ? 'Verificando...' : 'Entrar'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={handleCloseAuditoriaModal}>Cerrar</Button>
+              <Button variant="contained" color="primary" onClick={saveAuditoriaConfig} disabled={auditoriaSaving} startIcon={<Save />}>
+                {auditoriaSaving ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </>
+          )}
+        </DialogActions>
+      </Dialog>
 
       {/* Secciones de Test Individuales */}
       <Collapse in={showTestSections} timeout={400}>

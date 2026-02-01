@@ -59,6 +59,12 @@ export interface WebhookConfig {
       threadId?: string; // ID del tema/hilo dentro del grupo
     };
   };
+  auditoria: {
+    claveAccesoModal?: string; // Clave para abrir el modal de configuración
+    claveAccesoPanel?: string; // Clave para AuditorLogin (acceso al panel)
+    requiereDosAuditores?: boolean; // true = 2 auditores, false = 1 solo
+    auditores?: Array<{ clave: string; nombre: string }>; // Claves y nombres de auditores
+  };
   // Aquí puedes agregar más plataformas en el futuro
   // stripe: { ... }
   // paypal: { ... }
@@ -103,6 +109,15 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
       console.log('No hay configuración de cupos VIP en BD, usando vacía');
       cuposVipConfig = {};
     }
+
+    // Intentar cargar configuración de auditoría
+    let auditoriaConfig;
+    try {
+      auditoriaConfig = await getWebhookConfigFromDB('auditoria');
+    } catch (error) {
+      console.log('No hay configuración de auditoría en BD, usando vacía');
+      auditoriaConfig = {};
+    }
     
     if (hotmartConfig && Object.keys(hotmartConfig).length > 0) {
       console.log('Configuración cargada exitosamente desde base de datos');
@@ -125,7 +140,8 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
         },
         cuposVip: {
           telegram: cuposVipConfig?.telegram || {}
-        }
+        },
+        auditoria: (auditoriaConfig?.config || auditoriaConfig?.general || auditoriaConfig) || {}
       };
       
       return config;
@@ -149,7 +165,8 @@ export async function loadWebhookConfig(): Promise<WebhookConfig> {
         },
         cuposVip: {
           telegram: {}
-        }
+        },
+        auditoria: {}
       };
     }
   } catch (error) {
@@ -378,6 +395,56 @@ export async function updateCuposVipConfig(cuposVipConfig: WebhookConfig['cuposV
     return updateResult;
   } catch (error) {
     console.error('Error actualizando configuración de Cupos VIP:', error);
+    return false;
+  }
+}
+
+// Clave por defecto para acceso al modal de auditoría (primera vez)
+const CLAVE_ACCESO_MODAL_DEFAULT = 'auditortd2025';
+
+// Función para obtener configuración específica de Auditoría
+export async function getAuditoriaConfig(): Promise<WebhookConfig['auditoria']> {
+  const config = await loadWebhookConfig();
+  const auditoria = config.auditoria || {};
+  // Valores por defecto si no hay configuración
+  return {
+    claveAccesoModal: auditoria.claveAccesoModal ?? CLAVE_ACCESO_MODAL_DEFAULT,
+    claveAccesoPanel: auditoria.claveAccesoPanel ?? CLAVE_ACCESO_MODAL_DEFAULT,
+    requiereDosAuditores: auditoria.requiereDosAuditores ?? true,
+    auditores: auditoria.auditores && auditoria.auditores.length > 0
+      ? auditoria.auditores
+      : [
+          { clave: '0911', nombre: 'Auditor Principal' },
+          { clave: '092501', nombre: 'Auditor Secundario' }
+        ]
+  };
+}
+
+// Verificar clave de acceso al modal de configuración
+export async function verificarClaveAccesoAuditoria(clave: string): Promise<boolean> {
+  const config = await getAuditoriaConfig();
+  const claveCorrecta = config.claveAccesoModal || CLAVE_ACCESO_MODAL_DEFAULT;
+  return clave === claveCorrecta;
+}
+
+// Función para actualizar configuración específica de Auditoría
+export async function updateAuditoriaConfig(auditoriaConfig: WebhookConfig['auditoria']): Promise<boolean> {
+  try {
+    console.log('Actualizando configuración de Auditoría en BD...');
+    const configValue = {
+      claveAccesoModal: auditoriaConfig?.claveAccesoModal || CLAVE_ACCESO_MODAL_DEFAULT,
+      claveAccesoPanel: auditoriaConfig?.claveAccesoPanel || CLAVE_ACCESO_MODAL_DEFAULT,
+      requiereDosAuditores: auditoriaConfig?.requiereDosAuditores ?? true,
+      auditores: auditoriaConfig?.auditores || [
+        { clave: '0911', nombre: 'Auditor Principal' },
+        { clave: '092501', nombre: 'Auditor Secundario' }
+      ]
+    };
+    const updateResult = await updateWebhookConfigInDB('auditoria', 'config', configValue, 'system');
+    console.log('Configuración de Auditoría actualizada:', updateResult);
+    return updateResult;
+  } catch (error) {
+    console.error('Error actualizando configuración de Auditoría:', error);
     return false;
   }
 }

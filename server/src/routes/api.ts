@@ -4,7 +4,7 @@ import { getConversacionesPorAsesor, getMensajesConversacion, procesarVIPs, guar
 import telegramQueue from '../services/telegramQueueService';
 import { getPlatformUrl } from '../utils/platformUrl';
 import { markdownToHtml } from '../utils/telegramFormat';
-import { getHotmartConfig, getPagosExternosConfig, getCuposVipConfig, updateCuposVipConfig } from '../config/webhookConfig';
+import { getHotmartConfig, getPagosExternosConfig, getCuposVipConfig, updateCuposVipConfig, getAuditoriaConfig, updateAuditoriaConfig, verificarClaveAccesoAuditoria } from '../config/webhookConfig';
 
 const router = Router();
 const logger = winston.createLogger({
@@ -1780,6 +1780,87 @@ router.put('/pagos-externos/config', async (req, res) => {
         note: 'Algunos cambios podrían haberse guardado parcialmente. Revisa la configuración actual.',
         currentConfig: currentConfig || 'No disponible'
       },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para verificar clave de acceso al modal de auditoría
+router.post('/auditoria/verify-clave', async (req, res) => {
+  try {
+    const { clave } = req.body || {};
+    if (!clave || typeof clave !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Clave requerida',
+        timestamp: new Date().toISOString()
+      });
+    }
+    const valido = await verificarClaveAccesoAuditoria(clave.trim());
+    res.json({
+      success: valido,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error verificando clave de auditoría', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para obtener la configuración de auditoría
+router.get('/auditoria/config', async (_req, res) => {
+  try {
+    const config = await getAuditoriaConfig();
+    res.json({
+      success: true,
+      data: config,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error obteniendo configuración de auditoría', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Endpoint para actualizar la configuración de auditoría
+router.put('/auditoria/config', async (req, res) => {
+  try {
+    const { body } = req;
+    if (!body) {
+      return res.status(400).json({
+        success: false,
+        error: 'Configuración requerida',
+        timestamp: new Date().toISOString()
+      });
+    }
+    const success = await updateAuditoriaConfig(body);
+    if (success) {
+      res.json({
+        success: true,
+        message: 'Configuración de auditoría actualizada',
+        data: await getAuditoriaConfig(),
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Error guardando configuración',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    logger.error('Error actualizando configuración de auditoría', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
       timestamp: new Date().toISOString()
     });
   }

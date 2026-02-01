@@ -1,17 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock } from 'lucide-react';
 
 interface AuditorLoginProps {
   onLogin: () => void;
 }
 
+const CLAVE_DEFAULT = 'auditortd2025';
+
 export default function AuditorLogin({ onLogin }: AuditorLoginProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [claveCorrecta, setClaveCorrecta] = useState<string>(CLAVE_DEFAULT);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/auditoria/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data?.claveAccesoPanel) {
+          setClaveCorrecta(data.data.claveAccesoPanel);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'auditortd2025') {
+    if (password === claveCorrecta) {
       onLogin();
     } else {
       setError('Contraseña incorrecta');
@@ -56,9 +72,10 @@ export default function AuditorLogin({ onLogin }: AuditorLoginProps) {
 
           <button
             type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+            disabled={loading}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
           >
-            Ingresar
+            {loading ? 'Cargando...' : 'Ingresar'}
           </button>
         </form>
       </div>

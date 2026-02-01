@@ -509,10 +509,12 @@ function ClientesAsesorModal({
 /* ––––––– MODAL: Verificar Venta con Decisión ––––––– */
 interface ModalVerificarVentaProps {
   cliente: Cliente;
+  validPasswords: string[];
+  requiereDosAuditores: boolean;
   onConfirm: (decision: 'aprobada' | 'rechazada', comentario: string, auditorId: string) => void;
   onCancel: () => void;
 }
-function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVentaProps) {
+function ModalVerificarVenta({ cliente, validPasswords, requiereDosAuditores, onConfirm, onCancel }: ModalVerificarVentaProps) {
   const [decision, setDecision] = useState<'aprobada' | 'rechazada'>('aprobada');
   const [comentario, setComentario] = useState('');
   const [password, setPassword] = useState('');
@@ -536,7 +538,6 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
       toast.error('Debe ingresar el motivo del rechazo.');
       return;
     }
-    const validPasswords = ['0911', '092501'];
     if (!validPasswords.includes(password)) {
       toast.error('Contraseña incorrecta.');
       return;
@@ -548,7 +549,9 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded shadow-lg max-w-sm w-full">
         <h2 className="text-xl font-bold mb-4">Verificar Venta de {cliente.NOMBRE}</h2>
-        <p className="text-sm text-gray-600 mb-4">Ingrese su decisión como auditor. Se requiere la decisión de 2 auditores independientes.</p>
+        <p className="text-sm text-gray-600 mb-4">
+          Ingrese su decisión como auditor. {requiereDosAuditores ? 'Se requiere la decisión de 2 auditores independientes.' : 'Un solo auditor puede verificar.'}
+        </p>
         <div className="mb-4">
           <label className="block font-medium">Decisión:</label>
           <select
@@ -597,10 +600,11 @@ function ModalVerificarVenta({ cliente, onConfirm, onCancel }: ModalVerificarVen
 
 interface ModalDesverificarVentaProps {
   cliente: Cliente;
+  validPasswords: string[];
   onConfirm: (comentario: string) => void;
   onCancel: () => void;
 }
-function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverificarVentaProps) {
+function ModalDesverificarVenta({ cliente, validPasswords, onConfirm, onCancel }: ModalDesverificarVentaProps) {
   const [password, setPassword] = useState('');
   const [comentario, setComentario] = useState('');
 
@@ -619,12 +623,11 @@ function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverifi
       toast.error('Debe ingresar su contraseña de auditor.');
       return;
     }
-    const validPasswords = ['0911', '092501'];
     if (!validPasswords.includes(password)) {
       toast.error('Contraseña incorrecta.');
       return;
     }
-    onConfirm(comentario); // Puedes enviar el comentario o simplemente ""
+    onConfirm(comentario);
   };
 
   return (
@@ -661,11 +664,13 @@ function ModalDesverificarVenta({ cliente, onConfirm, onCancel }: ModalDesverifi
 interface ModalEliminarDecisionProps {
   cliente: Cliente;
   reporte: Reporte;
+  validPasswords: string[];
+  getAuditorName: (id: string | null) => string;
   onConfirm: (auditorId: string) => void;
   onCancel: () => void;
 }
 
-function ModalEliminarDecision({ cliente, reporte, onConfirm, onCancel }: ModalEliminarDecisionProps) {
+function ModalEliminarDecision({ cliente, reporte, validPasswords, getAuditorName, onConfirm, onCancel }: ModalEliminarDecisionProps) {
   const [password, setPassword] = useState('');
 
   // Bloquear scroll del body cuando el modal está abierto
@@ -678,22 +683,12 @@ function ModalEliminarDecision({ cliente, reporte, onConfirm, onCancel }: ModalE
     };
   }, []);
 
-  const getAuditorName = (auditorId: string | null) => {
-    if (!auditorId) return 'Auditor desconocido';
-    const auditorNames: { [key: string]: string } = {
-      '0911': 'Auditor Principal',
-      '092501': 'Auditor Secundario'
-    };
-    return auditorNames[auditorId] || `Auditor ${auditorId}`;
-  };
-
   const handleConfirm = () => {
     if (!password.trim()) {
       toast.error('Debe ingresar su contraseña de auditor.');
       return;
     }
     
-    const validPasswords = ['0911', '092501'];
     if (!validPasswords.includes(password)) {
       toast.error('Contraseña incorrecta.');
       return;
@@ -767,7 +762,7 @@ function ModalEliminarDecision({ cliente, reporte, onConfirm, onCancel }: ModalE
         </div>
 
         {/* Mostrar preview de qué decisión se eliminará */}
-        {password && ['0911', '092501'].includes(password) && (
+        {password && validPasswords.includes(password) && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
             {(() => {
               const decision = getDecisionDelAuditor(password);
@@ -814,18 +809,15 @@ function ModalEliminarDecision({ cliente, reporte, onConfirm, onCancel }: ModalE
 interface ModalVerHistorialResolucionProps {
   cliente: Cliente;
   reporte: Reporte;
+  getAuditorName: (id: string | null) => string;
   onClose: () => void;
 }
 
-function ModalVerHistorialResolucion({ cliente, reporte, onClose }: ModalVerHistorialResolucionProps) {
+function ModalVerHistorialResolucion({ cliente, reporte, getAuditorName, onClose }: ModalVerHistorialResolucionProps) {
   // Bloquear scroll del body cuando el modal está abierto
   useEffect(() => {
-    // Guardar el valor actual del overflow
     const originalOverflow = document.body.style.overflow;
-    // Bloquear scroll
     document.body.style.overflow = 'hidden';
-    
-    // Cleanup: restaurar el scroll cuando el modal se cierre
     return () => {
       document.body.style.overflow = originalOverflow;
     };
@@ -834,17 +826,6 @@ function ModalVerHistorialResolucion({ cliente, reporte, onClose }: ModalVerHist
   const formatTimestamp = (timestamp: number | null) => {
     if (!timestamp) return 'Fecha no disponible';
     return new Date(timestamp * 1000).toLocaleString();
-  };
-
-  const getAuditorName = (auditorId: string | null) => {
-    if (!auditorId) return 'Auditor desconocido';
-    // Mapeo de IDs a nombres de auditores
-    const auditorNames: { [key: string]: string } = {
-      '0911': 'Auditor Principal',
-      '092501': 'Auditor Secundario',
-      '09250001': 'Supervisor'
-    };
-    return auditorNames[auditorId] || `Auditor ${auditorId}`;
   };
 
   return (
@@ -1160,11 +1141,12 @@ function ModalResolverConflicto({ cliente, reporte, onResolve, onCancel }: Modal
 interface ModalResolverDisputaProps {
   grupo: Cliente[];
   asesores: Asesor[];
+  validPasswords: string[];
   onResolve: (cliente: Cliente, comentario: string) => void;
   onCancel: () => void;
 }
 
-function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalResolverDisputaProps) {
+function ModalResolverDisputa({ grupo, asesores, validPasswords, onResolve, onCancel }: ModalResolverDisputaProps) {
   const [comentario, setComentario] = useState("");
   const [password1, setPassword1] = useState("");
   const [password2, setPassword2] = useState("");
@@ -1194,7 +1176,7 @@ function ModalResolverDisputa({ grupo, asesores, onResolve, onCancel }: ModalRes
       toast.error("Por favor, ingrese ambas claves de auditor para resolver la disputa.");
       return;
     }
-    if (password1 !== '0911' || password2 !== '0911') {
+    if (!validPasswords.includes(password1) || !validPasswords.includes(password2)) {
       toast.error("Una o ambas claves son incorrectas.");
       return;
     }
@@ -1433,8 +1415,48 @@ function AuditorDashboard() {
   const [ventaVerificar, setVentaVerificar] = useState<Cliente | null>(null);
   const [disputaGrupo, setDisputaGrupo] = useState<Cliente[] | null>(null);
 
+  // Configuración de auditoría (claves, nombres, 1 vs 2 auditores)
+  const [auditoriaConfig, setAuditoriaConfig] = useState<{
+    auditores?: Array<{ clave: string; nombre: string }>;
+    requiereDosAuditores?: boolean;
+  } | null>(null);
+
   // Estado para el modal de exportación
   const [showExportModal, setShowExportModal] = useState(false);
+
+  // Cargar configuración de auditoría
+  useEffect(() => {
+    fetch('/api/auditoria/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          setAuditoriaConfig({
+            auditores: data.data.auditores || [
+              { clave: '0911', nombre: 'Auditor Principal' },
+              { clave: '092501', nombre: 'Auditor Secundario' }
+            ],
+            requiereDosAuditores: data.data.requiereDosAuditores ?? true
+          });
+        } else {
+          setAuditoriaConfig({
+            auditores: [
+              { clave: '0911', nombre: 'Auditor Principal' },
+              { clave: '092501', nombre: 'Auditor Secundario' }
+            ],
+            requiereDosAuditores: true
+          });
+        }
+      })
+      .catch(() => {
+        setAuditoriaConfig({
+          auditores: [
+            { clave: '0911', nombre: 'Auditor Principal' },
+            { clave: '092501', nombre: 'Auditor Secundario' }
+          ],
+          requiereDosAuditores: true
+        });
+      });
+  }, []);
 
   // Función para cargar datos con paginación
   const fetchAllPages = async (
@@ -1810,13 +1832,14 @@ function AuditorDashboard() {
 
     const totalVerificadas = totalAprobadas + totalRechazadas;
 
-    // Función para obtener nombre del auditor
+    // Función para obtener nombre del auditor (usa config o defaults)
+    const auditoresConf = auditoriaConfig?.auditores || [
+      { clave: '0911', nombre: 'Auditor Principal' },
+      { clave: '092501', nombre: 'Auditor Secundario' }
+    ];
     const getAuditorName = (auditorId: string) => {
-      const auditorNames: { [key: string]: string } = {
-        '0911': 'Auditor Principal',
-        '092501': 'Auditor Secundario'
-      };
-      return auditorNames[auditorId] || `Auditor ${auditorId}`;
+      const a = auditoresConf.find(x => x.clave === auditorId);
+      return a ? a.nombre : `Auditor ${auditorId}`;
     };
 
     // Calcular porcentajes por auditor y preparar datos
@@ -1845,7 +1868,7 @@ function AuditorDashboard() {
       verificacionesSupervisor,
       porcentajeSupervisor
     };
-  }, [asesores, reportesFiltrados]);
+  }, [asesores, reportesFiltrados, auditoriaConfig]);
 
   // Usa tu función getReporteForCliente para obtener el último reporte
   function isVentaVerificada(cliente: Cliente, reportes: Reporte[]): boolean {
@@ -2302,31 +2325,44 @@ function AuditorDashboard() {
     }
   };
 
-  // Función de verificación con doble auditoría independiente
+  // Función de verificación con doble auditoría independiente (o simple si requiereDosAuditores=false)
   const confirmVerificarVenta = async (cliente: Cliente, decision: 'aprobada' | 'rechazada', comentario: string, auditorId: string) => {
     const reporteIndex = reportes.findIndex(r => r.ID_CLIENTE === cliente.ID && r.ESTADO_NUEVO === 'VENTA CONSOLIDADA');
     if (reporteIndex === -1) return;
     const reporte = reportes[reporteIndex];
+    const requiereDos = auditoriaConfig?.requiereDosAuditores ?? true;
     
     try {
       const timestamp = Math.floor(Date.now() / 1000);
-      
-      // Determinar si es el primer o segundo auditor
-      const esSegundoAuditor = reporte.auditor1_decision && !reporte.auditor2_decision;
       
       let updateData: any = {};
       let mensaje = '';
       
       if (!reporte.auditor1_decision) {
         // Primer auditor
-        updateData = {
-          auditor1_decision: decision,
-          auditor1_comentario: comentario,
-          auditor1_timestamp: timestamp,
-          auditor1_id: auditorId,
-          estado_doble_verificacion: 'pendiente_auditor2'
-        };
-        mensaje = `📝 Su decisión ha sido registrada. Esperando decisión del segundo auditor.`;
+        if (!requiereDos) {
+          // Modo 1 auditor: la decisión del primero se aplica directamente
+          updateData = {
+            auditor1_decision: decision,
+            auditor1_comentario: comentario,
+            auditor1_timestamp: timestamp,
+            auditor1_id: auditorId,
+            estado_doble_verificacion: decision,
+            verificada: true,
+            estado_verificacion: decision,
+            comentario_rechazo: decision === 'rechazada' ? comentario : ''
+          };
+          mensaje = `✅ Venta ${decision === 'aprobada' ? 'APROBADA' : 'RECHAZADA'} por auditor único.`;
+        } else {
+          updateData = {
+            auditor1_decision: decision,
+            auditor1_comentario: comentario,
+            auditor1_timestamp: timestamp,
+            auditor1_id: auditorId,
+            estado_doble_verificacion: 'pendiente_auditor2'
+          };
+          mensaje = `📝 Su decisión ha sido registrada. Esperando decisión del segundo auditor.`;
+        }
         
       } else if (!reporte.auditor2_decision && reporte.auditor1_id !== auditorId) {
         // Segundo auditor (y es diferente al primero)
@@ -2784,6 +2820,8 @@ function AuditorDashboard() {
       {ventaVerificar && (
         <ModalVerificarVenta
           cliente={ventaVerificar}
+          validPasswords={(auditoriaConfig?.auditores || []).map(a => a.clave)}
+          requiereDosAuditores={auditoriaConfig?.requiereDosAuditores ?? true}
           onConfirm={(decision, comentario, auditorId) => confirmVerificarVenta(ventaVerificar, decision, comentario, auditorId)}
           onCancel={cancelVerificarVenta}
         />
@@ -2793,7 +2831,8 @@ function AuditorDashboard() {
       {disputaGrupo && (
         <ModalResolverDisputa
           grupo={disputaGrupo}
-          asesores={asesores}  // Asegúrate de pasar el arreglo de asesores aquí
+          asesores={asesores}
+          validPasswords={(auditoriaConfig?.auditores || []).map(a => a.clave)}
           onResolve={confirmResolverDisputa}
           onCancel={cancelResolverDisputa}
         />
@@ -2802,8 +2841,8 @@ function AuditorDashboard() {
       {ventaDesverificar && (
         <ModalDesverificarVenta
           cliente={ventaDesverificar}
+          validPasswords={(auditoriaConfig?.auditores || []).map(a => a.clave)}
           onConfirm={(comentario) => {
-            // Llama a tu función existente para desverificar:
             confirmDesverificarVenta(ventaDesverificar, comentario);
             setVentaDesverificar(null);
           }}
@@ -2873,6 +2912,14 @@ function AuditorDashboard() {
         <ModalVerHistorialResolucion
           cliente={historialResolucionParaVer.cliente}
           reporte={historialResolucionParaVer.reporte}
+          getAuditorName={(id) => {
+            if (!id) return 'Auditor desconocido';
+            const auditores = auditoriaConfig?.auditores || [];
+            const a = auditores.find(x => x.clave === id);
+            if (a) return a.nombre;
+            if (id === '09250001') return 'Supervisor';
+            return `Auditor ${id}`;
+          }}
           onClose={() => setHistorialResolucionParaVer(null)}
         />
       )}
@@ -2882,6 +2929,14 @@ function AuditorDashboard() {
         <ModalEliminarDecision
           cliente={decisionParaEliminar.cliente}
           reporte={decisionParaEliminar.reporte}
+          validPasswords={(auditoriaConfig?.auditores || []).map(a => a.clave)}
+          getAuditorName={(id) => {
+            if (!id) return 'Auditor desconocido';
+            const auditores = auditoriaConfig?.auditores || [];
+            const a = auditores.find(x => x.clave === id);
+            if (a) return a.nombre;
+            return `Auditor ${id}`;
+          }}
           onConfirm={confirmEliminarDecision}
           onCancel={() => setDecisionParaEliminar(null)}
         />

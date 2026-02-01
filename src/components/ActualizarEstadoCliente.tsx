@@ -137,29 +137,34 @@ export default function ActualizarEstadoCliente({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (comentario.trim().length < 25) {
+    const esSoloEsperando = estado === 'ESPERANDO RESPUESTA';
+    if (!esSoloEsperando && comentario.trim().length < 25) {
       alert('El comentario es muy corto.');
       return;
     }
     setLoading(true);
+
+    const comentarioFinal = esSoloEsperando ? 'Marcado en espera de respuesta' : comentario;
   
     try {
       console.log("🚀 Enviando reporte...");
   
-      // 🔹 Preparar etiquetas como string (nombres separados por coma)
-      const etiquetasNombres = etiquetasSeleccionadas
+      // 🔹 Preparar etiquetas como string (solo si no es solo "esperando respuesta")
+      const etiquetasNombres = esSoloEsperando ? [] : etiquetasSeleccionadas
         .map(id => etiquetasDisponibles.find(e => e.id === id)?.nombre)
         .filter(Boolean);
       const etiquetasString = etiquetasNombres.length > 0 
         ? etiquetasNombres.join(',') 
         : null;
       
-      // Incrementar uso de etiquetas seleccionadas
-      for (const etiquetaId of etiquetasSeleccionadas) {
-        try {
-          await apiClient.request(`/rpc/increment_etiqueta_uso`, 'POST', { etiqueta_id: etiquetaId });
-        } catch (e) {
-          // Ignorar errores de incremento, no es crítico
+      // Incrementar uso de etiquetas seleccionadas (solo si no es solo "esperando respuesta")
+      if (!esSoloEsperando) {
+        for (const etiquetaId of etiquetasSeleccionadas) {
+          try {
+            await apiClient.request(`/rpc/increment_etiqueta_uso`, 'POST', { etiqueta_id: etiquetaId });
+          } catch (e) {
+            // Ignorar errores de incremento, no es crítico
+          }
         }
       }
 
@@ -169,12 +174,11 @@ export default function ActualizarEstadoCliente({
         ID_ASESOR: asesor.ID,
         ESTADO_ANTERIOR: cliente.ESTADO,
         ESTADO_NUEVO: estado,
-        COMENTARIO: comentario,
+        COMENTARIO: comentarioFinal,
         NOMBRE_ASESOR: asesor.NOMBRE,
         FECHA_REPORTE: getCurrentEpoch(),
-        FECHA_SEGUIMIENTO: requiereFecha && fechaSeguimiento ? toEpoch(new Date(fechaSeguimiento)) : null,
-        // Nuevos campos de temperatura y etiquetas
-        temperatura: temperatura || null,
+        FECHA_SEGUIMIENTO: !esSoloEsperando && requiereFecha && fechaSeguimiento ? toEpoch(new Date(fechaSeguimiento)) : null,
+        temperatura: esSoloEsperando ? null : (temperatura || null),
         etiquetas: etiquetasString
       };
   
@@ -187,10 +191,9 @@ export default function ActualizarEstadoCliente({
       // 🔹 Actualización del estado del cliente (incluye temperatura y etiquetas)
       const updateData: Record<string, any> = { 
         ESTADO: estado,
-        // Actualizar temperatura y etiquetas en el cliente
-        temperatura: temperatura || null,
+        temperatura: esSoloEsperando ? null : (temperatura || null),
         etiquetas: etiquetasString,
-        temperatura_fecha: temperatura ? getCurrentEpoch() : null
+        temperatura_fecha: esSoloEsperando ? null : (temperatura ? getCurrentEpoch() : null)
       };
       console.log(`📤 Actualizando cliente ${cliente.ID} con datos:`, updateData);
   
@@ -250,8 +253,8 @@ export default function ActualizarEstadoCliente({
             </select>
           </div>
 
-          {/* Selector de Temperatura */}
-          {(estado === 'SEGUIMIENTO' || estado === 'ESPERANDO RESPUESTA') && (
+          {/* Selector de Temperatura (oculto para "Esperando respuesta") */}
+          {estado === 'SEGUIMIENTO' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 🌡️ Temperatura del Lead
@@ -300,8 +303,8 @@ export default function ActualizarEstadoCliente({
             </div>
           )}
 
-          {/* Selector de Etiquetas Personalizadas */}
-          {(estado === 'SEGUIMIENTO' || estado === 'ESPERANDO RESPUESTA') && (
+          {/* Selector de Etiquetas Personalizadas (oculto para "Esperando respuesta") */}
+          {estado === 'SEGUIMIENTO' && (
             <div>
               <button
                 type="button"
@@ -392,6 +395,9 @@ export default function ActualizarEstadoCliente({
             </div>
           )}
 
+          {/* Comentario, texto de ayuda y fecha: ocultos para "Esperando respuesta" */}
+          {estado !== 'ESPERANDO RESPUESTA' && (
+            <>
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Comentario <span className="text-gray-500 font-normal">(mínimo 25 caracteres)</span>
@@ -421,8 +427,10 @@ export default function ActualizarEstadoCliente({
             Ejemplo: "lo contacté y me dijo que estaba buscando el dinero 
             prestado, lo contactaré el viernes 27 a las 12:00 pm"
           </p>
+            </>
+          )}
 
-          {requiereFecha && (
+          {requiereFecha && estado !== 'ESPERANDO RESPUESTA' && (
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Fecha de Seguimiento
@@ -449,7 +457,8 @@ export default function ActualizarEstadoCliente({
             disabled={loading}
             className={`
               w-full flex justify-center py-2 px-4 rounded-md shadow-sm
-              text-sm font-medium text-white bg-blue-600 hover:bg-blue-700
+              text-sm font-medium text-white
+              ${estado === 'ESPERANDO RESPUESTA' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-blue-600 hover:bg-blue-700'}
               ${loading ? 'opacity-50 cursor-not-allowed' : ''}
             `}
           >
@@ -458,6 +467,8 @@ export default function ActualizarEstadoCliente({
                 <Loader2 className="animate-spin h-5 w-5 mr-2" />
                 Guardando...
               </span>
+            ) : estado === 'ESPERANDO RESPUESTA' ? (
+              'Marcar como esperando respuesta'
             ) : (
               'Guardar Reporte'
             )}

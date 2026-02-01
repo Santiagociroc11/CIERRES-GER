@@ -151,6 +151,21 @@ export interface Reporte {
   etiquetas?: string | null;
 }
 
+/** Comentarios usados cuando el asesor solo marca "Esperando respuesta" sin reporte completo */
+export const COMENTARIO_SOLO_ESPERANDO = 'Marcado en espera de respuesta';
+export const COMENTARIO_SOLO_ESPERANDO_RAPIDO = 'Marcado en espera de respuesta (acción rápida)';
+
+/**
+ * Un reporte "completo" cuenta para administración (el asesor reportó con comentarios/seguimiento).
+ * Los reportes que son solo "Esperando respuesta" (acción rápida o modal sin comentario) NO cuentan:
+ * el cliente sigue figurando como "sin reporte" hasta que haga un reporte con contenido.
+ */
+export function esReporteCompleto(r: { ESTADO_NUEVO?: string; COMENTARIO?: string | null }): boolean {
+  if (r.ESTADO_NUEVO !== 'ESPERANDO RESPUESTA') return true;
+  const c = (r.COMENTARIO || '').trim();
+  return c !== COMENTARIO_SOLO_ESPERANDO && c !== COMENTARIO_SOLO_ESPERANDO_RAPIDO;
+}
+
 export interface Registro {
   ID: number;
   ID_CLIENTE: number;

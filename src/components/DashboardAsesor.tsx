@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient, withRetry } from '../lib/apiClient';
-import { Cliente, Asesor, Reporte, EstadisticasAsesor, EstadoCliente } from '../types';
+import { Cliente, Asesor, Reporte, EstadisticasAsesor, EstadoCliente, esReporteCompleto } from '../types';
 import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Menu as MenuIcon, X, Send, User, Smartphone, LogOut, Plus, Search, MessageCircle, Phone, Edit, CheckCircle, ShoppingCart } from 'lucide-react';
 import ClientesSinReporte from './ClientesSinReporte';
 import ClientesPendientes from './ClientesPendientes';
@@ -823,7 +823,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setClientes(clientesProcesados);
       setReportes(reportesData);
 
-      const clientesConReporte = new Set(reportesData.map(r => r.ID_CLIENTE));
+      // Solo cuentan como "con reporte" los reportes completos (no los solo "Esperando respuesta")
+      const reportesCompletos = reportesData.filter(esReporteCompleto);
+      const clientesConReporte = new Set(reportesCompletos.map(r => r.ID_CLIENTE));
       setClientesSinReporte(clientesProcesados.filter(c => !clientesConReporte.has(c.ID)));
 
       const uniqueVentasPrincipal = reportesData

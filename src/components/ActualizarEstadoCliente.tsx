@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../lib/apiClient';
-import { Cliente, Asesor, EstadoAsesor, TemperaturaLead, EtiquetaCliente, COLORES_ETIQUETAS } from '../types';
+import { Cliente, Asesor, EstadoAsesor, TemperaturaLead, EtiquetaCliente, COLORES_ETIQUETAS, COMENTARIO_SOLO_ESPERANDO } from '../types';
 import { X, Loader2, Flame, ThermometerSun, Snowflake, Tag, Plus, Check } from 'lucide-react';
 import { getCurrentEpoch, toEpoch } from '../utils/dateUtils';
 
@@ -144,7 +144,7 @@ export default function ActualizarEstadoCliente({
     }
     setLoading(true);
 
-    const comentarioFinal = esSoloEsperando ? 'Marcado en espera de respuesta' : comentario;
+    const comentarioFinal = esSoloEsperando ? COMENTARIO_SOLO_ESPERANDO : comentario;
   
     try {
       console.log("🚀 Enviando reporte...");

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { apiClient, withRetry } from '../lib/apiClient';
-import { Asesor, EstadisticasDetalladas, OrdenAsesor, AdminRole } from '../types';
+import { Asesor, EstadisticasDetalladas, OrdenAsesor, AdminRole, esReporteCompleto } from '../types';
 import { getEvolutionStatusConfig } from '../types/evolutionApi';
 import {
   BarChart,
@@ -1707,9 +1707,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       return r.FECHA_REPORTE >= inicioTimestamp && r.FECHA_REPORTE <= finTimestamp;
     });
 
-    const clientesReportados = new Set(reportesAsesor.map((r: any) => r.ID_CLIENTE)).size;
+    // Solo cuentan como "con reporte" los reportes completos (no los solo "Esperando respuesta")
+    const reportesCompletosAsesor = reportesAsesor.filter((r: any) => esReporteCompleto(r));
+    const clientesReportados = new Set(reportesCompletosAsesor.map((r: any) => r.ID_CLIENTE)).size;
     const clientesSinReporte = clientesAsesor.filter(
-      (c: any) => !reportesAsesor.find((r: any) => r.ID_CLIENTE === c.ID)
+      (c: any) => !reportesAsesor.some((r: any) => r.ID_CLIENTE === c.ID && esReporteCompleto(r))
     ).length;
 
     // Agrupar ventas únicas por cliente según producto

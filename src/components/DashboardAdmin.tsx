@@ -2169,6 +2169,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         return 'bg-green-100 text-green-800';
       case 'SEGUIMIENTO':
         return 'bg-blue-100 text-blue-800';
+      case 'ESPERANDO RESPUESTA':
+        return 'bg-sky-100 text-sky-800 border border-sky-300';
       case 'NO CONTACTAR':
         return 'bg-red-100 text-red-800';
       case 'LINK':
@@ -4136,6 +4138,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   <option value="">Todos los estados</option>
                   <option value="PAGADO">Pagado</option>
                   <option value="SEGUIMIENTO">Seguimiento</option>
+                  <option value="ESPERANDO RESPUESTA">Esperando respuesta</option>
                   <option value="NO CONTESTÓ">No Contestó</option>
                   <option value="NO CONTACTAR">No Contactar</option>
                 </select>
@@ -5597,6 +5600,7 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                   <option value="">Todos los estados</option>
                   <option value="PAGADO">Pagado</option>
                   <option value="SEGUIMIENTO">Seguimiento</option>
+                  <option value="ESPERANDO RESPUESTA">Esperando respuesta</option>
                   <option value="NO CONTESTÓ">No Contestó</option>
                   <option value="NO CONTACTAR">No Contactar</option>
                 </select>

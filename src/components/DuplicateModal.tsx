@@ -165,6 +165,8 @@ export default function DuplicateModal({
         return 'bg-green-100 text-green-800';
       case 'SEGUIMIENTO':
         return 'bg-blue-100 text-blue-800';
+      case 'ESPERANDO RESPUESTA':
+        return 'bg-sky-100 text-sky-800 border border-sky-300';
       case 'NO CONTACTAR':
         return 'bg-red-100 text-red-800';
       case 'CARRITOS':

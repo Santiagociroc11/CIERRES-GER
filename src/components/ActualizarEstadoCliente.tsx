@@ -111,7 +111,7 @@ export default function ActualizarEstadoCliente({
     return colorConfig?.class || 'bg-gray-100 text-gray-800 border-gray-300';
   };
 
-  // Verifica si se requiere fecha obligatoria (para SEGUIMIENTO, NO INTERESADO y NO CONTESTÓ)
+  // Verifica si se requiere fecha obligatoria (para SEGUIMIENTO y NO CONTESTÓ)
   const requiereFecha =
     estado === 'SEGUIMIENTO' ||
     estado === 'NO CONTESTÓ';
@@ -237,6 +237,9 @@ export default function ActualizarEstadoCliente({
               <option value="SEGUIMIENTO">
                 Seguimiento (cliente con posibilidad de compra)
               </option>
+              <option value="ESPERANDO RESPUESTA">
+                Esperando respuesta (ya contacté, aguardando que responda)
+              </option>
               <option value="NO INTERESADO">
                 No Interesado (cliente que no va a comprar)
               </option>
@@ -248,7 +251,7 @@ export default function ActualizarEstadoCliente({
           </div>
 
           {/* Selector de Temperatura */}
-          {estado === 'SEGUIMIENTO' && (
+          {(estado === 'SEGUIMIENTO' || estado === 'ESPERANDO RESPUESTA') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 🌡️ Temperatura del Lead
@@ -298,7 +301,7 @@ export default function ActualizarEstadoCliente({
           )}
 
           {/* Selector de Etiquetas Personalizadas */}
-          {estado === 'SEGUIMIENTO' && (
+          {(estado === 'SEGUIMIENTO' || estado === 'ESPERANDO RESPUESTA') && (
             <div>
               <button
                 type="button"

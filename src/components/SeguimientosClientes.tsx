@@ -112,6 +112,7 @@ function ModalCompletarActualizar({
               required
             >
               <option value="SEGUIMIENTO">En Seguimiento</option>
+              <option value="ESPERANDO RESPUESTA">Esperando respuesta</option>
               <option value="NO CONTACTAR">No Contactar</option>
               <option value="NO CONTESTÓ">No Contestó</option>
             </select>

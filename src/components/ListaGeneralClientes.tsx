@@ -237,6 +237,7 @@ export default function ListaGeneralClientes({
       return 0;
     }
     if (cliente.ESTADO === 'NO CONTESTÓ') return 1.5;
+    if (cliente.ESTADO === 'ESPERANDO RESPUESTA') return 1.7;
     if (cliente.ESTADO === 'SEGUIMIENTO') return 2;
     if (cliente.ESTADO === 'PAGADO') return 3;
     if (cliente.ESTADO === 'VENTA CONSOLIDADA') return 4;
@@ -381,6 +382,8 @@ export default function ListaGeneralClientes({
     switch (estado) {
       case 'SEGUIMIENTO':
         return 'bg-blue-100 text-blue-800';
+      case 'ESPERANDO RESPUESTA':
+        return 'bg-sky-100 text-sky-800 border border-sky-300';
       case 'NO CONTACTAR':
         return 'bg-red-100 text-red-800';
       case 'LINK':
@@ -482,6 +485,7 @@ export default function ListaGeneralClientes({
                 <option value="RECHAZADOS">Rechazados</option>
                 <option value="TICKETS">Tickets</option>
                 <option value="SEGUIMIENTO">En Seguimiento</option>
+                <option value="ESPERANDO RESPUESTA">Esperando respuesta</option>
                 <option value="NO INTERESADO">No Interesado</option>
                 <option value="NO CONTESTÓ">No Contestó</option>
                 <option value="PAGADO">Pagado</option>

@@ -224,7 +224,7 @@ export interface EstadisticasDetalladas extends EstadisticasAsesor {
 
 export type EstadoCritico = 'CARRITOS' | 'RECHAZADOS' | 'TICKETS' | 'LINK_ALTA_PRIORIDAD';
 export type EstadoNoCritico = 'LINK' | 'PAGADO' | 'VENTA CONSOLIDADA' | 'MASIVOS';
-export type EstadoAsesor = 'SEGUIMIENTO' | 'NO CONTACTAR' | 'NO CONTESTÓ' | 'NO INTERESADO';
+export type EstadoAsesor = 'SEGUIMIENTO' | 'ESPERANDO RESPUESTA' | 'NO CONTACTAR' | 'NO CONTESTÓ' | 'NO INTERESADO';
 export type EstadoCliente = EstadoCritico | EstadoNoCritico | EstadoAsesor;
 
 export const esEstadoCritico = (estado: EstadoCliente, cliente?: { ESTADO: string; soporte_prioridad?: string | null }): estado is EstadoCritico => {

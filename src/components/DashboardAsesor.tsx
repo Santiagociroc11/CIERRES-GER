@@ -5,7 +5,7 @@ import { List, Clock, TrendingUp, AlertTriangle, MessageSquare, AlertCircle, Men
 import ClientesSinReporte from './ClientesSinReporte';
 import ClientesPendientes from './ClientesPendientes';
 import ActualizarEstadoCliente from './ActualizarEstadoCliente';
-import ReportarVenta from './ReportarVenta';
+import ReportarYConsolidarVenta from './ReportarYConsolidarVenta';
 import ListaGeneralClientes from './ListaGeneralClientes';
 import SeguimientosClientes from './SeguimientosClientes';
 import EstadisticasAvanzadas from './EstadisticasAvanzadas';
@@ -1714,13 +1714,13 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           />
         )}
         {clienteParaVenta && (
-          <ReportarVenta
+          <ReportarYConsolidarVenta
             cliente={clienteParaVenta}
             asesor={asesor}
             onComplete={() => {
               setClienteParaVenta(null);
               cargarDatos();
-              showToast('Venta reportada correctamente', 'success');
+              showToast('Venta reportada y consolidada correctamente', 'success');
             }}
             onClose={() => setClienteParaVenta(null)}
           />

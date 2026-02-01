@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cliente, Reporte, Registro, EstadoCliente, esEstadoCritico, Asesor, AdminRole } from '../types';
+import { Cliente, Reporte, Registro, EstadoCliente, esEstadoCritico, AdminRole } from '../types';
 import {
   Search,
   Phone,
@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  FileVideo,
   Flame,
   ThermometerSun,
   Snowflake,
@@ -24,7 +23,6 @@ import {
 import { formatDateOnly, isValidDate, formatDate } from '../utils/dateUtils';
 import HistorialCliente from './HistorialCliente';
 import ReasignarCliente from './ReasignarCliente';
-import ConsolidarVenta from './ConsolidarVenta';
 
 interface ListaGeneralClientesProps {
   clientes: Cliente[];
@@ -64,8 +62,6 @@ export default function ListaGeneralClientes({
   const [pagina, setPagina] = useState(1);
   const [forzarBusqueda, setForzarBusqueda] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(true);
-  const [clienteConsolidar, setClienteConsolidar] = useState<Cliente | null>(null);
-  const [reporteConsolidar, setReporteConsolidar] = useState<Reporte | null>(null);
   const clientesPorPagina = 20;
   
   // Obtener todas las etiquetas únicas de los clientes para el filtro
@@ -89,12 +85,6 @@ export default function ListaGeneralClientes({
   const tieneReporteVenta = (clienteId: number) => {
     return reportes.some(
       (r) => r.ID_CLIENTE === clienteId && r.ESTADO_NUEVO === 'PAGADO'
-    );
-  };
-
-  const estaConsolidado = (clienteId: number) => {
-    return reportes.some(
-      (r) => r.ID_CLIENTE === clienteId && (r.consolidado || r.ESTADO_NUEVO === 'VENTA CONSOLIDADA')
     );
   };
 
@@ -414,29 +404,6 @@ export default function ListaGeneralClientes({
     return getEstadoTexto(estado, clienteId);
   };
 
-  const handleConsolidarVenta = (cliente: Cliente) => {
-    const reporte = reportes.find(r => 
-      r.ID_CLIENTE === cliente.ID && 
-      r.ESTADO_NUEVO === 'PAGADO' && 
-      !r.consolidado
-    );
-    
-    if (reporte) {
-      const asesor: Asesor = {
-        ID: reporte.ID_ASESOR,
-        NOMBRE: reporte.NOMBRE_ASESOR,
-        WHATSAPP: cliente.WHA_ASESOR,
-        LINK: 0,
-        RECHAZADOS: 0,
-        CARRITOS: 0,
-        TICKETS: 0
-      };
-      
-      setClienteConsolidar(cliente);
-      setReporteConsolidar({...reporte, asesor});
-    }
-  };
-
   const generarNumerosDePagina = () => {
     const paginas: (number | string)[] = [];
     const maxPaginasMostrar = 5;
@@ -617,7 +584,6 @@ export default function ListaGeneralClientes({
         {clientesPaginados.map((cliente) => {
           const ultimoReporte = obtenerUltimoReporte(cliente.ID);
           const tieneSeguimiento = tieneSeguimientoPendiente(cliente.ID);
-          const consolidado = estaConsolidado(cliente.ID);
           return (
             <div key={cliente.ID} className="p-4 border-b border-gray-200 space-y-3">
               <div className="flex justify-between items-start">
@@ -703,15 +669,6 @@ export default function ListaGeneralClientes({
                       </button>
                     </>
                   )}
-                  {tieneReporteVenta(cliente.ID) && !consolidado && (
-                    <button
-                      onClick={() => handleConsolidarVenta(cliente)}
-                      className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
-                    >
-                      <FileVideo className="h-4 w-4 mr-2" />
-                      Consolidar Venta
-                    </button>
-                  )}
                   {readOnly && adminRole === 'admin' && (
                     <div className="mr-2">
                       <ReasignarCliente
@@ -760,7 +717,6 @@ export default function ListaGeneralClientes({
             {clientesPaginados.map((cliente) => {
               const ultimoReporte = obtenerUltimoReporte(cliente.ID);
               const tieneSeguimiento = tieneSeguimientoPendiente(cliente.ID);
-              const consolidado = estaConsolidado(cliente.ID);
               return (
                 <tr key={cliente.ID} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
@@ -891,15 +847,6 @@ export default function ListaGeneralClientes({
                           </button>
                         </>
                       )}
-                      {tieneReporteVenta(cliente.ID) && !estaConsolidado(cliente.ID) && (
-                        <button
-                          onClick={() => handleConsolidarVenta(cliente)}
-                          className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-white bg-purple-600 hover:bg-purple-700"
-                        >
-                          <FileVideo className="h-3.5 w-3.5 mr-1" />
-                          <span>Consolidar</span>
-                        </button>
-                      )}
                       {readOnly && adminRole === 'admin' && (
                         <div>
                           <ReasignarCliente
@@ -1010,23 +957,6 @@ export default function ListaGeneralClientes({
           admin={admin}
           adminRole={adminRole}
           onClose={() => setClienteHistorial(null)}
-        />
-      )}
-
-      {clienteConsolidar && reporteConsolidar && (
-        <ConsolidarVenta
-          cliente={clienteConsolidar}
-          asesor={reporteConsolidar.asesor as Asesor}
-          reporte={reporteConsolidar}
-          onComplete={() => {
-            setClienteConsolidar(null);
-            setReporteConsolidar(null);
-            // Refresh data if needed
-          }}
-          onClose={() => {
-            setClienteConsolidar(null);
-            setReporteConsolidar(null);
-          }}
         />
       )}
     </div>

@@ -137,6 +137,10 @@ export default function ActualizarEstadoCliente({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (comentario.trim().length < 25) {
+      alert('El comentario es muy corto.');
+      return;
+    }
     setLoading(true);
   
     try {
@@ -387,15 +391,22 @@ export default function ActualizarEstadoCliente({
 
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Comentario
+              Comentario <span className="text-gray-500 font-normal">(mínimo 25 caracteres)</span>
             </label>
             <textarea
               value={comentario}
               onChange={(e) => setComentario(e.target.value)}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
               rows={3}
+              minLength={25}
+              placeholder="Escribe al menos 25 caracteres..."
               required
             />
+            {comentario.length > 0 && comentario.trim().length < 25 && (
+              <p className="text-xs text-amber-600 mt-1">
+                Comentario muy corto.
+              </p>
+            )}
           </div>
 
           <p className="text-xs text-gray-500 mt-1">

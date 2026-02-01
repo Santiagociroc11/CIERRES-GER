@@ -402,10 +402,15 @@ export async function updateCuposVipConfig(cuposVipConfig: WebhookConfig['cuposV
 // Clave por defecto para acceso al modal de auditoría (primera vez)
 const CLAVE_ACCESO_MODAL_DEFAULT = 'auditortd2025';
 
-// Función para obtener configuración específica de Auditoría
+// Función para obtener configuración específica de Auditoría (optimizada: solo carga auditoría, no todo)
 export async function getAuditoriaConfig(): Promise<WebhookConfig['auditoria']> {
-  const config = await loadWebhookConfig();
-  const auditoria = config.auditoria || {};
+  let auditoria: WebhookConfig['auditoria'] = {};
+  try {
+    const raw = await getWebhookConfigFromDB('auditoria');
+    auditoria = (raw?.config || raw?.general || raw) || {};
+  } catch {
+    // Si no existe platform auditoria, usar defaults
+  }
   // Valores por defecto si no hay configuración
   return {
     claveAccesoModal: auditoria.claveAccesoModal ?? CLAVE_ACCESO_MODAL_DEFAULT,

@@ -1809,7 +1809,6 @@ const WebhookConfig: React.FC = () => {
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    type="password"
                     label="Clave para abrir este modal"
                     value={auditoriaConfig.claveAccesoModal || ''}
                     onChange={(e) => handleAuditoriaConfigChange('claveAccesoModal', e.target.value)}
@@ -1820,7 +1819,6 @@ const WebhookConfig: React.FC = () => {
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    type="password"
                     label="Clave de acceso al panel de auditoría"
                     value={auditoriaConfig.claveAccesoPanel || ''}
                     onChange={(e) => handleAuditoriaConfigChange('claveAccesoPanel', e.target.value)}
@@ -1849,7 +1847,6 @@ const WebhookConfig: React.FC = () => {
                         value={aud.clave}
                         onChange={(e) => handleAuditorChange(i, 'clave', e.target.value)}
                         size="small"
-                        type="password"
                         sx={{ flex: 1 }}
                       />
                       <TextField

@@ -1992,7 +1992,6 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
         </table>
       </div>
       )}
-      </div>
 
       {/* Modal de Ayuda */}
       {mostrarAyuda && (

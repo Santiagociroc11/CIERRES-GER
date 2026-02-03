@@ -252,6 +252,214 @@ const getColorTiempo = (minutos: number | null, limite: number = 60) => {
   return 'bg-red-100 text-red-700';
 };
 
+// Componente para la vista de asignaciones por día
+function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: Asesor[]; clientes: any[]; registros: Registro[] }) {
+  // Función para obtener la fuente de un cliente
+  const getFuente = (clienteId: number): string => {
+    const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
+    if (registrosCliente.length > 0) {
+      registrosCliente.sort((a, b) => {
+        const fechaA = typeof a.FECHA_EVENTO === 'string' ? parseInt(a.FECHA_EVENTO) : a.FECHA_EVENTO;
+        const fechaB = typeof b.FECHA_EVENTO === 'string' ? parseInt(b.FECHA_EVENTO) : b.FECHA_EVENTO;
+        return fechaA - fechaB;
+      });
+      return registrosCliente[0].TIPO_EVENTO?.trim() || 'Desconocido';
+    }
+    return 'Desconocido';
+  };
+
+  // Función para convertir timestamp a fecha
+  const timestampToDate = (timestamp: string | number): Date => {
+    const ts = typeof timestamp === 'string' ? parseInt(timestamp) : timestamp;
+    return new Date(ts * 1000);
+  };
+
+  // Función para obtener el rango de días (cada 5 días)
+  const getRangoDias = (fecha: Date): string => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const fechaCliente = new Date(fecha);
+    fechaCliente.setHours(0, 0, 0, 0);
+    
+    const diffDias = Math.floor((hoy.getTime() - fechaCliente.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDias < 0) return 'Futuro';
+    if (diffDias === 0) return 'Hoy';
+    
+    const rango = Math.floor(diffDias / 5);
+    const inicio = rango * 5;
+    const fin = inicio + 4;
+    
+    if (rango === 0) {
+      return `1-${fin} días`;
+    }
+    return `${inicio + 1}-${fin + 1} días`;
+  };
+
+  // Procesar datos: agrupar por asesor y rango de días
+  const datosProcesados = useMemo(() => {
+    const datos: Record<number, Record<string, Record<string, number>>> = {};
+    
+    // Inicializar todos los asesores
+    asesores.forEach(asesor => {
+      datos[asesor.ID] = {};
+    });
+
+    // Procesar cada cliente
+    clientes.forEach(cliente => {
+      if (!cliente.ID_ASESOR) return;
+      
+      const fechaCreacion = timestampToDate(cliente.FECHA_CREACION);
+      const rango = getRangoDias(fechaCreacion);
+      const fuente = getFuente(cliente.ID);
+
+      if (!datos[cliente.ID_ASESOR][rango]) {
+        datos[cliente.ID_ASESOR][rango] = {};
+      }
+      
+      if (!datos[cliente.ID_ASESOR][rango][fuente]) {
+        datos[cliente.ID_ASESOR][rango][fuente] = 0;
+      }
+      
+      datos[cliente.ID_ASESOR][rango][fuente]++;
+    });
+
+    return datos;
+  }, [clientes, registros, asesores]);
+
+  // Obtener todos los rangos únicos
+  const rangosUnicos = useMemo(() => {
+    const rangos = new Set<string>();
+    Object.values(datosProcesados).forEach(asesorData => {
+      Object.keys(asesorData).forEach(rango => rangos.add(rango));
+    });
+    return Array.from(rangos).sort((a, b) => {
+      // Ordenar: "Hoy" primero, luego "1-X días", luego por número de días ascendente
+      if (a === 'Hoy') return -1;
+      if (b === 'Hoy') return 1;
+      if (a === 'Futuro') return 1;
+      if (b === 'Futuro') return -1;
+      if (a.startsWith('1-')) return -1;
+      if (b.startsWith('1-')) return 1;
+      const numA = parseInt(a.split('-')[0]);
+      const numB = parseInt(b.split('-')[0]);
+      return numA - numB;
+    });
+  }, [datosProcesados]);
+
+  // Obtener todas las fuentes únicas
+  const fuentesUnicas = useMemo(() => {
+    const fuentes = new Set<string>();
+    Object.values(datosProcesados).forEach(asesorData => {
+      Object.values(asesorData).forEach(rangoData => {
+        Object.keys(rangoData).forEach(fuente => fuentes.add(fuente));
+      });
+    });
+    return Array.from(fuentes).sort();
+  }, [datosProcesados]);
+
+  // Colores para diferentes fuentes
+  const getColorFuente = (fuente: string): string => {
+    const colores: Record<string, string> = {
+      'LINK': 'bg-blue-100 text-blue-800',
+      'CARRITOS': 'bg-amber-100 text-amber-800',
+      'TICKETS': 'bg-indigo-100 text-indigo-800',
+      'RECHAZADOS': 'bg-rose-100 text-rose-800',
+      'MASIVOS': 'bg-purple-100 text-purple-800',
+      'ASIGNACION_VIP': 'bg-green-100 text-green-800',
+      'COMPRA': 'bg-emerald-100 text-emerald-800',
+      'Desconocido': 'bg-gray-100 text-gray-800'
+    };
+    return colores[fuente] || 'bg-gray-100 text-gray-800';
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Asignaciones por Día</h2>
+        <p className="text-sm text-gray-600">
+          Visualización de clientes asignados por asesor, agrupados en rangos de 5 días y por fuente
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse border border-gray-300">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="border border-gray-300 px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase sticky left-0 bg-gray-50 z-10">
+                Asesor
+              </th>
+              {rangosUnicos.map(rango => (
+                <th key={rango} className="border border-gray-300 px-3 py-3 text-center text-xs font-semibold text-gray-700 uppercase">
+                  {rango}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {asesores.map((asesor, idx) => {
+              const datosAsesor = datosProcesados[asesor.ID] || {};
+              return (
+                <tr key={asesor.ID} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 sticky left-0 bg-inherit z-10">
+                    {asesor.NOMBRE}
+                  </td>
+                  {rangosUnicos.map(rango => {
+                    const datosRango = datosAsesor[rango] || {};
+                    const total = Object.values(datosRango).reduce((sum, count) => sum + count, 0);
+                    
+                    return (
+                      <td key={rango} className="border border-gray-300 px-2 py-2 text-center align-top min-w-[150px]">
+                        {total > 0 ? (
+                          <div className="space-y-1.5">
+                            <div className="text-xs font-bold text-gray-900 bg-gray-100 rounded px-2 py-0.5 inline-block">
+                              {total}
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              {Object.entries(datosRango)
+                                .sort(([, a], [, b]) => (b as number) - (a as number))
+                                .map(([fuente, count]) => (
+                                <div
+                                  key={fuente}
+                                  className={`px-1.5 py-0.5 rounded text-xs ${getColorFuente(fuente)}`}
+                                  title={`${fuente}: ${count} clientes`}
+                                >
+                                  <span className="font-semibold">{count}</span> <span className="text-[10px]">{fuente}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 text-xs">-</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Leyenda de fuentes */}
+      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Leyenda de Fuentes</h3>
+        <div className="flex flex-wrap gap-2">
+          {fuentesUnicas.map(fuente => (
+            <div
+              key={fuente}
+              className={`px-3 py-1 rounded text-xs font-medium ${getColorFuente(fuente)}`}
+            >
+              {fuente}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function GestionAsignaciones({ asesores, onUpdate, estadisticas = {} }: GestionAsignacionesProps) {
   // Función auxiliar para verificar si un asesor está bloqueado
   const isAsesorBloqueado = (asesor: Asesor, ahoraEpoch: number): boolean => {
@@ -284,6 +492,8 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
   const [motivoPrioridad, setMotivoPrioridad] = useState('');
   const [tipoPrioridadSeleccionada, setTipoPrioridadSeleccionada] = useState<TipoPrioridad>('BONUS');
   const [registros, setRegistros] = useState<Registro[]>([]);
+  const [vistaActiva, setVistaActiva] = useState<'principal' | 'asignaciones'>('principal');
+  const [todosLosClientes, setTodosLosClientes] = useState<any[]>([]);
   
   // Cargar registros para obtener las fuentes
   React.useEffect(() => {
@@ -298,6 +508,23 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
     
     cargarRegistros();
   }, []);
+
+  // Cargar todos los clientes para la vista de asignaciones
+  React.useEffect(() => {
+    const cargarTodosLosClientes = async () => {
+      if (vistaActiva === 'asignaciones') {
+        try {
+          const data = await apiClient.request<any[]>('/GERSSON_CLIENTES?ID_ASESOR=not.is.null&order=FECHA_CREACION.desc');
+          setTodosLosClientes(data || []);
+        } catch (error) {
+          console.error('Error al cargar clientes:', error);
+          setTodosLosClientes([]);
+        }
+      }
+    };
+    
+    cargarTodosLosClientes();
+  }, [vistaActiva]);
 
   // Función para obtener la fuente de un cliente
   const getFuente = (clienteId: number): string => {
@@ -1214,10 +1441,45 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
 
         </div>
         
+        {/* Tabs de navegación */}
+        <div className="mb-6 border-b border-gray-200">
+          <nav className="flex space-x-8">
+            <button
+              onClick={() => setVistaActiva('principal')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                vistaActiva === 'principal'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Gestión de Asignaciones
+            </button>
+            <button
+              onClick={() => setVistaActiva('asignaciones')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                vistaActiva === 'asignaciones'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Asignaciones por Día
+            </button>
+          </nav>
+        </div>
         
       </div>
 
-      
+      {/* Vista de Asignaciones por Día */}
+      {vistaActiva === 'asignaciones' && (
+        <VistaAsignacionesPorDia 
+          asesores={asesores}
+          clientes={todosLosClientes}
+          registros={registros}
+        />
+      )}
+
+      {/* Vista Principal */}
+      {vistaActiva === 'principal' && (
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-lg border border-gray-200">
           <thead className="bg-gradient-to-r from-gray-100 to-gray-50 border-b-2 border-gray-200">
@@ -1728,6 +1990,8 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
             ))}
           </tbody>
         </table>
+      </div>
+      )}
       </div>
 
       {/* Modal de Ayuda */}

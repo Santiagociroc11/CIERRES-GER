@@ -254,6 +254,12 @@ const getColorTiempo = (minutos: number | null, limite: number = 60) => {
 
 // Componente para la vista de asignaciones por día
 function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: Asesor[]; clientes: any[]; registros: Registro[] }) {
+  const [modoVisualizacion, setModoVisualizacion] = useState<'rangos' | 'dia-exacto'>('rangos');
+  const [fechaSeleccionada, setFechaSeleccionada] = useState<string>(() => {
+    const hoy = new Date();
+    return hoy.toISOString().split('T')[0];
+  });
+
   // Función para obtener la fuente de un cliente
   const getFuente = (clienteId: number): string => {
     const registrosCliente = registros.filter(r => r.ID_CLIENTE === clienteId);
@@ -277,8 +283,13 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
     return new Date(ts * 1000);
   };
 
-  // Función para obtener el rango de días (cada 5 días)
-  const getRangoDias = (fecha: Date): string => {
+  // Función para formatear fecha
+  const formatearFecha = (fecha: Date): string => {
+    return fecha.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  // Función para obtener el rango de días (cada 5 días) con fechas
+  const getRangoDias = (fecha: Date): { clave: string; label: string; fechaInicio: Date; fechaFin: Date } => {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const fechaCliente = new Date(fecha);
@@ -286,17 +297,50 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
     
     const diffDias = Math.floor((hoy.getTime() - fechaCliente.getTime()) / (1000 * 60 * 60 * 24));
     
-    if (diffDias < 0) return 'Futuro';
-    if (diffDias === 0) return 'Hoy';
+    if (diffDias < 0) {
+      return {
+        clave: 'Futuro',
+        label: 'Futuro',
+        fechaInicio: fechaCliente,
+        fechaFin: fechaCliente
+      };
+    }
+    if (diffDias === 0) {
+      return {
+        clave: 'Hoy',
+        label: 'Hoy',
+        fechaInicio: fechaCliente,
+        fechaFin: fechaCliente
+      };
+    }
     
     const rango = Math.floor(diffDias / 5);
     const inicio = rango * 5;
     const fin = inicio + 4;
     
+    const fechaFin = new Date(hoy);
+    fechaFin.setDate(fechaFin.getDate() - inicio);
+    const fechaInicio = new Date(hoy);
+    fechaInicio.setDate(fechaInicio.getDate() - fin);
+    
+    let label: string;
     if (rango === 0) {
-      return `1-${fin} días`;
+      label = `1-${fin} días`;
+    } else {
+      label = `${inicio + 1}-${fin + 1} días`;
     }
-    return `${inicio + 1}-${fin + 1} días`;
+    
+    return {
+      clave: label,
+      label: `${label} (${formatearFecha(fechaInicio)} - ${formatearFecha(fechaFin)})`,
+      fechaInicio,
+      fechaFin
+    };
+  };
+
+  // Función para obtener la clave del día exacto
+  const getDiaExacto = (fecha: Date): string => {
+    return formatearFecha(fecha);
   };
 
   // Procesar datos: agrupar por asesor y rango de días
@@ -313,42 +357,73 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
       if (!cliente.ID_ASESOR) return;
       
       const fechaCreacion = timestampToDate(cliente.FECHA_CREACION);
-      const rango = getRangoDias(fechaCreacion);
+      let clave: string;
+      
+      if (modoVisualizacion === 'dia-exacto') {
+        // Filtrar solo clientes del día seleccionado
+        const fechaSeleccionadaDate = new Date(fechaSeleccionada);
+        fechaSeleccionadaDate.setHours(0, 0, 0, 0);
+        const fechaClienteDate = new Date(fechaCreacion);
+        fechaClienteDate.setHours(0, 0, 0, 0);
+        
+        if (fechaClienteDate.getTime() !== fechaSeleccionadaDate.getTime()) {
+          return; // Saltar clientes que no son del día seleccionado
+        }
+        
+        clave = getDiaExacto(fechaCreacion);
+      } else {
+        const rango = getRangoDias(fechaCreacion);
+        clave = rango.clave;
+      }
+      
       const fuente = getFuente(cliente.ID);
 
-      if (!datos[cliente.ID_ASESOR][rango]) {
-        datos[cliente.ID_ASESOR][rango] = {};
+      if (!datos[cliente.ID_ASESOR][clave]) {
+        datos[cliente.ID_ASESOR][clave] = {};
       }
       
-      if (!datos[cliente.ID_ASESOR][rango][fuente]) {
-        datos[cliente.ID_ASESOR][rango][fuente] = 0;
+      if (!datos[cliente.ID_ASESOR][clave][fuente]) {
+        datos[cliente.ID_ASESOR][clave][fuente] = 0;
       }
       
-      datos[cliente.ID_ASESOR][rango][fuente]++;
+      datos[cliente.ID_ASESOR][clave][fuente]++;
     });
 
     return datos;
   }, [clientes, registros, asesores]);
 
-  // Obtener todos los rangos únicos
+  // Obtener todos los rangos únicos con sus etiquetas
   const rangosUnicos = useMemo(() => {
-    const rangos = new Set<string>();
-    Object.values(datosProcesados).forEach(asesorData => {
-      Object.keys(asesorData).forEach(rango => rangos.add(rango));
+    if (modoVisualizacion === 'dia-exacto') {
+      // En modo día exacto, solo mostrar el día seleccionado
+      return [getDiaExacto(new Date(fechaSeleccionada))];
+    }
+    
+    const rangosMap = new Map<string, { clave: string; label: string }>();
+    
+    // Procesar todos los clientes para obtener los rangos con fechas
+    clientes.forEach(cliente => {
+      if (!cliente.ID_ASESOR) return;
+      const fechaCreacion = timestampToDate(cliente.FECHA_CREACION);
+      const rango = getRangoDias(fechaCreacion);
+      if (!rangosMap.has(rango.clave)) {
+        rangosMap.set(rango.clave, { clave: rango.clave, label: rango.label });
+      }
     });
-    return Array.from(rangos).sort((a, b) => {
+    
+    return Array.from(rangosMap.values()).sort((a, b) => {
       // Ordenar: "Hoy" primero, luego "1-X días", luego por número de días ascendente
-      if (a === 'Hoy') return -1;
-      if (b === 'Hoy') return 1;
-      if (a === 'Futuro') return 1;
-      if (b === 'Futuro') return -1;
-      if (a.startsWith('1-')) return -1;
-      if (b.startsWith('1-')) return 1;
-      const numA = parseInt(a.split('-')[0]);
-      const numB = parseInt(b.split('-')[0]);
+      if (a.clave === 'Hoy') return -1;
+      if (b.clave === 'Hoy') return 1;
+      if (a.clave === 'Futuro') return 1;
+      if (b.clave === 'Futuro') return -1;
+      if (a.clave.startsWith('1-')) return -1;
+      if (b.clave.startsWith('1-')) return 1;
+      const numA = parseInt(a.clave.split('-')[0]);
+      const numB = parseInt(b.clave.split('-')[0]);
       return numA - numB;
     });
-  }, [datosProcesados]);
+  }, [datosProcesados, modoVisualizacion, fechaSeleccionada, clientes]);
 
   // Obtener todas las fuentes únicas
   const fuentesUnicas = useMemo(() => {
@@ -379,10 +454,40 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Asignaciones por Día</h2>
-        <p className="text-sm text-gray-600">
-          Visualización de clientes asignados por asesor, agrupados en rangos de 5 días y por fuente
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Asignaciones por Día</h2>
+            <p className="text-sm text-gray-600">
+              {modoVisualizacion === 'rangos' 
+                ? 'Visualización de clientes asignados por asesor, agrupados en rangos de 5 días y por fuente'
+                : 'Visualización de clientes asignados por asesor en un día específico'}
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Modo:</label>
+              <select
+                value={modoVisualizacion}
+                onChange={(e) => setModoVisualizacion(e.target.value as 'rangos' | 'dia-exacto')}
+                className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="rangos">Rangos de 5 días</option>
+                <option value="dia-exacto">Día exacto</option>
+              </select>
+            </div>
+            {modoVisualizacion === 'dia-exacto' && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Fecha:</label>
+                <input
+                  type="date"
+                  value={fechaSeleccionada}
+                  onChange={(e) => setFechaSeleccionada(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -393,8 +498,10 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
                 Asesor
               </th>
               {rangosUnicos.map(rango => (
-                <th key={rango} className="border border-gray-300 px-3 py-3 text-center text-xs font-semibold text-gray-700 uppercase">
-                  {rango}
+                <th key={rango.clave || rango} className="border border-gray-300 px-3 py-3 text-center text-xs font-semibold text-gray-700 uppercase">
+                  <div className="flex flex-col">
+                    <span>{typeof rango === 'string' ? rango : rango.label}</span>
+                  </div>
                 </th>
               ))}
             </tr>
@@ -408,11 +515,12 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
                     {asesor.NOMBRE}
                   </td>
                   {rangosUnicos.map(rango => {
-                    const datosRango = datosAsesor[rango] || {};
+                    const claveRango = typeof rango === 'string' ? rango : rango.clave;
+                    const datosRango = datosAsesor[claveRango] || {};
                     const total = Object.values(datosRango).reduce((sum, count) => sum + count, 0);
                     
                     return (
-                      <td key={rango} className="border border-gray-300 px-2 py-2 text-center align-top min-w-[150px]">
+                      <td key={claveRango} className="border border-gray-300 px-2 py-2 text-center align-top min-w-[150px]">
                         {total > 0 ? (
                           <div className="space-y-1.5">
                             <div className="text-xs font-bold text-gray-900 bg-gray-100 rounded px-2 py-0.5 inline-block">

@@ -612,6 +612,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
   });
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
   const [ordenamiento, setOrdenamiento] = useState<'nombre' | 'prioridad' | 'tasa_cierre'>('tasa_cierre');
+  const [tipoTasaConversion, setTipoTasaConversion] = useState<'global' | 'vip' | 'no_vip'>('global');
   const [mostrarModalAsignacionPuntos, setMostrarModalAsignacionPuntos] = useState(false);
   const [detallesAsignacionPuntos, setDetallesAsignacionPuntos] = useState<{
     actualizaciones: Array<{
@@ -627,6 +628,22 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
     promedioTasaCierre: 0
   });
   const [mostrarModalRestablecerPrioridades, setMostrarModalRestablecerPrioridades] = useState(false);
+
+  // Función auxiliar para obtener la tasa de conversión según el tipo seleccionado
+  const obtenerTasaConversion = (asesorId: number, tipo: 'global' | 'vip' | 'no_vip'): number => {
+    const stats = estadisticas[asesorId];
+    if (!stats) return 0;
+    
+    switch (tipo) {
+      case 'vip':
+        return stats.porcentajeCierreVIP !== undefined ? stats.porcentajeCierreVIP : stats.porcentajeCierre;
+      case 'no_vip':
+        return stats.porcentajeCierreNoVIP !== undefined ? stats.porcentajeCierreNoVIP : stats.porcentajeCierre;
+      case 'global':
+      default:
+        return stats.porcentajeCierre || 0;
+    }
+  };
 
   // Ordenar asesores según el criterio seleccionado
   const asesoresOrdenados = useMemo(() => {
@@ -647,15 +664,15 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
         const prioridadB = b.PRIORIDAD || 1;
         // Si las prioridades son iguales, ordenar por tasa de cierre
         if (prioridadB === prioridadA) {
-          const tasaA = estadisticas[a.ID]?.porcentajeCierre || 0;
-          const tasaB = estadisticas[b.ID]?.porcentajeCierre || 0;
+          const tasaA = obtenerTasaConversion(a.ID, tipoTasaConversion);
+          const tasaB = obtenerTasaConversion(b.ID, tipoTasaConversion);
           return tasaB - tasaA;
         }
         return prioridadB - prioridadA;
       }
       if (ordenamiento === 'tasa_cierre') {
-        const tasaA = estadisticas[a.ID]?.porcentajeCierre || 0;
-        const tasaB = estadisticas[b.ID]?.porcentajeCierre || 0;
+        const tasaA = obtenerTasaConversion(a.ID, tipoTasaConversion);
+        const tasaB = obtenerTasaConversion(b.ID, tipoTasaConversion);
         // Si las tasas son iguales, ordenar por prioridad
         if (tasaB === tasaA) {
           const prioridadA = a.PRIORIDAD || 1;
@@ -673,7 +690,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       }
       return comparacionNombre;
     });
-  }, [asesores, ordenamiento, estadisticas]);
+  }, [asesores, ordenamiento, estadisticas, tipoTasaConversion]);
 
   const reglasDescripciones: Record<ReglaTipo, ReglaDescripcion> = {
    
@@ -1058,7 +1075,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
       return;
     }
 
-    // Calcular el promedio de tasa de cierre
+    // Calcular el promedio de tasa de cierre global
     const promedioTasaCierre = Object.values(estadisticas).reduce((acc, stats) => acc + stats.porcentajeCierre, 0) / Object.keys(estadisticas).length;
 
     // Preparar un arreglo de actualizaciones
@@ -1312,6 +1329,18 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
               <option value="prioridad">Ordenar por prioridad</option>
               <option value="tasa_cierre">Ordenar por tasa de cierre</option>
             </select>
+            {ordenamiento === 'tasa_cierre' && (
+              <select
+                value={tipoTasaConversion}
+                onChange={(e) => setTipoTasaConversion(e.target.value as 'global' | 'vip' | 'no_vip')}
+                className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-blue-50"
+                title="Selecciona el tipo de tasa de conversión para ordenar"
+              >
+                <option value="global">Tasa Global</option>
+                <option value="vip">Tasa VIP</option>
+                <option value="no_vip">Tasa Otros (No VIP)</option>
+              </select>
+            )}
             <button
               onClick={prepararAsignacionPuntos}
               className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -1480,7 +1509,7 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
 
       {/* Vista Principal */}
       {vistaActiva === 'principal' && (
-      <div className="overflow-x-auto">
+        <div className="overflow-x-auto">
         <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-lg border border-gray-200">
           <thead className="bg-gradient-to-r from-gray-100 to-gray-50 border-b-2 border-gray-200">
             <tr>
@@ -1581,11 +1610,20 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                 <td className="px-4 py-6 text-center border-r border-gray-200">
                   {estadisticas[asesor.ID] ? (
                     <div className="flex flex-col items-center space-y-2">
-                      {/* Tasa principal */}
+                      {/* Tasa principal - mostrar según el tipo seleccionado cuando se ordena por tasa */}
                       <div className="flex flex-col items-center">
                         <div className="font-bold text-2xl text-blue-600">
-                          {estadisticas[asesor.ID].porcentajeCierre.toFixed(1)}%
+                          {ordenamiento === 'tasa_cierre' 
+                            ? obtenerTasaConversion(asesor.ID, tipoTasaConversion).toFixed(1)
+                            : estadisticas[asesor.ID].porcentajeCierre.toFixed(1)
+                          }%
                         </div>
+                        {/* Indicador del tipo de tasa mostrada */}
+                        {ordenamiento === 'tasa_cierre' && (
+                          <div className="text-xs text-blue-500 font-medium mt-1">
+                            {tipoTasaConversion === 'vip' ? 'VIP' : tipoTasaConversion === 'no_vip' ? 'Otros' : 'Global'}
+                          </div>
+                        )}
                         {/* Separación VIP/No VIP */}
                         {(estadisticas[asesor.ID].porcentajeCierreVIP !== undefined || estadisticas[asesor.ID].porcentajeCierreNoVIP !== undefined) && (
                           <div className="text-xs text-gray-500 mt-1 space-y-0.5">
@@ -1594,7 +1632,9 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                           </div>
                         )}
                         {(() => {
-                          const tasa = estadisticas[asesor.ID].porcentajeCierre;
+                          const tasa = ordenamiento === 'tasa_cierre' 
+                            ? obtenerTasaConversion(asesor.ID, tipoTasaConversion)
+                            : estadisticas[asesor.ID].porcentajeCierre;
                           if (tasa > OBJETIVO_TASA_CIERRE.MAX) {
                             return (
                               <div className="flex items-center gap-1 px-2 py-1 bg-green-50 rounded-full">
@@ -1648,7 +1688,9 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                         <div className="flex justify-between">
                           <span>Vs. objetivo:</span>
                           {(() => {
-                            const tasa = estadisticas[asesor.ID].porcentajeCierre;
+                            const tasa = ordenamiento === 'tasa_cierre' 
+                              ? obtenerTasaConversion(asesor.ID, tipoTasaConversion)
+                              : estadisticas[asesor.ID].porcentajeCierre;
                             const objetivo = (OBJETIVO_TASA_CIERRE.MIN + OBJETIVO_TASA_CIERRE.MAX) / 2;
                             const diferencia = tasa - objetivo;
                             return (
@@ -1662,7 +1704,9 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                         {/* Recomendación basada en rendimiento */}
                         <div className="mt-2">
                           {(() => {
-                            const tasa = estadisticas[asesor.ID].porcentajeCierre;
+                            const tasa = ordenamiento === 'tasa_cierre' 
+                              ? obtenerTasaConversion(asesor.ID, tipoTasaConversion)
+                              : estadisticas[asesor.ID].porcentajeCierre;
                             const prioridadActual = asesor.PRIORIDAD || 1;
                             
                             if (tasa > OBJETIVO_TASA_CIERRE.MAX && prioridadActual <= 1) {

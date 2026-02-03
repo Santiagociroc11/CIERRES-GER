@@ -1324,6 +1324,13 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                         <div className="font-bold text-2xl text-blue-600">
                           {estadisticas[asesor.ID].porcentajeCierre.toFixed(1)}%
                         </div>
+                        {/* Separación VIP/No VIP */}
+                        {(estadisticas[asesor.ID].porcentajeCierreVIP !== undefined || estadisticas[asesor.ID].porcentajeCierreNoVIP !== undefined) && (
+                          <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                            <div>VIP: {estadisticas[asesor.ID].porcentajeCierreVIP?.toFixed(1) || '0.0'}%</div>
+                            <div>Otros: {estadisticas[asesor.ID].porcentajeCierreNoVIP?.toFixed(1) || '0.0'}%</div>
+                          </div>
+                        )}
                         {(() => {
                           const tasa = estadisticas[asesor.ID].porcentajeCierre;
                           if (tasa > OBJETIVO_TASA_CIERRE.MAX) {
@@ -1361,6 +1368,19 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
                             {estadisticas[asesor.ID].ventasRealizadas} / {estadisticas[asesor.ID].totalClientes}
                           </span>
                         </div>
+                        {/* Separación VIP/No VIP para total clientes */}
+                        {(estadisticas[asesor.ID].totalClientesVIP !== undefined || estadisticas[asesor.ID].totalClientesNoVIP !== undefined) && (
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>VIP:</span>
+                            <span>{estadisticas[asesor.ID].totalClientesVIP || 0}</span>
+                          </div>
+                        )}
+                        {(estadisticas[asesor.ID].totalClientesVIP !== undefined || estadisticas[asesor.ID].totalClientesNoVIP !== undefined) && (
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>Otros:</span>
+                            <span>{estadisticas[asesor.ID].totalClientesNoVIP || 0}</span>
+                          </div>
+                        )}
                         
                         {/* Diferencia con el objetivo */}
                         <div className="flex justify-between">

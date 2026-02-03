@@ -280,9 +280,12 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
     return new Date(ts * 1000);
   };
 
-  // Función para formatear fecha
+  // Función para formatear fecha (formato consistente DD/MM/YYYY)
   const formatearFecha = (fecha: Date): string => {
-    return fecha.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dia = fecha.getDate().toString().padStart(2, '0');
+    const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+    const año = fecha.getFullYear();
+    return `${dia}/${mes}/${año}`;
   };
 
   // Función para obtener el rango de días (cada 5 días) con fechas
@@ -358,24 +361,30 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
       
       if (modoVisualizacion === 'dia-exacto') {
         // Filtrar solo clientes del día seleccionado
-        // Obtener timestamp del cliente (FECHA_CREACION es un string con timestamp en segundos)
-        const timestampCliente = typeof cliente.FECHA_CREACION === 'string' 
-          ? parseInt(cliente.FECHA_CREACION) 
-          : cliente.FECHA_CREACION;
+        // Usar fechaCreacion que ya está convertida desde timestamp
+        const fechaCliente = fechaCreacion;
         
-        // Convertir timestamp del cliente a fecha local
-        const fechaClienteLocal = new Date(timestampCliente * 1000);
-        
-        // Crear fecha seleccionada en zona horaria local (no UTC)
+        // Crear fecha seleccionada en zona horaria local
         const [año, mes, dia] = fechaSeleccionada.split('-').map(Number);
         const fechaSeleccionadaLocal = new Date(año, mes - 1, dia); // mes - 1 porque Date usa 0-11
         
         // Normalizar ambas fechas a medianoche en zona horaria local
-        fechaClienteLocal.setHours(0, 0, 0, 0);
-        fechaSeleccionadaLocal.setHours(0, 0, 0, 0);
+        const fechaClienteNormalizada = new Date(fechaCliente);
+        fechaClienteNormalizada.setHours(0, 0, 0, 0);
         
-        // Comparar directamente las fechas normalizadas
-        if (fechaClienteLocal.getTime() !== fechaSeleccionadaLocal.getTime()) {
+        const fechaSeleccionadaNormalizada = new Date(fechaSeleccionadaLocal);
+        fechaSeleccionadaNormalizada.setHours(0, 0, 0, 0);
+        
+        // Comparar año, mes y día directamente
+        const añoCliente = fechaClienteNormalizada.getFullYear();
+        const mesCliente = fechaClienteNormalizada.getMonth();
+        const diaCliente = fechaClienteNormalizada.getDate();
+        
+        const añoSeleccionado = fechaSeleccionadaNormalizada.getFullYear();
+        const mesSeleccionado = fechaSeleccionadaNormalizada.getMonth();
+        const diaSeleccionado = fechaSeleccionadaNormalizada.getDate();
+        
+        if (añoCliente !== añoSeleccionado || mesCliente !== mesSeleccionado || diaCliente !== diaSeleccionado) {
           return; // Saltar clientes que no son del día seleccionado
         }
         

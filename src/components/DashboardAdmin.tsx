@@ -1619,9 +1619,14 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     });
 
     const clientesReportados = new Set(reportesAsesor.map((r: any) => r.ID_CLIENTE)).size;
-    const clientesSinReporte = clientesAsesor.filter(
+    const clientesSinReporteList = clientesAsesor.filter(
       (c: any) => !reportesAsesor.find((r: any) => r.ID_CLIENTE === c.ID)
+    );
+    const clientesSinReporte = clientesSinReporteList.length;
+    const clientesSinReporteVIP = clientesSinReporteList.filter(
+      (c: any) => c.FUENTE === 'ASIGNACION_VIP'
     ).length;
+    const clientesSinReporteOtros = clientesSinReporte - clientesSinReporteVIP;
 
     // Agrupar ventas únicas por cliente según producto
     const uniqueVentasPrincipal = reportesFiltrados
@@ -1842,6 +1847,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       reportesPorCliente,
       reportesConSeguimiento,
       clientesSinReporte,
+      clientesSinReporteVIP,
+      clientesSinReporteOtros,
       clientesConReporte: clientesReportados,
       clientesEnSeguimiento: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'SEGUIMIENTO').length,
       clientesRechazados: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'NO INTERESADO').length,
@@ -2989,7 +2996,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">
-                        {stats?.clientesSinReporte || 0} clientes sin reporte
+                        <div>{stats?.clientesSinReporte || 0} sin reporte</div>
+                        <div className="text-xs text-gray-400">
+                          {stats?.clientesSinReporteVIP || 0} VIP, {stats?.clientesSinReporteOtros || 0} otros
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3557,6 +3567,14 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                   </span>
                                   <span className="font-semibold text-red-500">{stats?.clientesSinReporte}</span>
                                 </div>
+                                <div className="flex justify-between items-center pl-5">
+                                  <span className="text-xs text-purple-500">VIP:</span>
+                                  <span className="text-xs font-semibold text-purple-500">{stats?.clientesSinReporteVIP || 0}</span>
+                                </div>
+                                <div className="flex justify-between items-center pl-5">
+                                  <span className="text-xs text-gray-500">Otros:</span>
+                                  <span className="text-xs font-semibold text-gray-500">{stats?.clientesSinReporteOtros || 0}</span>
+                                </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm text-blue-500 flex items-center">
                                     <Clock className="h-4 w-4 mr-1" />
@@ -3900,6 +3918,9 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                     <span className="font-medium text-gray-900">{stats?.totalClientes || 0}</span>
                                     <span className="text-xs text-gray-500">
                                       {stats?.clientesSinReporte || 0} sin reporte
+                                    </span>
+                                    <span className="text-xs text-purple-500">
+                                      {stats?.clientesSinReporteVIP || 0} VIP, {stats?.clientesSinReporteOtros || 0} otros
                                     </span>
                                   </div>
                                 </td>

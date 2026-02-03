@@ -169,6 +169,8 @@ export interface EstadisticasAsesor {
 
 export interface EstadisticasDetalladas extends EstadisticasAsesor {
   clientesSinReporte: number;
+  clientesSinReporteVIP: number;
+  clientesSinReporteOtros: number;
   clientesConReporte: number;
   clientesEnSeguimiento: number;
   clientesRechazados: number;

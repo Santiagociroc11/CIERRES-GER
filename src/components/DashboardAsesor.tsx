@@ -21,6 +21,7 @@ interface NavItem {
   label: string;
   icon: typeof List;
   badge?: number;
+  badgeDetail?: string;
   color?: 'red' | 'yellow' | 'blue';
   description?: string;
 }
@@ -423,6 +424,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [asesor] = useState<Asesor>(asesorInicial);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clientesSinReporte, setClientesSinReporte] = useState<Cliente[]>([]);
+  const [clientesSinReporteVIP, setClientesSinReporteVIP] = useState<Cliente[]>([]);
+  const [clientesSinReporteOtros, setClientesSinReporteOtros] = useState<Cliente[]>([]);
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [clienteParaEstado, setClienteParaEstado] = useState<Cliente | null>(null);
   const [clienteParaVenta, setClienteParaVenta] = useState<Cliente | null>(null);
@@ -637,6 +640,7 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       label: 'Sin Reporte', 
       icon: MessageSquare,
       badge: clientesSinReporte.length,
+      badgeDetail: `${clientesSinReporteVIP.length} VIP, ${clientesSinReporteOtros.length} otros`,
       color: 'yellow',
       description: 'Clientes que necesitan primer contacto'
     },
@@ -677,6 +681,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           <div className="font-medium">{item.label}</div>
           {item.description && (
             <div className="text-xs opacity-75 mt-0.5 hidden sm:block">{item.description}</div>
+          )}
+          {item.badgeDetail && (
+            <div className="text-xs text-purple-600 mt-0.5 font-medium hidden sm:block">{item.badgeDetail}</div>
           )}
         </div>
         {item.badge !== undefined && item.badge > 0 && (
@@ -731,7 +738,10 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         setReportes(reportesData);
 
         const clientesConReporte = new Set(reportesData.map(r => r.ID_CLIENTE));
-        setClientesSinReporte(clientesProcesados.filter(c => !clientesConReporte.has(c.ID)));
+        const sinReporte = clientesProcesados.filter(c => !clientesConReporte.has(c.ID));
+        setClientesSinReporte(sinReporte);
+        setClientesSinReporteVIP(sinReporte.filter(c => c.FUENTE === 'ASIGNACION_VIP'));
+        setClientesSinReporteOtros(sinReporte.filter(c => c.FUENTE !== 'ASIGNACION_VIP'));
 
         const uniqueVentasPrincipal = reportesData
           .filter(r => (r.ESTADO_NUEVO === 'PAGADO') && r.PRODUCTO === 'PRINCIPAL')
@@ -1432,6 +1442,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
                       <div className="font-semibold">{item.label}</div>
                       {item.description && (
                         <div className="text-xs opacity-75 mt-0.5">{item.description}</div>
+                      )}
+                      {item.badgeDetail && (
+                        <div className="text-xs text-purple-600 mt-0.5 font-medium">{item.badgeDetail}</div>
                       )}
                     </div>
               {item.badge !== undefined && item.badge > 0 && (

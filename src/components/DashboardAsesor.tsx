@@ -788,6 +788,21 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       const clientesData = clientesSettled.status === 'fulfilled' ? clientesSettled.value : null;
       let reportesData: Reporte[] = reportesSettled.status === 'fulfilled' && Array.isArray(reportesSettled.value) ? reportesSettled.value : [];
       const conversacionesData = conversacionesSettled.status === 'fulfilled' && Array.isArray(conversacionesSettled.value) ? conversacionesSettled.value : [];
+      
+      // Cargar registros después de tener los clientes
+      let registrosData: any[] = [];
+      if (clientesData && clientesData.length > 0) {
+        try {
+          const clienteIds = clientesData.map(c => c.ID).join(',');
+          registrosData = await withRetry(
+            () => apiClient.request<any[]>(`/GERSSON_REGISTROS?ID_CLIENTE=in.(${clienteIds})`),
+            { ...retryOpt, maxAttempts: 2 }
+          );
+        } catch (error) {
+          console.warn('⚠️ Error cargando registros:', error);
+          registrosData = [];
+        }
+      }
 
       if (clientesSettled.status === 'rejected') console.error('❌ Error cargando clientes:', clientesSettled.reason);
       if (reportesSettled.status === 'rejected') console.error('❌ Error cargando reportes:', reportesSettled.reason);
@@ -845,8 +860,24 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       setClientesSinReporte(clientesSinReporteList);
       
       // Calcular separación VIP y no VIP para estadísticas
+      // Usar la misma lógica que en FuentesAnalysisPorAsesor: verificar TIPO_EVENTO === 'ASIGNACION_VIP' en registros
       const esClienteVIP = (cliente: Cliente): boolean => {
-        return cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP';
+        // Primero verificar por estado (para compatibilidad)
+        if (cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP') {
+          return true;
+        }
+        // Luego verificar por registro (más preciso, igual que en FuentesAnalysisPorAsesor)
+        const registrosCliente = registrosData.filter(r => r.ID_CLIENTE === cliente.ID);
+        if (registrosCliente.length > 0) {
+          // Ordenar por fecha más antigua primero para obtener la fuente original
+          registrosCliente.sort((a, b) => {
+            const fechaA = typeof a.FECHA_EVENTO === 'string' ? parseInt(a.FECHA_EVENTO) : a.FECHA_EVENTO;
+            const fechaB = typeof b.FECHA_EVENTO === 'string' ? parseInt(b.FECHA_EVENTO) : b.FECHA_EVENTO;
+            return fechaA - fechaB;
+          });
+          return registrosCliente[0].TIPO_EVENTO?.trim() === 'ASIGNACION_VIP';
+        }
+        return false;
       };
       const clientesSinReporteVIP = clientesSinReporteList.filter(c => esClienteVIP(c));
       const clientesSinReporteNoVIP = clientesSinReporteList.filter(c => !esClienteVIP(c));

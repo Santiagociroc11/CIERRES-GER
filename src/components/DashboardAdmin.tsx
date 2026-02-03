@@ -1574,7 +1574,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
             conversacionesAsesor,
             periodoSeleccionado,
             fechaInicio,
-            fechaFin
+            fechaFin,
+            registrosData
           );
         });
         setEstadisticas(nuevasEstadisticas);
@@ -1677,7 +1678,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     conversacionesAsesor: any[],
     periodo: 'año' | 'mes' | 'semana' | 'personalizado',
     inicio?: string,
-    fin?: string
+    fin?: string,
+    registrosData: any[] = []
   ): EstadisticasDetalladas => {
     const hoy = new Date();
     let fechaInicioFiltro = new Date();
@@ -1716,8 +1718,24 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     const clientesSinReporte = clientesSinReporteList.length;
     
     // Separar clientes sin reporte entre VIP y no VIP
+    // Usar la misma lógica que en FuentesAnalysisPorAsesor: verificar TIPO_EVENTO === 'ASIGNACION_VIP' en registros
     const esClienteVIP = (cliente: any): boolean => {
-      return cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP';
+      // Primero verificar por estado (para compatibilidad)
+      if (cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP') {
+        return true;
+      }
+      // Luego verificar por registro (más preciso, igual que en FuentesAnalysisPorAsesor)
+      const registrosCliente = registrosData.filter(r => r.ID_CLIENTE === cliente.ID);
+      if (registrosCliente.length > 0) {
+        // Ordenar por fecha más antigua primero para obtener la fuente original
+        registrosCliente.sort((a, b) => {
+          const fechaA = typeof a.FECHA_EVENTO === 'string' ? parseInt(a.FECHA_EVENTO) : a.FECHA_EVENTO;
+          const fechaB = typeof b.FECHA_EVENTO === 'string' ? parseInt(b.FECHA_EVENTO) : b.FECHA_EVENTO;
+          return fechaA - fechaB;
+        });
+        return registrosCliente[0].TIPO_EVENTO?.trim() === 'ASIGNACION_VIP';
+      }
+      return false;
     };
     const clientesSinReporteVIP = clientesSinReporteList.filter((c: any) => esClienteVIP(c)).length;
     const clientesSinReporteNoVIP = clientesSinReporte - clientesSinReporteVIP;
@@ -2399,7 +2417,8 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
         conversacionesAsesor,
         periodoSeleccionado,
         fechaInicio,
-        fechaFin
+        fechaFin,
+        registros
       );
       
       setEstadisticas(prevEstadisticas => ({

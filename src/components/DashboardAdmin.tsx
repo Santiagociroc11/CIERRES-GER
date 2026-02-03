@@ -1710,9 +1710,43 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     // Solo cuentan como "con reporte" los reportes completos (no los solo "Esperando respuesta")
     const reportesCompletosAsesor = reportesAsesor.filter((r: any) => esReporteCompleto(r));
     const clientesReportados = new Set(reportesCompletosAsesor.map((r: any) => r.ID_CLIENTE)).size;
-    const clientesSinReporte = clientesAsesor.filter(
+    const clientesSinReporteList = clientesAsesor.filter(
       (c: any) => !reportesAsesor.some((r: any) => r.ID_CLIENTE === c.ID && esReporteCompleto(r))
-    ).length;
+    );
+    const clientesSinReporte = clientesSinReporteList.length;
+    
+    // Separar clientes sin reporte entre VIP y no VIP
+    const esClienteVIP = (cliente: any): boolean => {
+      return cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP';
+    };
+    const clientesSinReporteVIP = clientesSinReporteList.filter((c: any) => esClienteVIP(c)).length;
+    const clientesSinReporteNoVIP = clientesSinReporte - clientesSinReporteVIP;
+    
+    // Separar total de clientes entre VIP y no VIP
+    const totalClientesVIP = clientesAsesor.filter((c: any) => esClienteVIP(c)).length;
+    const totalClientesNoVIP = clientesAsesor.length - totalClientesVIP;
+    
+    // Calcular ventas por VIP y no VIP
+    const clientesVIPIds = new Set(clientesAsesor.filter((c: any) => esClienteVIP(c)).map((c: any) => c.ID));
+    const ventasVIP = reportesFiltrados.filter((r: any) => 
+      (r.ESTADO_NUEVO === 'PAGADO') && clientesVIPIds.has(r.ID_CLIENTE)
+    ).reduce((acc: Record<number, boolean>, r: any) => {
+      acc[r.ID_CLIENTE] = true;
+      return acc;
+    }, {});
+    const ventasVIPCount = Object.keys(ventasVIP).length;
+    
+    const ventasNoVIP = reportesFiltrados.filter((r: any) => 
+      (r.ESTADO_NUEVO === 'PAGADO') && !clientesVIPIds.has(r.ID_CLIENTE)
+    ).reduce((acc: Record<number, boolean>, r: any) => {
+      acc[r.ID_CLIENTE] = true;
+      return acc;
+    }, {});
+    const ventasNoVIPCount = Object.keys(ventasNoVIP).length;
+    
+    // Calcular porcentaje de cierre separado
+    const porcentajeCierreVIP = totalClientesVIP > 0 ? (ventasVIPCount / totalClientesVIP) * 100 : 0;
+    const porcentajeCierreNoVIP = totalClientesNoVIP > 0 ? (ventasNoVIPCount / totalClientesNoVIP) * 100 : 0;
 
     // Agrupar ventas únicas por cliente según producto
     const uniqueVentasPrincipal = reportesFiltrados
@@ -1933,6 +1967,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
       reportesPorCliente,
       reportesConSeguimiento,
       clientesSinReporte,
+      clientesSinReporteVIP,
+      clientesSinReporteNoVIP,
+      totalClientesVIP,
+      totalClientesNoVIP,
+      porcentajeCierreVIP,
+      porcentajeCierreNoVIP,
       clientesConReporte: clientesReportados,
       clientesEnSeguimiento: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'SEGUIMIENTO').length,
       clientesRechazados: reportesAsesor.filter((r: any) => r.ESTADO_NUEVO === 'NO INTERESADO').length,
@@ -3084,7 +3124,10 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">
-                        {stats?.clientesSinReporte || 0} clientes sin reporte
+                        <div>{stats?.clientesSinReporte || 0} clientes sin reporte</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          VIP: {stats?.clientesSinReporteVIP || 0} | Otros: {stats?.clientesSinReporteNoVIP || 0}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3603,7 +3646,12 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                             </div>
                             <div className="flex items-center space-x-4">
                               <BarChart className="h-6 w-6 text-green-500" />
-                              <span className="text-lg font-bold">{stats?.porcentajeCierre.toFixed(1)}% Cierre</span>
+                              <div>
+                                <span className="text-lg font-bold">{stats?.porcentajeCierre.toFixed(1)}% Cierre</span>
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  VIP: {stats?.porcentajeCierreVIP?.toFixed(1) || '0.0'}% | Otros: {stats?.porcentajeCierreNoVIP?.toFixed(1) || '0.0'}%
+                                </div>
+                              </div>
                             </div>
                           </div>
                           {/* Estadísticas del asesor */}
@@ -3645,12 +3693,28 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                   <span className="text-sm">Total:</span>
                                   <span className="font-semibold">{stats?.totalClientes}</span>
                                 </div>
+                                <div className="flex justify-between items-center text-xs text-gray-500 pl-4">
+                                  <span>VIP:</span>
+                                  <span>{stats?.totalClientesVIP || 0}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-gray-500 pl-4">
+                                  <span>Otros:</span>
+                                  <span>{stats?.totalClientesNoVIP || 0}</span>
+                                </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm text-red-500 flex items-center">
                                     <AlertCircle className="h-4 w-4 mr-1" />
                                     Sin reporte:
                                   </span>
                                   <span className="font-semibold text-red-500">{stats?.clientesSinReporte}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-gray-500 pl-4">
+                                  <span>VIP:</span>
+                                  <span>{stats?.clientesSinReporteVIP || 0}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-gray-500 pl-4">
+                                  <span>Otros:</span>
+                                  <span>{stats?.clientesSinReporteNoVIP || 0}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm text-blue-500 flex items-center">
@@ -3715,6 +3779,14 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                 <div className="flex justify-between items-center">
                                   <span className="text-sm">Tasa de cierre:</span>
                                   <span className="font-semibold">{stats?.porcentajeCierre.toFixed(1)}%</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-gray-500 pl-4">
+                                  <span>VIP:</span>
+                                  <span>{stats?.porcentajeCierreVIP?.toFixed(1) || '0.0'}%</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-gray-500 pl-4">
+                                  <span>Otros:</span>
+                                  <span>{stats?.porcentajeCierreNoVIP?.toFixed(1) || '0.0'}%</span>
                                 </div>
                               </div>
                             </div>
@@ -3853,6 +3925,11 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                   {stats?.clientesSinReporte > 0 && (
                                     <li className="text-sm text-red-700">
                                       Tiene {stats.clientesSinReporte} cliente(s) sin reporte
+                                      {stats.clientesSinReporteVIP > 0 || stats.clientesSinReporteNoVIP > 0 && (
+                                        <span className="text-xs text-gray-600 ml-1">
+                                          (VIP: {stats.clientesSinReporteVIP || 0}, Otros: {stats.clientesSinReporteNoVIP || 0})
+                                        </span>
+                                      )}
                                     </li>
                                   )}
                                   {horasSinActividad !== null && horasSinActividad > 10 && (
@@ -3994,7 +4071,15 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                   <div className="flex flex-col">
                                     <span className="font-medium text-gray-900">{stats?.totalClientes || 0}</span>
                                     <span className="text-xs text-gray-500">
+                                      VIP: {stats?.totalClientesVIP || 0} | Otros: {stats?.totalClientesNoVIP || 0}
+                                    </span>
+                                    <span className="text-xs text-gray-500 mt-0.5">
                                       {stats?.clientesSinReporte || 0} sin reporte
+                                      {(stats?.clientesSinReporteVIP || 0) > 0 || (stats?.clientesSinReporteNoVIP || 0) > 0 ? (
+                                        <span className="block text-xs text-gray-400 mt-0.5">
+                                          VIP: {stats?.clientesSinReporteVIP || 0} | Otros: {stats?.clientesSinReporteNoVIP || 0}
+                                        </span>
+                                      ) : null}
                                     </span>
                                   </div>
                                 </td>
@@ -4005,9 +4090,14 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    {stats?.porcentajeCierre?.toFixed(1) || '0.0'}%
-                                  </span>
+                                  <div className="flex flex-col">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      {stats?.porcentajeCierre?.toFixed(1) || '0.0'}%
+                                    </span>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      VIP: {stats?.porcentajeCierreVIP?.toFixed(1) || '0.0'}% | Otros: {stats?.porcentajeCierreNoVIP?.toFixed(1) || '0.0'}%
+                                    </div>
+                                  </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                   {horasSinActividad !== null ? (

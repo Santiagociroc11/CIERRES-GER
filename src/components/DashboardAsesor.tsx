@@ -21,6 +21,7 @@ interface NavItem {
   label: string;
   icon: typeof List;
   badge?: number;
+  badgeDetail?: string;
   color?: 'red' | 'yellow' | 'blue';
   description?: string;
 }
@@ -423,6 +424,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
   const [asesor, setAsesor] = useState<Asesor>(asesorInicial);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clientesSinReporte, setClientesSinReporte] = useState<Cliente[]>([]);
+  const [clientesSinReporteVIP, setClientesSinReporteVIP] = useState<Cliente[]>([]);
+  const [clientesSinReporteNoVIP, setClientesSinReporteNoVIP] = useState<Cliente[]>([]);
   const [reportes, setReportes] = useState<Reporte[]>([]);
   const [conversaciones, setConversaciones] = useState<any[]>([]);
   const [clienteParaEstado, setClienteParaEstado] = useState<Cliente | null>(null);
@@ -689,6 +692,9 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       label: 'Sin Reporte', 
       icon: MessageSquare,
       badge: clientesSinReporte.length,
+      badgeDetail: clientesSinReporteVIP.length > 0 || clientesSinReporteNoVIP.length > 0 
+        ? `VIP: ${clientesSinReporteVIP.length} | Otros: ${clientesSinReporteNoVIP.length}`
+        : undefined,
       color: 'yellow',
       description: 'Clientes que necesitan primer contacto'
     },
@@ -732,17 +738,24 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
           )}
         </div>
         {item.badge !== undefined && item.badge > 0 && (
-          <span className={`
-            flex items-center justify-center min-w-[20px] h-5 text-xs font-bold rounded-full
-            ${item.color === 'red'
-              ? 'bg-red-500 text-white'
-              : item.color === 'yellow'
-              ? 'bg-yellow-500 text-white'
-              : 'bg-blue-500 text-white'
-            }
-          `}>
-            {item.badge}
-          </span>
+          <div className="flex flex-col items-end">
+            <span className={`
+              flex items-center justify-center min-w-[20px] h-5 text-xs font-bold rounded-full
+              ${item.color === 'red'
+                ? 'bg-red-500 text-white'
+                : item.color === 'yellow'
+                ? 'bg-yellow-500 text-white'
+                : 'bg-blue-500 text-white'
+              }
+            `}>
+              {item.badge}
+            </span>
+            {item.badgeDetail && (
+              <span className="text-xs text-gray-500 mt-0.5 hidden lg:block">
+                {item.badgeDetail}
+              </span>
+            )}
+          </div>
         )}
       </button>
     );
@@ -787,6 +800,8 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
         setClientes([]);
         setReportes([]);
         setClientesSinReporte([]);
+        setClientesSinReporteVIP([]);
+        setClientesSinReporteNoVIP([]);
         showToast('No se pudieron cargar los clientes. Reintenta en unos segundos.', 'error');
         return;
       }
@@ -826,7 +841,19 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
       // Solo cuentan como "con reporte" los reportes completos (no los solo "Esperando respuesta")
       const reportesCompletos = reportesData.filter(esReporteCompleto);
       const clientesConReporte = new Set(reportesCompletos.map(r => r.ID_CLIENTE));
-      setClientesSinReporte(clientesProcesados.filter(c => !clientesConReporte.has(c.ID)));
+      const clientesSinReporteList = clientesProcesados.filter(c => !clientesConReporte.has(c.ID));
+      setClientesSinReporte(clientesSinReporteList);
+      
+      // Calcular separación VIP y no VIP para estadísticas
+      const esClienteVIP = (cliente: Cliente): boolean => {
+        return cliente.ESTADO === 'LISTA-VIP' || cliente.ESTADO === 'VIP';
+      };
+      const clientesSinReporteVIP = clientesSinReporteList.filter(c => esClienteVIP(c));
+      const clientesSinReporteNoVIP = clientesSinReporteList.filter(c => !esClienteVIP(c));
+      
+      // Guardar en estado para usar en la visualización
+      setClientesSinReporteVIP(clientesSinReporteVIP);
+      setClientesSinReporteNoVIP(clientesSinReporteNoVIP);
 
       const uniqueVentasPrincipal = reportesData
         .filter(r => (r.ESTADO_NUEVO === 'PAGADO') && r.PRODUCTO === 'PRINCIPAL')

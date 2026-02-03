@@ -570,6 +570,17 @@ export default function DashboardAdmin({ asesor, adminRole, onLogout }: Dashboar
     cargarDatos();
   }, [periodoSeleccionado, fechaInicio, fechaFin]);
 
+  // Polling automático: recargar datos cada 2 minutos
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      console.log('🔄 Polling automático: Recargando datos...');
+      cargarDatos();
+    }, 2 * 60 * 1000); // 2 minutos en milisegundos
+
+    // Limpiar el intervalo cuando el componente se desmonte
+    return () => clearInterval(intervalId);
+  }, [periodoSeleccionado, fechaInicio, fechaFin]); // Recrear el intervalo si cambian los filtros
+
 
   const refrescarClientes = async () => {
     console.log("🔄 Refrescando solo datos de clientes...");

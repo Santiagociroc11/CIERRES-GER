@@ -529,6 +529,17 @@ export default function DashboardAsesor({ asesorInicial, onLogout }: DashboardAs
     cargarDatos();
   }, [asesor.ID]);
 
+  // Polling automático: recargar datos cada 2 minutos
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      console.log('🔄 Polling automático: Recargando datos del asesor...');
+      cargarDatos();
+    }, 2 * 60 * 1000); // 2 minutos en milisegundos
+
+    // Limpiar el intervalo cuando el componente se desmonte o cambie el asesor
+    return () => clearInterval(intervalId);
+  }, [asesor.ID]);
+
   // ⚡ MEJORA UX: Permitir que la plataforma cargue primero antes de verificar WhatsApp
   // Esto evita que el modal de "WhatsApp no conectado" aparezca inmediatamente,
   // proporcionando una mejor experiencia de usuario donde el dashboard se carga

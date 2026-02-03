@@ -361,12 +361,32 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
       
       if (modoVisualizacion === 'dia-exacto') {
         // Filtrar solo clientes del día seleccionado
-        const fechaSeleccionadaDate = new Date(fechaSeleccionada);
-        fechaSeleccionadaDate.setHours(0, 0, 0, 0);
-        const fechaClienteDate = new Date(fechaCreacion);
-        fechaClienteDate.setHours(0, 0, 0, 0);
+        // Convertir fecha seleccionada a timestamp para comparar
+        const fechaSeleccionadaDate = new Date(fechaSeleccionada + 'T00:00:00');
+        const timestampSeleccionado = Math.floor(fechaSeleccionadaDate.getTime() / 1000);
         
-        if (fechaClienteDate.getTime() !== fechaSeleccionadaDate.getTime()) {
+        // Obtener timestamp del cliente (FECHA_CREACION es un string con timestamp en segundos)
+        const timestampCliente = typeof cliente.FECHA_CREACION === 'string' 
+          ? parseInt(cliente.FECHA_CREACION) 
+          : cliente.FECHA_CREACION;
+        
+        // Convertir ambos timestamps a fechas y comparar solo año, mes y día
+        const fechaSeleccionadaNormalizada = new Date(timestampSeleccionado * 1000);
+        fechaSeleccionadaNormalizada.setHours(0, 0, 0, 0);
+        
+        const fechaClienteNormalizada = new Date(timestampCliente * 1000);
+        fechaClienteNormalizada.setHours(0, 0, 0, 0);
+        
+        // Comparar año, mes y día
+        const añoSeleccionado = fechaSeleccionadaNormalizada.getFullYear();
+        const mesSeleccionado = fechaSeleccionadaNormalizada.getMonth();
+        const diaSeleccionado = fechaSeleccionadaNormalizada.getDate();
+        
+        const añoCliente = fechaClienteNormalizada.getFullYear();
+        const mesCliente = fechaClienteNormalizada.getMonth();
+        const diaCliente = fechaClienteNormalizada.getDate();
+        
+        if (añoCliente !== añoSeleccionado || mesCliente !== mesSeleccionado || diaCliente !== diaSeleccionado) {
           return; // Saltar clientes que no son del día seleccionado
         }
         
@@ -390,7 +410,7 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
     });
 
     return datos;
-  }, [clientes, registros, asesores]);
+  }, [clientes, registros, asesores, modoVisualizacion, fechaSeleccionada]);
 
   // Obtener todos los rangos únicos con sus etiquetas
   const rangosUnicos = useMemo(() => {
@@ -618,6 +638,14 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
     };
     
     cargarRegistros();
+
+    // Polling automático: recargar registros cada 2 minutos
+    const intervalId = setInterval(() => {
+      console.log('🔄 Polling automático: Recargando registros...');
+      cargarRegistros();
+    }, 2 * 60 * 1000); // 2 minutos en milisegundos
+
+    return () => clearInterval(intervalId);
   }, []);
 
   // Cargar todos los clientes para la vista de asignaciones
@@ -635,6 +663,16 @@ export default function GestionAsignaciones({ asesores, onUpdate, estadisticas =
     };
     
     cargarTodosLosClientes();
+
+    // Polling automático: recargar clientes cada 2 minutos cuando está en vista de asignaciones
+    if (vistaActiva === 'asignaciones') {
+      const intervalId = setInterval(() => {
+        console.log('🔄 Polling automático: Recargando clientes para asignaciones...');
+        cargarTodosLosClientes();
+      }, 2 * 60 * 1000); // 2 minutos en milisegundos
+
+      return () => clearInterval(intervalId);
+    }
   }, [vistaActiva]);
 
   // Función para obtener la fuente de un cliente

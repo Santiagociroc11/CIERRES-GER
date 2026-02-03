@@ -263,9 +263,12 @@ function VistaAsignacionesPorDia({ asesores, clientes, registros }: { asesores: 
         const fechaB = typeof b.FECHA_EVENTO === 'string' ? parseInt(b.FECHA_EVENTO) : b.FECHA_EVENTO;
         return fechaA - fechaB;
       });
-      return registrosCliente[0].TIPO_EVENTO?.trim() || 'Desconocido';
+      const fuente = registrosCliente[0].TIPO_EVENTO?.trim() || 'Desconocido';
+      // Si la fuente es "Desconocido", asumir como "LINK"
+      return fuente === 'Desconocido' ? 'LINK' : fuente;
     }
-    return 'Desconocido';
+    // Si no hay registros, asumir como "LINK"
+    return 'LINK';
   };
 
   // Función para convertir timestamp a fecha
